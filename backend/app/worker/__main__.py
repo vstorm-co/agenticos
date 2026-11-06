@@ -111,6 +111,9 @@ async def serve(pools: list[Pool]) -> None:
     try:
         async with AsyncExitStack() as services:
             if any(pool is not Pool.INGEST for pool in pools):
+                from app.services.channels import email_state
+
+                await services.enter_async_context(email_state.in_worker())
                 await services.enter_async_context(live_turn.in_worker())
                 from app.main import app
                 from app.services.platform_mcp import serve_platform_mcp

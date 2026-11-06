@@ -1,4 +1,4 @@
-"""`0258_workflow_loop_scope` rewrites stored JSONB graphs on real PostgreSQL (#2770).
+"""`0296_workflow_loop_scope` rewrites stored JSONB graphs on real PostgreSQL (#2770).
 
 The conversion itself is covered without a database in
 `tests/test_workflow_loop_scope_migration.py`; this runs the revision's own
@@ -30,7 +30,7 @@ _TABLES = (
 
 
 def _migration() -> ModuleType:
-    path = Path(__file__).parents[2] / "alembic/versions/0258_workflow_loop_scope.py"
+    path = Path(__file__).parents[2] / "alembic/versions/0296_workflow_loop_scope.py"
     spec = importlib.util.spec_from_file_location("workflow_loop_scope_migration_rows", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

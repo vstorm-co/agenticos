@@ -1,5 +1,9 @@
 "use client";
 
+import { RoutineDialogFrame } from "./routine-dialog-frame";
+
+import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
+
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -22,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
   WizardNav,
-  WizardSteps,
 } from "@/components/ui";
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -30,7 +33,7 @@ import { useAgentEnvironments, useAgents } from "@/hooks";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
-import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
+import { TriggerTemplateSelector } from "@/components/triggers/trigger-template-picker";
 import { usePortalTargets } from "@/hooks/use-portal-targets";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
@@ -38,7 +41,7 @@ import { cn } from "@/lib/utils";
 import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
 import type { PortalCatalogEntry } from "@/types/portals";
 import type { EventSource, TriggerCreate, TriggerCreated } from "@/types/triggers";
-import { DIALOG_BROAD, DIALOG_CONFIRM, DIALOG_FRAMED } from "@/lib/dialog-sizes";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 /** The field label for a portal's target kind, as a fixed key. */
 function targetLabelKey(targetKind: string | null): string {
@@ -155,6 +158,7 @@ export function PortalTriggerDialog({
   // Which seeded template the message started from, or null for "from scratch".
   // Only tracked to light the picked card; the prompt stays freely editable.
   const [templateKey, setTemplateKey] = useState<string | null>(null);
+  const [resultMode, setResultMode] = useState<RoutineResultMode>("report");
   const [created, setCreated] = useState<TriggerCreated | null>(null);
 
   const eventSource = portal.event_source as EventSource;
@@ -179,6 +183,7 @@ export function PortalTriggerDialog({
     const eventConfig = { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) };
     const payload: TriggerCreate = {
       prompt,
+      ...(resultMode === "inbox" ? { result_mode: resultMode } : {}),
       name: name.trim() || null,
       trigger_type: "event",
       portal_key: portal.key,
@@ -245,240 +250,233 @@ export function PortalTriggerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Near-full-screen for the same reason as the raw form's wizard: the
-          message step is where the trigger is actually written. */}
-      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_BROAD)}>
-        <DialogHeader className="border-foreground/10 border-b px-6 py-4">
-          <DialogTitle className="text-base font-semibold">
-            {t("dialogTitle", { portal: portal.name })}
-          </DialogTitle>
-          <DialogDescription>{tt("createDescription")}</DialogDescription>
-          <WizardSteps
-            steps={[
-              { id: "preset", label: t("presetTab") },
-              { id: "configure", label: t("configureTab") },
-              { id: "message", label: tt("stepMessage") },
-            ]}
-            current={step}
+      <RoutineDialogFrame
+        title={t("dialogTitle", { portal: portal.name })}
+        description={tt("createDescription")}
+        progress={{
+          steps: [
+            { id: "preset", label: t("presetTab") },
+            { id: "configure", label: t("configureTab") },
+            { id: "message", label: tt("stepMessage") },
+          ],
+          current: step,
+        }}
+        bodyKey={step}
+        disabled={create.isPending}
+        footer={
+          <WizardNav
+            backIsStep={step !== "preset"}
+            backLabel={step !== "preset" ? tt("back") : tt("cancel")}
+            onBack={
+              step === "message"
+                ? () => setStep("configure")
+                : step === "configure"
+                  ? () => setStep("preset")
+                  : () => onOpenChange(false)
+            }
+            nextLabel={step === "message" ? tt("create") : tt("continue")}
+            onNext={
+              step === "preset"
+                ? () => setStep("configure")
+                : step === "configure"
+                  ? () => setStep("message")
+                  : submit
+            }
+            nextDisabled={
+              step === "preset"
+                ? preset === null
+                : step === "configure"
+                  ? effectiveAgentId === "" || (needsTarget && target.trim().length === 0)
+                  : !canSubmit
+            }
+            isLast={step === "message"}
+            busy={create.isPending}
+            busyLabel={tt("creating")}
           />
-        </DialogHeader>
-
-        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
-          {step === "preset" && (
-            <div className="space-y-2">
-              {portal.presets.map((entry) => {
-                const active = entry.key === presetKey;
-                return (
-                  <button
-                    key={entry.key}
-                    type="button"
-                    onClick={() => choosePreset(entry.key)}
-                    aria-pressed={active}
-                    className={cn(
-                      "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors",
-                      active
-                        ? "border-foreground/30 bg-accent"
-                        : "border-input hover:border-foreground/30",
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{entry.label}</p>
-                      <p className="text-muted-foreground text-xs">{entry.description}</p>
-                    </div>
-                    {active && <Check className="text-foreground mt-0.5 h-4 w-4 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {step === "configure" && (
-            <div className="space-y-4">
-              <FormField label={tt("agent")} htmlFor="portal-agent">
-                <Select
-                  value={effectiveAgentId}
-                  onValueChange={(next) => {
-                    setPickedAgentId(next);
-                    // A named environment belongs to one agent; carrying the
-                    // previous agent's choice across would be refused on create.
-                    setEnvironmentId(DEFAULT_ENV);
-                  }}
-                >
-                  <SelectTrigger id="portal-agent">
-                    <SelectValue placeholder={tt("chooseAgent")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {runnable.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        <span className="flex items-center gap-2">
-                          <AgentAvatar
-                            agentId={agent.id}
-                            slug={agent.slug}
-                            hasAvatar={agent.has_avatar}
-                            colorSlot={agent.avatar_color}
-                            size="sm"
-                          />
-                          {agent.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-
-              <FormField label={tt("nameLabel")} htmlFor="portal-name" description={tt("nameHelp")}>
-                <Input
-                  id="portal-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={tt("namePlaceholder")}
-                  maxLength={120}
-                />
-              </FormField>
-
-              {needsTarget && (
-                <FormField label={t(targetLabelKey(portal.target_kind))} htmlFor="portal-target">
-                  {targets.length > 0 ? (
-                    <Select value={target} onValueChange={setTarget}>
-                      <SelectTrigger id="portal-target">
-                        <SelectValue placeholder={t("targetPlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {targets.map((entry) => (
-                          <SelectItem key={entry.id} value={entry.id}>
-                            {entry.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="portal-target"
-                      value={target}
-                      onChange={(event) => setTarget(event.target.value)}
-                      placeholder={t("targetFreeText")}
-                      disabled={targetsLoading}
-                    />
+        }
+      >
+        {step === "preset" && (
+          <div className="space-y-2">
+            {portal.presets.map((entry) => {
+              const active = entry.key === presetKey;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => choosePreset(entry.key)}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors",
+                    active
+                      ? "border-foreground/30 bg-accent"
+                      : "border-input hover:border-foreground/30",
                   )}
-                </FormField>
-              )}
-
-              {filterKeys.map((key, index) => {
-                if (key === "site_url" && !can("mcp:manage")) return null;
-                const copy = FILTER_COPY[key]!;
-                const value = index === 0 ? filterA : filterB;
-                const onChange = index === 0 ? setFilterA : setFilterB;
-                return (
-                  <FormField
-                    key={key}
-                    label={t(copy.labelKey)}
-                    htmlFor={`portal-filter-${key}`}
-                    description={
-                      copy.helpKey
-                        ? t(copy.helpKey)
-                        : index === 0
-                          ? t("filterHelp")
-                          : key === "sender_contains"
-                            ? tt("senderVouchedHint")
-                            : undefined
-                    }
-                  >
-                    <Input
-                      id={`portal-filter-${key}`}
-                      value={value}
-                      onChange={(event) => onChange(event.target.value)}
-                      placeholder={t(copy.placeholderKey)}
-                      maxLength={["site_url", "folder_path", "folder_id"].includes(key) ? 512 : 255}
-                    />
-                  </FormField>
-                );
-              })}
-
-              <EventOptions
-                source={eventSource}
-                config={extraConfig}
-                onChange={setExtraConfig}
-                canManageConnections={can("mcp:manage")}
-              />
-              {namedEnvironments.length > 0 && (
-                <EnvironmentField
-                  id="portal-environment"
-                  value={environmentId}
-                  onChange={setEnvironmentId}
-                  environments={namedEnvironments}
-                  defaultEnvironment={defaultEnvironment}
-                />
-              )}
-            </div>
-          )}
-
-          {step === "message" && (
-            <div className="space-y-4">
-              <TriggerTemplatePicker
-                triggerType="event"
-                eventSource={eventSource}
-                selectedKey={templateKey}
-                onPick={(template) => {
-                  setTemplateKey(template.key);
-                  setPrompt(template.prompt);
-                }}
-                onScratch={() => {
-                  setTemplateKey(null);
-                  setPrompt("");
-                }}
-              />
-              <div className="space-y-1.5">
-                <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
-                <MarkdownEditor
-                  id="portal-prompt"
-                  label={tt("prompt")}
-                  value={prompt}
-                  onChange={setPrompt}
-                  placeholder={tt("promptPlaceholder")}
-                  rows={18}
-                  describedBy="portal-prompt-desc"
-                />
-                <p
-                  id="portal-prompt-desc"
-                  className="text-muted-foreground text-xs leading-relaxed"
                 >
-                  {tt("promptHelp")}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{entry.label}</p>
+                    <p className="text-muted-foreground text-xs">{entry.description}</p>
+                  </div>
+                  {active && <Check className="text-foreground mt-0.5 h-4 w-4 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        <WizardNav
-          backIsStep={step !== "preset"}
-          backLabel={step !== "preset" ? tt("back") : tt("cancel")}
-          onBack={
-            step === "message"
-              ? () => setStep("configure")
-              : step === "configure"
-                ? () => setStep("preset")
-                : () => onOpenChange(false)
-          }
-          nextLabel={step === "message" ? tt("create") : tt("continue")}
-          onNext={
-            step === "preset"
-              ? () => setStep("configure")
-              : step === "configure"
-                ? () => setStep("message")
-                : submit
-          }
-          nextDisabled={
-            step === "preset"
-              ? preset === null
-              : step === "configure"
-                ? effectiveAgentId === "" || (needsTarget && target.trim().length === 0)
-                : !canSubmit
-          }
-          isLast={step === "message"}
-          busy={create.isPending}
-          busyLabel={tt("creating")}
-        />
-      </DialogContent>
+        {step === "configure" && (
+          <div className="space-y-4">
+            <FormField label={tt("agent")} htmlFor="portal-agent">
+              <Select
+                value={effectiveAgentId}
+                onValueChange={(next) => {
+                  setPickedAgentId(next);
+                  // A named environment belongs to one agent; carrying the
+                  // previous agent's choice across would be refused on create.
+                  setEnvironmentId(DEFAULT_ENV);
+                }}
+              >
+                <SelectTrigger id="portal-agent">
+                  <SelectValue placeholder={tt("chooseAgent")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {runnable.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      <span className="flex items-center gap-2">
+                        <AgentAvatar
+                          agentId={agent.id}
+                          slug={agent.slug}
+                          hasAvatar={agent.has_avatar}
+                          colorSlot={agent.avatar_color}
+                          size="sm"
+                        />
+                        {agent.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <ResultModeField value={resultMode} onChange={setResultMode} />
+            <FormField label={tt("nameLabel")} htmlFor="portal-name" description={tt("nameHelp")}>
+              <Input
+                id="portal-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={tt("namePlaceholder")}
+                maxLength={120}
+              />
+            </FormField>
+
+            {needsTarget && (
+              <FormField label={t(targetLabelKey(portal.target_kind))} htmlFor="portal-target">
+                {targets.length > 0 ? (
+                  <Select value={target} onValueChange={setTarget}>
+                    <SelectTrigger id="portal-target">
+                      <SelectValue placeholder={t("targetPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {targets.map((entry) => (
+                        <SelectItem key={entry.id} value={entry.id}>
+                          {entry.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="portal-target"
+                    value={target}
+                    onChange={(event) => setTarget(event.target.value)}
+                    placeholder={t("targetFreeText")}
+                    disabled={targetsLoading}
+                  />
+                )}
+              </FormField>
+            )}
+
+            {filterKeys.map((key, index) => {
+              if (key === "site_url" && !can("mcp:manage")) return null;
+              const copy = FILTER_COPY[key]!;
+              const value = index === 0 ? filterA : filterB;
+              const onChange = index === 0 ? setFilterA : setFilterB;
+              return (
+                <FormField
+                  key={key}
+                  label={t(copy.labelKey)}
+                  htmlFor={`portal-filter-${key}`}
+                  description={
+                    copy.helpKey
+                      ? t(copy.helpKey)
+                      : index === 0
+                        ? t("filterHelp")
+                        : key === "sender_contains"
+                          ? tt("senderVouchedHint")
+                          : undefined
+                  }
+                >
+                  <Input
+                    id={`portal-filter-${key}`}
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    placeholder={t(copy.placeholderKey)}
+                    maxLength={["site_url", "folder_path", "folder_id"].includes(key) ? 512 : 255}
+                  />
+                </FormField>
+              );
+            })}
+
+            <EventOptions
+              source={eventSource}
+              config={extraConfig}
+              onChange={setExtraConfig}
+              canManageConnections={can("mcp:manage")}
+            />
+            {namedEnvironments.length > 0 && (
+              <EnvironmentField
+                id="portal-environment"
+                value={environmentId}
+                onChange={setEnvironmentId}
+                environments={namedEnvironments}
+                defaultEnvironment={defaultEnvironment}
+              />
+            )}
+          </div>
+        )}
+
+        {step === "message" && (
+          <div className="space-y-4">
+            <TriggerTemplateSelector
+              triggerType="event"
+              eventSource={eventSource}
+              selectedKey={templateKey}
+              onPick={(template) => {
+                setTemplateKey(template.key);
+                setPrompt(template.prompt);
+              }}
+              onScratch={() => {
+                setTemplateKey(null);
+                setPrompt("");
+              }}
+            />
+            <div className="space-y-1.5">
+              <MarkdownEditor
+                id="portal-prompt"
+                toolbar={<Label htmlFor="portal-prompt">{tt("prompt")}</Label>}
+                label={tt("prompt")}
+                value={prompt}
+                onChange={setPrompt}
+                placeholder={tt("promptPlaceholder")}
+                rows={8}
+                describedBy="portal-prompt-desc"
+              />
+              <p id="portal-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
+                {tt("promptHelp")}
+              </p>
+            </div>
+          </div>
+        )}
+      </RoutineDialogFrame>
     </Dialog>
   );
 }

@@ -372,6 +372,66 @@ describe("McpServerList", () => {
     );
   });
 
+  it("opens required Google setup instead of attempting dynamic registration", async () => {
+    catalogEntries = [
+      ...CATALOG.items,
+      {
+        ...CATALOG.items[1]!,
+        key: "google-calendar",
+        name: "Google Calendar",
+        url: "https://calendarmcp.googleapis.com/mcp/v1",
+        docs_url:
+          "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+      },
+    ];
+    await mount();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Google Calendar" })).getByRole("button", {
+        name: "Connect",
+      }),
+    );
+    expect(screen.getByLabelText("Client ID")).toBeVisible();
+    expect(screen.getByLabelText("Client secret")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open Google setup guide" })).toHaveAttribute(
+      "href",
+      catalogEntries[2]!.docs_url,
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Client ID"), "google-app");
+    await userEvent.type(screen.getByLabelText("Client secret"), "test-secret");
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/me/mcp-connections/oauth/start",
+        expect.objectContaining({ client_id: "google-app", client_secret: "test-secret" }),
+      ),
+    );
+  });
+
+  it("opens Google client setup from a connect link without starting registration", async () => {
+    catalogEntries = [
+      ...CATALOG.items,
+      {
+        ...CATALOG.items[1]!,
+        key: "google-calendar",
+        name: "Google Calendar",
+        url: "https://calendarmcp.googleapis.com/mcp/v1",
+        docs_url:
+          "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+      },
+    ];
+    window.history.replaceState({}, "", "/mcp-servers?connect=google-calendar");
+    await mount();
+    expect(await screen.findByLabelText("Client ID")).toBeVisible();
+    expect(screen.queryByText(/Leave it empty for a public client/)).toBeNull();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+  });
+
   it("offers the client fields only once OAuth is chosen, and only for a new connection", async () => {
     await mount();
 

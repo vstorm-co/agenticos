@@ -129,6 +129,7 @@ def load_builtins() -> None:
         error_raise,
         file_read,
         file_write,
+        flow_await_reply,
         flow_resume_link,
         flow_wait,
         html_parse,

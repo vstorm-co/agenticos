@@ -147,13 +147,13 @@ describe("useArtifactAgents", () => {
   it("lists the publishers once it is allowed to ask", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "ag1", name: "Reporter" }] });
     const { result } = renderHook(() => useArtifactAgents(true), { wrapper });
-    await waitFor(() => expect(result.current).toEqual([{ id: "ag1", name: "Reporter" }]));
+    await waitFor(() => expect(result.current.agents).toEqual([{ id: "ag1", name: "Reporter" }]));
     expect(apiClient.get).toHaveBeenCalledWith("/apps/agents");
   });
 
   it("asks nothing for a caller who may not see artifacts", () => {
     const { result } = renderHook(() => useArtifactAgents(false), { wrapper });
-    expect(result.current).toEqual([]);
+    expect(result.current.agents).toEqual([]);
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,7 @@
 "use client";
 
+import { COMMAND_ITEM_FOCUS } from "@/components/ui/control-styles";
+
 import { Command } from "cmdk";
 import { WorkflowAppIcon } from "@/components/workflows/workflow-app-icon";
 import type { WorkflowApp } from "@/components/workflows/apps";
@@ -142,7 +144,10 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
         onSelect={() =>
           onPick(action.definition, { connection_id: action.connectionId, tool: action.tool })
         }
-        className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
+        className={cn(
+          COMMAND_ITEM_FOCUS,
+          "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2",
+        )}
       >
         <Tile
           kind="group"
@@ -176,7 +181,10 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
       onSelect={() => onPick(item)}
       draggable={draggable}
       onDragStart={(event) => writeNodeDragData(event.dataTransfer, item)}
-      className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
+      className={cn(
+        COMMAND_ITEM_FOCUS,
+        "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2",
+      )}
     >
       <Tile kind={kind} item={item} />
       <span className="min-w-0 flex-1">
@@ -242,7 +250,10 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                       setOpen(group);
                       setQuery("");
                     }}
-                    className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm"
+                    className={cn(
+                      COMMAND_ITEM_FOCUS,
+                      "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm",
+                    )}
                   >
                     <Tile
                       kind="group"
@@ -270,7 +281,10 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
             <Command.Item
               value="__back__"
               onSelect={() => setOpen(null)}
-              className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
+              className={cn(
+                COMMAND_ITEM_FOCUS,
+                "text-muted-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium",
+              )}
             >
               <ArrowLeft aria-hidden="true" className="size-3.5" />
               {t("pickerBack")}
@@ -343,7 +357,10 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                       setOpen(group);
                       setQuery("");
                     }}
-                    className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
+                    className={cn(
+                      COMMAND_ITEM_FOCUS,
+                      "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2",
+                    )}
                   >
                     <Tile
                       kind="group"
@@ -383,7 +400,10 @@ function ConnectRow({ group, catalogKey }: { group: PickerGroup; catalogKey: str
       <Command.Item
         value={`connect:${catalogKey}`}
         onSelect={() => setConnecting(true)}
-        className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs"
+        className={cn(
+          COMMAND_ITEM_FOCUS,
+          "text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs",
+        )}
       >
         <Plus aria-hidden="true" className="size-4 shrink-0" />
         {t("appConnect", { server: group.app?.app.name ?? t(`appServer.${group.category}`) })}
@@ -414,7 +434,10 @@ function UntestedConnection({
           value={`refresh:${id}`}
           disabled={refresh.isPending}
           onSelect={() => refresh.mutate(id)}
-          className="aria-selected:bg-accent flex cursor-pointer items-center gap-2 rounded-lg p-2"
+          className={cn(
+            COMMAND_ITEM_FOCUS,
+            "flex cursor-pointer items-center gap-2 rounded-lg p-2",
+          )}
         >
           <RefreshCw
             aria-hidden="true"

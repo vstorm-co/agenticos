@@ -5,6 +5,8 @@ import { ArrowRight, Loader2, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { SetupIndicator } from "@/components/settings/setup-indicator";
+import { voiceSetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -194,7 +196,11 @@ function VoiceForm({ org }: { org: Organization }) {
 
   return (
     <div id="org-voice" data-tour="org-voice">
-      <SettingsSection title={t("voice.title")} description={t("voice.description")}>
+      <SettingsSection
+        status={<SetupIndicator hints={voiceSetupHints(org)} />}
+        title={t("voice.title")}
+        description={t("voice.description")}
+      >
         <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
         <OrgVoiceUsage />

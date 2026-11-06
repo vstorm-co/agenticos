@@ -1,3 +1,5 @@
+import userEvent from "@testing-library/user-event";
+import { Switch } from "./switch";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { FormField } from "./form-field";
@@ -19,6 +21,24 @@ describe("FormField feedback", () => {
     expect(field).toHaveAttribute("aria-describedby", "policy name-err");
     expect(screen.getByRole("alert")).toHaveTextContent("Already exists.");
     expect(screen.queryByText("Choose a name.")).not.toBeInTheDocument();
+  });
+
+  it("keeps a switch labelled and described when its control sits beside the text", async () => {
+    render(
+      <FormField
+        layout="switch"
+        htmlFor="reminders"
+        label="Allow reminders"
+        description="Only for conversations you follow."
+      >
+        <Switch />
+      </FormField>,
+    );
+    const toggle = screen.getByRole("switch", { name: "Allow reminders" });
+    expect(toggle).toHaveAccessibleDescription("Only for conversations you follow.");
+    expect(toggle).not.toBeChecked();
+    await userEvent.click(screen.getByText("Allow reminders"));
+    expect(toggle).toBeChecked();
   });
 
   it("returns to helper text when a validation error is resolved", () => {

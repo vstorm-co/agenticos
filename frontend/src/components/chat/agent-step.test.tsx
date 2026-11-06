@@ -123,3 +123,40 @@ describe("one step", () => {
     expect(screen.getByRole("presentation", { hidden: true })).toBeInTheDocument();
   });
 });
+
+it("shows a loading icon while running and the operation icon when settled", () => {
+  const { container, rerender } = render(
+    <AgentStep label="Read report" kind="read" state="running" expanded={false} />,
+  );
+  expect(container.querySelector(".lucide-loader-circle")).not.toBeNull();
+  expect(container.querySelector(".lucide-file-text")).toBeNull();
+  expect(screen.getByText("Running")).toBeInTheDocument();
+  rerender(<AgentStep label="Read report" kind="read" state="done" expanded={false} />);
+  expect(container.querySelector(".lucide-file-text")).not.toBeNull();
+  expect(screen.queryByText("Running")).toBeNull();
+});
+
+it("replaces the tool mark with a spinner only while it executes", () => {
+  const view = render(
+    <AgentStep
+      label="Create task"
+      kind="mcp"
+      state="running"
+      expanded={false}
+      mark={<span>Tool logo</span>}
+    />,
+  );
+  expect(view.container.querySelector(".lucide-loader-circle")).toBeInTheDocument();
+  expect(screen.queryByText("Tool logo")).toBeNull();
+  view.rerender(
+    <AgentStep
+      label="Create task"
+      kind="mcp"
+      state="done"
+      expanded={false}
+      mark={<span>Tool logo</span>}
+    />,
+  );
+  expect(view.container.querySelector(".lucide-loader-circle")).toBeNull();
+  expect(screen.getByText("Tool logo")).toBeVisible();
+});

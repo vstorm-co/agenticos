@@ -165,6 +165,10 @@ class TestDroppingACollection:
         )
         unfiled = AsyncMock(return_value=DeletedDocuments(storage_paths=[], vector_document_ids=[]))
         monkeypatch.setattr(
+            "app.repositories.rag_document_repo.table_holds_unfiled_outside",
+            AsyncMock(return_value=False),
+        )
+        monkeypatch.setattr(
             "app.repositories.rag_document_repo.delete_unfiled_with_vectors", unfiled
         )
         dispatch = AsyncMock()

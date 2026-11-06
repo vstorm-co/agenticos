@@ -160,6 +160,13 @@ async def resolve_access(
     if resource.organization_id != ctx.organization_id:
         return False
 
+    if resource_type is TABLE:
+        from app.services.task_access import table_access
+
+        managed = await table_access(db, ctx, resource.id, perm)
+        if managed is not None:
+            return managed
+
     if _scope_allows(ctx.scope_for(perm), resource, subject):
         return True
 
@@ -218,12 +225,23 @@ async def accessible_ids(
     scope = ctx.scope_for(perm)
     shared = await visible_resource_ids(db, ctx, resource_type=resource_type, perm=perm)
     granted = set(shared) if shared is not None else set()
-    return {
+    allowed = {
         resource.id
         for resource in resources
         if resource.organization_id == ctx.organization_id
         and (_scope_allows(scope, resource, subject) or resource.id in granted)
     }
+    if resource_type is TABLE:
+        from app.services.task_access import table_access
+
+        for resource in resources:
+            if resource.organization_id == ctx.organization_id:
+                managed = await table_access(db, ctx, resource.id, perm)
+                if managed is True:
+                    allowed.add(resource.id)
+                elif managed is False:
+                    allowed.discard(resource.id)
+    return allowed
 
 
 async def visible_resource_ids(

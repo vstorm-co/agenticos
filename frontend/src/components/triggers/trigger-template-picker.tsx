@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
-import { Label } from "@/components/ui";
+import { ChevronDown, LayoutTemplate } from "lucide-react";
+import { FORM_CONTROL } from "@/components/ui/control-styles";
+import { Label, Popover, PopoverContent, PopoverTrigger, Spinner } from "@/components/ui";
 import { useTriggerTemplates } from "@/hooks";
 import { templateIcon } from "@/lib/trigger-template-icons";
 import { cn } from "@/lib/utils";
@@ -133,5 +135,65 @@ export function TriggerTemplatePicker({
         </button>
       )}
     </div>
+  );
+}
+
+/** A stable-height entry point: catalog arrivals never move the message editor. */
+export function TriggerTemplateSelector(props: TriggerTemplatePickerProps) {
+  const t = useTranslations("triggers");
+  const [open, setOpen] = useState(false);
+  const { templates, isLoading, error } = useTriggerTemplates();
+  const selected = templates.find((template) => template.key === props.selectedKey);
+  const available = templates.some((template) =>
+    props.triggerType === "schedule"
+      ? template.trigger_type === "schedule"
+      : template.trigger_type === "event" && template.event_source === props.eventSource,
+  );
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={t("templatesLabel")}
+          className={cn(
+            FORM_CONTROL,
+            "flex h-10 w-full items-center gap-2.5 px-3 text-left text-sm",
+          )}
+        >
+          <LayoutTemplate aria-hidden className="text-muted-foreground size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{selected?.label ?? t("templatesLabel")}</span>
+          {isLoading ? (
+            <Spinner aria-hidden className="size-4 shrink-0" />
+          ) : (
+            <ChevronDown aria-hidden className="text-muted-foreground size-4 shrink-0" />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[var(--radix-popover-trigger-width)] p-3"
+        style={{ backgroundColor: "var(--color-card)" }}
+      >
+        {isLoading ? (
+          <Spinner className="mx-auto my-4 size-5" />
+        ) : available ? (
+          <TriggerTemplatePicker
+            {...props}
+            onPick={(template) => {
+              props.onPick(template);
+              setOpen(false);
+            }}
+            onScratch={() => {
+              props.onScratch();
+              setOpen(false);
+            }}
+          />
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {t(error ? "templatesLoadFailed" : "templatesUnavailable")}
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

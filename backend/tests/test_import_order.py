@@ -16,7 +16,7 @@ BACKEND = Path(__file__).resolve().parents[1]
         "app.services.virtual_tables",
         "app.services.agent_runner",
         "app.services.workflow_execution",
-        "app.agents.capabilities.virtual_tables",
+        "app.agents.table_bindings",
         "app.agents.capabilities.artifacts",
         "app.agents.factory",
         "app.agents.audience",

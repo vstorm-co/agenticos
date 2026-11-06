@@ -274,6 +274,7 @@ class TestToolDeclarations:
         )
 
     CONFIGS: dict[str, dict[str, Any]] = {
+        "phone_calls": {"endpoint_id": "00000000-0000-4000-8000-000000000001"},
         # The only capability whose *tools* are configuration rather than a fixed
         # list: a binding names which lookups it allows, so the widest
         # configuration is the one that allows all of them. Same reason the
@@ -296,18 +297,6 @@ class TestToolDeclarations:
         # without setting a reminder attaches nothing. One reminder on is what
         # makes it build here; it offers no tools either way.
         "system_reminders": {"goal_reanchor": {}},
-        # Builds `None` with no table granted and creation off, and offers
-        # `create_table` only with `allow_create`: the widest shape grants a table
-        # every operation and turns creation on.
-        "virtual_tables": {
-            "tables": [
-                {
-                    "table_id": "00000000-0000-0000-0000-000000000001",
-                    "operations": ["read", "create", "update", "delete"],
-                }
-            ],
-            "allow_create": True,
-        },
         # Builds `None` naming no workflow: one named is what makes it offer its tools.
         "workflows": {"workflow_ids": ["00000000-0000-0000-0000-000000000002"]},
     }
@@ -537,6 +526,18 @@ class TestEffectiveTools:
 
         assert (tool.id, tool.name) == ("search_documents", "search_refund_policy")
         assert tool.description == get("knowledge").tools[0].description
+
+    @pytest.mark.security
+    def test_a_rename_cannot_take_a_tool_off_its_mandatory_approval(self):
+        shared = {
+            tool.id: tool
+            for tool in get("memory_files").effective_tools(
+                {"share_memory": ToolOverride(name="publish_memory")}
+            )
+        }["share_memory"]
+
+        assert shared.name == "publish_memory"
+        assert shared.always_requires_approval
 
     def test_a_reworded_description_keeps_the_declared_name(self):
         (tool,) = get("knowledge").effective_tools(

@@ -187,6 +187,20 @@ export function mcpOAuthClient(clientId: string, clientSecret: string): McpOAuth
   return secret ? { client_id: id, client_secret: secret } : { client_id: id };
 }
 
+/** Google's hosted MCP services require a client created in Google Cloud. */
+export function needsGoogleOAuthClient(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.endsWith(".googleapis.com") &&
+      parsed.pathname.startsWith("/mcp/")
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** True when a secret was typed for a client nobody named. */
 export function secretWithoutClientId(clientId: string, clientSecret: string): boolean {
   return clientId.trim() === "" && clientSecret.trim() !== "";

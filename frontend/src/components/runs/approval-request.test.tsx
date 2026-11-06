@@ -81,3 +81,15 @@ describe("ApprovalDetails - the evidence, folded", () => {
     expect(screen.getByText("It takes nothing.")).toBeInTheDocument();
   });
 });
+
+it("shows task notes before routing ids in approval details", async () => {
+  inIntl(
+    <ApprovalDetails
+      toolName="create_task"
+      args={{ scope_id: "project", notes: "Review the owner", title: "Check invoice" }}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Details" }));
+  expect(screen.getByText("Review the owner")).toBeInTheDocument();
+  expect(screen.getByText("project")).toBeInTheDocument();
+});

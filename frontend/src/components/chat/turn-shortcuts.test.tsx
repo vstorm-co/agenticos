@@ -16,7 +16,11 @@ import { Perm, type Permission } from "@/types/permissions";
 const state = vi.hoisted(() => ({
   held: [] as string[],
   assistant: null as { status: string; can_use: boolean } | null,
-  dialogs: [] as { agentId: string | null; template?: TriggerTemplate }[],
+  dialogs: [] as {
+    agentId: string | null;
+    template?: TriggerTemplate;
+    originConversationId?: string | null;
+  }[],
 }));
 
 vi.mock("@/hooks/use-permissions", () => ({
@@ -27,11 +31,13 @@ vi.mock("@/components/triggers/trigger-form-dialog", () => ({
   TriggerFormDialog: ({
     agentId,
     initialTemplate,
+    originConversationId,
   }: {
     agentId: string | null;
     initialTemplate?: TriggerTemplate;
+    originConversationId?: string | null;
   }) => {
-    state.dialogs.push({ agentId, template: initialTemplate });
+    state.dialogs.push({ agentId, template: initialTemplate, originConversationId });
     return <div role="dialog" />;
   },
 }));
@@ -86,4 +92,11 @@ describe("TurnShortcuts", () => {
     expect(screen.queryByRole("button", { name: "Make an agent of this" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run this on a schedule" })).toBeVisible();
   });
+});
+
+it("keeps the source conversation when opening the routine wizard", async () => {
+  const user = userEvent.setup();
+  render(<TurnShortcuts request={REQUEST} agentId="a1" conversationId="original-chat" />);
+  await user.click(screen.getByRole("button", { name: "Run this on a schedule" }));
+  expect(state.dialogs.at(-1)?.originConversationId).toBe("original-chat");
 });

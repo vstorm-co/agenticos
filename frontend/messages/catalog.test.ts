@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messageformat-parser";
 
+import { CHAT_NOTIFICATION_CHANNELS } from "../src/lib/notification-preferences-api";
+
 import de from "./de.json";
 import en from "./en.json";
 import pl from "./pl.json";
@@ -351,4 +353,11 @@ describe("Turkish ICU contracts", () => {
       icuContract("{count, plural, other {# öğe}}"),
     );
   });
+});
+
+it.each([en, pl, de])("names every selectable private notification platform", (catalog) => {
+  const messages = new Map(entries(catalog));
+  for (const channel of CHAT_NOTIFICATION_CHANNELS) {
+    expect(messages.get(`notificationRoutes.${channel}`), channel).toBeTruthy();
+  }
 });

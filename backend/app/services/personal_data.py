@@ -33,7 +33,25 @@ from app.core.exceptions import BadRequestError
 from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
-from app.schemas.personal_data import PersonalDataExport, PersonalDataPurge
+from app.schemas.personal_data import (
+    CodingTaskChangeExport,
+    ConnectedAccountExport,
+    OutcomeExport,
+    PersonalDataExport,
+    PersonalDataPurge,
+    PhoneCallExport,
+    PhoneCaseAttemptExport,
+    PhoneContactExport,
+    PrivateTaskBoardExport,
+    PrivateTaskHistoryExport,
+    PrivateTaskRecordExport,
+    PrivateTaskSchemaExport,
+    ProjectTrackingExport,
+    RoutineAnswerExport,
+    RoutineDeviceWaitExport,
+    RoutineHealthExport,
+    RoutineSourceExport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +62,24 @@ _RATING_FIELDS = ("id", "message_id", "rating", "comment", "created_at")
 _SESSION_FIELDS = ("id", "device_name", "device_type", "ip_address", "created_at", "last_used_at")
 _RUN_FIELDS = ("id", "agent_id", "status", "surface", "cost_usd", "created_at")
 _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
+_CLAIM_FIELDS = (
+    "id",
+    "organization_id",
+    "agent_id",
+    "subject",
+    "statement",
+    "kind",
+    "origin",
+    "status",
+    "source_conversation_id",
+    "source_run_id",
+    "observed_at",
+    "effective_from",
+    "effective_to",
+    "supersedes_id",
+    "derived_from",
+    "episode",
+)
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
@@ -170,11 +206,71 @@ class PersonalDataService:
 
         conversations = await personal_data_repo.conversations_of(self.db, user_id)
         conversation_ids = [conversation.id for conversation in conversations]
-        await self._refuse_if_too_large(conversation_ids)
+        await self._refuse_if_too_large(conversation_ids, user_id=user_id)
         messages = await personal_data_repo.messages_in(self.db, conversation_ids, user_id=user_id)
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            private_task_history=[
+                PrivateTaskHistoryExport.model_validate(row)
+                for row in await personal_data_repo.private_task_history_of(self.db, user_id)
+            ],
+            private_task_schemas=[
+                PrivateTaskSchemaExport.model_validate(row)
+                for row in await personal_data_repo.private_task_schemas_of(self.db, user_id)
+            ],
+            private_task_boards=[
+                PrivateTaskBoardExport.model_validate(row)
+                for row in await personal_data_repo.private_task_boards_of(self.db, user_id)
+            ],
+            private_task_records=[
+                PrivateTaskRecordExport.model_validate(row)
+                for row in await personal_data_repo.private_task_records_of(self.db, user_id)
+            ],
+            connected_accounts=[
+                ConnectedAccountExport.model_validate(row)
+                for row in await personal_data_repo.connected_accounts_of(self.db, user_id)
+            ],
+            coding_task_changes=[
+                CodingTaskChangeExport.model_validate(row)
+                for row in await personal_data_repo.coding_changes_in(self.db, conversation_ids)
+            ],
+            outcomes=[
+                OutcomeExport.model_validate(row)
+                for row in await personal_data_repo.outcomes_of(self.db, user_id)
+            ],
+            phone_case_attempts=[
+                PhoneCaseAttemptExport.model_validate(row)
+                for row in await personal_data_repo.phone_case_attempts_of(self.db, user_id)
+            ],
+            phone_contacts=[
+                PhoneContactExport.model_validate(row)
+                for row in await personal_data_repo.phone_contacts_of(self.db, user_id)
+            ],
+            phone_calls=[
+                PhoneCallExport.model_validate(row)
+                for row in await personal_data_repo.phone_calls_of(self.db, user_id)
+            ],
+            project_trackers=[
+                ProjectTrackingExport.model_validate(row)
+                for row in await personal_data_repo.project_trackers_of(self.db, user_id)
+            ],
+            routine_sources=[
+                RoutineSourceExport.model_validate(row)
+                for row in await personal_data_repo.routine_sources_of(self.db, user_id)
+            ],
+            routine_health=[
+                RoutineHealthExport.model_validate(row)
+                for row in await personal_data_repo.routine_health_of(self.db, user_id)
+            ],
+            routine_device_waits=[
+                RoutineDeviceWaitExport.model_validate(wait)
+                for wait in await personal_data_repo.routine_device_waits_of(self.db, user_id)
+            ],
+            routine_deliveries=[
+                RoutineAnswerExport.model_validate(receipt)
+                for receipt in await personal_data_repo.routine_deliveries_of(self.db, user_id)
+            ],
             exported_at=datetime.now(UTC),
             profile=profile,
             conversations=personal_data_repo.as_rows(conversations, _CONVERSATION_FIELDS),
@@ -199,6 +295,10 @@ class PersonalDataService:
                 await personal_data_repo.memory_about(self.db, person_owner_key(user_id)),
                 _MEMORY_FIELDS,
             ),
+            memory_claims=personal_data_repo.as_rows(
+                await personal_data_repo.claims_about(self.db, person_owner_key(user_id)),
+                _CLAIM_FIELDS,
+            ),
             channel_identities=personal_data_repo.as_rows(
                 await personal_data_repo.identities_of(self.db, user_id), _IDENTITY_FIELDS
             ),
@@ -214,6 +314,22 @@ class PersonalDataService:
             notification_preferences=personal_data_repo.as_rows(
                 await personal_data_repo.notification_preferences_of(self.db, user_id),
                 _NOTIFICATION_PREFERENCE_FIELDS,
+            ),
+            notification_routes=personal_data_repo.as_rows(
+                await personal_data_repo.notification_routes_of(self.db, user_id),
+                ("id", "organization_id", "channel", "session_id", "created_at"),
+            ),
+            coding_accounts=personal_data_repo.as_rows(
+                await personal_data_repo.coding_accounts_of(self.db, user_id),
+                (
+                    "id",
+                    "organization_id",
+                    "harness",
+                    "label",
+                    "secret_kind",
+                    "enabled",
+                    "created_at",
+                ),
             ),
             browser_sign_ins=personal_data_repo.as_rows(
                 await personal_data_repo.browser_sign_ins_of(self.db, user_id), _SIGN_IN_FIELDS
@@ -249,7 +365,7 @@ class PersonalDataService:
         )
         return export
 
-    async def _refuse_if_too_large(self, conversation_ids: list[UUID]) -> None:
+    async def _refuse_if_too_large(self, conversation_ids: list[UUID], *, user_id: UUID) -> None:
         """Refuse an export this process would have to hold in memory whole.
 
         The document is assembled and serialized in one response and
@@ -270,6 +386,16 @@ class PersonalDataService:
                 operator can act on it.
         """
         size = await personal_data_repo.export_size(self.db, conversation_ids)
+        size += await personal_data_repo.coding_change_export_size(self.db, conversation_ids)
+        size += await personal_data_repo.routine_answer_export_size(self.db, user_id)
+        size += await personal_data_repo.routine_device_wait_export_size(self.db, user_id)
+        size += await personal_data_repo.routine_health_export_size(self.db, user_id)
+        size += await personal_data_repo.routine_source_export_size(self.db, user_id)
+        size += await personal_data_repo.project_tracking_export_size(self.db, user_id)
+        size += await personal_data_repo.decision_episode_export_size(self.db, user_id)
+        size += await personal_data_repo.phone_export_size(self.db, user_id)
+        size += await personal_data_repo.outcome_export_size(self.db, user_id)
+        size += await personal_data_repo.private_task_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(
@@ -283,9 +409,11 @@ class PersonalDataService:
     async def purge(self, user_id: UUID) -> PersonalDataPurge:
         """Remove what no cascade reaches, before the user row goes.
 
-        Three tables hold data *about* a person with no foreign key that would
-        take it with them:
+        These resources hold data *about* a person without a user foreign key
+        that would remove their contents:
 
+        - private task boards, keyed by a scope UUID; their managed tables and
+          queued lifecycle work are removed before deleting the account;
         - `agent_memory_files`, keyed by the string `person:<user_id>` - notes
           every agent wrote about them, in every organization, which a deleted
           account left behind entirely;
@@ -311,6 +439,10 @@ class PersonalDataService:
         # commit. A memory write for the same person takes it too, so the two
         # cannot interleave into a note that survives the account it is about.
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
+        from app.services.tasks import TaskService
+
+        await TaskService(self.db).purge_scope("private", user_id)
+        await personal_data_repo.purge_routine_authority(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
         identities = await personal_data_repo.purge_identities_of(self.db, user_id)
         workspaces = await personal_data_repo.purge_workspaces_of(

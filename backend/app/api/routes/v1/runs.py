@@ -47,6 +47,7 @@ from app.schemas.agent_run import (
     CostSummary,
     RunTranscript,
     RunTranscriptMessage,
+    ToolConsentRead,
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
@@ -601,7 +602,13 @@ async def decide_approval(
     for every person's decision on such a run, and a client must not resume the
     run itself then. A key's decision continues nothing.
     """
-    decided = await service.decide(ctx, approval_id, approved=data.approved, note=data.note)
+    decided = await service.decide(
+        ctx,
+        approval_id,
+        approved=data.approved,
+        note=data.note,
+        **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
+    )
     return ApprovalRead.model_validate(decided.approval).model_copy(
         update={"continues_in_chat": decided.continues_in_chat}
     )
@@ -721,3 +728,24 @@ async def export_spend(
     """
     result = await service.export_spend(ctx, since=from_date, until=to_date)
     return csv_response(result)
+
+
+@router.get(
+    "/approvals/consents",
+    response_model=list[ToolConsentRead],
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def tool_consents(service: ApprovalSvc, ctx: Auth) -> Any:
+    """The initiating person's remembered tool choices in this organization."""
+    return await service.list_consents(ctx)
+
+
+@router.delete(
+    "/approvals/{approval_id}/consent",
+    status_code=204,
+    response_model=None,
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def revoke_tool_consent(approval_id: UUID, service: ApprovalSvc, ctx: Auth) -> Any:
+    """Forget a remembered choice; the original approval and audit history remain."""
+    await service.revoke_consent(ctx, approval_id)

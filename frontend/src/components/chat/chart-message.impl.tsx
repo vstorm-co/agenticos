@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  CHART_TOOLTIP_CONTENT as TOOLTIP_CONTENT,
+  CHART_TOOLTIP_LABEL as TOOLTIP_LABEL,
+  CHART_TOOLTIP_ITEM as TOOLTIP_ITEM,
+} from "@/lib/chart-styles";
+
 import { memo, useMemo } from "react";
 import {
   Area,
@@ -39,25 +45,10 @@ const DEFAULT_PALETTE = [
 // Recharts renders raw SVG, so it can't use Tailwind classes - it must read
 // the app's CSS theme variables inline. These resolve to the right values in
 // both light and dark mode automatically.
-const AXIS_TICK = { fill: "var(--color-muted-foreground)", fontSize: 11 } as const;
+const AXIS_TICK = { fill: "var(--color-muted-foreground)", fontSize: 12 } as const;
 const AXIS_LINE = { stroke: "var(--color-border)" } as const;
 const GRID_STROKE = "var(--color-border)";
 
-const TOOLTIP_CONTENT = {
-  background: "var(--color-popover)",
-  border: "1px solid var(--color-border)",
-  borderRadius: 10,
-  fontSize: 12,
-  padding: "8px 10px",
-  boxShadow: "0 8px 24px rgb(0 0 0 / 0.16)",
-} as const;
-const TOOLTIP_LABEL = {
-  color: "var(--color-muted-foreground)",
-  marginBottom: 4,
-  fontSize: 11,
-  fontWeight: 600,
-} as const;
-const TOOLTIP_ITEM = { color: "var(--color-popover-foreground)" } as const;
 const LEGEND_STYLE = { fontSize: 12, paddingTop: 6 } as const;
 
 const LINE_CURSOR = {
@@ -127,7 +118,7 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
         position: "insideBottom" as const,
         offset: 0,
         fill: "var(--color-muted-foreground)",
-        fontSize: 11,
+        fontSize: 12,
       }
     : undefined;
 
@@ -160,7 +151,7 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
               style: {
                 textAnchor: "middle",
                 fill: "var(--color-muted-foreground)",
-                fontSize: 11,
+                fontSize: 12,
               },
             }
           : undefined
@@ -182,7 +173,12 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
   );
 
   const legend = showLegend ? (
-    <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" iconSize={9} />
+    <Legend
+      wrapperStyle={LEGEND_STYLE}
+      iconType="circle"
+      iconSize={9}
+      formatter={(value: string) => <span className="text-foreground">{value}</span>}
+    />
   ) : null;
 
   const renderChart = () => {
@@ -301,7 +297,7 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
                     style: {
                       textAnchor: "middle",
                       fill: "var(--color-muted-foreground)",
-                      fontSize: 11,
+                      fontSize: 12,
                     },
                   }
                 : undefined

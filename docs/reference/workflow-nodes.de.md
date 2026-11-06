@@ -1,5 +1,5 @@
 ---
-source_sha: "c9c91f40a6b7"
+source_sha: "4c0ea0dd7cf0"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -878,14 +878,20 @@ kann:
 
 ## notification.send { #notification-send }
 
-Benachrichtigt Mitglieder der Organisation in der App, per E-Mail oder beides,
-über das Benachrichtigungszentrum. Empfänger sind Mitglieder, die per ID
+Benachrichtigt Organisationsmitglieder über das Benachrichtigungszentrum: in der
+App, per E-Mail, Push, Slack, Telegram, Mattermost, Microsoft Teams, SMS oder iMessage. Empfänger sind Mitglieder, die per ID
 angegeben werden. Zur Laufzeit muss jeder noch ein aktives Mitglied sein, das
 den Workflow sehen kann, alle anderen werden ausgelassen. Bleibt niemand übrig,
 schlägt der Schritt mit `NO_PERMITTED_RECIPIENTS` fehl. Die Einstellungen jeder
 Person für **Workflow notifications** gelten weiterhin. Der Schritt ist
 abgeschlossen, wenn die Benachrichtigung geschrieben ist, die E-Mail wird danach
 zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
+
+Private Chats erfordern die eigene ausdrücklich eingerichtete Benachrichtigungsroute
+und Zustimmung des Empfängers. Die Auswahl erteilt keine Zustimmung und erlaubt
+keine vom Workflow angegebene Chatadresse. Vor dem Versand prüft die Zustellung
+Zugriff, Einstellungen und Routenberechtigung erneut. Der Versand erfolgt nach
+Abschluss des Schritts; der Abschluss bestätigt keinen Empfang.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
@@ -1013,6 +1019,46 @@ abgelehnt, und ein Link, der nicht zum Lauf gehört, antwortet `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Auf E-Mail-Antwort warten.** Ein verbundenes Gmail- oder Outlook-Postfach der
+Organisation, die Thread-ID des Anbieters, den genauen `expected_sender`,
+`not_before` und `deadline` mit Zeitzone sowie optional die ursprüngliche RFC
+`anchor_message_id` auswählen. Outlook unterstützt freigegebene Postfächer, die
+das Konto lesen darf. Der Schritt liest ausschließlich Metadaten alle 60–3600
+Sekunden (Standard 300) über den dauerhaften Workflow-Timer. Während der Wartezeit
+belegt er weder Worker noch Modell. Konto und Zustimmungsgeneration bleiben über
+Neustarts erhalten; ein anderes Konto ersetzt das ausgewählte niemals automatisch.
+
+`reply` gewinnt bei einer authentifizierten Antwort des erwarteten Absenders im
+selben Thread nach `not_before` und spätestens zur Frist. Optionale RFC-Header
+schränken den Treffer nur ein. Gesendete Nachrichten, Entwürfe, automatische
+Antworten und Empfangsbestätigungen zählen nicht. Eine erfolgreiche letzte Prüfung
+ohne verifizierten Treffer führt zu `deadline`; `ignored_unverified` zählt passende,
+aber nicht authentifizierte Nachrichten. Das bedeutet **keine verifizierte passende
+Antwort**, keinen Beweis, dass niemand geschrieben hat. Nicht lesbare, zu große
+oder widerrufene Postfächer führen ausdrücklich zum Fehler, niemals zum Fristzweig.
+Maximal 500 Nachrichten und fünf Graph-Seiten werden geprüft. Bereits vor dem ersten
+Warten eingetroffene Antworten werden berücksichtigt.
+
+Im Schritte-Tab können der ausführende Benutzer oder Workflow-Editoren die wartende
+Erwartung pausieren oder korrigieren; bei Testläufen nur Editoren. Eine laufende
+Prüfung antwortet mit 409. Pausieren behält die Frist bei und liest keine Post.
+Die ausdrückliche Prüfung erneuerter Zustimmung gilt nur für dasselbe Konto.
+Ein Schritt mit Klärungsbedarf braucht weiterhin eine eigene Wiederholungsentscheidung.
+Abbrechen schließt den Timer und verhindert Folgeschritte. Maximal dreißig Tage;
+die Workflow-Frist kann früher enden. Folgemaßnahmen im Zweig `deadline` verwenden
+die üblichen Benachrichtigungs- und Freigabeschritte; dieser Schritt sendet keine E-Mail.
+
+Verstreicht die Frist während der Pause, endet der Schritt mit einem Fehler,
+ohne das Postfach zu lesen oder eine fehlende Antwort zu behaupten. Vorher fortsetzen oder korrigieren.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

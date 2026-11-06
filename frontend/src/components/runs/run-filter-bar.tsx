@@ -34,6 +34,9 @@ export const SURFACES = [
   "mattermost",
   "a2a",
   "teams",
+  "sms",
+  "email",
+
   "discord",
   "schedule",
   "workflow",
@@ -121,7 +124,7 @@ export function RunFilterBar({
         value={filters.modality}
         onValueChange={(value) => set({ modality: value as RunFilters["modality"] })}
       >
-        <SelectTrigger className="h-8 w-[140px]" aria-label={t("modalityFilter")}>
+        <SelectTrigger size="sm" className="w-[140px]" aria-label={t("modalityFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

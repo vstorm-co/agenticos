@@ -810,6 +810,7 @@ function choiceMark(choice: string, field: string) {
           />
         );
       case "sandbox":
+      case "personal_sandbox":
         return <Container className={className} aria-hidden />;
       case "this_computer":
       case "local":

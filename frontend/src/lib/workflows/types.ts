@@ -448,8 +448,16 @@ export interface WorkflowVersionList {
 }
 
 /** Create a workflow. Mirrors `WorkflowCreate`. */
+export interface ReplyMailboxSelection {
+  provider: "google" | "outlook";
+  connection_id: string;
+  mailbox?: string | null;
+}
+
 export interface WorkflowCreate {
-  template_id?: "publicApi" | "markdownNotes";
+  template_id?: "publicApi" | "markdownNotes" | "awaitReply";
+  reply_mailbox?: ReplyMailboxSelection;
+  reply_draft?: { model_profile_id: string; max_cost_usd: number };
   name: string;
   description?: string | null;
   visibility?: "org" | "private" | "team";
@@ -606,8 +614,27 @@ export interface WorkflowRunList {
   total: number;
 }
 
+export interface ReplyExpectationInput {
+  thread_id: string;
+  expected_sender: string;
+  not_before: string;
+  deadline: string;
+  anchor_message_id: string | null;
+}
+export interface ReplyExpectation extends ReplyExpectationInput {
+  provider: "google" | "outlook";
+  connection_id: string;
+  authorization_generation: string;
+  paused: boolean;
+}
+export interface ReplyExpectationEdit extends ReplyExpectationInput {
+  paused: boolean;
+  review_mailbox: boolean;
+}
+
 /** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
 export interface WorkflowNodeRunRead {
+  reply_expectation?: ReplyExpectation | null;
   id: Uuid;
   node_instance_id: Uuid;
   scope_path: { loop_node_id: Uuid; index: number }[];

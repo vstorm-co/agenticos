@@ -42,14 +42,18 @@ export interface PageTab {
  * nested left sidebars. The active state is a bottom border on the tab itself
  * (not an absolutely-positioned bar) so the horizontal scroll container never
  * produces a stray vertical scrollbar. The scrollbar is hidden; tabs scroll
- * horizontally only when they overflow (mobile).
+ * horizontally only when they overflow. Dense sections default to a menu;
+ * settings keeps the strip visible with `overflow="scroll"`.
  */
 export function PageTabs({
   tabs: allTabs,
   className,
+  overflow = "menu",
 }: {
   tabs: readonly PageTab[];
   className?: string;
+  /** Keep the section index visible as a scrollable strip at every screen size. */
+  overflow?: "menu" | "scroll";
 }) {
   const shell = useShell();
   const isActive = useActiveRoute();
@@ -61,8 +65,8 @@ export function PageTabs({
   const strip = useRef<HTMLElement>(null);
   const activeTab = tabs.find((tab) => isActive(tab.href, tab.exact)) ?? tabs[0];
   const activeHref = activeTab?.href;
-  const many = tabs.length > 4;
-  const sectionMenu = tabs.length > 6;
+  const many = overflow === "menu" && tabs.length > 4;
+  const sectionMenu = many && tabs.length > 6;
   useScrollFade(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
@@ -72,7 +76,13 @@ export function PageTabs({
     const nav = strip.current;
     const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!nav || !active) return;
-    nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+    const centre = () => {
+      nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+    };
+    centre();
+    const resize = new ResizeObserver(centre);
+    resize.observe(nav);
+    return () => resize.disconnect();
   }, [activeHref]);
 
   return (

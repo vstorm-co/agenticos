@@ -27,6 +27,8 @@ interface SidebarState {
    * tomorrow too.
    */
   openGroups: string[];
+  /** Explicit closures override defaults, including on installations with older preferences. */
+  closedGroups: string[];
   toggleGroup: (key: string) => void;
 }
 
@@ -40,18 +42,31 @@ export const useSidebarStore = create<SidebarState>()(
       isCollapsed: false,
       toggleCollapsed: () => set((state) => ({ isCollapsed: !state.isCollapsed })),
       openGroups: [],
+      closedGroups: [],
       toggleGroup: (key) =>
-        set((state) => ({
-          openGroups: state.openGroups.includes(key)
-            ? state.openGroups.filter((open) => open !== key)
-            : [...state.openGroups, key],
-        })),
+        set((state) => {
+          const wasOpen =
+            state.openGroups.includes(key) ||
+            (key === "knowledge" && !state.closedGroups.includes(key));
+          return {
+            openGroups: wasOpen
+              ? state.openGroups.filter((open) => open !== key)
+              : [...state.openGroups, key],
+            closedGroups: wasOpen
+              ? [...state.closedGroups.filter((closed) => closed !== key), key]
+              : state.closedGroups.filter((closed) => closed !== key),
+          };
+        }),
     }),
     {
       name: "agenticos.sidebar",
       // Not `isOpen`: that is the phone's slide-over, and restoring it would
       // open a drawer over the page somebody just loaded.
-      partialize: (state) => ({ isCollapsed: state.isCollapsed, openGroups: state.openGroups }),
+      partialize: (state) => ({
+        isCollapsed: state.isCollapsed,
+        openGroups: state.openGroups,
+        closedGroups: state.closedGroups,
+      }),
     },
   ),
 );

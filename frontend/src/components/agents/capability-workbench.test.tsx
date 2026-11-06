@@ -55,7 +55,7 @@ vi.mock("@/hooks/use-memory", () => ({
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
-  // The tables panel lists the organization's tables; `tables-section` covers it.
+  // Table resources are available through the platform MCP.
   useAllTables: () => ({
     tables: [{ id: "t-1", name: "Leads", description: null }],
     isLoading: false,
@@ -146,14 +146,6 @@ const MEMORY_FILES: CapabilityCatalogEntry = {
   description: "Notes the agent keeps of its own across conversations.",
   tools: [{ id: "read_memory", name: "read_memory", description: "Read one note by name." }],
   contracts: [],
-};
-
-const MEMORY_MEM0: CapabilityCatalogEntry = {
-  ...MEMORY_FILES,
-  id: "memory_mem0",
-  name: "Memory (mem0)",
-  description: "Semantic memory kept in a mem0 service rather than here.",
-  tools: [{ id: "recall", name: "recall", description: "Recall facts by meaning." }],
 };
 
 const CONTEXT: CapabilityCatalogEntry = {
@@ -249,19 +241,6 @@ describe("the capability workbench", () => {
     await openCapability("Memory files");
 
     expect(screen.getByText("Clear this agent's memory")).toBeInTheDocument();
-  });
-
-  it("says the clear does not reach mem0 when the agent also keeps memories there", async () => {
-    // mem0 addresses memories per person, so nothing can empty one agent's
-    // namespace wholesale - and somebody believing it did would stop looking.
-    renderWorkbench({
-      catalog: [MEMORY_FILES, MEMORY_MEM0],
-      selected: [binding("memory_files"), binding("memory_mem0")],
-    });
-
-    await openCapability("Memory files");
-
-    expect(screen.getByText(/does not reach/)).toBeInTheDocument();
   });
 
   it("offers no clear for a capability that keeps nothing", async () => {
@@ -814,37 +793,6 @@ describe("image generation, whose model is a provider and a model", () => {
   });
 });
 
-describe("tables, whose grants are a table and its operations", () => {
-  const TABLES: CapabilityCatalogEntry = {
-    ...CHARTS,
-    id: "virtual_tables",
-    name: "Tables",
-    category: "data",
-    description: "Read and write the Virtual Tables this agent is granted.",
-    tools: [],
-    contracts: [],
-    config_schema: null,
-  };
-
-  it("opens its own panel rather than the generated form", async () => {
-    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")] });
-
-    await openCapability("Tables");
-
-    expect(screen.getByRole("checkbox", { name: "Let the agent use Leads" })).toBeVisible();
-  });
-
-  it("grants it from the panel's own switch", async () => {
-    const onToggle = vi.fn();
-    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")], onToggle });
-
-    await openCapability("Tables");
-    await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
-
-    expect(onToggle).toHaveBeenCalledWith("virtual_tables");
-  });
-});
-
 describe("workflows, whose grants are the workflows it may start", () => {
   const WORKFLOWS: CapabilityCatalogEntry = {
     ...CHARTS,
@@ -876,11 +824,11 @@ describe("workflows, whose grants are the workflows it may start", () => {
   });
 });
 
-it("routes new workflow and table tools through MCP while keeping old bindings editable", async () => {
+it("routes workflows through MCP while keeping stored workflow bindings editable", async () => {
   renderWorkbench({
     catalog: [
       { ...CHARTS, id: "workflows", name: "Workflows" },
-      { ...CHARTS, id: "virtual_tables", name: "Tables" },
+      { ...CHARTS, id: "knowledge", name: "Knowledge" },
       CHARTS,
     ],
     selected: [],

@@ -533,6 +533,50 @@ deployment's own.
 
 ## Deploying a change
 
+### Native memory and routine continuity { #native-memory-upgrade }
+
+Before this upgrade, take the [database, media and vault-key backups](#backups)
+and coordinate the API and worker rollout. Use the deployment's normal migration
+step; do not copy rows or create replacement schedules manually.
+
+Before applying `0285_member_proactivity.py`, stop API/sweep producers and drain active proactive jobs, then stop workers. The migration refuses while a watch or nightly model job is running and backfills queued work with a shared per-member concurrency key. Update API and workers together so new jobs use the same key; a watch and a nightly look for one person must not independently spend the same remaining allowance.
+
+- `0248_drop_memory_mem0.py` refuses the upgrade while `memory_mem0` remains in
+  any stored draft or published spec. Before retrying, inventory every endpoint
+  and vault credential mapping from the backup, erase the external memories and
+  verify completion at each provider. Only then remove those bindings explicitly
+  from `agents.draft_spec` and `agent_versions.spec`. An export alone is not an
+  erasure. Keep the cleanup evidence, review unused vault keys and revoke retired
+  credentials. The migration makes no remote request and never assumes a purge
+  succeeded. If an earlier development build already stripped the bindings,
+  recover the inventory from its pre-upgrade backup and perform the same purge;
+  native person/agent erasure cannot reach that external data.
+- `0251_primary_conversations.py` and `0258_primary_channel_history.py` establish
+  primary private chats. An existing mapping wins. Only demonstrably private,
+  linked channel history is adopted once; project/group and ambiguous histories
+  remain separate. Do not rerun the backfill after somebody clears a primary chat.
+- Existing routine IDs, schedules and logs remain in place. The delivery migration
+  `0255_trigger_delivery.py` gives old routines `run_log`; new routines default to
+  a primary chat or their trusted source conversation. Review the destination,
+  acting person, end and budget under **Routines**, rather than creating copies.
+- `0259_trigger_version_pin.py` supports immutable version pins. A pin and a named
+  environment are exclusive. Clear a pin before deleting its version. A parked
+  run retains its admitted version; `0260_routine_run_origin.py` retains its
+  origin so deleting a routine does not release its authorization guard.
+- `0261_watch_attempt_status.py` starts explicit attempt tracking without guessing
+  older success/failure history. An unavailable or incomplete check does not
+  advance the success timestamp. Review existing watches and their account
+  access: historical rows do not prove how consent was originally given.
+
+Choose a model explicitly before enabling memory maintenance; the daily briefing
+keeps the existing organization model/budget settings. With `0262_watch_agent_sources.py`, watches use their selected agent and retain
+approved sources on runs. Existing watches require the owner to select an agent
+and approve its sources before running again; IDs and findings are preserved. Check
+[governance](governance.md#proactive-work) and the [channel setup](channels.md#sms),
+including `PUBLIC_BASE_URL` and expired SMS identity links. In a test organization,
+verify one private chat, one routine's Activity/delivery, pause/expiry and one
+unavailable-source watch before enabling a wider rollout.
+
 ### The retry-history boundary in 1.25.0 { #retry-history-upgrade }
 
 Version 1.25.0 adopts Pydantic AI 2.61's `retried` tool outcomes and separate

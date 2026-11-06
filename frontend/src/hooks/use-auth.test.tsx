@@ -401,13 +401,13 @@ describe("signing in", () => {
     await act(async () => {
       await result.current.login({ email: "a@example.com", password: "x" });
     });
-    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
 
     vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t", message: "ok" });
     await act(async () => {
       await result.current.login({ email: "b@example.com", password: "x" });
     });
-    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
   });
 
   it("resumes the deep link the visitor was headed to", async () => {
@@ -451,7 +451,7 @@ describe("signing in", () => {
       await result.current.login({ email: "a@example.com", password: "x" }, "//evil.example/a");
     });
 
-    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
   });
 
   it("does not ask who is signed in after a login that just said so", async () => {

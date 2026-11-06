@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Bot, CalendarClock, Package, Radar, UserRound } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
@@ -105,11 +107,12 @@ export function useSuggestionActions(agentId: string | null) {
 
 /** Where a suggestion came from: the watched server's mark for a finding, the kind's icon otherwise. */
 export function useSuggestionSource() {
-  const { servers } = useMcpCatalog();
-  return (suggestion: Suggestion) =>
+  const { servers, isLoading } = useMcpCatalog();
+  const sourceOf = (suggestion: Suggestion) =>
     suggestion.kind === "finding"
       ? servers.find((entry) => entry.key === payloadText(suggestion.payload.server))
       : undefined;
+  return { sourceOf, isLoading };
 }
 
 export function SuggestionMark({
@@ -119,7 +122,13 @@ export function SuggestionMark({
   suggestion: Suggestion;
   className?: string;
 }) {
-  const server = useSuggestionSource()(suggestion);
+  const { sourceOf, isLoading } = useSuggestionSource();
+  const server = sourceOf(suggestion);
+  const waiting =
+    !server &&
+    isLoading &&
+    suggestion.kind === "finding" &&
+    !!payloadText(suggestion.payload.server);
   const Icon = ICONS[suggestion.kind];
   return (
     <span
@@ -128,7 +137,9 @@ export function SuggestionMark({
         className,
       )}
     >
-      {server ? (
+      {waiting ? (
+        <Skeleton aria-hidden className="size-4" />
+      ) : server ? (
         <McpServerIcon icon={server.icon} name={server.name} url={server.url} className="h-4 w-4" />
       ) : (
         <Icon className="h-4 w-4" aria-hidden />

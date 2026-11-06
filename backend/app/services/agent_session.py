@@ -237,6 +237,7 @@ class AgentSession:
         # the socket: left unanswered, it parks the run rather than being read as
         # declined (#2064). A delegate's question has no such afterlife.
         self._round_parks = False
+        self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -647,6 +648,12 @@ class AgentSession:
             await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
+        self._question_detached = False
+        if prompt.newly_created and self.current_conversation_id:
+            await self._emit(
+                "conversation_created",
+                {"conversation_id": self.current_conversation_id},
+            )
         if (
             prompt.newly_created
             and self.current_conversation_id
@@ -738,12 +745,6 @@ class AgentSession:
                         },
                     )
                 await chat_room.turn_begun(self._live, self.user.id)
-            if prompt.newly_created and self.current_conversation_id:
-                await self._emit(
-                    "conversation_created",
-                    {"conversation_id": self.current_conversation_id},
-                )
-
             await self._emit(
                 "user_prompt",
                 {
@@ -778,6 +779,7 @@ class AgentSession:
                     timeline=timeline,
                     tool_calls=collected_tool_calls,
                     prompt=user_message,
+                    draft_tools=lambda: opened[0].draft_tools if opened else (),
                 )
 
                 turn = await ChatAgentRunner(db).run(
@@ -849,6 +851,7 @@ class AgentSession:
                     parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
                     | set(turn.questions),
                     mcp_origins=turn.mcp_origins,
+                    draft_tools=turn.draft_tools,
                 )
                 # The save was attempted, so `finally` must not retry an uncertain
                 # write. A failure is reported below, before the turn completes.
@@ -885,6 +888,9 @@ class AgentSession:
                                 "id": str(parked.approval_id),
                                 "tool_call_id": parked.tool_call_id,
                                 "tool_name": parked.tool_name,
+                                "subagent_name": parked.subagent,
+                                "can_remember": turn.agent_version_id is not None
+                                and parked.subagent is None,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
@@ -1046,10 +1052,16 @@ class AgentSession:
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
             mcp_origins=run.mcp_origins,
+            draft_tools=run.draft_tools,
         )
         if assistant_msg_id is None:
             await self._emit(
                 "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
+            )
+        else:
+            await self._emit(
+                "message_saved",
+                {"message_id": assistant_msg_id, "conversation_id": self.current_conversation_id},
             )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
@@ -1132,6 +1144,10 @@ class AgentSession:
         which question is open *inside* it - the attribution has to be
         serialized with the round it names, and a nested acquire would deadlock.
         """
+        if self._closed or self._question_detached:
+            if self._round_parks:
+                raise _LeftUnanswered
+            return []
         loop = asyncio.get_running_loop()
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
@@ -1363,6 +1379,7 @@ class AgentSession:
         await self._stop_following()
         conversation_id = _conversation_id(raw)
         if conversation_id is None:
+            self._park_question_when_leaving(conversation_id)
             await self._leave_room()
             return
         async with get_db_context() as db:
@@ -1376,8 +1393,21 @@ class AgentSession:
             except NotFoundError:
                 await self._leave_room()
                 return
+        self._park_question_when_leaving(conversation_id)
         await self._enter_room(conversation_id)
         await self._follow_if_running(conversation_id)
+
+    def _park_question_when_leaving(self, conversation_id: str | None) -> None:
+        """A chat switch leaves the socket open; its own unanswered call must still park."""
+        self._question_detached = conversation_id != self._live
+        pending = self._ask_user_future
+        if (
+            self._question_detached
+            and self._round_parks
+            and pending is not None
+            and not pending.done()
+        ):
+            pending.set_exception(_LeftUnanswered())
 
     async def _follow_if_running(self, conversation_id: str) -> None:
         """Follow the turn being written in the conversation, unless this socket writes it.

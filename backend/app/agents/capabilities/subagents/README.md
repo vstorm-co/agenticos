@@ -470,3 +470,5 @@ it, for the reason above.
 | `_toolset.py` | The calls that delegate: mode, fan-out, settling the outcome, and what an invented specialist is refused |
 | `_journal.py` | What a run has delegated: in flight, what it cost, which stream is whose |
 | `_events.py` | A delegate's stream events, as frames a surface can render |
+
+`allow_any_agent` is an explicit interactive catalog option. Candidates are tenant scoped and require the initiating member’s run permission, including use grants and API-key ceilings. It never discovers agents using a publisher fallback or widens routine source consent. Versions are snapshotted across approval parks and live run access is checked again before each discovered delegation. Explicit pins retain their existing publisher-authorized contract.

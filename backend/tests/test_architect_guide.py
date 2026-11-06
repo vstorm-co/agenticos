@@ -43,12 +43,13 @@ def test_the_skill_offers_every_copied_page_by_name(gen) -> None:
         assert f"`{relative}`" in skill.content
 
 
-def test_the_architect_template_installs_the_guide() -> None:
+def test_the_architect_guide_remains_optional() -> None:
     from app.services import agent_templates
 
     architect = agent_templates.get("general/platform-assistant")
     assert architect is not None
-    assert "software/agenticos-guide" in architect.skills
+    assert "software/agenticos-guide" not in architect.skills
+    assert skill_library.gallery_get("software/agenticos-guide") is not None
 
 
 def test_new_architect_templates_include_the_runtime_projects_guidance() -> None:
@@ -62,12 +63,15 @@ def test_new_architect_templates_include_the_runtime_projects_guidance() -> None
     assert guidance.strip() in architect.instructions
 
 
-def test_architect_includes_workflow_and_table_building_skills() -> None:
+def test_architect_uses_curated_procedures_instead_of_duplicate_api_guides() -> None:
     from app.services import agent_templates
 
     architect = agent_templates.get("general/platform-assistant")
     assert architect is not None
-    assert {"software/workflow-builder", "software/virtual-tables"}.issubset(architect.skills)
+    assert {"platform-workflows", "platform-automation"}.issubset(architect.skills)
+    assert not {"software/workflow-builder", "software/virtual-tables", "platform-tables"} & set(
+        architect.skills
+    )
     for skill_id in ("software/workflow-builder", "software/virtual-tables"):
         assert skill_library.gallery_get(skill_id) is not None
     guidance = (

@@ -20,7 +20,7 @@ oversized import is left for that check to refuse. Only `entry_port` is dropped,
 so the refusal is the size check's rather than a schema error.
 
 Only raw JSON is read here: a graph already built from model instances is in
-the new shape by construction. `alembic/versions/0258_workflow_loop_scope.py`
+the new shape by construction. `alembic/versions/0296_workflow_loop_scope.py`
 holds a frozen copy of this conversion for the rows stored before it.
 """
 

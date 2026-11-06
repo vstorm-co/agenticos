@@ -10,11 +10,11 @@ The newest of those surfaces is a **trigger**: an agent running itself on a sche
 or on an incoming event — a GitHub issue, an inbound email (see
 [Concepts](concepts.md#trigger)).
 
-It changes none of what follows. It spends against the same two caps, parks on the
-same approval gate — routed to its creator, the member it runs as, and the
-administrators — and is recorded in the same audit trail.
+It uses the same spending ledger, approval queue and audit trail. The
+[unattended action policy](#routine-action-consent) tightens which calls need
+approval; explicit standing consent names individual actions and one version.
 
-The one thing "unattended" adds is what happens to a **refusal**:
+Unattended work also has defined outcomes for a **refusal**:
 
 - A fired run the budget stops ends `budget_exceeded` and **waits for the next
   fire** rather than being retried.
@@ -40,6 +40,41 @@ stops.
 An event trigger adds one more refusal at its edge: a webhook whose signature does
 not verify against the trigger's own secret is a 403 that never reaches the runner
 at all.
+
+## Routine delivery
+
+A routine created from a private chat through the platform MCP answers in that
+chat unless you choose another destination. Its card in the conversation shows
+current state, the next activation and the existing edit, pause and remove controls.
+The run log remains available under Routines.
+
+Before posting a completed answer, the platform rechecks the creator’s active membership and current write access to the chosen conversation. A removed or inaccessible destination leaves the answer in the run log and shows **Last answer unavailable in chat** on the routine. A database failure during message delivery is isolated so it does not undo the completed fire or run the agent again.
+
+Completion notifications link to the conversation only after successful delivery.
+
+`last_delivery_status` distinguishes delivery, log-only, no answer and an incomplete run; historical rows stay unknown until another fire. Migration `0265_trigger_delivery_status.py` adds this status without inferring past success.
+
+Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
+for a tighter monthly limit. The MCP update tool can clear either setting.
+An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.
+
+Use the version policy to follow the default published version or pin one immutable version. A pin does not move on publication. Clear it to follow again. A named environment and a version pin are mutually exclusive; current access, budgets and approvals still apply.
+
+The routine form can set or clear its end. The date uses the device time zone shown beside the field, independently of the cron schedule zone, and is sent to the API as an offset-aware instant. Editing another field leaves the existing end unchanged.
+
+A routine rechecks its creator, active membership, role and run grants before each tool, including delegates and calls released after approval. Pausing, deleting or expiring the routine, withdrawing personal consent, or changing that authority refuses subsequent tools. An effect already sent to an external service cannot be recalled by this check. Migration `0260_routine_run_origin` retains the origin when the routine is deleted; an old parked schedule whose origin was already lost is refused rather than borrowing the approver’s authority.
+
+The minute sweeps settle elapsed ends independently of the next activation, including paused routines and watches. They disable active work, resolve outstanding routine blockers and cancel their pending notifications without running a model. A stopped worker catches up after restart; cleanup can wait for a worker or a batch, while tool and answer-delivery deadline checks still refuse expired work immediately.
+
+Migration `0269_routine_end_cleanup.py` adds a deadline marker and partial pending-end indexes. It creates no replacement routines, grants or findings. Moving the end rearms cleanup; a repeated sweep does not repeat the settled effects. Downgrading drops only this cleanup bookkeeping, not the configured end or routine identity.
+
+A watched MCP connection also records its authorization generation. A completed OAuth re-consent or an explicit token/endpoint replacement invalidates the watch's old source consent even when its connection ID stays the same. Normal token refresh, labels and default-account changes do not replace this identity. A re-reviewed source is available to later runs; an old parked run cannot borrow the new consent.
+
+After migration `0270_mcp_authorization_generation.py`, review existing watches' sources explicitly (`review_sources=true` or **Approve attached sources again** in the watch editor). Older policies remain readable but cannot guess the account behind a historical authorization. No provider credential is read to resolve an account outside the admitted generation. Drain old workers and upgrade API and workers together. Pause watches before downgrading; resume only with generation-aware code and reviewed sources. Replacing credentials clears the old account’s cached tool list until another successful check.
+
+Routine runs retain the MCP accounts and tool aliases admitted for that execution. Resuming a call reuses those aliases: renaming an account or choosing a different default does not redirect an existing approval. Delegates remain within the admitted accounts. Current account ownership, endpoint, authorization generation and tool allowlists are checked again before calls; new or changed accounts are filtered before credentials are resolved.
+
+A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
 
 ## Budgets
 
@@ -480,22 +515,25 @@ heartbeat recorded, unlike a text run, whose spend dies with its process.
 
 ### Proactive work { #proactive-work }
 
-Proactive runs are attributed to the organization's published **AgenticOS**
-starter agent (`agenticos` slug). This association is fixed by the platform;
-it does not select the model or run the starter's instructions. Choose the
-separate proactivity model and limits on **Organizations → Members →
-Proactivity**. Activity shows the **Proactive** icon and filter, the model
-requests and their costs, and the recorded exchange including tool results and
-the final structured answer. Failed checks retain the exchange available before
-the failure. These records require `runs:view`, like other Activity records,
-and do not create conversations in Chat. Older runs cannot recover exchanges
-that were never recorded; oversized records explicitly say they were trimmed.
+Nightly suggestion and briefing runs are recorded under the organization's published **AgenticOS**
+starter agent (`agenticos` slug) so each has a row, a cost and a trace, but the
+starter does not run and does not choose the model: every such run carries the
+[system role](#system-agents) that did the work. Choose the separate proactivity
+model and limits on **Organizations → Members → Proactivity**.
+
+Activity shows the
+**Proactive** icon and filter, the model requests and their costs, and the
+recorded exchange including tool results and the final structured answer. Failed
+checks retain the exchange available before the failure. These records require
+`runs:view`, like other Activity records, and do not create conversations in Chat.
+Older runs cannot recover exchanges that were never recorded; oversized records
+explicitly say they were trimmed.
 
 The model field uses the same provider, model and vault-key picker as the Agent
 Builder. With `connections:manage`, a member can create a model profile there;
 without it, they choose an existing profile. Creating a profile stores it
 immediately. **Save** applies the selection to the organization's nightly
-suggestions and watches, which share this model and the per-person limit.
+suggestions. The briefing lists existing findings without a model call. Selected-agent watches share the per-person limit.
 
 The platform can do a little on its own initiative, and does nothing of the kind
 until an organization turns it on: the **Proactivity** card on its members page
@@ -511,35 +549,264 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
+The nightly job reads only a prompt that passed the input
+[guardrail](reference/capabilities.md#guardrails) of the agent it was sent to,
+because the proactivity model has no guardrails of its own:
+
+- A prompt a guardrail refused is left out.
+- A prompt no run took is left out: one sent to an archived agent, one refused
+  before its run opened, and a chat prompt passed to a workflow.
+- A prompt whose run is still going waits. The job reads it on a later night,
+  once the run has ended.
+- If a run stopped before its first model request, for example on a budget, the
+  job runs that run's input guardrail on the prompt and leaves out what it blocks.
+  If the agent version is gone, the prompt is left out.
+- If run retention deleted the run, the job reads the prompt only when a model's
+  answer follows it. A prompt from before version 1.36.0 is read the same way, so
+  an input guardrail's refusal, which left no answer, stays out. A spoken turn
+  records no model, so it is left out once its run is gone.
+
+A prompt a guardrail redacted passes, and the job reads it as stored, unredacted
+([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).
+
 On top of that, each person's proactive runs in a calendar month are capped by
 the organization's **proactive limit** - $1 by default, set on the same card
 (`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
 only calls the model when there is something to read.
 
-**Watches** point the same work at a person's own connections, switched on
-separately on the same card (`proactive_watches_enabled`), on the same model and
-inside the same limit. A person starts one with **New watch** under
-**Routines**, where a Watches card lists each with when it last looked and how
-many of its findings wait, or with **Watch** beside the account's **Tools** on
-the MCP servers page. They pick one of their own MCP connections - any server
-they connected - and say what to look for - a ready-made watch for that server
-or their own words - and how often, never more often than the organization
-allows (`proactive_watch_min_minutes`, an hour by default).
+**Watches** run through the published agent the person selects, using the same
+runner as chat and routines and the agent's own instructions and model. Enable
+watches separately (`proactive_watches_enabled`); they share the organization's
+per-person proactivity spending limit, not its suggestions model. Create one under
+**Routines**, beside an agent's schedules with **Watch and inform**, beside a
+personal account, or by asking in a private chat. Select the agent, personal
+account, cadence and optional end time. Follow publications, select a named
+environment, or pin an immutable published version. The organization still sets
+the minimum cadence (`proactive_watch_min_minutes`).
 
-Each look is one run from the **proactive** surface, offered only the tools the
-server marks read-only (`readOnlyHint`), so a watch never changes anything in the
-account. What it finds is the person's alone: a suggestion of kind `finding`,
-keyed on the item's own id so it is reported once, with a link to open it. A
-finding on a watch set to say urgent things at once, which the model also judged
-urgent, is sent straight away as a notification; the rest waits for their morning
-[briefing](console.md#the-inbox).
-Unlike a routine, a watch says nothing when nothing is new.
+The selected publication must already bind that personal catalog service. A watch
+never enables a missing binding or substitutes another agent. Custom servers
+without a personal catalog binding are not supported here. Creating the watch
+approves that concrete account and endpoint, the intersection of account and
+agent tool allowlists, and the currently attached knowledge bases/context files.
+Later publications can remove this access but cannot add accounts, tools or
+attached sources. **Approve current sources again** explicitly refreshes that
+approval. A newly selected primary account does not replace the approved account.
 
-The same card holds the **welcome message**, off by default and gated on
-`org:settings`: a new member's direct message from the organization's Slack,
-Teams and Mattermost bots, in the organization's own words when it wrote some
-(`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
-their language.
+Each look is an ordinary **proactive** run attributed to the actual selected
+agent and version. Its source tools must carry `readOnlyHint`. The watch preset
+permits only its approved account, knowledge/context, guardrails, planning and
+system reminders; web access, sandbox, executable skills, memory writes and
+delegation are unavailable. Required interactive approvals are refused at setup
+rather than silently waived. Current membership, run permission, source consent,
+pause and expiry are checked again before tools and before results are written.
+
+New findings keep their stable watch/item identity in the person's Inbox and
+return to the source conversation; creation outside chat uses their primary
+conversation. Only a requested urgent finding also sends an immediate
+notification. The default **Only when something relevant changes** mode creates
+no chat message or completion notification for an unchanged reading. Missing conversation access retains the Inbox finding and records
+`delivery_unavailable` instead of posting elsewhere.
+
+The latest attempt is separate from the last successful reading. A completed
+model answer without a successful source read, or with an unresolved failed
+source request, is `not_completed`. Source unavailability and revoked access are
+explicit; `budget_paused` reports exhausted spending. These failures do not
+advance the successful-reading timestamp. Unexpected errors still fail the job.
+
+`0261_watch_attempt_status.py` starts attempt history without inventing older
+successes. `0262_watch_agent_sources.py` preserves existing watch IDs, findings,
+cadence and active settings, but assigns no guessed agent. Existing watches show
+`needs_agent` and make no model calls until their owner selects a published agent
+and approves its sources. Deleting a watch does not erase the origin or approved
+source policy retained by an in-flight or parked run.
+
+Creating or changing a watch requires the person's signed-in session or trusted
+private human chat. Ordinary API keys, publisher fallback, background routines
+and impersonation cannot grant this standing access. The platform MCP tools
+`list_watches`, `create_watch`, `update_watch` and `delete_watch` use the same
+service and identifiers. Complete private-chat requests create or edit immediately;
+publishing, inviting, deletion and run-now retain their normal approval policies.
+
+A watch can instead select **After every check, including no changes**
+(`report_mode: every_check`). Each successful reading then delivers an agreed
+report to its source chat, even when nothing new was found, and uses the shared
+notification system. A failed or unavailable read never becomes a no-change
+report. The scheduled activation travels with the queued job; its report marker
+commits with the result writes, so retrying a completed activation cannot replay
+the report or pay for another read. No second classification call is needed.
+
+Schedules and watches inherit your notification preferences. **Notifications for
+this routine** can select any combination of e-mail, device push, Slack, Telegram,
+Mattermost, Microsoft Teams and SMS, or the app alone. `notification_channels:
+null` inherits; an empty list disables external delivery. A routine cannot enable
+a channel disabled in your preferences. Pending sends recheck the live policy;
+pausing or deleting the routine stops them. Mandatory security/configuration
+alerts remain mandatory. Provider-accepted messages cannot be recalled.
+
+In **Settings → Notifications**, explicitly choose one linked private chat per
+platform for the current organization. Linking an account alone never enables
+notifications. Group chats, another person's account and another organization's
+bots are excluded. E-mail and push keep their existing setup. The chat selector
+in the event preferences changes which platform's switches you edit.
+
+Destinations bind the particular account link and bot authorization. Unlinking,
+relinking, replacing the bot's token/server or changing the destination requires
+another choice. Previously queued deliveries are not redirected. Sending rechecks
+membership, account activity, bot access policy, SMS link expiry, event preferences,
+resource access and shared outcome state. A reader who can no longer decide an
+approval receives only the waiting fact, without a decision link.
+
+Chat platforms have no shared idempotent-send contract. An unconfirmed submission
+has one persisted attempt: a timeout, provider failure or worker loss leaves a
+visible failed/unconfirmed delivery. A Slack HTTP 429 explicitly refusing the
+submission may retry after `Retry-After`, up to five total claims. Before each
+send, the claim clears retry permission; a crash on that attempt cannot replay
+it. The old handoff token is retired on deferral. Other chat failures remain
+terminal. E-mail and push keep their existing retry rules.
+
+Slack notifications use bounded plain-text blocks and an **Open in AgenticOS**
+button leading to the same authorized case in the console. Names and summaries
+cannot create mentions or automatic previews. A degraded approval notice keeps
+only its waiting fact and has no decision link. Delivery records platform
+acceptance; acknowledgement remains an explicit decision on the shared case.
+Migration `0273_notification_safe_retries.py` defaults existing rows to no retry
+authority. Downgrade returns to one-attempt chat delivery.
+
+Migration `0271_notification_routes.py` adds explicit routes and authorization
+identities. Drain workers and update API/workers together before selecting the
+new channels. No existing account opts in on upgrade. Downgrade removes chat
+routes, chat delivery history and chat preferences, and narrows routine selections
+to e-mail/push; it cannot undo external sends. Migration
+`0263_routine_notification_policy.py` introduced the original routine controls.
+
+### Budget pauses { #routine-budget-pauses }
+
+When a routine reaches its own monthly limit, its owner receives one budget
+notice per period and configured limit. A watch reports the person's shared
+proactive-work cap and points them to an administrator to review it. The check
+stops before opening a run or calling a model; the notice reports monthly spend.
+Existing budget-alert preferences and the routine's channel limits still apply.
+
+The notice opens one actionable case for that responsibility and month. Repeated
+checks reuse it. Acknowledging or muting cancels pending deliveries. When the
+next activation has budget again, or the responsibility is removed, its open
+budget cases resolve and pending sends are cancelled. Changing the configured
+limit allows a new breach notice; a muted case stays muted for that month.
+
+### Action consent { #routine-action-consent }
+
+An unattended routine asks before capability actions, local file changes and
+delegation. External MCP calls ask unless their server marks them read-only;
+a connection's stronger approval policy still applies. Ordinary interactive
+agent defaults are unchanged. Code mode is disabled for routine runs so bundled
+scripts cannot skip the individual action gates.
+
+Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
+
+The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
+
+An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
+
+Saving requires the version and configuration the person reviewed to remain
+current. Consent names the immutable published version, stable capability/tool IDs and
+routine configuration. Changing the work or destination invalidates it. Each run
+retains its admitted consent IDs; adding consent later cannot release a parked
+run, and revoking then regranting creates a new identity. Current membership,
+permissions, organization policy and consent are checked again at each tool.
+Every waived call records an approved row naming its consenting person and
+arguments. Delegates require their own decisions; a parent's waiver is not lent.
+
+
+Standing action consent also records the current revisions of bound skills, skill resources, context files and project instructions. Editing any of them invalidates the exception, even if the published agent version stays the same or the old text is later restored. Review actions again to grant a new exception. Existing exceptions without a revision fingerprint remain valid only for agents without these mutable instruction sources.
+
+`0267_routine_action_consents.py` creates no exceptions for existing routines.
+This changes unattended execution: an existing action may now wait for approval.
+Drain old workers and upgrade the API and workers together before resuming duties,
+as an old worker does not enforce this gate. Downgrade removes stored exceptions;
+existing approval audit rows and already performed effects remain.
+
+### Resumed routine answers { #resumed-routine-answers }
+
+A routine that completes after approval or an answered question queues its
+console answer in the same transaction as its terminal state. The handoff stores
+the final text and identifiers, so a restart never needs another model call.
+The receipt, chat message and completion notice settle in one transaction;
+concurrent attempts and retries cannot append a second answer. An authorized
+conversation event refreshes an open source chat in place after commit; legacy
+event subscribers keep their prior vocabulary.
+
+The worker checks the routine's current state, deadline, creator and destination.
+Chat delivery also rechecks active membership, agent run access and current write
+access to the creator's private conversation. Archived conversations are closed
+to new messages. An unavailable destination retains the result in Activity and
+records unavailable delivery. Database failures leave the receipt pending for up
+to three job attempts; Admin → Background jobs shows an exhausted handoff. A
+completion notice links to a chat only after successful delivery. External-channel
+continuation remains separate acceptance work.
+
+`0268_routine_answer_delivery.py` creates no historical replays. Upgrade API and
+workers together. Drain or cancel pending `deliver-routine-answer` jobs before a
+downgrade, which removes their stored handoffs; it does not recall messages
+already delivered.
+
+### Failure incidents { #routine-failure-incidents }
+
+A failed routine run, unavailable watch source or missing console destination
+opens one case for its owner. Continuing failures update the case's latest reason
+and run without another alert. Acknowledging keeps it actionable and quiet;
+muting keeps that cause muted, including after recovery. A new failure after a
+confirmed recovery reopens the same case and sends one new notice.
+
+The shared runner reports initial, resumed and crash-reaped runs. Among terminal
+results, only the latest admitted root run changes a routine's health; delegated
+children and late completion of older runs cannot override it. A watch recovers after a verified source
+reading; model completion alone is insufficient. Late checks retain the newest
+attempt and last successful reading independently. An expiry check or removal closes
+outstanding blockers and cancels pending sends. Paused, expired or deleted
+routines do not post a completed answer into their chosen chat.
+
+Observation and recovery clocks keep callback retries and older results from
+undoing a person's decision. A failed notification write leaves a new incident
+retryable. Agent and run limits share the owner’s incident instead of creating a second
+failure email. Organization and department budget notices remain independent
+financial alerts, including for an owner who is also an administrator. Their
+routine incident stays in the app when the financial notice already tells them.
+Budget preferences still apply.
+
+`0266_routine_activation_clock.py` adds these clocks without guessing historical
+attempts. Existing watch-failure case IDs are retained. Deploy the API and
+workers together: the delivery worker must understand the new budget-notice
+metadata. Downgrade removes the clocks and retains the existing cases,
+notifications and decisions.
+
+### System agents { #system-agents }
+
+Some work is the platform's own and still needs a model. A **system role** gives it
+an owner an operator can see: one configuration per organization and role, never
+an agent row, never one per job, and never attributed to the starter agent or any
+agent whose instructions did not run (#2575). **Organizations → AI & services → Background services** (`budgets:manage`) lists each role with what it runs on, this month's
+spend and its recent executions.
+
+| Role | What it does | Configured |
+|---|---|---|
+| `daily_briefing` | The nightly look at each person's week and the briefing built from it | In the Proactivity tab: the same model and limit, shown here read-only |
+| `memory_maintenance` | Reads a completed admitted turn once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own |
+
+Memory maintenance does not require the AgenticOS starter. Its run retains the originating agent as a storage reference and is accounted as `memory_maintenance`; only platform extraction instructions and the role-selected model execute. Removing or unpublishing the starter does not disable extraction for other published agents.
+
+A role is disabled, not deleted. **Memory maintenance** needs an explicitly chosen
+model and respects its monthly budget and the organization's cap. It reads completed
+turns only when the runner admitted a real person with memory writes enabled: private
+chat, linked channel messages, and that person's own scheduled or workflow work.
+Embeds, API keys, impersonation, outsider-supplied events and delegations are excluded.
+
+The queued job retains the original audience. A private turn records claims in the
+person's profile or relationship with the agent; a group turn records only in the
+source room, even when the model calls a fact general. Current membership and erasure
+are rechecked under the write lock after the model answers. Older jobs without an
+audience remain limited to private web chat. Maintenance cannot share or correct a
+claim. Deterministic consolidation needs no model or role.
 
 ### What run history shows
 
@@ -1166,6 +1433,11 @@ Five properties worth knowing:
 
 ### How much one conversation wants to be asked
 
+The approval card also offers **Allow this tool in this chat** and **Always allow this tool for this agent**. These remember only the named tool and account, for the consenting person and the published agent version. They require the same permission and organization switch as **Approve everything**. They never authorize a delegate or an unattended run. Changing the agent version requires a new choice.
+
+Remembered choices are stored on the server. **Chat controls → Preferences → Remembered tool approvals → Ask again** withdraws one without erasing the original approval. Current membership, approval permission and organization policy are checked again before each remembered grant. **Ask about everything** overrides remembered choices. Each automatic grant still records who consented and the actual call arguments.
+
+
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent *is*. What it
 cannot express is the mood of one session — somebody working through twenty turns
@@ -1196,7 +1468,7 @@ Four things make it a session setting rather than a hole in the model:
   `builder` run agents without holding it — so without the permission check the
   everyday chat user grants themselves, in one click, the authority the API
   refuses them one endpoint over. The organization's own switch
-  (`chat_may_waive_approvals`, off by default, changed by somebody holding
+  (`chat_may_waive_approvals`, on by default for new organizations, changed by somebody holding
   `approvals:decide`) is the ceiling: without one, a Builder's deliberate gate on
   `send_email` is one click from nothing in every conversation and the per-tool
   model is advisory.
@@ -1519,6 +1791,25 @@ run, the document and the spend they describe are the record, and the notice is
 only how somebody heard about it - a periodic report's own computed figures,
 which live nowhere but the notification, are the one thing an expired row takes
 with it.
+
+### One outcome, settled once { #one-outcome }
+
+An approval waiting, a failed run and a finding from a watch are things somebody has to act
+on, so each is an **outcome**: one item per person and cause, whatever number of places tell them
+(#2575). The card above the chat it came from, the row at the bell, the push and the e-mail are
+deliveries of that one outcome, not four items.
+
+An outcome is acknowledged, resolved or muted once, from the chat card or the bell, and every place
+follows. Acknowledging marks it read and cancels the push and e-mail still waiting to go out; resolving
+and muting also clear it. A delivery a worker already holds is re-checked just before sending, so one
+settled in between does not go out. `POST /outcomes/{id}/settle` takes the action, and
+`GET /outcomes` lists the caller's own, optionally for one chat.
+
+Deciding the last pending approval of a run resolves its outcome. A muted cause stays muted. For other notifications, a resolved or acknowledged cause can reopen when it returns; a repeated watch finding keeps its existing state.
+
+Every watch finding, including a nonurgent one without a bell notification, shares a case with its Inbox row and source-chat card. **Done** resolves that case; dismissing the finding mutes it. Either action cancels pending external deliveries. Acknowledging stops notifications and future briefing announcements, but keeps the finding actionable in the Inbox with an **Acknowledged** label. Removing the watch resolves its remaining cases before deleting its findings. These decisions affect only the owning person in the same organization.
+
+Only an explicit **Restore** of a dismissed finding reopens that same case. It does not replay old notifications or deliveries. Migration `0264_finding_outcome_state.py` links existing findings to their cases, creates cases for nonurgent findings, preserves IDs and past Inbox decisions, and cancels obsolete pending deliveries. A downgrade removes the link, but cannot reverse decisions or recall a message already accepted by its provider; keep a pre-upgrade backup.
 
 ### Configured on the agent
 
@@ -1924,3 +2215,68 @@ Worth stating, because a governance page implies otherwise:
 - [Concepts](concepts.md) - spec, version, exposure, run.
 - [Permissions](permissions.md) - who may set any of this.
 - [Configuration](configuration.md) - the deployment-level settings.
+
+## Automatic pause after repeated failures { #routine-health }
+
+Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer and delivery failures do not count; an empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
+
+Each activation has one durable health observation. Retries cannot increase the count, and late completions are evaluated in activation order. Automatic pause stops future activations; a model request already in flight may finish.
+
+The existing owner incident records the pause, and its notification uses shared preferences and opted-in routes. An unacknowledged case gets one pause notice replacing its earlier Inbox entry. Resuming or changing the policy invalidates queued pause notices. Acknowledging that incident does not reset execution health or resume the routine. After correcting the problem, explicitly resume to start a new failure window. Changing the failure limit also starts a new window.
+
+The list shows when a routine was paused automatically and its failure count. Health metadata retains at most 50 observations per routine, contains no source bodies or provider errors, is included in the owner's bounded personal-data export and cascades away with the owner or routine. Migration `0275_routine_health.py` enables the default for existing routines too: update API and workers together. Downgrade removes this metadata and policy while retaining the paused state.
+
+
+## Reviewed routine sources { #routine-sources }
+
+A routine freezes its published source configuration, exact MCP accounts, credential consent generations and known tool names when it is created. The review includes pinned delegates, knowledge collections, skills, context and capability configuration; remote A2A registrations also retain their endpoint/card/credential binding. Changing instructions or model settings alone can follow publication. Adding sources, changing an account or granting it renewed consent requires the owner to review the Sources panel in the routine's consent dialog. This review does not waive action approvals or grant access to resources. Current resource permissions still apply.
+
+Queued activations, offline waits and parked runs keep their original review identity. A later review never lends new authority to old work. The mailbox poll checks the input account before reading, and its events retain the review admitted before that read. MCP calls use reviewed aliases and exclude unreviewed tools; unavailable reviewed sources produce an explicit refusal. A review needed before an execution appears in the owner's existing attention case and does not count as a model failure.
+
+Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.
+
+
+Budgeted routine fires share a queue concurrency key, so simultaneous events cannot all admit a model call against the same completed-spend balance. Memory extraction likewise serializes per organization’s maintenance role. Each admitted job rechecks the current budget; a single admitted call can still finish across the ceiling.
+
+
+Deployment-wide paused-job alerts retain ordinary notification read/dismiss state; they do not claim to be organization outcomes.
+
+### Routines, working conversations and Inbox
+
+**Routines** lists scheduled tasks, event-triggered tasks and read-only monitoring
+presets together. A trigger decides *when* a routine runs; a monitoring preset
+restricts *what* it can do. Use one routine for a responsibility, rather than
+creating a watch and a scheduled agent for the same mailbox.
+
+Choose **After every completed run** (`result_mode: report`, the existing default)
+for regular reports, or **Only when something needs attention** (`result_mode:
+inbox`) for checks that should stay quiet. In Inbox mode, the agent returns relevant
+source items with stable item and revision identifiers, context and any requested
+full draft. An empty result creates no working conversation or completion notice.
+Each item gets one private working conversation and one Inbox case. Repeated source
+revisions are deduplicated durably, including after a case is resolved. A new revision
+updates the same conversation and reopens its case; a muted item stays muted.
+
+Open the conversation from Inbox to edit the draft or request the next action.
+Reading or editing a draft does not send it or complete the case. Normal tool
+permissions and approval still apply. The platform MCP tools `list_inbox_cases`
+and `settle_inbox_case` let an agent find the current case and resolve it after
+successful requested work or an explicit confirmation that it is done. Inbox and
+chat share its state and cancel pending notifications on settlement. Read-only
+monitoring can prepare draft text in a working conversation but cannot save or
+send a draft through the connected service.
+
+Conversation-based nightly suggestions remain optional and independent: they
+propose improvements from recent requests and memory, not another mailbox scan.
+Monitoring uses its selected agent's model and does not require a suggestions
+model to be configured. The organization still controls monitoring availability,
+cadence and its shared per-person background budget. Ordinary routines retain
+their own agent, organization and optional routine budget limits. Days and time
+also control the digest of nonurgent monitoring findings.
+
+The morning digest lists previously recorded nonurgent findings without another
+model call or source scan. It is notification delivery, not a second routine.
+The Inbox MCP tools are for signed-in sessions and trusted private-chat run
+credentials; the latter are restricted to cases belonging to that chat. Ordinary
+API keys, unattended runs and publisher fallback identities cannot read or settle
+private Inbox cases.

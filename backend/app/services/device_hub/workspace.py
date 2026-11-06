@@ -25,7 +25,7 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
 )
 
-from app.schemas.local_target import LocalTarget
+from app.schemas.local_target import LocalTarget, RoutineLocalScope
 from app.services.device_hub import _hub
 from app.services.device_hub.exceptions import (
     DeviceCallFailed,
@@ -62,16 +62,32 @@ class DeviceWorkspace:
         target: LocalTarget,
         *,
         conversation_id: UUID | None = None,
+        routine_scope: RoutineLocalScope | None = None,
     ) -> None:
         if target.folder is None:
             raise WorkspaceUnavailableError("A local workspace needs an approved folder")
         if target.computer_grant is not None and conversation_id is None:
             raise WorkspaceUnavailableError("Whole-computer access requires a conversation")
+        if target.routine_grant is not None and routine_scope is None:
+            raise WorkspaceUnavailableError(
+                "Routine folder consent cannot be borrowed by another run"
+            )
+        if routine_scope is not None and (
+            target.device_id != session_id
+            or routine_scope.device_id != session_id
+            or routine_scope.user_id != user_id
+            or routine_scope.grant_id != target.routine_grant
+            or routine_scope.operations != target.operations
+        ):
+            raise WorkspaceUnavailableError(
+                "Routine folder authority does not match this device session"
+            )
         self._conversation_id = conversation_id
         self._root = target.folder
         self._session_id = session_id
         self._user_id = user_id
         self._target = target
+        self._routine_scope = routine_scope
 
     @property
     def whole_computer(self) -> bool:
@@ -96,7 +112,14 @@ class DeviceWorkspace:
         A computer that is gone when the operation is sent is waited for, and the
         operation sent again once it is back: the run parks rather than fails.
         """
-        payload = {"root": self._root, "mode": self._target.mode, **args}
+        payload = {
+            **args,
+            "root": self._root,
+            "mode": self._target.mode,
+            "work_context": {"kind": "interactive"}
+            if self._routine_scope is None
+            else self._routine_scope.model_dump(mode="json"),
+        }
         if self._target.computer_grant is not None:
             payload["computer_grant"] = str(self._target.computer_grant)
             payload["conversation_id"] = str(self._conversation_id)

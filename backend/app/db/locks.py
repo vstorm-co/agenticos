@@ -35,7 +35,8 @@ class LockScope(IntEnum):
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
-    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    #: A collection name's claim-and-create against its vector-table drop (#1355),
+    #: and a chunk write with no base through its commit (#2747).
     COLLECTION_TEARDOWN = 3
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so
@@ -93,6 +94,13 @@ class LockScope(IntEnum):
     VIRTUAL_TABLE_EXPORT_PER_ORG = 18
     #: Cumulative inline results across retained runs, before run-row locks.
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
+    #: Telephone reservations, opt-in changes and endpoint admission share one order.
+    PHONE_CALLS_PER_ORG = 28
+    #: Retained inbound email bodies and receipt counts, before durable enqueue.
+    EMAIL_DELIVERY_STORAGE_PER_ORG = 29
+    #: Read/compare/write of claims within one organization, owner and agent scope.
+    MEMORY_CLAIMS_PER_SCOPE = 26
+    TASK_BOARD = 27
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.

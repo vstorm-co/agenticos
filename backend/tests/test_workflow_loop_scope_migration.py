@@ -1,4 +1,4 @@
-"""`0258_workflow_loop_scope` rewrites stored graphs from wired bodies to named ones (#2770)."""
+"""`0296_workflow_loop_scope` rewrites stored graphs from wired bodies to named ones (#2770)."""
 
 import importlib.util
 import uuid
@@ -8,7 +8,7 @@ from typing import Any
 
 
 def _migration() -> ModuleType:
-    path = Path(__file__).parents[1] / "alembic/versions/0258_workflow_loop_scope.py"
+    path = Path(__file__).parents[1] / "alembic/versions/0296_workflow_loop_scope.py"
     spec = importlib.util.spec_from_file_location("workflow_loop_scope_migration", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

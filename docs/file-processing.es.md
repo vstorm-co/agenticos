@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "becc901db10a"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -891,6 +891,26 @@ Un nombre que el llamante no aporta se deriva del nombre visible más seis
 caracteres hexadecimales aleatorios, y se reclama por el mismo camino en lugar de
 darlo por bueno por ser aleatorio.
 
+**Tampoco lo está un nombre con contenido que ninguna base posee.** `rag-ingest`
+escribe filas de seguimiento y una tabla `rag_<name>` sin base de conocimiento y sin
+organización. Por eso `claim` rechaza un nombre que ninguna base tiene mientras tenga
+filas sin base que describan chunks de cualquier tenant salvo la organización del
+llamante, o una tabla vectorial con esos chunks. Antes, un miembro con
+`collections:edit` podía crear una base sobre la colección de un operador y borrarla,
+eliminando con ella los chunks del operador
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Un nombre que
+una base tiene no se comprueba: el llamante puede escribir en todas esas bases y
+podría borrarlas o vaciarlas igualmente. Un administrador de la aplicación sí puede
+adoptar ese nombre; una fila fallida sin id de vector no describe ningún chunk y no lo
+retiene. Un `rag-ingest` interrumpido a mitad de un archivo deja una fila `processing`
+que retiene el nombre hasta que un administrador de la aplicación lo adopte o ejecute
+`rag-drop <name>`.
+
+El contenido que llega *después* de que una base reclame el nombre no se puede rechazar
+aquí, así que lo protege el desmontaje: la tabla de la última base se queda mientras
+tenga un fragmento sin asignar que esa base no toma, como se describe más abajo al
+borrar una base.
+
 **Y un nombre a medio desmontar tampoco está libre.** Borrar una colección elimina
 sus filas de base de conocimiento dentro de la petición, pero elimina la tabla
 física de vectores `rag_<name>` solo *después* de que la petición haga commit,
@@ -910,10 +930,11 @@ sincronización, un reintento — también la comprueban, en la barrera `still_w
 justo antes de la escritura de vectores, así que una sincronización hacia un
 predeterminado vaciado (cuya fila el vaciado conserva) se detiene en vez de
 repoblar una tabla que se está borrando (#1382). Las dos son comprobaciones de
-reserva de mejor esfuerzo y no una serialización con bloqueo: sostener el bloqueo
-de desmontaje durante una escritura provocaría un interbloqueo contra la purga de
-una organización, que bloquea antes la fila de `organizations`, así que cerrar la
-última ventana estrecha queda para #1382.
+reserva de mejor esfuerzo y no una serialización con bloqueo. Una escritura
+archivada bajo una base se apoya en ellas y en los bloqueos de su base y su fila, y
+cerrar la última ventana estrecha queda para #1382. Una escritura de chunks sin base
+retiene el bloqueo de desmontaje hasta su commit, como se describe más abajo en el
+desmontaje de la última base.
 
 Una reserva cuyo borrado nunca llegó a ejecutarse — perdida por una caída entre
 el commit y el despacho, o por un borrado que falla definitivamente — bloquearía
@@ -946,6 +967,9 @@ llenó `rag-ingest`) con sus filas de documentos. Si varias bases tienen el nomb
 rechaza y lista sus ids; `--knowledge-base <id>` indica la base que vaciar, y la tabla
 se queda para las demás. Un worker borra la tabla y los archivos después del commit
 del comando (#2560).
+
+La tabla de la última base se va contenga lo que contenga: el operador pidió el borrado
+y suyo es el contenido que un borrado desde la consola respetaría (#2747).
 
 `documents` era además la colección **predeterminada**, así que el inicio rápido
 de la CLI apuntaba a la tabla de seguimiento; ahora el predeterminado es
@@ -1064,16 +1088,39 @@ los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
 documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran las mismas
-filas, con sus archivos, y el trabajo de limpieza elimina la tabla: las filas de la
-propia base y las filas sin asignar de su tenant. Para una base de organización o una
-base personal son las de su organización, para una base app-scoped las que no tienen
-organización (las que escribe `rag-ingest`), y para una base personal fuera de una
-organización ninguna.
+filas, con sus archivos: las filas de la propia base y las filas sin asignar de su
+tenant. Para una base de organización o una base personal son las de su organización,
+para una base app-scoped las que no tienen organización (las que escribe `rag-ingest`),
+y para una base personal fuera de una organización ninguna.
 
-Las filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos,
-porque quien llama no tiene autoridad sobre ellas. Sus fragmentos se van con la
-tabla, así que se marcan como fallidas: la siguiente base de ese tenant con ese
-nombre las lista como fallidas, un documento subido hay que subirlo de nuevo y una
+Después, ambas rutas conservan la tabla si tiene un fragmento sin asignar que la base
+no toma: un `rag-ingest` o una sincronización por CLI del operador en el nombre ya
+tomado, o un fragmento de otro tenant. Un claim no puede rechazar contenido que llega
+después, y quien llama no tiene autoridad sobre él. Solo se purgan los fragmentos que
+la base toma, y las demás filas bajo el nombre se quedan como están.
+
+Salvo en una base por defecto, que sigue en el nombre, este queda como lo deja
+`rag-ingest`: ninguna base lo tiene, `rag-drop <name>` lo elimina y `claim` lo rechaza a
+todos menos a un administrador de la aplicación y a una organización cuyos fragmentos
+son los únicos que quedan ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Una escritura de chunks sin base retiene el nombre hasta su commit, así que la tabla
+se consulta solo cuando ha terminado cualquier escritura de ese tipo que ya estuviera en
+curso. Una escritura que llega al nombre mientras está reservado se rechaza, y el
+archivo debe ingerirse de nuevo. El trabajo de limpieza solo elimina un nombre reservado,
+así que repetirlo respeta una escritura hecha después de su primera eliminación.
+
+Una base personal fuera de una organización no toma ningún fragmento sin asignar,
+aunque un fragmento que nombran sus propias filas se va con ella. Un fragmento antiguo
+sin base, sin organización y sin fila no se distingue del de un operador: también
+conserva la tabla, se queda hasta `rag-drop <name>` y es del ámbito de la aplicación,
+así que una base app-scoped con ese nombre lo lee.
+
+En otro caso, y siempre con `rag-drop`, el trabajo de limpieza elimina la tabla. Las
+filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos, porque
+quien llama no tiene autoridad sobre ellas. Sin la tabla ya no hay nada detrás de
+ellas, así que se marcan como fallidas: la siguiente base de ese tenant con ese nombre
+las lista como fallidas, un documento subido hay que subirlo de nuevo y una
 sincronización vuelve a indexar un documento sincronizado.
 
 Antes, `DELETE /kb/{id}` dejaba las filas sin asignar del tenant detrás de la tabla
@@ -1223,7 +1270,7 @@ archivo guardado — para un llamante que no pidió nada de eso. Una dirección 
 no casa con ninguna comparación, que es la respuesta que se quiere y no una que
 haya que esquivar, y es lo que tiene cada fila escrita antes de existir la columna.
 
-Tres cosas deciden qué puede llevarse una retirada, y cada una de ellas se
+Cuatro cosas deciden qué puede llevarse una retirada, y cada una de ellas se
 equivocó primero:
 
 - **Por dirección, nunca por nombre de archivo.** Esa es la colisión que
@@ -1231,6 +1278,11 @@ equivocó primero:
   vectores, alcanzada desde el otro extremo: `a/readme.md` y `b/readme.md` en un
   mismo bucket comparten nombre base, así que casar por nombre borra la fila del
   otro archivo.
+- **En el ámbito de la fila nueva, nunca por nombre de colección.** Un nombre no
+  es único, así que dos organizaciones, o dos bases de una, pueden sincronizar la
+  misma ruta en él. Una fila archivada en una base retira solo las filas que esa base
+  lista —las suyas y las sin base de su tenant—, y una fila sin base solo las filas
+  sin base de su propia organización ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, no "no tiene id de vector".** Son conjuntos distintos, y tratarlos
   como uno solo es una carrera: una fila `PROCESSING` pertenece a un intento aún
   en curso, y de dos ingestas solapadas de un mismo origen la segunda borraría la

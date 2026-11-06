@@ -17,7 +17,8 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui";
-import { NotificationGlyph } from "@/components/layout/notification-glyph";
+import { OutcomeActions } from "@/components/chat/outcome-cards";
+import { NotificationGlyph, NotificationMeta } from "@/components/layout/notification-glyph";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import type { Notification } from "@/lib/notifications-api";
@@ -329,9 +330,7 @@ function NotificationRow({
         >
           {item.summary}
         </span>
-        <span className="text-muted-foreground block text-xs">
-          {timeAgo(item.created_at, tTime, locale)}
-        </span>
+        <NotificationMeta item={item}>{timeAgo(item.created_at, tTime, locale)}</NotificationMeta>
       </span>
       <span
         aria-hidden
@@ -374,6 +373,9 @@ function NotificationRow({
     // outer click in whichever direction the browser resolves it.
     <li className="group relative">
       {body}
+      {item.outcome_id && item.event_type !== "approval_requested" && (
+        <OutcomeActions id={item.outcome_id} via="inbox" className="px-3 pb-3 pl-14" />
+      )}
       <button
         type="button"
         onClick={() => void onDismiss(item.id).catch(() => {})}

@@ -309,6 +309,7 @@
     "mapCycleBadge": "Führt zurück",
     "mapCycleDetail": "Die Delegation kehrt zu einem Agent zurück, der auf diesem Zweig bereits darüber liegt. Ein Run weist die Schleife ab, statt ihr zu folgen.",
     "mapDelegate": "Delegat",
+    "mapMoreItems": "+{count} weitere · alle anzeigen",
     "mapDepthCap": "Mehr darunter",
     "mapDepthCapDetail": "Hat eigene Delegaten, die ein von diesem Agent gestarteter Run nie erreichen kann – die Tiefenbegrenzung der Delegation endet hier, oder seine Delegation ist ausgeschaltet.",
     "mapDetailRegion": "Details zu {name}",
@@ -600,19 +601,6 @@
     "modelApiChat": "Chat Completions",
     "modelApiHint": "Die eigene API von OpenAI bedient jedes Modell über Responses und die neuesten Modelle ausschließlich darüber. Die meisten OpenAI-kompatiblen Server (vLLM, LM Studio) implementieren nur Chat Completions.",
     "modelApiHintAzure": "Responses braucht eine aktuelle api_version am Azure-Schlüssel; Chat Completions funktioniert mit jeder.",
-    "modelApiFromModel": "{api}, aus dem Modell gewählt",
-    "modelApiFromModelPending": "Wird beim Speichern aus dem Modell gewählt",
-    "modelApiStored": "{api}, an diesem Modell festgelegt",
-    "modelApiFromModelHint": "Stav.ai bedient die meisten Modelle über Chat Completions und einige nur über Responses. Das Modell entscheidet.",
-    "stavEndpointHint": "Leer lassen für api.stav.ai. Nur für einen regionalen oder Test-Endpunkt von Stav.ai setzen.",
-    "otariEndpointHint": "Vor dem Laden der Modelle die Gateway-URL mit /api/v1 angeben. Hosting: https://api.otari.ai/api/v1. EU: https://eu.api.otari.ai/api/v1.",
-    "loadGatewayModels": "Modelle laden",
-    "modelIdOtariHint": "provider:model oder einen im Otari-Gateway definierten Alias beziehungsweise eine Routing-Policy verwenden.",
-    "modelRegion": "Region",
-    "modelRegionHint": "Wo Stav.ai die Anfragen dieses Modells ausführen darf. Es antwortet nur von Endpunkten in der Region und lehnt eine Anfrage ab, die es dort nicht bedienen kann.",
-    "modelRegionEu": "Nur EU",
-    "modelRegionEea": "Nur EWR",
-    "modelRegionGlobal": "Weltweit",
     "usingKey": "Verwendet <strong>{name}</strong>",
     "variableDescription": "Beschreibung von Variable {index}",
     "variableDescriptionPlaceholder": "In welchem Tarif dieser Besucher ist",
@@ -725,7 +713,7 @@
     "testPanelWhatAnswers": "Was antwortet",
     "testPanelCompare": "Zwei nebeneinander vergleichen",
     "testPanelComparedWith": "Verglichen mit",
-    "testPanelCompareHint": "Zwei Chats antworten nebeneinander. Fragen Sie beide über das Feld unten, damit sie dieselben Worte bekommen.",
+    "testPanelCompareHint": "Fragen Sie beide Chats über das Feld unten, damit sie denselben Prompt erhalten.",
     "testPanelChanges": "Was der Entwurf ändert",
     "testPanelChangesTitle": "Was der Entwurf ändert",
     "testPanelChangesWhy": "Der getestete Entwurf gegenüber Version {version}, der veröffentlichten.",
@@ -893,17 +881,6 @@
     "voicePreview": "Diese Stimme anhören",
     "voicePreviewStop": "Anhalten",
     "voicePreviewNeedsKey": "Wählen Sie einen Schlüssel, um diese Stimme anzuhören",
-    "tablesGrantsLabel": "Tabellen, die dieser Agent nutzen darf",
-    "tablesGrantsDetail": "Haken Sie eine Tabelle an und wählen Sie, was der Agent darin tun darf. Lesen ist immer an. Ein Agent erreicht nie eine Tabelle, die hier nicht angehakt ist, und jeder Aufruf wird weiterhin als das Mitglied geprüft, für das er handelt.",
-    "tablesNone": "Es gibt noch keine Tabellen. Legen Sie unter Tabellen eine an und kommen Sie zurück, um sie freizugeben.",
-    "tablesGrantToggle": "Den Agent {name} nutzen lassen",
-    "tablesOperationsLabel": "Was der Agent in {name} tun darf",
-    "tablesOperationRead": "Lesen",
-    "tablesOperationCreate": "Hinzufügen",
-    "tablesOperationUpdate": "Ändern",
-    "tablesOperationDelete": "Löschen",
-    "tablesGrantOrphaned": "Eine freigegebene Tabelle gibt es nicht mehr oder sie ist nicht mehr mit Ihnen geteilt:",
-    "tablesManage": "Tabellen verwalten",
     "workflowsGrantsLabel": "Workflows, die er starten darf",
     "workflowsGrantsDetail": "Jeder wird zu etwas, das der Agent ausführen kann - mit der Eingabe, die er deklariert, als das Mitglied, für das der Agent handelt, und mit Warten auf seine Antwort.",
     "workflowsNeedsPermission": "Die Auswahl von Workflows erfordert workflows:view.",
@@ -1000,7 +977,28 @@
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
-    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben."
+    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
+    "unavailableTitle": "Agent nicht verfügbar",
+    "unavailableDescription": "Prüfe die ausgewählte Organisation. Dieser Agent gehört möglicherweise zu einer anderen Organisation, wurde entfernt oder ist nicht mehr für dich freigegeben.",
+    "loadFailedTitle": "Agent konnte nicht geladen werden",
+    "retryLoad": "Erneut versuchen",
+    "modelApiFromModel": "{api}, aus dem Modell gewählt",
+    "modelApiFromModelPending": "Wird beim Speichern aus dem Modell gewählt",
+    "modelApiStored": "{api}, an diesem Modell festgelegt",
+    "modelApiFromModelHint": "Stav.ai bedient die meisten Modelle über Chat Completions und einige nur über Responses. Das Modell entscheidet.",
+    "stavEndpointHint": "Leer lassen für api.stav.ai. Nur für einen regionalen oder Test-Endpunkt von Stav.ai setzen.",
+    "otariEndpointHint": "Vor dem Laden der Modelle die Gateway-URL mit /api/v1 angeben. Hosting: https://api.otari.ai/api/v1. EU: https://eu.api.otari.ai/api/v1.",
+    "loadGatewayModels": "Modelle laden",
+    "modelIdOtariHint": "provider:model oder einen im Otari-Gateway definierten Alias beziehungsweise eine Routing-Policy verwenden.",
+    "modelRegion": "Region",
+    "modelRegionHint": "Wo Stav.ai die Anfragen dieses Modells ausführen darf. Es antwortet nur von Endpunkten in der Region und lehnt eine Anfrage ab, die es dort nicht bedienen kann.",
+    "modelRegionEu": "Nur EU",
+    "modelRegionEea": "Nur EWR",
+    "modelRegionGlobal": "Weltweit",
+    "starterIcon": "Symbol für Startnachricht {number}",
+    "starterTitle": "Titel der Startnachricht {number}",
+    "starterTitlePlaceholder": "Kurzer Titel (optional)",
+    "starterMessageLabel": "Nachricht unter dem Titel, die beim Klicken gesendet wird"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1011,6 +1009,7 @@
     "confirmPassword": "Passwort bestätigen",
     "continueWithGithub": "Weiter mit GitHub",
     "continueWithGoogle": "Weiter mit Google",
+    "googleNotConfigured": "Die Google-Anmeldung ist für diese Installation nicht eingerichtet.",
     "continueWithProvider": "Weiter mit {provider}",
     "continueWithMicrosoft": "Weiter mit Microsoft",
     "createHeading": "Richten Sie Ihren <em>Workspace ein.</em>",
@@ -1331,9 +1330,6 @@
     "delete": "Löschen",
     "describeIssue": "Beschreiben Sie das Problem … (optional)",
     "download": "Herunterladen",
-    "drafts": {
-      "versions": "Varianten dieses Entwurfs"
-    },
     "dropFilesAttach": "Dateien zum Anhängen hierher ziehen",
     "edit": "Bearbeiten",
     "editMeans": "Bearbeiten erlaubt, diese Unterhaltung umzubenennen, zu archivieren, zu löschen und ihr Züge hinzuzufügen.",
@@ -1359,7 +1355,11 @@
       "visualToolTitle": "Einen Rechner bauen",
       "visualToolPrompt": "Bau mir einen Rechnungsteiler: Betrag, Trinkgeld und Anzahl der Personen, neu berechnet beim Tippen.",
       "visualMapTitle": "Eine Reise auf der Karte planen",
-      "visualMapPrompt": "Plane fünf Tage in Japan auf einer Karte: nummerierte Stopps in Reihenfolge und was man an jedem macht."
+      "visualMapPrompt": "Plane fünf Tage in Japan auf einer Karte: nummerierte Stopps in Reihenfolge und was man an jedem macht.",
+      "greetingNight": "Noch wach, {name}? Woran arbeiten wir?",
+      "greetingMorning": "Guten Morgen, {name}. Was beschäftigt dich?",
+      "greetingAfternoon": "Guten Tag, {name}. Wobei kann ich helfen?",
+      "greetingEvening": "Guten Abend, {name}. Woran arbeiten wir?"
     },
     "failedArchiveConversation": "Unterhaltung konnte nicht archiviert werden",
     "failedCreateConversation": "Unterhaltung konnte nicht erstellt werden",
@@ -1540,7 +1540,8 @@
       "title": "Chats",
       "unread": "Neue Antwort",
       "unreadHeading": "Ungelesen",
-      "unnamedProject": "Ein Projekt"
+      "unnamedProject": "Ein Projekt",
+      "apiFilterLabel": "API-Gespräche ausblenden"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -1561,7 +1562,8 @@
       "elapsedSeconds": "{seconds} s",
       "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}",
       "stopped": "Gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
-      "stoppedAfter": "Nach {duration} gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}"
+      "stoppedAfter": "Nach {duration} gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
+      "activityCount": "{count, plural, one {# Aktion} other {# Aktionen}}"
     },
     "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",
@@ -1645,6 +1647,8 @@
       "lookingThroughContext": "Sieht die Kontextdateien durch",
       "memoryChecking": "Prüft sein Gedächtnis",
       "memoryForgetting": "Vergisst eine Erinnerung",
+      "memoryCorrecting": "Erinnerung wird korrigiert",
+      "memorySharing": "Erinnerung wird geteilt",
       "memoryReading": "Liest eine Erinnerung",
       "memoryRecalling": "Durchsucht sein Gedächtnis",
       "memoryRemembering": "Merkt sich eine Tatsache",
@@ -1724,6 +1728,8 @@
       "writeMemory": "Im Gedächtnis speichern",
       "editMemory": "Erinnerung aktualisieren",
       "deleteMemory": "Erinnerung vergessen",
+      "correctMemory": "Erinnerung korrigieren",
+      "shareMemory": "Erinnerung teilen",
       "askingAgent": "Fragt {name}",
       "askedAgent": "{name} gefragt",
       "stoppedAskingAgent": "Frage an {name} gestoppt",
@@ -1749,7 +1755,22 @@
         "filesChanged": "{count, plural, =1 {1 Datei geändert:} other {# Dateien geändert:}}",
         "steps": "{count, plural, =1 {1 Schritt} other {# Schritte}}",
         "stepKind": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} failed {Fehlgeschlagen} other {Verwendet}}",
-        "refused": "Im Nur-Lesen-Modus nicht erlaubt: {tools}"
+        "refused": "Im Nur-Lesen-Modus nicht erlaubt: {tools}",
+        "changes": "{count, plural, =1 {1 Datei geändert} other {# Dateien geändert}}",
+        "changesLoading": "Änderungen der Aufgabe werden geladen…",
+        "changesUnavailable": "Die Änderungen der Aufgabe konnten nicht geladen werden.",
+        "noChanges": "Die Aufgabe hat keine Dateien geändert.",
+        "changeStatus": "{status, select, added {Hinzugefügt} deleted {Gelöscht} renamed {Umbenannt} other {Geändert}}",
+        "renamedPath": "{from} → {to}",
+        "patchCut": "Der Patch ist länger, als die Plattform speichert, und wurde gekürzt: Patch kopieren kopiert das Gespeicherte.",
+        "filesOmitted": "{count, plural, =1 {1 weitere geänderte Datei ist nicht aufgeführt.} other {# weitere geänderte Dateien sind nicht aufgeführt.}}",
+        "moreLines": "{count, plural, =1 {1 weitere Zeile - Patch kopieren enthält sie.} other {# weitere Zeilen - Patch kopieren enthält sie.}}",
+        "copyPatch": "Patch kopieren",
+        "patchCopied": "Patch kopiert",
+        "binary": "binär",
+        "binaryFile": "Eine Binärdatei: Es gibt keine Zeilen anzuzeigen.",
+        "patchOmitted": "Jenseits der Patch-Grenze: Nur der Name wird gespeichert.",
+        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert."
       },
       "runCodingAgent": "Arbeit an den Coding Agent übergeben",
       "runningCodingAgent": "Der Coding Agent arbeitet",
@@ -1763,22 +1784,6 @@
       "readVisual": "Hat ein Visual gelesen",
       "workingInText": "Arbeitet im Textmodus daran",
       "workedInText": "Im Textmodus bearbeitet",
-      "tablesListing": "Prüft, welche Tabellen es nutzen kann",
-      "tablesChecking": "Prüft eine Tabelle",
-      "tablesDescribing": "Liest die Spalten einer Tabelle",
-      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf",
-      "tablesCreating": "Erstellt eine Tabelle",
-      "recordsChecking": "Sucht nach einem Datensatz",
-      "recordsListing": "Listet Datensätze auf",
-      "recordsReading": "Liest einen Datensatz",
-      "recordsCreating": "Fügt einen Datensatz hinzu",
-      "recordsUpserting": "Speichert einen Datensatz",
-      "recordsUpdating": "Aktualisiert einen Datensatz",
-      "recordsDeleting": "Löscht einen Datensatz",
-      "approveCreateRecord": "Einen Datensatz zu {table} hinzufügen",
-      "approveUpsertRecord": "Einen Datensatz in {table} anlegen oder aktualisieren",
-      "approveUpdateRecord": "Einen Datensatz in {table} ändern",
-      "approveDeleteRecord": "Einen Datensatz aus {table} löschen",
       "workflowsListing": "Prüft, welche Workflows er starten kann",
       "workflowRunning": "Startet einen Workflow",
       "workflowRunReading": "Prüft einen Workflow-Lauf",
@@ -1791,8 +1796,6 @@
       "videoNotStored": "Das Video wurde erzeugt, aber nicht gespeichert.",
       "suggestingNextSteps": "Schlägt nächste Schritte vor",
       "nextSteps": "Nächste Schritte",
-      "writingDraft": "Schreibt einen Entwurf",
-      "draft": "Hat einen Entwurf geschrieben",
       "requestingCapability": "Bittet um eine Capability",
       "capabilityRequest": "Bitte um eine Capability",
       "proposingSetup": "Schlage vor, was sich einrichten lässt",
@@ -1808,6 +1811,11 @@
       "listApps": "Anwendungen auflisten",
       "sendingChannelFile": "Sendet eine Datei an den Kanal",
       "sendChannelFile": "Datei an Kanal senden",
+      "phoneCalling": "Telefonanruf wird eingereiht",
+      "phoneContacts": "Weiterleitungskontakte prüfen",
+      "phoneTransferring": "Anruf wird weitergeleitet",
+      "phoneEnding": "Anruf wird beendet",
+      "phoneContactPolicy": "Telefonkontaktregeln lesen",
       "startMonitor": "Einen Befehl beobachten",
       "startingMonitor": "Beobachtung eines Befehls beginnt",
       "listMonitors": "Die Beobachtungen",
@@ -1819,7 +1827,29 @@
       "listingBackgroundTasks": "Hintergrundthemen lesen",
       "backgroundTasks": "Hintergrundthemen",
       "stoppingBackgroundTask": "Hintergrundthema stoppen",
-      "backgroundTaskStopped": "Hintergrundthema gestoppt"
+      "backgroundTaskStopped": "Hintergrundthema gestoppt",
+      "memoryResult": "Gedächtnis",
+      "manageMemory": "Dein Gedächtnis",
+      "memoryRecordedResult": "Im Gedächtnis gespeichert",
+      "memoryCorrectedResult": "Korrigiert; frühere Version im Verlauf erhalten",
+      "writingDraft": "Schreibt einen Entwurf",
+      "draft": "Hat einen Entwurf geschrieben",
+      "approveCreateRecord": "Einen Datensatz zu {table} hinzufügen",
+      "approveDeleteRecord": "Einen Datensatz aus {table} löschen",
+      "approveUpdateRecord": "Einen Datensatz in {table} ändern",
+      "approveUpsertRecord": "Einen Datensatz in {table} anlegen oder aktualisieren",
+      "recordsChecking": "Sucht nach einem Datensatz",
+      "recordsCreating": "Fügt einen Datensatz hinzu",
+      "recordsDeleting": "Löscht einen Datensatz",
+      "recordsListing": "Listet Datensätze auf",
+      "recordsReading": "Liest einen Datensatz",
+      "recordsUpdating": "Aktualisiert einen Datensatz",
+      "recordsUpserting": "Speichert einen Datensatz",
+      "tablesChecking": "Prüft eine Tabelle",
+      "tablesCreating": "Erstellt eine Tabelle",
+      "tablesDescribing": "Liest die Spalten einer Tabelle",
+      "tablesListing": "Prüft, welche Tabellen es nutzen kann",
+      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -2234,7 +2264,8 @@
         "take": {
           "agent": "Mit dem Architect bauen",
           "routine": "Einrichten",
-          "connection": "Verbinden"
+          "connection": "Verbinden",
+          "watch": "Beobachtung einrichten"
         }
       },
       "makeSkill": "Einen Skill daraus machen",
@@ -2256,7 +2287,8 @@
       },
       "open": "Öffnen",
       "urgent": "Dringend",
-      "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
+      "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}",
+      "acknowledged": "Zur Kenntnis genommen"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
     "turnLostAskAgain": "Erneut fragen",
@@ -2283,7 +2315,6 @@
       "chosen": "{agent} · {folder}"
     },
     "continuesInTheChat": "Entschieden. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde, und antwortet dort.",
-    "continuedInTheChat": "Im Chat fortgesetzt, in dem gefragt wurde",
     "answerAlsoInTheChat": "Die Antwort geht auch an den Chat, in dem gefragt wurde.",
     "reasoning": {
       "levels": {
@@ -2315,7 +2346,28 @@
         "interrupted": "Unterbrochen; nicht neu gestartet"
       },
       "emptyTitle": "Delegiere Arbeit und sprich weiter"
-    }
+    },
+    "platformObjects": {
+      "project": "Projekt",
+      "table": "Tabelle",
+      "task": "Aufgabe",
+      "record": "Tabelleneintrag",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "skill": "Skill",
+      "context": "Kontextdatei"
+    },
+    "drafts": {
+      "versions": "Varianten dieses Entwurfs"
+    },
+    "approvalRememberOptions": "Weitere Freigabeoptionen",
+    "approvalRememberChat": "Dieses Tool in diesem Chat erlauben",
+    "approvalRememberAgent": "Dieses Tool für diesen Agenten immer erlauben",
+    "approvalRememberedTitle": "Gespeicherte Tool-Freigaben",
+    "approvalRememberedEmpty": "Keine gespeicherten Freigaben.",
+    "approvalRememberForget": "Erneut fragen",
+    "approvalRememberFailed": "Die Freigabe konnte nicht entfernt werden. Erneut versuchen.",
+    "approvalRememberRetry": "Erneut versuchen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -3064,6 +3116,14 @@
         },
         "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
       },
+      "phone-calls": {
+        "title": "Telefonanrufe",
+        "description": "Letzte Telefonabsichten und ihr Status; Kanaladministratoren sehen Routingbelege der Organisation.",
+        "empty": {
+          "title": "Noch keine Telefonanrufe",
+          "description": "Richte die Telefonzustimmung unter Benachrichtigungen und eine Twilio-Route unter Kanäle ein."
+        }
+      },
       "background-tasks": {
         "title": "Hintergrundthemen",
         "description": "Deine delegierten Aufgaben und Ergebnisse"
@@ -3180,7 +3240,6 @@
       "reset": "Wieder der Seite folgen"
     },
     "pageStatus": "Status",
-    "morePageActions": "Weitere Seitenaktionen",
     "startChecklist": {
       "title": "Erste Schritte",
       "progress": "{done} von {total} erledigt",
@@ -3320,7 +3379,8 @@
     },
     "appSession": "AgenticOS für {platform} {version}",
     "pushOn": "Push",
-    "pushOnHint": "Dieses Gerät erhält Push-Benachrichtigungen"
+    "pushOnHint": "Dieses Gerät erhält Push-Benachrichtigungen",
+    "morePageActions": "Weitere Seitenaktionen"
   },
   "errors": {
     "authorizationFailed": "Autorisierung fehlgeschlagen",
@@ -3987,6 +4047,10 @@
     "oauthConnectedUnnamed": "Der Server ist verbunden.",
     "oauthFailed": "Die Anmeldung ist fehlgeschlagen, und es wurde keine Verbindung gespeichert.",
     "oauthMissingCode": "Der Provider hat keinen Autorisierungscode gesendet.",
+    "googleOAuthClientRequired": "Google benötigt vor dem Verbinden eine Client-ID und ein Client-Secret aus Google Cloud.",
+    "googleOAuthSetupGuide": "Google-Einrichtungsanleitung öffnen",
+    "oauthRequiredClient": "OAuth-Client in Google Cloud",
+    "googleOAuthClientHint": "Erstelle einen OAuth-Client vom Typ Web application, wähle „Use this client for an AI-powered agent“ und trage die exakte Weiterleitungs-URL unten ein.",
     "oauthOwnClient": "Ihr eigener Client (optional)",
     "oauthOwnClientHint": "Die meisten Server registrieren diese App selbst – lassen Sie das leer. Ein Provider, der das verweigert, etwa HubSpot, gibt Zugangsdaten nur für eine im eigenen Portal angelegte App heraus: Legen Sie dort eine an, tragen Sie die untenstehende Redirect-URL ein und fügen Sie deren Zugangsdaten hier ein.",
     "oauthRedirectUrl": "Redirect-URL",
@@ -4089,6 +4153,7 @@
     "you": "(Sie)"
   },
   "nav": {
+    "monitoring": "Überwachung",
     "memory": "Gedächtnis",
     "account": "Konto",
     "activity": "Aktivität",
@@ -4096,12 +4161,12 @@
     "adminOverview": "Admin",
     "agents": "Agents",
     "apiDocs": "API-Dokumentation",
-    "build": "Bauen",
+    "build": "Erstellen und verwalten",
     "channels": "Kanäle",
     "chat": "Chat",
     "commandPalette": "Befehlspalette",
     "conversations": "Unterhaltungen",
-    "dashboard": "Dashboard",
+    "dashboard": "Übersicht",
     "esc": "ESC",
     "kb": "Wissen",
     "knowledge": "Wissen",
@@ -4171,7 +4236,8 @@
     "viewRelease": "Release ansehen",
     "whatsNewTitle": "Neu in {version}",
     "whatsNewDescription": "Änderungen in der verwendeten Version.",
-    "whatsNewDone": "Verstanden"
+    "whatsNewDone": "Verstanden",
+    "backgroundWork": "Arbeit im Hintergrund"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4228,6 +4294,10 @@
       "explore-chat": {
         "title": "Eine kurze Tour durch den Chat?",
         "body": "Sehen Sie, wie Sie eine Unterhaltung beginnen, den antwortenden Agent wechseln und Modell oder Denkaufwand für einen einzelnen Chat ändern. Möchten Sie eine kurze geführte Runde?"
+      },
+      "create-project-tracker": {
+        "title": "Projektbegleiter einrichten?",
+        "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
       }
     },
     "steps": {
@@ -4298,10 +4368,6 @@
       "channels-list": {
         "title": "Verbundene Kanäle",
         "body": "Die Plattformen, auf denen diese Organisation erreichbar ist. Ein Kanal gehört der Organisation, nicht einem Agent, derselbe Bot kann also jedem daran gebundenen Agent dienen."
-      },
-      "channels-discord-roles": {
-        "title": "Discord-Rollen",
-        "body": "Ordne eine Rolle auf einem Discord-Server einer Gruppe hier zu. Verknüpfte Mitglieder mit der Rolle treten der Gruppe bei und verlassen sie, wenn ihnen die Rolle entzogen wird."
       },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
@@ -4651,6 +4717,10 @@
         "title": "Was Agents über Sie behalten",
         "body": "Agents machen sich Notizen zwischen Unterhaltungen. Das sind Ihre: Lesen Sie, was geschrieben wurde, halten Sie eine Notiz von der Verwendung ab, ohne sie zu vernichten, oder löschen Sie sie ganz. Eine Notiz in einem externen Gedächtnisdienst wird hier benannt, aber nicht angezeigt."
       },
+      "my-claims": {
+        "title": "Was über Sie festgehalten ist",
+        "body": "Neben Notizen halten Agents Fakten, Vorlieben und Entscheidungen mit ihrer Herkunft fest. Korrigieren Sie einen Eintrag mit eigenen Worten ab einem Datum, die alte Fassung bleibt im Verlauf; oder nehmen Sie ihn außer Gebrauch."
+      },
       "orgs-new": {
         "title": "Ihre Organisationen",
         "body": "Alles gehört zu einer Organisation. Erstellen Sie eine oder wechseln Sie zwischen denen, in denen Sie Mitglied sind - jede hält ihre Agents, Schlüssel und ihr Wissen getrennt."
@@ -4679,14 +4749,6 @@
         "title": "Agents anderer Anbieter",
         "body": "Hier über ihre A2A Agent Card registrierte Agents lassen sich neben Ihren eigenen Agents als Delegierte wählen."
       },
-      "desktop-local-agents": {
-        "title": "Coding agents auf diesem Computer",
-        "body": "Prüfe hier Installation und Anmeldung von Claude Code und Codex. Die Desktop-App öffnet deren eigene Anmeldebefehle im Terminal. Wähle On this computer in der Capability und einen Ordner unter Work on für lokale Aufgaben."
-      },
-      "chat-local-skills": {
-        "title": "Lokale Skills und Anweisungen",
-        "body": "Wähle Quellen für diese Unterhaltung. Skills bleiben auf dem Computer. Unter aktivierten Quellen gewinnt bei Namenskonflikten .agents vor .claude vor .codex. AGENTS.md und CLAUDE.md liefern Projektanweisungen. Neue Chats starten mit ausgeschalteten Quellen."
-      },
       "settings-tabs": {
         "title": "Ihre Einstellungen",
         "body": "Ihr Profil, Anmeldung und Sicherheit, Benachrichtigungen und Slash-Befehle liegen alle hinter diesen Tabs - wechseln Sie hier zwischen ihnen."
@@ -4714,30 +4776,6 @@
       "workspaces-browser": {
         "title": "Ihre Dokumente",
         "body": "Wenn ein Agent eine Datei speichert, landet sie hier - durchsuchen, ansehen und herunterladen, was Ihre Unterhaltungen erzeugt haben."
-      },
-      "project-file-fullscreen": {
-        "title": "Mehr Platz für Dateien",
-        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
-      },
-      "workspace-file-fullscreen": {
-        "title": "Mehr Platz für Dateien",
-        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
-      },
-      "agent-editor-fullscreen": {
-        "title": "Editor vergrößern",
-        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
-      },
-      "skill-editor-fullscreen": {
-        "title": "Editor vergrößern",
-        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
-      },
-      "context-editor-fullscreen": {
-        "title": "Editor vergrößern",
-        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
-      },
-      "workflow-canvas-fullscreen": {
-        "title": "Im Vollbild arbeiten",
-        "body": "Die schwebende Schaltfläche vergrößert das Diagramm. Erneut drücken, um zum Workflow-Kopf zurückzukehren; dein Entwurf bleibt erhalten."
       },
       "workspaces-detail": {
         "title": "In einem Ordner",
@@ -4987,6 +5025,66 @@
         "title": "Dein Computer oder gemeinsame Dateien",
         "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
       },
+      "routine-access": {
+        "title": "Routinezugriff prüfen",
+        "body": "Öffnen Sie das Schild Ihrer Routine, um Quellkonten und Ressourcen zu prüfen und anschließend dauerhafte Aktionsausnahmen getrennt auszuwählen."
+      },
+      "project-tracking": {
+        "title": "Projekt im Blick behalten",
+        "body": "Prüfen Sie einen veröffentlichten Quellagenten und seine Konten und veröffentlichen Sie anschließend ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und normaler Projektroutine."
+      },
+      "flow-project-tracker-create": {
+        "title": "Projektbegleiter einrichten?",
+        "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
+      },
+      "channels-phone": {
+        "title": "Telefonrouting einrichten",
+        "body": "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu."
+      },
+      "phone-contact": {
+        "title": "Deine Telefonzustimmung",
+        "body": "Wähle eine bestätigte SMS-Identität und erlaube Anrufe, gesprochene Berichte oder Weiterleitungen separat. Wähle Berichtssprache und Ruhezeit; geänderte oder abgelaufene Nummernverknüpfungen verlangen eine neue Prüfung."
+      },
+      "phone-dial": {
+        "title": "Eigene Nummer anrufen",
+        "body": "Wähle eine konfigurierte Route und einen veröffentlichten Sprachagenten oder bereite einen Bericht vor. Die Anfrage wird einmal eingereiht; unklare Anbieterannahme wird nicht automatisch wiederholt."
+      },
+      "channels-discord-roles": {
+        "title": "Discord-Rollen",
+        "body": "Ordne eine Rolle auf einem Discord-Server einer Gruppe hier zu. Verknüpfte Mitglieder mit der Rolle treten der Gruppe bei und verlassen sie, wenn ihnen die Rolle entzogen wird."
+      },
+      "desktop-local-agents": {
+        "title": "Coding agents auf diesem Computer",
+        "body": "Prüfe hier Installation und Anmeldung von Claude Code und Codex. Die Desktop-App öffnet deren eigene Anmeldebefehle im Terminal. Wähle On this computer in der Capability und einen Ordner unter Work on für lokale Aufgaben."
+      },
+      "chat-local-skills": {
+        "title": "Lokale Skills und Anweisungen",
+        "body": "Wähle Quellen für diese Unterhaltung. Skills bleiben auf dem Computer. Unter aktivierten Quellen gewinnt bei Namenskonflikten .agents vor .claude vor .codex. AGENTS.md und CLAUDE.md liefern Projektanweisungen. Neue Chats starten mit ausgeschalteten Quellen."
+      },
+      "project-file-fullscreen": {
+        "title": "Mehr Platz für Dateien",
+        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
+      },
+      "workspace-file-fullscreen": {
+        "title": "Mehr Platz für Dateien",
+        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "context-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Im Vollbild arbeiten",
+        "body": "Die schwebende Schaltfläche vergrößert das Diagramm. Erneut drücken, um zum Workflow-Kopf zurückzukehren; dein Entwurf bleibt erhalten."
+      },
       "chat-local-coding": {
         "title": "Programmieragent",
         "body": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung."
@@ -5010,6 +5108,30 @@
       "workspace-graph": {
         "title": "Verknüpfte Notizen erkunden",
         "body": "Die Graphansicht ermittelt Links und Rückverweise aus Markdown und Frontmatter. Solange sie geöffnet ist, wird sie aktualisiert und verwendet nur Dateien, die Sie an diesem Ort lesen dürfen."
+      },
+      "memory-views": {
+        "title": "Zwei Arten von Gedächtnis",
+        "body": "Erinnerungen enthält Fakten, Präferenzen und Entscheidungen. Notizen enthält längere Dateien und Checklisten. Durchsuchen Sie den gesamten Bestand und öffnen Sie einen Eintrag für Quelle und Verwendung."
+      },
+      "routine-advanced": {
+        "title": "Standards behalten oder anpassen",
+        "body": "Routinen und Beobachtungen beginnen mit üblichen Ausführungs- und Benachrichtigungseinstellungen. Erweiterte Optionen öffnen die Wahl von Version, Umgebung, Budget und Zustellung."
+      },
+      "workspace-background": {
+        "title": "Arbeit im Hintergrund",
+        "body": "Verfolge die Themen deiner Agenten und kehre zu ihren Ergebnissen zurück."
+      },
+      "org-system-agents": {
+        "title": "Hintergrunddienste",
+        "body": "Modelle und Budgets für Plattformdienste wählen und deren Nutzung prüfen. Einstellungen für tägliche Briefings stehen unter Proaktivität."
+      },
+      "personal-coding-accounts": {
+        "title": "Coding-Konten",
+        "body": "Verbinde dein Programmierkonto und erlaube seine Nutzung ausdrücklich. Private Cloud-Aufgaben liefern einen Diff und ein Ergebnisarchiv, ohne gemeinsame Projektdateien automatisch zu ändern."
+      },
+      "chat-coding-accounts": {
+        "title": "Deine Coding-Konten",
+        "body": "Verbinde Codex oder Claude Code, ohne den Chat zu verlassen. Dies sind deine privaten Cloud-Konten; lokale Desktop-Werkzeuge behalten ihre eigene Anmeldung."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5085,16 +5207,101 @@
       "newer": "Neuere",
       "older": "Ältere",
       "title": "Ihr Gedächtnis",
-      "description": "Was die Agents hier über Sie notiert haben und was Sie dagegen tun können.",
-      "nothingYet": "Noch nichts notiert",
-      "nothingYetWhy": "Agents schreiben eine Notiz, wenn sie etwas erfahren, das zwischen Unterhaltungen aufzubewahren lohnt. Nichts hier heißt, keiner von ihnen hat das getan.",
-      "externalStores": "Diese Agents behalten Erinnerungen außerdem in einem externen Dienst, den diese Seite nicht lesen kann: {agents}.",
+      "description": "Sehen Sie, was Ihre Agents gespeichert haben, woher es stammt und wer es nutzen kann.",
       "writtenBy": "Geschrieben von {agent} · {when}",
       "anAgent": "ein Agent",
       "suppressed": "Unterdrückt",
       "suppress": "Diese Notiz nicht mehr verwenden",
       "restore": "Diese Notiz wieder verwenden",
-      "delete": "Diese Notiz löschen"
+      "delete": "Diese Notiz löschen",
+      "claims": {
+        "title": "Zu Ihnen gespeichert",
+        "description": "Fakten, Vorlieben und Entscheidungen, die Agents festgehalten haben, mit ihrer Herkunft. Korrigieren Sie einen Eintrag mit eigenen Worten; die alte Fassung bleibt im Verlauf.",
+        "showHistory": "Verlauf anzeigen",
+        "scopeProfile": "Mit Ihren Agents geteilt",
+        "scopeAgent": "Gemerkt von {agent}",
+        "anAgent": "einem Agent",
+        "since": "Seit {when}",
+        "drawnFrom": "Aus {count} Quellen abgeleitet",
+        "correct": "Erinnerung korrigieren",
+        "retract": "Nicht mehr verwenden",
+        "statement": "Korrigierte Aussage",
+        "effectiveFrom": "Gilt ab",
+        "cancel": "Abbrechen",
+        "save": "Korrektur speichern",
+        "origin": {
+          "agent": "Von einem Agent notiert",
+          "person": "Von Ihnen gesagt",
+          "consolidation": "Aus mehreren Notizen zusammengeführt"
+        },
+        "status": {
+          "current": "Aktuell",
+          "disputed": "Strittig",
+          "superseded": "Ersetzt",
+          "merged": "Zusammengeführt",
+          "retracted": "Zurückgezogen"
+        },
+        "showing": "{from}–{to} von {total}",
+        "newer": "Neuer",
+        "older": "Älter",
+        "episode": {
+          "situation": "Situation",
+          "choice": "Entscheidung",
+          "alternatives": "Alternativen",
+          "expected": "Erwartetes Ergebnis",
+          "actual": "Beobachtetes Ergebnis",
+          "correction": "Korrektur",
+          "export": "Improve-Fall vorbereiten",
+          "review": "Prüfe den Text vor dem Export aus dem persönlichen Gedächtnis. Importiere die JSONL-Datei in einen Improve-Datensatz, evaluiere sie und bestätige Änderungen dort ausdrücklich. Der Export veröffentlicht keine Regel.",
+          "input": "Zu prüfende Eingabe",
+          "reference": "Erwartete Antwort",
+          "consent": "Ich habe diese Felder geprüft und stimme ihrem Export als Datensatzdatei zu.",
+          "download": "Geprüften Fall herunterladen"
+        }
+      },
+      "browser": {
+        "memories": "Erinnerungen",
+        "notes": "Notizen",
+        "viewLabel": "Gedächtnisansicht",
+        "searchMemories": "Erinnerungen suchen…",
+        "searchNotes": "Notizen suchen…",
+        "typeLabel": "Art der Erinnerung",
+        "scopeLabel": "Wer dies nutzen kann",
+        "sourceLabel": "Quelle",
+        "recorded": "Erfasst",
+        "count": "{count, plural, one {# Erinnerung} other {# Erinnerungen}}",
+        "noteCount": "{count, plural, one {# Notiz} other {# Notizen}}",
+        "kind": {
+          "all": "Alle Arten",
+          "fact": "Fakten",
+          "preference": "Präferenzen",
+          "decision": "Entscheidungen",
+          "other": "Andere"
+        },
+        "scope": {
+          "all": "Alle Bereiche",
+          "profile": "Alle Ihre Agents",
+          "agent": "Nur ein Agent"
+        },
+        "noMatches": "Keine passenden Einträge",
+        "tryFilters": "Ändern Sie die Suche oder setzen Sie die Filter zurück.",
+        "clearFilters": "Filter zurücksetzen",
+        "emptyMemories": "Noch nichts gespeichert",
+        "emptyMemoriesHint": "Bitten Sie einen Agent, einen Fakt, eine Präferenz oder eine Entscheidung zu speichern. Hier sehen Sie Inhalt, Quelle und Zugriffsbereich.",
+        "emptyNotes": "Noch keine Notizen",
+        "emptyNotesHint": "Hier erscheinen längere Notizen Ihrer Agents. Fakten und Präferenzen finden Sie unter Erinnerungen.",
+        "notesHint": "Längere Notizen und Checklisten Ihrer Agents. Öffnen Sie eine Datei, um sie zu lesen oder ihre Verwendung durch den Agent zu steuern.",
+        "retractHint": "Der Agent verwendet diese Erinnerung nicht mehr. Der Eintrag und seine Quelle bleiben im Verlauf erhalten.",
+        "deleteNote": "Diese Notiz löschen?",
+        "deleteNoteHint": "„{name}“ wird dauerhaft gelöscht. Sie können die Verwendung stattdessen deaktivieren und später wiederherstellen.",
+        "noteDetails": "Gedächtnisdetails",
+        "type": {
+          "fact": "Fakt",
+          "preference": "Präferenz",
+          "decision": "Entscheidung",
+          "other": "Erinnerung"
+        }
+      }
     },
     "admin": {
       "active": "Aktiv",
@@ -5401,7 +5608,8 @@
       "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter.",
       "ownedByWorkflow": "Dieser Agent ist in einem Workflow-Schritt konfiguriert und wird mit diesem Workflow versioniert. Ändern Sie ihn dort.",
       "openWorkflow": "Workflow öffnen",
-      "goToModel": "Zum Abschnitt Modell"
+      "goToModel": "Zum Abschnitt Modell",
+      "continueConversation": "Meine Unterhaltung fortsetzen"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -5436,7 +5644,7 @@
       "broadcastsTeamsHint": "Laden Sie nach dem Aktivieren das aktualisierte Teams-App-Paket herunter und installieren oder aktualisieren Sie es im Zielteam oder Chat. Der Besitzer muss dem Empfang von Nachrichten zustimmen.",
       "broadcastsTelegramHint": "Telegram verwendet die Text-Aliase @all, @here, @channel und @everyone. Sie benachrichtigen nicht die ganze Gruppe. Der Bot muss Gruppennachrichten empfangen; prüfen Sie den Datenschutzmodus in BotFather.",
       "addChannel": "Kanal hinzufügen",
-      "addChannelDescription": "Registrieren Sie einen Slack-, Teams-, Telegram-, Mattermost- oder Discord-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
+      "addChannelDescription": "Verbinde einen Nachrichtenkanal für deine Organisation. Zugangsdaten werden verschlüsselt und nicht erneut angezeigt.",
       "addOneBecomesBindable": "Registrieren Sie einen, und Agents lassen sich über ihren Tab Verfügbarkeit darauf bereitstellen.",
       "appLevelToken": "App-Level-Token",
       "appLevelTokenHint": "Das xapp--Token, für den Socket Mode in der Entwicklung. Optional.",
@@ -5448,12 +5656,14 @@
       "botTokenHintMattermost": "Das Access-Token des Bot-Kontos",
       "botTokenHintSlack": "Das OAuth-Token des Bot-Benutzers (xoxb-…) aus Ihrer Slack-App",
       "botTokenHintTeams": "Der geheime Clientschlüssel der App-Registrierung des Azure Bots (Zertifikate & Geheimnisse in Entra).",
-      "botTokenHintDiscord": "Das Token unter Bot im Discord Developer Portal. Aktivieren Sie dort Message Content Intent, deaktivieren Sie Public Bot und laden Sie den Bot mit den Scopes bot und applications.commands ein.",
+      "botTokenHintSms": "Twilio-Account-SID, Auth-Token und die Absendernummer, durch Doppelpunkte verbunden: ACxxxxxxxx:auth_token:+15551234567. Richten Sie den Webhook für eingehende Nachrichten der Nummer auf die nach dem Speichern angezeigte URL.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "In der Azure-Bot-Ressource unter Konfiguration. Legen Sie den Bot als Single-Tenant an.",
       "teamsTenantId": "Mandanten-ID",
       "teamsTenantIdHint": "Der Entra-Mandant, in dem der Bot registriert ist. Nur dessen Teams erreicht ihn.",
       "teamsEndpoint": "Messaging-Endpunkt",
+      "smsEndpoint": "Webhook für eingehende SMS",
+      "smsEndpointHint": "Fügen Sie dies in die Einstellung für eingehende Nachrichten der Twilio-Nummer ein (A message comes in → Webhook, HTTP POST).",
       "teamsEndpointHint": "Fügen Sie ihn in der Konfiguration des Azure Bots ein und aktivieren Sie dort den Microsoft-Teams-Kanal.",
       "teamsPackageWhy": "Laden Sie das App-Paket in den Teams-App-Katalog Ihres Mandanten hoch und fügen Sie die App dann einem Chat oder Team hinzu.",
       "teamsPackageDownload": "App-Paket herunterladen",
@@ -5470,7 +5680,6 @@
       "credentialStored": "Gespeichert. Leer lassen, um es zu behalten.",
       "credentialUnset": "Nicht gesetzt.",
       "editBot": "{bot} bearbeiten",
-      "mapDiscordRoles": "Discord-Rollen für {bot}",
       "editChannel": "Kanal bearbeiten",
       "editChannelDescription": "Ändern Sie, wie dieser Bot heißt, oder ersetzen Sie eines seiner Credentials. Ein Credential wird nie zurückgelesen, ein leer gelassenes Feld behält also den bereits gespeicherten Wert.",
       "mattermostServerUrl": "Server-URL",
@@ -5543,9 +5752,25 @@
       "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} discord {Discord sendet Sprachnachrichten als Ogg/Opus} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
       "transcriptionProviderNoKey": "{name} (kein geeigneter Schlüssel)",
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird.",
+      "botTokenHintEmail": "Die Adresse, von der der Bot antwortet, zum Beispiel agent@mail.example.com. Antworten gehen über den E-Mail-Anbieter dieser Installation hinaus.",
+      "emailEndpoint": "Wohin das Mail-Relay eingehende Mails sendet",
+      "emailEndpointHint": "Lassen Sie Ihr Relay (einen Cloudflare Email Worker, eine Postmark- oder Mailgun-Inbound-Route) jede Nachricht als JSON hierher POSTen, signiert mit dem Geheimnis unten.",
+      "emailRelaySecret": "Signaturgeheimnis des Relays",
+      "emailRelaySecretHint": "Das Relay signiert jede Anfrage mit diesem Geheimnis (HMAC-SHA256 über timestamp.body). Kopieren Sie es ins Relay; es wird nicht erneut angezeigt.",
+      "emailGenerateSecret": "Erzeugen",
+      "imessageServerUrl": "BlueBubbles-Server-URL",
+      "imessageServerUrlHint": "Der HTTP-Endpunkt von BlueBubbles auf dem Firmen-Mac. Dort bei Nachrichten anmelden und die REST API aktivieren. Das Serverpasswort als Bot-Token eintragen und nach dem Speichern den Webhook registrieren. Private API ist nur für Reaktionen erforderlich.",
+      "botTokenHintImessage": "Das BlueBubbles-Serverpasswort. Es wird im Tresor gespeichert; nicht in die Server-URL eintragen.",
+      "imessageRegisterWebhook": "iMessage-Webhook registrieren",
+      "imessageWebhookHint": "Änderungen an Adresse oder Passwort zuerst speichern. Die Registrierung erstellt einen authentifizierten Callback auf dem gespeicherten BlueBubbles-Server. Für AgenticOS in einem privaten Netzwerk muss dessen Administrator API-Webhooks zu lokalen Adressen erlauben.",
+      "imessageWebhookRegistered": "iMessage-Webhook registriert",
+      "imessageReactionHint": "Optional. iMessage-Tapbacks benötigen die BlueBubbles Private API; bei reinem AppleScript-Betrieb ausgeschaltet lassen.",
+      "botTokenHintDiscord": "Das Token unter Bot im Discord Developer Portal. Aktivieren Sie dort Message Content Intent, deaktivieren Sie Public Bot und laden Sie den Bot mit den Scopes bot und applications.commands ein.",
+      "mapDiscordRoles": "Discord-Rollen für {bot}",
       "discordGuilds": "Genehmigte Discord-Server-IDs",
       "discordGuildsHint": "Aktiviere den Entwicklermodus in Discord und kopiere jede genehmigte Server-ID. Trenne IDs durch Kommas oder Leerzeichen. Eine leere Liste erlaubt nur Direktnachrichten; Servernachrichten bleiben gesperrt.",
-      "discordGuildsInvalid": "Gib numerische Server-IDs ein, getrennt durch Kommas oder Leerzeichen (bis zu 2.500 Server)."
+      "discordGuildsInvalid": "Gib numerische Server-IDs ein, getrennt durch Kommas oder Leerzeichen (bis zu 2.500 Server).",
+      "emailAddress": "E-Mail-Adresse"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",
@@ -5752,11 +5977,12 @@
       "workspaces": "Organisationen",
       "you": "(Sie)",
       "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>",
-      "tabProfile": "Profil",
+      "tabProfile": "Arbeitsbereich",
       "tabGovernance": "Budget und Freigaben",
       "tabProactivity": "Proaktivität",
-      "tabVoice": "Sprache",
-      "tabAssistant": "AI Architect"
+      "tabAssistant": "KI und Dienste",
+      "workspaceSettingsHint": "Identität der Organisation und die von Agents und Kanal-Bots übernommenen Spracheinstellungen.",
+      "aiServicesHint": "Den Architect und Hintergrunddienste für Gedächtnispflege und Briefings konfigurieren. Regeln für Vorschläge und Überwachung stehen unter Proaktivität."
     },
     "rag": {
       "active": "Aktiv",
@@ -5966,9 +6192,6 @@
       "surfaceFilter": "Nach Oberfläche filtern",
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
-      "surfaceTeams": "Microsoft Teams",
-      "surfaceDiscord": "Discord",
-      "surfaceFollowUps": "Nächste Schritte",
       "surfaceSchedule": "Zeitplan",
       "surfaceWorkflow": "Workflow",
       "surfaceSlack": "Slack",
@@ -6014,8 +6237,6 @@
       "toolState": "{status, select, completed {Fertig} error {Fehlgeschlagen} running {Läuft} pending {Läuft} unfinished {Nicht beendet} awaiting_approval {Wartet auf Freigabe} awaiting_answer {Wartet auf Antwort} other {Unbekannt}}",
       "wantsTo": "<strong>{actor}</strong> möchte: <strong>{tool}</strong>",
       "askedFor": "Für {email}",
-      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert)",
-      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert), über {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
       "decidedByWhom": "von {email}",
@@ -6059,9 +6280,18 @@
       "stepApprovalLength": "{count, number} von {max, number} Zeichen",
       "stepApprovalNotYours": "Nur die in diesem Schritt genannten Personen können darüber entscheiden.",
       "stepApprovalEdited": "Bearbeitet",
+      "surfaceTeams": "Microsoft Teams",
+      "surfaceSms": "SMS",
+      "surfaceEmail": "E-Mail",
+      "surfaceFollowUps": "Nächste Schritte",
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
       "standaloneResponse": "Modellantwort",
+      "systemRoleBriefing": "Tägliches Briefing (System)",
+      "systemRoleMaintenance": "Gedächtnispflege (System)",
+      "surfaceDiscord": "Discord",
+      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert)",
+      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert), über {bot}",
       "decisionApprovedInChat": "Freigegeben. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde.",
       "decisionRejectedInChat": "Abgelehnt. Sobald nichts anderes mehr wartet, antwortet der Agent in dem Chat, in dem gefragt wurde.",
       "runResumedInChat": "Run fortgesetzt – die Antwort geht auch in den Chat, in dem gefragt wurde.",
@@ -6134,7 +6364,7 @@
       "noMarketingEmail": "Keine Marketing-E-Mails.",
       "notOptional": "Nicht optional –",
       "notificationPreferences": "Benachrichtigungseinstellungen",
-      "notificationPreferencesDescription": "Feiner als die E-Mails oben – in der App und per E-Mail, pro Ereignis, für die Momente, in denen Ihre Agents irgendwo laufen, wo niemand live zusieht. Ein nicht gesetzter Schalter steht standardmäßig auf an.",
+      "notificationPreferencesDescription": "Wähle Ereignisse für jeden Kanal. Die Chatauswahl ändert die zusätzliche Spalte unten; ein privates Ziel muss auch oben aktiviert sein. Nicht gesetzte Ereignisschalter sind standardmäßig an.",
       "nothingChanged": "Nichts geändert",
       "nothingHereChargesYou": "Nichts hier stellt Ihnen etwas in Rechnung, es gibt also keine Verlängerungen, fehlgeschlagenen Zahlungen oder Guthabenwarnungen.",
       "optionalApprovals": "Freigabeanfragen",
@@ -6275,7 +6505,15 @@
           "turnOff": "Auf diesem iPhone ausschalten"
         }
       },
-      "whoReceivesThis": "Wer erhält diese Nachricht?"
+      "whoReceivesThis": "Wer erhält diese Nachricht?",
+      "slackChannel": "Slack",
+      "telegramChannel": "Telegram",
+      "mattermostChannel": "Mattermost",
+      "teamsChannel": "Microsoft Teams",
+      "smsChannel": "SMS",
+      "chatChannelPreferences": "Einstellungen für den Chatkanal",
+      "imessageChannel": "iMessage",
+      "discordChannel": "Discord"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -6368,10 +6606,11 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Agentenroutinen führen Aufgaben aus. Meine Beobachtungen prüfen verbundene Konten und liefern Ergebnisse in deinen privaten Posteingang.",
-      "newWatch": "Neue Beobachtung",
-      "agentsTab": "Agentenaufgaben",
-      "watchesTab": "Meine Beobachtungen"
+      "description": "Aufgaben und Überwachung an einem Ort. Legen Sie Auslöser und relevante Ergebnisse fest.",
+      "newWatch": "Überwachen und informieren",
+      "newRoutine": "Neue Routine",
+      "scheduledTask": "Nach Zeitplan ausführen",
+      "eventTask": "Bei einem Ereignis ausführen"
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -6565,7 +6804,13 @@
         "makeShared": "Mit allen teilen, die die Tabelle öffnen können",
         "makePrivate": "Privat machen, nur für Sie sichtbar",
         "nowShared": "Ansicht geteilt",
-        "nowPrivate": "Ansicht ist jetzt privat"
+        "nowPrivate": "Ansicht ist jetzt privat",
+        "groupedName": "Kanban nach {column}",
+        "defaultName": "Standard: {kind}",
+        "defaultSaved": "Standardansicht gespeichert",
+        "defaultHint": "Diese Ansicht für alle mit Tabellenzugriff standardmäßig öffnen. Die gespeicherte Ansicht wird geteilt.",
+        "setDefault": "Als Standard festlegen",
+        "isDefault": "Standardansicht"
       },
       "noDescription": "Noch keine Beschreibung.",
       "readOnly": "Nur lesen",
@@ -6650,6 +6895,10 @@
         "markdownNotes": {
           "name": "Markdown-Notizbuch",
           "description": "Erstelle eine Tabelle mit einer Markdown-Notiz. Eigenschaften gehören in Tabellenspalten. Sofort ausführbar, ohne Kontoverbindung."
+        },
+        "awaitReply": {
+          "name": "Auf Antwort warten",
+          "description": "Ein verbundenes Gmail- oder Outlook-Postfach auswählen. Auf eine verifizierte Antwort im Thread warten und bei Fristablauf benachrichtigt werden, um den Vorgang zu prüfen und nachzufassen. Kein automatischer Folgeversand."
         }
       },
       "notFound": "Workflow nicht gefunden",
@@ -6887,7 +7136,6 @@
       },
       "startRunOptional": "optional",
       "startRunChoose": "Auswählen…",
-      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.",
       "startRunFieldProblem": {
         "required": "Bitte ausfüllen.",
         "number": "Das muss eine Zahl sein.",
@@ -7208,7 +7456,26 @@
       "templateCategories": "Kategorien",
       "templateCount": "{count, plural, one {# Vorlage} other {# Vorlagen}}",
       "automationCategoryHint": "Sofort ausführbar, mit automatisch vorbereiteten Tabellen.",
-      "exampleCategoryHint": "Kleine Abläufe zum Lernen und Erstellen eigener Automatisierungen."
+      "exampleCategoryHint": "Kleine Abläufe zum Lernen und Erstellen eigener Automatisierungen.",
+      "replyPaused": "Antworterwartung pausiert: {sender}, Frist {deadline}",
+      "replyWaiting": "Warten auf {sender} bis {deadline}",
+      "replyEdit": "Antworterwartung bearbeiten",
+      "replyScope": "Postfach: {provider} · {account}. Ein anderes Konto erfordert einen neuen Lauf.",
+      "replyThread": "Thread-ID des Anbieters",
+      "replySender": "Erwarteter Absender",
+      "replyAfter": "Empfangen nach (ISO 8601 mit Zeitzone)",
+      "replyDeadline": "Frist (ISO 8601 mit Zeitzone)",
+      "replyAnchor": "Ursprüngliche Message-ID (optional)",
+      "replyPause": "Prüfungen pausieren; Frist beibehalten",
+      "replyReview": "Erneuerte Zustimmung für dasselbe Postfach akzeptieren",
+      "replySave": "Erwartung speichern",
+      "replyMailbox": "Verbundenes Postfach",
+      "replyMailboxChoose": "Verbundenes Postfach auswählen",
+      "replyMailboxFailed": "Postfächer konnten nicht geladen werden",
+      "replyMailboxUnavailable": "Ausgewähltes Postfach nicht verfügbar",
+      "replyMailboxConnect": "Zuerst Gmail oder Outlook unter Integrationen verbinden.",
+      "replySharedMailbox": "Freigegebenes Outlook-Postfach (optional)",
+      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert."
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -7299,6 +7566,22 @@
         "cancelled": "Abgebrochen"
       },
       "loading": "Versionen werden geprüft…"
+    },
+    "adminSettingsLayout": {
+      "title": "Bereitstellungseinstellungen",
+      "hint": "Änderungen gelten für die gesamte Bereitstellung.",
+      "unsaved": "Sie haben ungespeicherte Änderungen.",
+      "discard": "Änderungen verwerfen",
+      "identity": "Identität",
+      "identityHint": "Name, Erscheinungsbild und rechtliche Links in der Konsole.",
+      "access": "Zugang und Konten",
+      "accessHint": "Zugangsregeln, Startorganisation und Nutzungslimits festlegen.",
+      "notices": "Mitteilungen",
+      "noticesHint": "Eine Ankündigung anzeigen oder den Wartungsbildschirm einrichten.",
+      "services": "Sprache und Mobilgerät",
+      "servicesHint": "Audioaufzeichnung und Push-Benachrichtigungen für die mobile App.",
+      "operations": "Wartung",
+      "operationsHint": "Anwendungsupdates und Bereitstellungsdiagnose."
     }
   },
   "profile": {
@@ -7927,12 +8210,18 @@
     "publicLiveDataConfirmWhy": "Jeder mit dem öffentlichen Link einer Seite und jede Website, die sie einbettet, sieht ihre Tabellendaten ohne Anmeldung. Gezeigt wird erst etwas, wenn der Eigentümer der Seite oder ein Owner bzw. Admin sie bestätigt. Früher bestätigte Seiten zeigen ihre Daten sofort wieder.",
     "publicLiveDataConfirm": "Erlauben",
     "proactive": {
-      "title": "Proaktivität",
-      "description": "Arbeit, die die Plattform von sich aus im Hintergrund für Menschen erledigt. Aus, bis Sie sie einschalten.",
+      "budgetTitle": "Budget und Limits",
+      "budgetHint": "Monatliches Budget für Hintergrundarbeit pro Mitglied.",
+      "deliveryTitle": "Zustellungszeitplan",
+      "deliveryHint": "Wählen Sie, wann Vorschläge und Zusammenfassungen nicht dringender Überwachungsergebnisse laufen. Es gilt die Zeitzone des jeweiligen Mitglieds.",
+      "unsavedChanges": "Sie haben ungespeicherte Änderungen",
+      "discardChanges": "Änderungen verwerfen",
+      "title": "Assistentenvorschläge und Überwachung",
+      "description": "Gesprächsbasierte Vorschläge und lesende Überwachung funktionieren unabhängig. Zeit- und ereignisgesteuerte Routinen benötigen keine aktivierten Vorschläge.",
       "nightly": "Nächtliche Vorschläge",
-      "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
+      "nightlyHint": "Aus Gesprächen und Erinnerungen Routinen, Agenten und Profiländerungen vorschlagen. Keine Postfachprüfung. Vorgeschlagene Routinen benötigen eine Bestätigung.",
       "model": "Modell",
-      "modelHint": "Worauf der nächtliche Blick und die Beobachtungen laufen. Ein kleines, günstiges Modell reicht.",
+      "modelHint": "Nur für Verbesserungsvorschläge aus Gesprächen. Überwachung verwendet das Modell des gewählten Agenten.",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
       "label": "Limit pro Person (USD im Monat)",
       "days": "Tage",
@@ -7952,13 +8241,47 @@
       "welcomeTextHint": "Leer lassen für die eingebaute Begrüßung in der Sprache der Person. '{organization}', '{bot}' und '{url}' werden ausgefüllt.",
       "welcomeTextPlaceholder": "Willkommen bei '{organization}'! Fragen Sie mich hier alles.",
       "welcomeSaved": "Willkommensnachricht gespeichert",
-      "watches": "Verbindungen der Mitglieder beobachten",
-      "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
-      "watchMinutes": "Höchstens",
+      "watches": "Lesende Überwachungsroutinen erlauben",
+      "watchesHint": "Mitglieder wählen einen Agenten und genehmigen Quellen ihrer eigenen Konten. Relevante Änderungen erscheinen in der Inbox; angeforderte Entwürfe im Arbeitschat.",
+      "watchMinutes": "Mindestabstand zwischen Prüfungen",
       "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
-      "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
+      "runAttribution": "Vorschläge verwenden ein eigenes Modell, die Überwachung das Modell des gewählten Agenten. Beide teilen sich ein monatliches Budget für Hintergrundarbeit pro Mitglied."
+    },
+    "systemAgents": {
+      "configure": "Modell und Budget konfigurieren",
+      "title": "Hintergrunddienste",
+      "description": "Modellgestützte Plattformdienste. Klappen Sie einen Dienst auf, um Modell und Budget festzulegen. Verbrauch und letzte Ausführungen bleiben darunter sichtbar.",
+      "on": "An",
+      "off": "Aus",
+      "managedIn": "Läuft auf {model}. Im Tab Proaktivität mit gemeinsamem Modell und Limit konfiguriert.",
+      "managedInNoModel": "Noch kein Modell gewählt. Im Tab Proaktivität konfigurieren.",
+      "enabled": "Diese Rolle ausführen",
+      "model": "Modell",
+      "modelHint": "Gewählt, nie voreingestellt: Die Rolle gibt Geld aus, das niemand im Moment angefordert hat.",
+      "budget": "Monatsbudget (USD)",
+      "noBudget": "Keine eigene Obergrenze",
+      "invalid": "Geben Sie eine Zahl von 0 aufwärts ein.",
+      "modelRequired": "Wählen Sie das Modell dieser Rolle, bevor Sie sie einschalten.",
+      "save": "Speichern",
+      "saved": "Gespeichert",
+      "savedOff": "Ausgeschaltet",
+      "spent": "Diesen Monat ausgegeben: {amount}",
+      "spentOf": "Diesen Monat ausgegeben: {amount} von {budget}",
+      "noRuns": "Noch keine Ausführungen.",
+      "unknownModel": "Modell unbekannt",
+      "roles": {
+        "daily_briefing": {
+          "name": "Tägliches Briefing",
+          "what": "Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing."
+        },
+        "memory_maintenance": {
+          "name": "Gedächtnispflege",
+          "what": "Liest einen beendeten Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin fest, im eigenen Scope der Unterhaltung. Solange sie aus ist oder kein Modell hat, läuft nichts."
+        }
+      },
+      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos."
     }
   },
   "theme": {
@@ -8169,17 +8492,16 @@
   "memory": {
     "clearAction": "Gedächtnis leeren",
     "clearBody": "Löscht jede Notiz, die dieser Agent geschrieben hat – für jede Person und jede Gruppenunterhaltung, mit der er gesprochen hat. Nichts holt sie zurück.",
-    "clearBodyWithMem0": "Löscht jede Notiz, die dieser Agent geschrieben hat – für jede Person und jede Gruppenunterhaltung, mit der er gesprochen hat. Es reicht nicht an das, was dieser Agent in mem0 behält: Jene sind personenbezogen adressiert und werden entfernt, indem diese Person vergessen wird.",
     "clearConfirm": "Dieser Agent verliert alles, was er sich notiert hat. Seine Unterhaltungen bleiben unberührt.",
     "clearTitle": "Gedächtnis dieses Agents leeren",
-    "clearedToast": "{count, plural, =0 {Es gab nichts zu leeren} =1 {1 Notiz gelöscht} other {# Notizen gelöscht}}",
+    "clearedToast": "{count, plural, =0 {Es gab nichts zu leeren} =1 {1 Eintrag gelöscht} other {# Einträge gelöscht}}",
     "forgetAction": "Alles über mich vergessen",
-    "forgetBody": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat – in diesem Deployment und in mem0, sofern ein Agent seine Erinnerungen dort ablegt. Ihre Unterhaltungen bleiben; nur das, was Agents über Sie notiert haben, geht.",
+    "forgetBody": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat – in diesem Deployment. Ihre Unterhaltungen bleiben; nur das, was Agents über Sie notiert haben, geht.",
     "forgetConfirm": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat. Ihre Unterhaltungen bleiben unberührt.",
     "forgetMemberConfirm": "Jeder Agent in dieser Organisation vergisst, was er über {name} notiert hat. Deren Unterhaltungen bleiben unberührt.",
     "forgetNamed": "Vergessen, was Agents über {name} wissen",
     "forgetTitle": "Was Agents über Sie behalten",
-    "forgottenToast": "{count, plural, =0 {Es gab nichts zu vergessen} =1 {1 Notiz vergessen} other {# Notizen vergessen}}"
+    "forgottenToast": "{count, plural, =0 {Es gab nichts zu vergessen} =1 {1 Eintrag vergessen} other {# Einträge vergessen}}"
   },
   "avatarColor": {
     "auto": "Automatische Farbe",
@@ -8274,6 +8596,8 @@
     "dayOfMonthLabel": "Tag des Monats",
     "timeLabel": "Uhrzeit",
     "timeZoneLabel": "Zeitzone",
+    "searchTimeZones": "Stadt oder Zeitzone suchen…",
+    "noTimeZones": "Keine Zeitzonen gefunden. Versuche eine andere Stadt.",
     "timeZoneHelp": "Die Uhr, nach der die Uhrzeit gilt, Sommerzeit eingeschlossen. Standardmäßig Ihre.",
     "timeZoneInvalid": "Wählen Sie eine Zeitzone aus der Liste, etwa Europe/Warsaw.",
     "weekdayMon": "Mo",
@@ -8378,6 +8702,8 @@
     "rotateAutoNote": "Die Plattform hat den Webhook mit dem neuen Secret neu registriert. Es gibt nichts einzufügen.",
     "secretRotated": "Signatur-Secret rotiert",
     "templatesLabel": "Mit einer Vorlage beginnen",
+    "templatesUnavailable": "Keine Vorlagen verfügbar. Du kannst eine eigene Nachricht schreiben.",
+    "templatesLoadFailed": "Vorlagen konnten nicht geladen werden. Du kannst trotzdem eine eigene Nachricht schreiben.",
     "templateScratch": "Von Grund auf neu",
     "templateScratchHelp": "Schreiben Sie Ihre eigene Nachricht und Ihren eigenen Takt.",
     "stepSchedule": "Zeitplan",
@@ -8417,8 +8743,82 @@
       "elsewhereHint": "Jeder Lauf arbeitet in diesem Ordner auf Ihrem Computer. Ändern Sie ihn in der Desktop-App auf diesem Computer.",
       "sandbox": "Die Sandbox des Agenten",
       "pick": "Ordner wählen…",
-      "useSandbox": "Sandbox verwenden"
-    }
+      "useSandbox": "Sandbox verwenden",
+      "routineHint": "Ordner und Vorgänge wählen. Beim Speichern bestätigt dieser Computer nur diese Routine.",
+      "read": "Lesen",
+      "write": "Schreiben",
+      "execute": "Befehle ausführen",
+      "reviewRequired": "Der Ordner benötigt eine Bestätigung in der Desktop-App, bevor die Routine starten kann.",
+      "permissionFailed": "Die Berechtigung konnte nicht geändert werden. Verbindung dieses Computers prüfen.",
+      "savedPaused": "Routine pausiert gespeichert. Ordner auf diesem Computer bestätigen, um die Einrichtung abzuschließen.",
+      "permissionsTitle": "Routine-Berechtigungen",
+      "permissionsDescription": "Nur diese Routinen dürfen ihre bestätigten Ordner auf diesem Computer nutzen. Widerruf stoppt weitere Vorgänge.",
+      "noPermissions": "Keine Routine dieser Organisation hat Ordnerzugriff.",
+      "revoke": "Widerrufen",
+      "waitingDevice": "Wartet auf Computer ({count})"
+    },
+    "answerToLabel": "Auch antworten in",
+    "answerTo": {
+      "primary": "Meine Unterhaltung mit diesem Agenten",
+      "run_log": "Nur das Ausführungsprotokoll",
+      "conversation": "Der Chat, in dem es erstellt wurde"
+    },
+    "answerToHint": {
+      "primary": "Jedes Ergebnis wird auch in Ihrer eigenen Unterhaltung mit diesem Agenten gepostet, sodass alles an einem Ort steht.",
+      "run_log": "Ergebnisse bleiben im Ausführungsprotokoll; in Ihren Chats wird nichts gepostet.",
+      "conversation": "Jedes Ergebnis wird in dem Chat gepostet, für den diese Routine erstellt wurde."
+    },
+    "budgetLabel": "Monatsbudget (USD, optional)",
+    "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
+    "budgetPlaceholder": "Kein eigenes Limit",
+    "pausedBudget": "Pausiert - Budget",
+    "loadingRoutine": "Routine wird geladen…",
+    "routineLoadError": "Die Routine konnte nicht geladen werden.",
+    "retryRoutine": "Erneut versuchen",
+    "routineUnavailable": "Diese Routine ist nicht mehr verfügbar.",
+    "nextActivation": "Nächste Aktivierung: {at}",
+    "versionPolicy": "Agentenversion",
+    "followPublishedVersion": "Veröffentlichter Version folgen",
+    "pinPublishedVersion": "Veröffentlichte Version festlegen",
+    "versionFollowHelp": "Jeder Lauf folgt der standardmäßig veröffentlichten Version. Quellen- und Aktionsberechtigungen gelten weiterhin.",
+    "versionPinHelp": "Jeder Lauf verwendet dieselbe ausgewählte Version, bis Sie sie ändern.",
+    "pinnedVersion": "Festgelegte Version",
+    "chooseVersion": "Veröffentlichte Version auswählen",
+    "selectedVersionUnavailable": "Ausgewählte Version nicht verfügbar",
+    "endsAtLabel": "Endet am (Gerätezeit)",
+    "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
+    "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
+    "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
+    "actionConsents": {
+      "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
+      "personalAccount": "{name} · dein Konto",
+      "organizationAccount": "{name} · Organisationskonto",
+      "title": "Aktionsfreigaben",
+      "description": "Routinenaktionen benötigen standardmäßig eine Bestätigung. Erlaube nur ausgewählte Aktionen ohne Rückfrage. Die Freigabe gilt für diese veröffentlichte Version und Routinenkonfiguration; vom Agenten verlangte Bestätigungen bleiben bestehen. Jede MCP-Aktion gilt nur für das benannte Konto.",
+      "retry": "Erneut versuchen",
+      "notAllowed": "Deine Bestätigungsrechte und die Einstellung der Organisation müssen Ausnahmen erlauben. Du kannst weiterhin alle Freigaben widerrufen.",
+      "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
+      "required": "Bestätigung vom Agenten verlangt",
+      "revokeAll": "Alle widerrufen",
+      "save": "Freigaben speichern"
+    },
+    "sourceConsents": {
+      "title": "Geprüfte Quellen",
+      "description": "Diese Routine verwendet nur die hier geprüften veröffentlichten Ressourcen, Konten und Werkzeuge. Neue Quellen und erneuerte Kontozustimmungen erfordern eine neue Prüfung.",
+      "retry": "Erneut versuchen",
+      "current": "Die geprüften Quellen sind aktuell.",
+      "changed": "Prüfen Sie diese Quellen vor dem nächsten Lauf.",
+      "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
+      "accept": "Diese Quellen genehmigen"
+    },
+    "advancedOptions": "Erweiterte Optionen",
+    "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
+    "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen.",
+    "resultMode": "Wann Ergebnisse melden",
+    "resultReport": "Nach jeder abgeschlossenen Ausführung",
+    "resultInbox": "Nur wenn etwas Aufmerksamkeit braucht",
+    "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
+    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe."
   },
   "portals": {
     "mailboxInterval": {
@@ -8525,6 +8925,7 @@
     }
   },
   "notifications": {
+    "needsAttention": "Aufmerksamkeit erforderlich",
     "markAllRead": "Alle als gelesen markieren",
     "loadMore": "Mehr laden",
     "failedLoad": "Benachrichtigungen konnten nicht geladen werden",
@@ -8966,8 +9367,6 @@
     "dataEmpty": "Nichts darin",
     "dataMoreRows": "{count, plural, one {# weitere Zeile zeigen} other {# weitere Zeilen zeigen}}",
     "stepInput": "Eingabe",
-    "stepEditorView": "Schrittansicht",
-    "stepEditorSettings": "Schritteinstellungen",
     "stepInputSource": "Daten aus Schritt",
     "stepPinned": "Testdaten",
     "stepNoDataYet": "Noch keine Daten. Führen Sie den Workflow aus oder testen Sie den Schritt davor.",
@@ -9341,8 +9740,15 @@
     "notificationChannels": "Kanäle",
     "notificationInApp": "Benachrichtigung in der App",
     "notificationEmail": "E-Mail",
-    "notificationChannelHint": "Die Benachrichtigungseinstellungen jeder Person gelten weiterhin.",
-    "fileBindingHint": "Wählen Sie mit Daten eine Datei aus einem vorherigen Schritt. Typ und Größe werden automatisch übernommen. Für eingefügten Text verwenden Sie zuerst Text in Datei."
+    "notificationChannelHint": "Die Benachrichtigungseinstellungen jeder Person gelten weiterhin. Private Chats benötigen außerdem eine eigene Benachrichtigungsroute in den Einstellungen.",
+    "fileBindingHint": "Wählen Sie mit Daten eine Datei aus einem vorherigen Schritt. Typ und Größe werden automatisch übernommen. Für eingefügten Text verwenden Sie zuerst Text in Datei.",
+    "replyDraft": {
+      "enable": "Nach Ablauf einen Follow-up-Entwurf vorbereiten",
+      "description": "Wähle ein Modell und Höchstkosten. Der Workflow erstellt einen Entwurf aus deinem Kontext, speichert ihn und benachrichtigt dich. Er versendet den Entwurf nicht.",
+      "budget": "Höchstkosten pro Entwurf (USD)"
+    },
+    "stepEditorView": "Schrittansicht",
+    "stepEditorSettings": "Schritteinstellungen"
   },
   "artifacts": {
     "title": "Apps",
@@ -10283,34 +10689,6 @@
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
   },
-  "discordRoles": {
-    "badge": "Discord",
-    "memberHint": "Wird von der Discord-Rollensynchronisierung gepflegt, die diese Mitgliedschaft entfernt, sobald die Person die Discord-Rolle verliert, über die sie aufgenommen wurde. Wer die Rolle hier ändert, übernimmt die Mitgliedschaft, und die Synchronisierung lässt sie ab dann in Ruhe.",
-    "title": "Discord-Rollen für {bot}",
-    "howItWorks": "Ein verknüpftes Mitglied mit einer zugeordneten Rolle auf einem Server dieses Bots kommt vor jeder Nachricht an den Bot und bei einer Synchronisierung alle 15 Minuten in die Gruppe. Wird ihm die Rolle entzogen, verlässt es die Gruppe. Von Hand hinzugefügte Gruppenmitgliedschaften werden nie entfernt. Discord-Nutzer ohne verknüpftes Konto erhalten nichts.",
-    "empty": "Noch keine Rollen zugeordnet.",
-    "row": "{server} · @{role} → {group}",
-    "deleteNamed": "Zuordnung für @{role} löschen",
-    "addMapping": "Rolle zuordnen",
-    "deleteTitle": "Diese Zuordnung löschen?",
-    "deleteBody": "Wer über @{role} aufgenommen wurde, verlässt die Gruppe, und die Organisation, falls die Rolle die Person aufgenommen hat, bei der nächsten Nachricht an einen Bot oder der nächsten Synchronisierung.",
-    "delete": "Löschen",
-    "cancel": "Abbrechen",
-    "add": "Hinzufügen",
-    "mappingAdded": "Rolle zugeordnet. Wer sie hat, kommt bei der nächsten Nachricht an den Bot in die Gruppe.",
-    "mappingDeleted": "Zuordnung gelöscht",
-    "server": "Server",
-    "discordRole": "Discord-Rolle",
-    "group": "Gruppe",
-    "orgRole": "Aufnehmen als",
-    "pickServer": "Server auswählen",
-    "loadingServers": "Discord wird gefragt…",
-    "pickRole": "Rolle auswählen",
-    "pickGroup": "Gruppe auswählen",
-    "membersOnly": "Nur bestehende Mitglieder",
-    "membersOnlyHint": "Nur Personen, die bereits Mitglied dieser Organisation sind, kommen in die Gruppe.",
-    "admitsHint": "Eine verknüpfte Person mit der Rolle, die noch kein Mitglied ist, tritt dieser Organisation mit der obigen Rolle bei und verlässt sie, wenn ihr die Discord-Rolle entzogen wird."
-  },
   "apiKeys": {
     "title": "API-Schlüssel",
     "why": "Mit Schlüsseln ruft ein Skript, ein HTTP-Client oder ein MCP-Client die API dieser Organisation in Ihrem Namen auf, beschränkt auf das, was Sie auswählen. Ein Schlüssel kann nie mehr als Sie heute.",
@@ -10687,13 +11065,6 @@
       "needs": "Nichts weiter.",
       "never": "Zeigt die Notizen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
     },
-    "memory_mem0": {
-      "name": "Gedächtnis (mem0)",
-      "does": "Der Agent merkt sich Fakten und findet sie nach ihrer Bedeutung wieder, gespeichert in einem mem0-Dienst.",
-      "example1": "Sich merken, dass ein Kunde E-Mail statt Anrufen bevorzugt",
-      "needs": "Ein mem0-Konto, in der Cloud oder selbst gehostet, und sein API-Schlüssel im Vault.",
-      "never": "Zeigt die Erinnerungen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
-    },
     "planning": {
       "name": "Planung",
       "does": "Der Agent schreibt eine Checkliste für eine größere Aufgabe und hakt jeden Schritt ab, damit man den Fortschritt sieht.",
@@ -10786,14 +11157,6 @@
       "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
       "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
     },
-    "virtual_tables": {
-      "name": "Tabellen",
-      "does": "Der Agent kann die ihm freigegebenen typisierten Tabellen auflisten, lesen und beschreiben - einen Datensatz anlegen, ändern, nachschlagen.",
-      "example1": "Jede neue Support-Anfrage als Zeile erfassen",
-      "example2": "Vor einer Antwort den Tarif eines Kunden in einer Tabelle prüfen",
-      "needs": "Mindestens eine freigegebene Tabelle oder die Erlaubnis, Tabellen anzulegen.",
-      "never": "Fasst nie eine nicht freigegebene Tabelle an und löscht nie eine Tabelle; ein gelöschter Datensatz behält seinen Verlauf."
-    },
     "workflows": {
       "name": "Workflows",
       "does": "Der Agent kann die ihm freigegebenen veröffentlichten Workflows starten und lesen, was sie antworten.",
@@ -10818,14 +11181,6 @@
       "needs": "Ein API-Schlüssel des Videoanbieters im Vault. Jeden Clip rechnet dieser Anbieter ab, pro Sekunde.",
       "never": "Veröffentlicht nie ein Video; es erscheint im Gespräch."
     },
-    "drafts": {
-      "name": "Entwürfe",
-      "does": "Zeigt einen Entwurf des Textes, den der Agent zum Versenden schreibt - eine E-Mail, eine Chat-Antwort, einen Beitrag - als Karte mit einem Kopieren-Button an jedem Teil.",
-      "example1": "Antwort an Marta zur Q4-Präsentation",
-      "example2": "Zwei Versionen einer Slack-Ankündigung",
-      "needs": "Nichts weiter. Die Karte erscheint im Web-Chat.",
-      "never": "Sendet nie etwas - du kopierst den Text und schickst ihn selbst."
-    },
     "follow_ups": {
       "name": "Nächste Schritte",
       "does": "Bietet unter einer Antwort bis zu drei nächste Schritte als Buttons an, sodass die nächste Frage einen Klick entfernt ist.",
@@ -10842,6 +11197,14 @@
       "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
     },
+    "phone_calls": {
+      "name": "Telefonanrufe",
+      "does": "Ruft deine bestätigte Nummer mit Zustimmung an, liest einen Bericht vor oder leitet diesen Live-Anruf an einen erlaubten Kontakt weiter.",
+      "example1": "Lies meinen Morgenbericht am Telefon vor",
+      "example2": "Übergib einen öffentlichen Supportanruf an einen Kollegen mit Zustimmung",
+      "needs": "Ein konfigurierter Twilio-Telefonendpunkt, separate Kontaktzustimmung, Budget und Zeit außerhalb der Ruhezeit.",
+      "never": "Authentifiziert niemanden über die Rufnummer, wählt keine beliebige Nummer, wiederholt keine unbestätigte Übermittlung und verlängert keine Zeitgrenze."
+    },
     "monitor": {
       "name": "Einen Befehl beobachten",
       "does": "Startet einen lange laufenden Befehl - einen Test-Watcher, einen Log-Tail, eine CI-Abfrage - und meldet dem Agenten seine neue Ausgabe, sobald sie erscheint, damit er nicht abfragen muss.",
@@ -10856,6 +11219,14 @@
       "needs": "Einen veröffentlichten Konsolenagenten, ein aktives Mitglied und einen freigegebenen Ordner für lokale Arbeit.",
       "never": "Kopiert nicht das ganze Gespräch, umgeht keine Freigaben, wiederholt keine unterbrochenen Aktionen und erstellt keine Überwachungen oder Routinen.",
       "example1": "Untersuche den Exportfehler in einem neuen Thema, während wir die Veröffentlichung weiter planen."
+    },
+    "drafts": {
+      "name": "Entwürfe",
+      "does": "Zeigt einen Entwurf des Textes, den der Agent zum Versenden schreibt - eine E-Mail, eine Chat-Antwort, einen Beitrag - als Karte mit einem Kopieren-Button an jedem Teil.",
+      "example1": "Antwort an Marta zur Q4-Präsentation",
+      "example2": "Zwei Versionen einer Slack-Ankündigung",
+      "needs": "Nichts weiter. Die Karte erscheint im Web-Chat.",
+      "never": "Sendet nie etwas - du kopierst den Text und schickst ihn selbst."
     },
     "mirage": {
       "name": "Mirage (virtuelles Terminal)",
@@ -11148,16 +11519,6 @@
         "description": "Ob der Agent private Notizen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher vollständig, aus Compliance- oder Datenschutzgründen; Notizen aus Gruppenchats bleiben."
       }
     },
-    "memory_mem0": {
-      "base_url": {
-        "title": "URL eines eigenen mem0",
-        "description": "Basis-URL eines selbst gehosteten mem0; für die mem0-Cloud weglassen."
-      },
-      "allow_personal": {
-        "title": "Private Erinnerungen pro Person",
-        "description": "Ob der Agent private Erinnerungen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher, aus Compliance- oder Datenschutzgründen; das Gedächtnis aus Gruppenchats bleibt."
-      }
-    },
     "planning": {
       "enable_subtasks": {
         "title": "Unteraufgaben und Abhängigkeiten",
@@ -11222,6 +11583,10 @@
       "share_with_delegates": {
         "title": "Von Delegierten geerbte Capabilities",
         "description": "Capabilities, die dieser Agent an seine Delegierten weitergibt, etwa einen gemeinsamen Workspace, damit einer eine Datei schreibt und ein anderer sie liest. Geteilt wird nur, was hier steht, die Delegation selbst nie."
+      },
+      "allow_any_agent": {
+        "title": "Andere zugängliche Agenten verwenden",
+        "description": "Bietet die aktuellen veröffentlichten Versionen anderer Agenten an, die diese Person in dieser Organisation ausführen darf, unter Slug-Namen mit dem Präfix agent-. Explizite Pins behalten ihre gewählten Versionen. Der Katalog wird zu Beginn jedes interaktiven Laufs aufgelöst; unbeaufsichtigte Arbeit bleibt auf geprüfte Pins begrenzt. Große Kataloge erhöhen Vorbereitungszeit und Kontext."
       }
     },
     "system_reminders": {
@@ -11281,7 +11646,7 @@
     "tool_search": {
       "strategy": {
         "title": "Suchmethode",
-        "description": "auto: native Tool-Suche bei einem Provider, der sie hat, sonst lokaler Stichwortabgleich. keywords: immer lokal, bei jedem Provider. bm25 / regex: einen nativen Anthropic-Algorithmus erzwingen; Fehler bei einem Provider ohne native Tool-Suche."
+        "description": "auto: native Tool-Suche bei einem Provider, der sie hat, sonst lokaler Stichwortabgleich. keywords: immer lokal, bei jedem Provider. local_bm25: lokale Rangfolge für Kennungen, Beschreibungen und Argumente bei jedem Provider. bm25 / regex: einen nativen Anthropic-Algorithmus erzwingen; Fehler bei einem Provider ohne native Tool-Suche."
       },
       "max_results": {
         "title": "Treffer pro Suche",
@@ -11339,7 +11704,7 @@
       },
       "runs_on": {
         "title": "Wo es läuft",
-        "description": "In der eigenen Sandbox des Agenten, mit einem hier gespeicherten Schlüssel - oder im Ordner, den eine Person auf ihrem eigenen Computer in der Desktop-App wählt, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen."
+        "description": "Die Sandbox des Agents mit ihrem konfigurierten Schlüssel, eine temporäre private Cloud-Aufgabe mit dem Profilkonto der startenden Person oder ein in der Desktop-App auf ihrem Computer gewählter Ordner, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen."
       }
     },
     "workflows": {
@@ -11350,16 +11715,6 @@
       "wait_seconds": {
         "title": "Auf einen Run warten (Sekunden)",
         "description": "Wie lange run_workflow auf das Ende eines Runs wartet, bevor es seine ID zurückgibt, damit sie später gelesen wird."
-      }
-    },
-    "virtual_tables": {
-      "tables": {
-        "title": "Tabellen, die er nutzen darf",
-        "description": "Die Tabellen, auf die der Agent zugreifen darf, und was er in jeder tun darf."
-      },
-      "allow_create": {
-        "title": "Tabellen anlegen",
-        "description": "Erlaubt dem Agenten, neue Tabellen anzulegen. Das Mitglied, in dessen Namen er handelt, braucht weiterhin die Berechtigung tables:create."
       }
     },
     "artifacts": {
@@ -11474,6 +11829,12 @@
       "preview": {
         "title": "Live-Vorschau",
         "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
+      }
+    },
+    "phone_calls": {
+      "endpoint_id": {
+        "title": "Telefonendpunkt",
+        "description": "Der konfigurierte Twilio-Telefonendpunkt aus Kanälen. Nur ausdrückliche Mitgliedszustimmung und aktuelle Grenzen erlauben einen Anruf."
       }
     },
     "mirage": {
@@ -11773,6 +12134,31 @@
       "computer": "Computer · Ihre Dateien",
       "computerHint": "Einen Ordner auf diesem Computer für Ihre Chats verwenden. Das ist Ihre persönliche Wahl; andere Projektmitglieder nutzen weiter den gemeinsamen Workspace.",
       "sharedWorkspace": "Gemeinsame Projektumgebung"
+    },
+    "tracking": {
+      "title": "Projekt im Blick behalten",
+      "description": "Erstellen Sie eine Aufgabentabelle mit gespeicherten Ansichten und veröffentlichen Sie eine private Kopie eines ausgewählten Agenten als geplanten Projektbegleiter.",
+      "audience": "Die Routine handelt in Ihrem Namen und schreibt Berichte in das gemeinsame Projektgespräch. Der Quellagent bleibt unverändert.",
+      "baseAgent": "Bearbeitbarer Quellagent",
+      "chooseAgent": "Veröffentlichten Agenten wählen",
+      "agentDefault": "Projektbegleiter: {name}",
+      "tableDefault": "Aufgaben: {name}",
+      "agentName": "Neuer Begleitagent",
+      "tableName": "Name der Aufgabentabelle",
+      "cadence": "Projekt prüfen",
+      "hourly": "Stündlich",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "sources": "Ressourcen und Konten prüfen",
+      "tableRights": "Die neue Aufgabentabelle erlaubt Lesen, Erstellen und Aktualisieren. Ansichten für alle Aufgaben, Board, offene und blockierte Aufgaben sind enthalten. Externe Aktionsfreigaben gelten weiterhin.",
+      "unavailable": "Prüfen Sie zuerst diese Quellen: {names}",
+      "confirm": "Ich genehmige diese Quellen und möchte den privaten Projektbegleiter veröffentlichen und seine Routine starten.",
+      "publish": "Veröffentlichen und starten",
+      "cancel": "Abbrechen",
+      "retry": "Erneut versuchen",
+      "loadFailed": "Projektbegleiter erneut laden",
+      "openTasks": "Aufgabentabelle",
+      "scopeHint": "Das Projekt verwendet eine gemeinsame Aufgabentabelle. Der Zugriff folgt dem Projekt; Personen und Agenten sind verknüpfte Datensätze, und das Feld für den nächsten Schritt steuert die Übergabe."
     }
   },
   "voiceGlow": {
@@ -11866,24 +12252,25 @@
     }
   },
   "watches": {
-    "title": "Beobachtungen",
+    "title": "Lesende Überwachung",
     "description": "Der Assistent prüft Ihre eigenen verbundenen Konten nach Zeitplan und sagt Ihnen, was neu ist. Er liest nur, und was er findet, sehen nur Sie.",
     "orgOff": "Ihre Organisation hat Beobachtungen nicht eingeschaltet. Ein Admin kann das auf der Seite der Organisation unter Proactivity tun.",
     "noConnections": "Verbinden Sie zuerst eines Ihrer eigenen Konten auf der Seite der MCP-Server - GitHub, Linear, Ihr Postfach.",
-    "add": "Neue Beobachtung",
+    "add": "Überwachen und informieren",
     "resumed": "Wird wieder beobachtet",
     "paused": "Pausiert",
     "removed": "Beobachtung beendet",
     "urgentBadge": "Dringendes sofort",
     "stopped": {
       "watches_off": "In der Organisation aus",
-      "connection_disabled": "Verbindung aus"
+      "connection_disabled": "Verbindung aus",
+      "needs_agent": "Agenten auswählen"
     },
     "activeLabel": "{title} beobachten",
     "editLabel": "{title} bearbeiten",
     "removeLabel": "{title} nicht mehr beobachten",
-    "newTitle": "Etwas beobachten",
-    "editTitle": "Beobachtung bearbeiten",
+    "newTitle": "Überwachungsroutine",
+    "editTitle": "Überwachungsroutine bearbeiten",
     "dialogDescription": "Wonach in einem Ihrer Konten gesucht wird und wie oft. Es wird nur gelesen; was gefunden wird, ist nur für Sie.",
     "connection": "Konto",
     "connectionPlaceholder": "Eine Ihrer Verbindungen wählen",
@@ -11900,7 +12287,7 @@
     "exclusionsHint": "Eine Zeile pro Eintrag: was nicht mehr gemeldet werden soll.",
     "cancel": "Abbrechen",
     "save": "Speichern",
-    "create": "Beobachtung starten",
+    "create": "Routine erstellen",
     "saved": "Beobachtung gespeichert",
     "created": "Wird beobachtet - der erste Blick folgt innerhalb einer Minute",
     "cadence": {
@@ -12013,23 +12400,50 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Sie steht unter Routinen, und was sie findet, landet in Ihrem Posteingang.",
     "seeIt": "Anzeigen",
-    "manageInRoutines": "Beobachtungen unter Routinen verwalten"
+    "manageInRoutines": "Beobachtungen unter Routinen verwalten",
+    "attemptedAt": "Letzter Versuch {when}",
+    "attempt": {
+      "source_unavailable": "Quelle nicht verfügbar — keine erfolgreiche Prüfung.",
+      "access_revoked": "Zugriff nicht verfügbar — Konto und Organisationsberechtigungen prüfen.",
+      "not_completed": "Prüfung nicht abgeschlossen — Aktivität und Budgeteinstellungen prüfen.",
+      "needs_agent": "Vor der Ausführung einen Agenten auswählen.",
+      "budget_paused": "Pausiert — Budget aufgebraucht.",
+      "delivery_unavailable": "Quelle geprüft; die Zielunterhaltung ist nicht verfügbar. Ergebnisse bleiben im Posteingang."
+    },
+    "agent": "Agent",
+    "agentPlaceholder": "Agenten auswählen",
+    "unavailableAgent": "Agent nicht verfügbar",
+    "approvedSourcesHint": "Diese Beobachtung liest nur dieses Konto sowie freigegebenes Wissen und Kontext des Agenten. Andere Konten, Web-Werkzeuge, Delegierung und ausführbare Skills sind nicht verfügbar.",
+    "watchCard": "Beobachtung",
+    "watchUnavailable": "Diese Beobachtung ist nicht mehr verfügbar.",
+    "executedBy": "Agent: {name}",
+    "versionPinned": "Fixierte Version",
+    "versionFollowing": "Folgt der veröffentlichten Version",
+    "environmentSelected": "Ausgewählte Umgebung",
+    "nextCheck": "Nächste Prüfung: {at}",
+    "watchAndInform": "Überwachen und informieren",
+    "reviewSources": "Angehängte Quellen erneut freigeben",
+    "reviewSourcesHint": "Das verbundene Konto mit aktuellem Wissen und Kontext des Agenten erneut freigeben. Nach erneutem Verbinden des Kontos erforderlich. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten.",
+    "reportMode": "Wann berichten",
+    "reportModeHint": "Ein fehlgeschlagener oder nicht verfügbarer Zugriff wird immer als Fehler angezeigt.",
+    "changesOnly": "Nur bei relevanten Änderungen",
+    "everyCheck": "Nach jeder Prüfung, auch ohne Änderungen"
   },
   "inbox": {
     "title": "Posteingang",
-    "description": "Was die Plattform Ihnen aus eigener Initiative gebracht hat: Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks.",
+    "description": "Ergebnisse mit Handlungsbedarf, Freigaben und Vorschläge aus Ihren Gesprächen.",
     "filterLabel": "Anzeigen",
     "filter": {
       "all": "Alle",
       "urgent": "Dringend",
-      "watches": "Aus Beobachtungen",
+      "watches": "Routinenergebnisse",
       "suggestions": "Vorschläge",
       "done": "Erledigt"
     },
     "empty": {
       "title": "Hier wartet nichts",
-      "description": "Hier landet, was Ihre Beobachtungen finden und was der nächtliche Blick vorschlägt.",
-      "watches": "Beobachtung einrichten"
+      "description": "Relevante Routinenergebnisse und Assistentenvorschläge erscheinen hier.",
+      "watches": "Routine einrichten"
     },
     "doneEmpty": "Noch nichts beantwortet",
     "waiting": "{count, plural, =0 {Nichts wartet} =1 {1 wartet} other {# warten}}",
@@ -12039,8 +12453,9 @@
       "agent": "Agent-Idee",
       "profile": "Profil",
       "role_pack": "Routinenpaket",
-      "finding": "Beobachtung"
-    }
+      "finding": "Routine"
+    },
+    "openWorkingChat": "Gespräch öffnen"
   },
   "agentLimit": {
     "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
@@ -12352,7 +12767,170 @@
           "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
         }
       }
+    },
+    "coding_agent": {
+      "runs_on": {
+        "personal_sandbox": {
+          "label": "Private Cloud-Aufgabe mit meinem Konto",
+          "description": "Verwendet Ihr Profilkonto in einem isolierten Container. Liefert einen Diff und ein Ergebnisarchiv zur Prüfung; gemeinsame Dateien bleiben unverändert.",
+          "summary": "Verwendet Ihr Profilkonto in einem isolierten Container. Liefert einen Diff und ein Ergebnisarchiv zur Prüfung; gemeinsame Dateien bleiben unverändert."
+        }
+      }
     }
+  },
+  "outcomes": {
+    "label": "Braucht Ihre Aufmerksamkeit",
+    "acknowledge": "Gesehen",
+    "resolve": "Erledigt",
+    "mute": "Nicht mehr fragen",
+    "open": "Öffnen",
+    "loadFailed": "Offene Anliegen konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "reviewApproval": "Freigabe prüfen"
+  },
+  "routineNotifications": {
+    "label": "Benachrichtigungen für diese Routine",
+    "hint": "Deine Benachrichtigungseinstellungen gelten weiter. Die Auswahl schränkt die Zustellung nur ein; Ergebnisse bleiben in der App.",
+    "inherit": "Meine Einstellungen verwenden",
+    "none": "Nur in der App",
+    "email": "Nur E-Mail",
+    "push": "Nur Gerätebenachrichtigungen",
+    "both": "E-Mail und Gerätebenachrichtigungen",
+    "custom": "Kanäle wählen"
+  },
+  "notificationRoutes": {
+    "title": "Benachrichtigungen in privaten Chats",
+    "description": "Wähle, wohin diese Organisation deine Benachrichtigungen senden darf. Nur deine verknüpften privaten Chats sind verfügbar. Ereignis- und Routineeinstellungen gelten weiterhin. E-Mail und Push werden separat eingerichtet.",
+    "off": "Aus",
+    "unavailable": "Ziel nicht verfügbar — erneut wählen oder ausschalten",
+    "connect": "Schreibe zuerst einem Bot dieser Organisation privat und verknüpfe dein Konto.",
+    "destination": "{bot} · {account} · {id}",
+    "loadFailed": "Benachrichtigungsziele konnten nicht geladen werden",
+    "saveFailed": "Benachrichtigungsziel konnte nicht gespeichert werden",
+    "email": "E-Mail",
+    "push": "Gerätebenachrichtigungen",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "sms": "SMS",
+    "imessage": "iMessage",
+    "discord": "Discord"
+  },
+  "routineHealth": {
+    "label": "Bei wiederholten Fehlern pausieren",
+    "hint": "Warten auf Genehmigungen und Zustellfehler zählen nicht mit. Fortsetzen beginnt ein neues Fehlerfenster.",
+    "off": "Bei wiederholten Ausführungsfehlern nicht pausieren",
+    "after": "{count, plural, one {Nach # erfolgloser Prüfung} other {Nach # erfolglosen Prüfungen}}",
+    "paused": "{count, plural, one {Nach # erfolgloser Prüfung pausiert} other {Nach # erfolglosen Prüfungen pausiert}}"
+  },
+  "phone": {
+    "title": "Telefonanrufe",
+    "description": "Separate Zustimmung und Grenzen für Anrufe über eine konfigurierte Twilio-Nummer.",
+    "choose": "Auswählen",
+    "none": "Keine",
+    "linkFirst": "Verknüpfe und bestätige zuerst eine SMS-Nummer in deinem Profil.",
+    "verifiedNumber": "Bestätigte SMS-Nummer",
+    "allow_calls": "Anrufe auf meiner Nummer erlauben",
+    "allow_reports": "Gesprochene Berichte einschließlich Mailbox erlauben",
+    "allow_transfers": "Genehmigte Weiterleitungen auf meine Nummer erlauben",
+    "timezone": "Zeitzone (IANA)",
+    "contactLimit": "Anrufe in den letzten 24 Stunden",
+    "quietStart": "Beginn der Ruhezeit",
+    "quietEnd": "Ende der Ruhezeit",
+    "saveContact": "Telefonzustimmung speichern",
+    "twilioBot": "Twilio-SMS-Bot",
+    "routingHint": "Wähle einen vorhandenen Twilio-SMS-Bot, um dessen Tresor-Zugangsdaten für Anrufe zu verwenden.",
+    "enableRouting": "Telefonrouting aktivieren",
+    "publicExposure": "Öffentliche Sprachseite oder Widget für eingehende Anrufe",
+    "inboundPrivacy": "Anrufer bleiben anonym. Die Rufnummer schaltet kein privates Konto frei. Leer bedeutet keine eingehenden Agentenanrufe.",
+    "max_call_seconds": "Maximale Gesprächsdauer in Sekunden",
+    "calls_per_hour": "Anrufe in der letzten Stunde",
+    "calls_per_day": "Anrufe in den letzten 24 Stunden",
+    "max_concurrent": "Gleichzeitige Anrufe",
+    "daily_budget_usd": "Tägliches Telefonbudget (USD)",
+    "price_per_minute_usd": "Konservativer Preis pro Verbindung/Minute (USD)",
+    "costHint": "Berücksichtige einen Puffer für Twilio-Gebühren und Ziele. Volle Minuten und mögliche Weiterleitungen werden vor dem Wählen reserviert. Modellbudgets gelten separat; Schätzungen sind keine Rechnung.",
+    "transferTargets": "Erlaubte Weiterleitungskontakte",
+    "saveRouting": "Telefonrouting speichern",
+    "endpointId": "Endpunkt-ID für die Agentenfähigkeit",
+    "inboundUrl": "Twilio-Sprachwebhook-URL (POST)",
+    "statusUrl": "Twilio-Statuscallback-URL (POST)",
+    "route": "Telefonroute",
+    "reportMode": "Einen Bericht vorlesen",
+    "reportText": "Vorzulesender Bericht",
+    "agent": "Sprachagent",
+    "dialHint": "Der Anruf geht an deine Nummer mit separater Zustimmung. Ein eingereihter oder akzeptierter Anruf beweist kein Anhören.",
+    "callMe": "Anruf an mich einreihen",
+    "loading": "Telefoneinstellungen werden geladen…",
+    "receiptUnavailable": "Dieser Anrufbeleg ist für dich nicht verfügbar.",
+    "call": "Telefonanruf",
+    "estimatedCost": "Geschätzte Telefonkosten: {cost}",
+    "preparedReport": "Vorbereiteter Bericht",
+    "transcript": "Transkript öffnen",
+    "hangup": "Anruf beenden",
+    "transfer": "Anruf weiterleiten",
+    "transferHint": "Nur ausdrücklich erlaubte Kontakte mit Zustimmung außerhalb ihrer Ruhezeit sind verfügbar. Die ursprüngliche Zeitgrenze gilt weiter.",
+    "recentCalls": "Letzte Anrufe",
+    "noCalls": "Noch keine Anrufe.",
+    "refresh": "Aktualisieren",
+    "status": {
+      "queued": "Eingereiht",
+      "dialing": "Wählt",
+      "unknown": "Wartet auf Anbieterbestätigung",
+      "ringing": "Klingelt",
+      "active": "Verbunden",
+      "transferring": "Weiterleitung ausstehend",
+      "transferred": "Weitergeleitet",
+      "ending": "Wird beendet",
+      "completed": "Beendet",
+      "failed": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen"
+    },
+    "reportLanguage": "Sprache gesprochener Berichte",
+    "languages": {
+      "en-US": "English",
+      "pl-PL": "Polski",
+      "de-DE": "Deutsch",
+      "es-ES": "Español"
+    },
+    "selectedAgents": "Agenten, die mich anrufen dürfen",
+    "selectedAgentsHint": "Nur diese Agenten dürfen Anrufe oder geplante gesprochene Berichte anfordern. Konsolenanrufe benötigen weiterhin deinen ausdrücklichen Auftrag.",
+    "allowImportant": "Diesen Agenten Anrufe zu wichtigen offenen Fällen erlauben",
+    "importanceInstructions": "Was als wichtig gilt",
+    "escalationDelay": "Wartezeit nach der ersten unbestätigten Benachrichtigung (Sekunden)",
+    "escalationHint": "0 ruft sofort an. Eine Verzögerung benötigt eine ungelesene Nachricht desselben Falls. Bestätigen, Lösen oder Stummschalten storniert den ausstehenden Anruf.",
+    "notBefore": "Frühester Anruf: {time}",
+    "unavailableAgent": "Nicht verfügbarer Agent ({id})",
+    "unavailableContact": "Nicht verfügbarer Weiterleitungskontakt ({id})"
+  },
+  "discordRoles": {
+    "badge": "Discord",
+    "memberHint": "Wird von der Discord-Rollensynchronisierung gepflegt, die diese Mitgliedschaft entfernt, sobald die Person die Discord-Rolle verliert, über die sie aufgenommen wurde. Wer die Rolle hier ändert, übernimmt die Mitgliedschaft, und die Synchronisierung lässt sie ab dann in Ruhe.",
+    "title": "Discord-Rollen für {bot}",
+    "howItWorks": "Ein verknüpftes Mitglied mit einer zugeordneten Rolle auf einem Server dieses Bots kommt vor jeder Nachricht an den Bot und bei einer Synchronisierung alle 15 Minuten in die Gruppe. Wird ihm die Rolle entzogen, verlässt es die Gruppe. Von Hand hinzugefügte Gruppenmitgliedschaften werden nie entfernt. Discord-Nutzer ohne verknüpftes Konto erhalten nichts.",
+    "empty": "Noch keine Rollen zugeordnet.",
+    "row": "{server} · @{role} → {group}",
+    "deleteNamed": "Zuordnung für @{role} löschen",
+    "addMapping": "Rolle zuordnen",
+    "deleteTitle": "Diese Zuordnung löschen?",
+    "deleteBody": "Wer über @{role} aufgenommen wurde, verlässt die Gruppe, und die Organisation, falls die Rolle die Person aufgenommen hat, bei der nächsten Nachricht an einen Bot oder der nächsten Synchronisierung.",
+    "delete": "Löschen",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "mappingAdded": "Rolle zugeordnet. Wer sie hat, kommt bei der nächsten Nachricht an den Bot in die Gruppe.",
+    "mappingDeleted": "Zuordnung gelöscht",
+    "server": "Server",
+    "discordRole": "Discord-Rolle",
+    "group": "Gruppe",
+    "orgRole": "Aufnehmen als",
+    "pickServer": "Server auswählen",
+    "loadingServers": "Discord wird gefragt…",
+    "pickRole": "Rolle auswählen",
+    "pickGroup": "Gruppe auswählen",
+    "membersOnly": "Nur bestehende Mitglieder",
+    "membersOnlyHint": "Nur Personen, die bereits Mitglied dieser Organisation sind, kommen in die Gruppe.",
+    "admitsHint": "Eine verknüpfte Person mit der Rolle, die noch kein Mitglied ist, tritt dieser Organisation mit der obigen Rolle bei und verlässt sie, wenn ihr die Discord-Rolle entzogen wird."
   },
   "wikiGraph": {
     "title": "Graphansicht",
@@ -12400,6 +12978,129 @@
     "rootFolder": "Stammordner",
     "untagged": "Ohne Tags",
     "visibleNotes": "{visible} von {total} Notizen sichtbar"
+  },
+  "workspaceHome": {
+    "newChat": "Neuer Chat",
+    "attention": "Braucht deine Aufmerksamkeit",
+    "background": "Arbeit im Hintergrund",
+    "retry": "Erneut versuchen",
+    "loading": "Wird geladen…",
+    "nothingRunning": "Derzeit läuft nichts im Hintergrund",
+    "backgroundDescription": "Verfolge die Arbeit, die deine Agenten außerhalb des Gesprächs fortsetzen.",
+    "backgroundEmpty": "Bitte einen Agenten, eine Aufgabe im Hintergrund zu bearbeiten. Hier siehst du den Fortschritt und kannst jederzeit das Gespräch öffnen.",
+    "routines": "Routinen und Watches",
+    "backToChat": "Gespräch beginnen",
+    "prompt": "Woran arbeiten wir heute?",
+    "lead": "Stelle eine Frage, erstelle etwas oder übergib deinen Agenten eine Aufgabe.",
+    "active": "In Bearbeitung",
+    "history": "Verlauf",
+    "stop": "Stoppen",
+    "noHistory": "Noch keine Hintergrundarbeit",
+    "historyDescription": "Abgeschlossene Aufgaben und ihre Ergebnisse erscheinen hier."
+  },
+  "starterIcons": {
+    "message": "Nachricht",
+    "compass": "Kompass",
+    "search": "Suche",
+    "calendar": "Kalender",
+    "mail": "E-Mail",
+    "code": "Code",
+    "chart": "Diagramm",
+    "file": "Dokument",
+    "lightbulb": "Idee",
+    "check": "Checkliste",
+    "globe": "Web",
+    "sparkles": "Funkeln"
+  },
+  "durableTasks": {
+    "tasks": "Aufgaben",
+    "newTask": "Neue Aufgabe",
+    "hint": "Verbindliche Aufgaben für Sie und Ihre Agenten. Tabelle, Arbeitschat und Inbox gehören zur selben Aufgabe.",
+    "board": "Aufgabentabelle",
+    "openTable": "Tabelle öffnen",
+    "title": "Aufgabe",
+    "description": "Anweisungen oder Kontext",
+    "assignee": "Wer übernimmt den nächsten Schritt?",
+    "me": "Ich",
+    "start": "Startzeit",
+    "due": "Frist",
+    "reminderHint": "Optional: zu dieser Zeit in der Inbox erinnern.",
+    "startHint": "Optional: einmal zu dieser Zeit ausführen. Leer bedeutet jetzt.",
+    "dueHint": "Die Frist ist unabhängig vom Arbeitsbeginn.",
+    "localTime": "Datumsangaben verwenden die Zeitzone Ihres Geräts.",
+    "createHint": "Eine Aufgabe, spätere Arbeit oder Erinnerung speichern. Agentenergebnisse warten in einem Arbeitschat auf Ihre Prüfung.",
+    "agentsUnavailable": "Agenten konnten nicht geladen werden. Sie können sich die Aufgabe weiterhin selbst zuweisen.",
+    "cancel": "Abbrechen",
+    "saving": "Wird gespeichert…",
+    "create": "Aufgabe erstellen",
+    "retry": "Erneut versuchen",
+    "empty": "Noch keine Aufgaben",
+    "emptyHint": "Bitten Sie einen Agenten, etwas für später zu planen, oder erstellen Sie eine Aufgabe. Private Tabellen entstehen automatisch.",
+    "openChat": "Arbeitschat öffnen",
+    "done": "Als erledigt markieren",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "scope": {
+      "private": "Meine Aufgaben",
+      "project": "Projektaufgaben",
+      "group": "Gruppenaufgaben",
+      "organization": "Organisationsaufgaben"
+    },
+    "status": {
+      "planned": "Geplant",
+      "in_progress": "In Arbeit",
+      "waiting_for_user": "Wartet auf Sie",
+      "blocked": "Blockiert",
+      "done": "Erledigt",
+      "cancelled": "Abgebrochen"
+    },
+    "nextActor": {
+      "user": "Nächster Schritt: Person",
+      "agent": "Nächster Schritt: Agent"
+    }
+  },
+  "setupHints": {
+    "title": "Konfiguration verfügbar",
+    "voiceModel": "Für Sprache fehlt ein Standardanbieter oder Modell. Unter Arbeitsbereich → Sprache für die Transkription über einen Anbieter auswählen.",
+    "voiceKey": "Sprache hat Anbieter und Modell, aber keinen Schlüssel. Unter Arbeitsbereich → Sprache einen Organisationsschlüssel wählen.",
+    "proactivityOff": "Nächtliche Vorschläge sind aus. Unter Proaktivität aktivieren, wenn der Assistent Vorschläge für Ihr Team vorbereiten soll.",
+    "proactivityModel": "Nächtliche Vorschläge sind an, aber ohne Modell. Unter Proaktivität ein Modell wählen.",
+    "memoryModel": "Für Gedächtnispflege fehlt ein Modell. Unter KI und Dienste → Hintergrunddienste auswählen, um automatische Gedächtnispflege zu nutzen.",
+    "architectModel": "Der Architect benötigt ein Modell. Unter KI und Dienste im Agent Builder öffnen und ein Modell auswählen.",
+    "mobilePush": "Für iPhone-Push-Benachrichtigungen fehlt ein Apple-Schlüssel. Hier einen APNs-Schlüssel hinzufügen, wenn Sie einen eigenen iOS-App-Build nutzen."
+  },
+  "codingAccounts": {
+    "title": "Coding-Konten",
+    "description": "Dein eigenes Konto für Programmieraufgaben, die du in dieser Organisation startest. Andere Mitglieder können es nicht nutzen.",
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "connectNamed": "{name} verbinden",
+    "label": "Kontobezeichnung",
+    "apiKey": "API-Schlüssel",
+    "chatGPT": "ChatGPT-Anmeldung",
+    "oauthHelp": "Starte eine neue Anmeldung im Browser und füge hier die vollständige localhost-Rückrufadresse ein. Importiere keine auth.json-Datei einer CLI.",
+    "continueOpenAI": "Bei OpenAI fortfahren",
+    "startSignIn": "Anmeldung starten",
+    "callback": "Rückrufadresse",
+    "credential": "API-Schlüssel oder Claude-Setup-Token",
+    "keyHelp": "Claude Code akzeptiert einen Anthropic-API-Schlüssel oder Setup-Token; Codex einen OpenAI-API-Schlüssel. Persönliche Konten verbinden sich direkt mit ihrem Anbieter.",
+    "consent": "Agenten dieser Organisation dürfen dieses Konto für Programmieraufgaben nutzen, die ich starte.",
+    "sharing": "Private Cloud-Aufgaben kopieren den Arbeitsbereich in einen isolierten Container. Ergebnisse sind für Chat-Leser sichtbar; gemeinsame Projektdateien werden nicht automatisch geändert.",
+    "connecting": "Verbindung wird hergestellt…",
+    "connect": "Verbinden",
+    "notConnected": "Nicht verbunden",
+    "enabled": "Für meine Aufgaben aktiviert",
+    "disabled": "Nicht aktiviert",
+    "disable": "Nutzung deaktivieren",
+    "enable": "Nutzung aktivieren",
+    "disconnect": "Trennen",
+    "loadFailed": "Deine Programmierkonten konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "localHelp": "Wähle im Werkzeug Coding agent die Option Private Cloud-Aufgabe mit meinem Konto. Auf diesem Computer nutzt stattdessen die lokale CLI-Anmeldung und deinen freigegebenen Ordner; lokale Zugangsdaten bleiben auf deinem Computer.",
+    "disconnectHelp": "Trennen entfernt die Kopie von AgenticOS und beendet ihre Aufgaben. Widerrufe eine ChatGPT-Freigabe in den ChatGPT-Einstellungen bei OpenAI. Zeitpläne und Kanalaufgaben nutzen diese Konten nicht.",
+    "personalAccount": "Persönliches Konto: {label}",
+    "baseRevision": "Arbeitsbereich-Snapshot: {revision}",
+    "chatHelp": "Verbinde hier dein Konto für private Coding-Aufgaben in der Cloud. Das Coding-agent-Tool muss Private cloud task with my account verwenden. Lokales Coding in der Desktop-App nutzt eine eigene Anmeldung."
   },
   "mirage": {
     "folders": "Ordner",

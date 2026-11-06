@@ -1,5 +1,7 @@
 "use client";
 
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export interface StackedSeries {
@@ -30,7 +32,7 @@ export function StackedBarsImpl({
         <XAxis
           dataKey="label"
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-          fontSize={11}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
           minTickGap={28}
@@ -38,31 +40,27 @@ export function StackedBarsImpl({
           interval="preserveStartEnd"
           tick={{
             fontFamily: "var(--font-mono)",
-            fill: "oklch(from var(--color-foreground) l c h / 0.45)",
+            fill: "var(--color-muted-foreground)",
           }}
         />
         <YAxis
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-          fontSize={11}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
-          width={36}
+          width={40}
           tickCount={4}
           allowDecimals={false}
           tick={{
             fontFamily: "var(--font-mono)",
-            fill: "oklch(from var(--color-foreground) l c h / 0.45)",
+            fill: "var(--color-muted-foreground)",
           }}
         />
         <Tooltip
           cursor={{ fill: "oklch(from var(--color-foreground) l c h / 0.05)" }}
-          contentStyle={{
-            background: "var(--color-card)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "0.75rem",
-            fontSize: "12px",
-          }}
-          labelStyle={{ color: "var(--color-muted-foreground)" }}
+          contentStyle={CHART_TOOLTIP_CONTENT}
+          itemStyle={CHART_TOOLTIP_ITEM}
+          labelStyle={CHART_TOOLTIP_LABEL}
         />
         {series.map((one, index) => (
           <Bar

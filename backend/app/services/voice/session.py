@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import anyio
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocketDisconnect
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.realtime import RealtimeSession
@@ -74,7 +74,7 @@ from app.services.voice.seed import seed_history, summariser
 from app.services.voice.settings import agent_takes_calls
 from app.services.voice.starter import StartedCall, VoiceCaller, VoiceCallStarter
 from app.services.voice.transcript import SessionFactory
-from app.services.voice.transport import send_audio_frame, send_frame
+from app.services.voice.transport import VoiceSocket, send_audio_frame, send_frame
 from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
@@ -272,7 +272,7 @@ class VoiceCallSession:
 
     def __init__(
         self,
-        websocket: WebSocket,
+        websocket: VoiceSocket,
         caller: VoiceCaller,
         *,
         sessions: SessionFactory = get_db_context,
@@ -335,9 +335,10 @@ class VoiceCallSession:
         """The next frame: a client frame, the caller's audio (binary), or `None` for noise."""
         message = await self._ws.receive()
         if message.get("type") == "websocket.disconnect":
-            raise WebSocketDisconnect(message.get("code", 1000))
+            code = message.get("code", 1000)
+            raise WebSocketDisconnect(code if isinstance(code, int) else 1000)
         text = message.get("text")
-        if text is None:
+        if not isinstance(text, str):
             audio = message.get("bytes")
             return audio if isinstance(audio, bytes) else None
         try:

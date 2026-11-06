@@ -185,6 +185,7 @@ async def test_the_runner_leaves_the_resolved_folders_for_the_capability(monkeyp
     resolved = ResolvedTerminal(mounts=())
     service = MagicMock()
     service.return_value.resolve = AsyncMock(return_value=resolved)
+    service.return_value.authority = AsyncMock(return_value="mount-authority")
     monkeypatch.setattr(agent_runner, "MirageMountService", service)
     runner = agent_runner.AgentRunnerService.__new__(agent_runner.AgentRunnerService)
     runner.db = MagicMock()

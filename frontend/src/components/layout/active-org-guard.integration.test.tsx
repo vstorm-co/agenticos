@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -139,6 +139,7 @@ describe("a stale organization does not permanently empty the navigation", () =>
     // What the fix adds: the refusal is recognised, the selection moves to an
     // organization the caller belongs to, and the nav comes back on its own.
     await waitFor(() => expect(screen.getByText("agents")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "monitoring" }));
     for (const entry of ["skills", "activity", "knowledgeBases"]) {
       expect(screen.getByText(entry)).toBeInTheDocument();
     }

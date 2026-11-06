@@ -1,5 +1,7 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
+
 import {
   CalendarClock,
   Calculator,
@@ -7,27 +9,38 @@ import {
   FileSearch,
   Mail,
   MapPinned,
-  MessageSquare,
   Plane,
   Sparkles,
-  Table2,
 } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { useTranslations } from "next-intl";
 
+import { STARTER_ICONS } from "@/lib/starter-icons";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
-import { useMentionables } from "@/hooks/use-mentionables";
-import { usePersonalStarters } from "@/hooks/use-suggestions";
+import { usePersonalStarterQuery } from "@/hooks/use-suggestions";
 import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
 import type { Agent } from "@/types/agents";
 
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
-import { SuggestionCards } from "./suggestion-cards";
 
-/** The starter agent, whose empty chat carries what the platform proposes to the person. */
+/** The starter agent also offers personalized opening messages. */
 const STARTER_SLUG = "agenticos";
+const subscribeToClock = () => () => {};
+const localHour = () => new Date().getHours();
+const serverHour = () => null;
+
+export function greetingKey(
+  hour: number,
+): "greetingNight" | "greetingMorning" | "greetingAfternoon" | "greetingEvening" {
+  if (hour < 6) return "greetingNight";
+  if (hour < 12) return "greetingMorning";
+  if (hour < 18) return "greetingAfternoon";
+  return "greetingEvening";
+}
 
 /**
  * The four openers for an agent that names none of its own, in order. Their
@@ -55,53 +68,62 @@ const VISUAL_PROMPTS = [
 
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
+  suggestionsSlot?: HTMLElement | null;
 }
 
-export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
+export function ChatEmptyState({ onPick, suggestionsSlot }: ChatEmptyStateProps) {
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
   // picker already holds.
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  const { agents } = useAgents({ includeArchived: true });
+  const { agents, isLoading } = useAgents({ includeArchived: true });
   const agent = agents.find((candidate) => candidate.id === selectedAgentId);
   // The agent's own first messages, as its published version names them, in
   // the words its author wrote. The starter agent has none and offers the
   // person's own instead, written for them overnight in this organization
   // (#2301) - read only here, so no other agent's empty chat asks for them.
   const own = agent?.starters ?? [];
-  if (agent?.slug === STARTER_SLUG && !own.length) {
-    return <PersonalWelcome agent={agent} onPick={onPick} />;
-  }
-  return <Welcome agent={agent} starters={own} onPick={onPick} />;
-}
-
-function PersonalWelcome({ agent, onPick }: { agent: Agent; onPick: (prompt: string) => void }) {
-  return <Welcome agent={agent} starters={usePersonalStarters()} onPick={onPick} />;
+  const personal = usePersonalStarterQuery(agent?.slug === STARTER_SLUG && !own.length);
+  const resolvingAgent =
+    isLoading || (!agent && agents.some((candidate) => candidate.status === "published"));
+  const waiting =
+    resolvingAgent || (agent?.slug === STARTER_SLUG && !own.length && personal.isPending);
+  return (
+    <Welcome
+      agent={agent}
+      starters={own.length ? own : agent?.slug === STARTER_SLUG ? (personal.data ?? []) : []}
+      loading={waiting}
+      suggestionsSlot={suggestionsSlot}
+      onPick={onPick}
+    />
+  );
 }
 
 interface WelcomeProps extends ChatEmptyStateProps {
   agent: Agent | undefined;
   /** First messages to offer, as written - the card is the message, so nothing under it. */
   starters: string[];
+  loading?: boolean;
 }
 
-function Welcome({ agent, starters, onPick }: WelcomeProps) {
+function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeProps) {
   const t = useTranslations("chat.empty");
+  const th = useTranslations("workspaceHome");
   const { user } = useAuth();
+  const hour = useSyncExternalStore(subscribeToClock, localHour, serverHour);
   const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   const description = agent?.description?.trim();
-  // The list the composer reads for `@`, so it is usually in hand already.
-  const { items } = useMentionables(agent ? agent.id : null);
-  const draws = items.some((item) => item.kind === "capability" && item.id === VISUALS_ID);
+  // The published list already carries capabilities; no second request for home hints.
+  const draws = agent?.published_capabilities?.includes(VISUALS_ID) === true;
   const isStarter = agent?.slug === STARTER_SLUG;
   // Without first messages, an agent that draws opens on what it can draw (#2302).
   const suggestions: WelcomeSuggestion[] = starters.length
-    ? starters.map((starter, index) => ({
+    ? starters.slice(0, 4).map((starter, index) => ({
         key: `starter-${index}`,
-        icon: MessageSquare,
-        title: starter,
+        icon: STARTER_ICONS[agent?.starter_icons?.[starter] ?? "message"],
+        title: agent?.starter_titles?.[starter]?.trim() || starter,
         prompt: starter,
-        description: "",
+        description: agent?.starter_titles?.[starter]?.trim() ? starter : "",
       }))
     : (draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
         key: p.id,
@@ -112,6 +134,9 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
 
   return (
     <ChatWelcome
+      quiet
+      loading={loading}
+      suggestionsSlot={suggestionsSlot}
       mark={
         agent ? (
           <AgentAvatar
@@ -121,13 +146,23 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
             colorSlot={agent.avatar_color}
             size="lg"
           />
+        ) : loading ? (
+          <Skeleton className="size-10 rounded-full" data-testid="welcome-agent-loading" />
         ) : (
           <WelcomeIcon icon={Sparkles} />
         )
       }
-      title={firstName ? t("greeting", { name: firstName }) : t("greetingAnonymous")}
+      title={
+        hour === null
+          ? ""
+          : firstName
+            ? t(greetingKey(hour), { name: firstName })
+            : t("greetingAnonymous")
+      }
       lead={
-        agent ? (
+        isStarter ? (
+          th("lead")
+        ) : agent ? (
           <>
             <span className="text-foreground font-medium">{agent.name}</span>
             {description ? ` · ${description}` : ""}
@@ -137,17 +172,7 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
         )
       }
       suggestions={suggestions}
-      notice={isStarter && agent ? <SuggestionCards agentId={agent.id} /> : undefined}
       onPick={onPick}
-      footer={
-        <>
-          <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-xs">⌘K</kbd>
-          <span>{t("commandPalette")}</span>
-          <span className="text-border">·</span>
-          <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-xs">/</kbd>
-          <span>{t("slashCommands")}</span>
-        </>
-      }
     />
   );
 }

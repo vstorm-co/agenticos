@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState, type MouseEvent } from "react";
+import { memo, useMemo, useState, type MouseEvent } from "react";
+import { toolIcon } from "@/lib/step-icons";
 import { Code2 } from "lucide-react";
 import type { TurnFileSource } from "@/types/chat";
 import type { ToolCall } from "@/types";
@@ -20,12 +21,14 @@ import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
 import { AskedResult, parseAsked } from "./tool-results/asked";
+import { platformCallError } from "./tool-results/platform-objects";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { CodingAgentResult } from "./tool-results/coding-agent";
 import { DelegationResult } from "./tool-results/delegation";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { delegateNamed, type DelegateRef } from "@/lib/delegations";
+import { MemoryToolResult } from "./tool-results/memory";
 import { WorkspaceToolResult } from "./tool-results/workspace";
 import type { McpServerRef } from "@/lib/tool-steps";
 import { useTranslations } from "next-intl";
@@ -52,6 +55,8 @@ interface ToolCallCardProps {
    * is a line they can open if they want it.
    */
   startOpen?: boolean;
+  /** Activity details open only when the person asks, even as tool results arrive. */
+  autoExpand?: boolean;
   /**
    * The agents the reader can see, for naming the one a delegation asked.
    *
@@ -76,11 +81,12 @@ interface ToolCallCardProps {
  * defaults are the calls whose whole value is the thing they produced - a chart, a
  * question waiting on an answer, code that ran, and a file that was written.
  */
-export function ToolCallCard({
+export const ToolCallCard = memo(function ToolCallCard({
   toolCall,
   fileSource,
   mcpServers,
   startOpen = false,
+  autoExpand = true,
   agents = [],
 }: ToolCallCardProps) {
   const t = useTranslations("chat.tools");
@@ -129,7 +135,10 @@ export function ToolCallCard({
   // charts arrived as two headers and one picture. And bookkeeping never opens on
   // its own - see `staysClosed`.
   const [expanded, setExpanded] = useState(
-    toolCall.status === "completed" && entry?.staysClosed !== true && (startOpen || opensOnSight),
+    autoExpand &&
+      toolCall.status === "completed" &&
+      entry?.staysClosed !== true &&
+      (startOpen || opensOnSight),
   );
   const [showRaw, setShowRaw] = useState(false);
 
@@ -187,7 +196,7 @@ export function ToolCallCard({
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.
   const isParked = toolCall.status === "awaiting_approval" || toolCall.status === "awaiting_answer";
-  const isError = toolCall.status === "error";
+  const isError = toolCall.status === "error" || platformCallError(toolCall) !== null;
   // The servers are what turn `linear_create_issue` into "Linear · Create issue".
   // Nothing on a tool call says where it came from, so the prefix is matched against
   // the connections this caller has - see `useMcpToolServers`.
@@ -201,7 +210,12 @@ export function ToolCallCard({
   const [seenStatus, setSeenStatus] = useState(toolCall.status);
   if (seenStatus !== toolCall.status) {
     setSeenStatus(toolCall.status);
-    if (toolCall.status === "completed" && entry?.opensWhenDone === true && produced) {
+    if (
+      autoExpand &&
+      toolCall.status === "completed" &&
+      entry?.opensWhenDone === true &&
+      produced
+    ) {
       setExpanded(true);
     }
   }
@@ -230,8 +244,9 @@ export function ToolCallCard({
               { name: delegate.name },
             )
       }
-      detail={isRunning || delegate !== null ? null : step.detail}
+      detail={delegate !== null ? null : step.detail}
       kind={step.kind}
+      icon={toolIcon(toolCall.name, step.kind)}
       logoDomain={step.logoDomain}
       mark={
         delegate === null ? undefined : (
@@ -294,7 +309,7 @@ export function ToolCallCard({
       ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "coding-agent" ? (
-        <CodingAgentResult toolCall={toolCall} resultText={resultText} />
+        <CodingAgentResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
       ) : renderer === "loaded-skill" ? (
         <LoadedSkillResult result={toolCall.result} status={toolCall.status} />
       ) : renderer === "load-skill" ? (
@@ -309,6 +324,8 @@ export function ToolCallCard({
         <AskedResult asked={asked} />
       ) : delegate !== null ? (
         <DelegationResult brief={brief} answer={resultText} />
+      ) : renderer === "memory" ? (
+        <MemoryToolResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
       ) : (
@@ -318,4 +335,4 @@ export function ToolCallCard({
       )}
     </AgentStep>
   );
-}
+});

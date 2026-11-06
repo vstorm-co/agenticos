@@ -1,14 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  CheckCheck,
-  CircleAlert,
-  Inbox as InboxIcon,
-  Radar,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { CheckCheck, CircleAlert, Radar, Sparkles, type LucideIcon } from "lucide-react";
+import { InboxIcon as InboxIcon } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -87,30 +81,57 @@ export function InboxPage() {
             <span id="inbox-filter-label" className="sr-only">
               {t("filterLabel")}
             </span>
-            <Select
-              value={filter}
-              onValueChange={(value) => {
-                const next = FILTERS.find((each) => each === value);
-                if (next) setFilter(next === "all" ? null : next);
-              }}
+            <div
+              className="hidden flex-wrap items-center gap-1 sm:flex"
+              role="group"
+              aria-label={t("filterLabel")}
             >
-              <SelectTrigger aria-labelledby="inbox-filter-label" className="w-full sm:w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTERS.map((value) => {
-                  const Icon = FILTER_ICONS[value];
-                  return (
-                    <SelectItem key={value} value={value}>
-                      <span className="flex items-center gap-2">
-                        <Icon className="size-4" aria-hidden />
-                        {t(`filter.${value}`)}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              {FILTERS.map((value) => {
+                const Icon = FILTER_ICONS[value];
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={filter === value}
+                    onClick={() => setFilter(value === "all" ? null : value)}
+                    className={
+                      filter === value
+                        ? "bg-accent text-foreground inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium"
+                        : "text-muted-foreground hover:text-foreground inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm"
+                    }
+                  >
+                    <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
+                    {t(`filter.${value}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="sm:hidden">
+              <Select
+                value={filter}
+                onValueChange={(value) => {
+                  const next = FILTERS.find((each) => each === value);
+                  if (next) setFilter(next === "all" ? null : next);
+                }}
+              >
+                <SelectTrigger aria-labelledby="inbox-filter-label" className="w-full sm:w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FILTERS.map((value) => {
+                    const Icon = FILTER_ICONS[value];
+                    return (
+                      <SelectItem key={value} value={value}>
+                        <span className="flex items-center gap-2">
+                          <Icon className="size-4" aria-hidden />
+                          {t(`filter.${value}`)}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
           </>
         }
       >
@@ -126,7 +147,7 @@ export function InboxPage() {
         ) : open.length === 0 ? (
           <Nothing filter={filter} />
         ) : (
-          <SuggestionRows items={open} />
+          <SuggestionRows items={open} expandedDetails />
         )}
       </ListCard>
     </div>
@@ -146,7 +167,7 @@ function Nothing({ filter }: { filter: Exclude<Filter, "done"> }) {
         filter === "all" || filter === "watches"
           ? {
               label: t("empty.watches"),
-              onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`),
+              onClick: () => router.push(ROUTES.ROUTINES),
             }
           : undefined
       }
