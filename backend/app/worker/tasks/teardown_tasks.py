@@ -213,8 +213,9 @@ async def cleanup_external_state(
     `base_purges` are deleted bases whose table is kept, because another base
     still holds the name (#913) or it holds chunks no base owns (#2747): their
     filed chunks are read by no scope any more and nothing else would remove
-    them, so each is deleted by its base id (#2537). A purge that fails is raised like a re-stamp, so the retries re-run
-    it; deleting by base id is idempotent and a missing table is a no-op.
+    them, so each is deleted by its base id (#2537). A purge that fails is raised
+    like a re-stamp, so the retries re-run it; deleting by base id is idempotent
+    and a missing table is a no-op.
     """
     from app.core.exceptions import DatabaseError, ExternalServiceError
     from app.db.locks import LockScope, hold_name

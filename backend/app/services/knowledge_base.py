@@ -329,9 +329,10 @@ class KnowledgeBaseService:
         cannot refuse content that arrives after it, and the caller holds no
         authority over it, so the table stays with every chunk the base takes
         purged (#2747). Unless the base is a kept default, that leaves the name as
-        such a writer left it: no base on it, a claim refused unless the chunks left
-        are all the claimant's, and `rag-drop` to remove it. `force_drop` is that
-        operator's override, so a `rag-drop` of a held name still drops the table.
+        such a writer left it: no base on it, a claim refused except to an app admin
+        or the organization the chunks left all belong to, and `rag-drop` to remove
+        it. `force_drop` is that operator's override, so a `rag-drop` of a held name
+        still drops the table.
 
         When the table does go, another tenant's unfiled rows under the name stay
         with their files - the caller holds no authority over them, so what happens
@@ -473,12 +474,13 @@ class KnowledgeBaseService:
         snapshots committed vector ids while holding the base lock, including
         inserts not yet settled onto tracking rows, since it takes uploads again
         under the same id. A last holder's does too: the drop it stands in for took
-        every chunk the base takes, the ones no row names included. The unfiled rows
-        the base takes - its tenant's - go with it, unless another base of that
-        tenant on the name takes them too and still reads them: a kept default would
-        otherwise go on listing them, and a deleted base would hand them to its
-        tenant's next base on the name (#2560). Their chunks are purged by document
-        id within the tenant.
+        every chunk the base takes, the ones no row names included, and a chunk its
+        own document names even when the base takes no unfiled ones
+        (`delete_document`, #2537). The unfiled rows the base takes - its tenant's -
+        go with it, unless another base of that tenant on the name takes them too
+        and still reads them: a kept default would otherwise go on listing them, and
+        a deleted base would hand them to its tenant's next base on the name (#2560).
+        Their chunks are purged by document id within the tenant.
 
         Runs before the KB row is deleted: `ON DELETE SET NULL` would unfile the
         base's rows first, and a delete by its id would then find nothing.
@@ -504,6 +506,8 @@ class KnowledgeBaseService:
         base_purges = (
             [] if kb.is_default else [BasePurge(collection=collection, knowledge_base_id=kb.id)]
         )
+        # With no other base on the name, every id here is this base's own document.
+        unfiled_too = takes_unfiled or not others
         # Split, so a large purge spreads across entries and jobs rather than
         # one payload and one array holding every document.
         base_purges += [
@@ -511,8 +515,8 @@ class KnowledgeBaseService:
                 collection=collection,
                 knowledge_base_id=kb.id,
                 vector_document_ids=named[i : i + _PURGE_IDS_PER_ENTRY],
-                takes_unfiled=takes_unfiled,
-                tenant=scope.tenant if takes_unfiled else None,
+                takes_unfiled=unfiled_too,
+                tenant=scope.tenant if unfiled_too else None,
             )
             for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
         ]

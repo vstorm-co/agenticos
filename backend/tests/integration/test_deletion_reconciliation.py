@@ -2470,6 +2470,50 @@ class TestALastHolderLeavesContentThatIsNotItsOwn:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()
 
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_a_personal_bases_row_names_its_unstamped_chunk(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """A personal base outside an organization takes no unfiled chunk, but a chunk
+        its own row names is its own, stamped or not, as `delete_document` holds
+        (#2537). Left in the kept table, it would be the app scope's to read."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            base = _personal_kb(uuid.uuid4(), owner.id, collection)
+            base.organization_id = None
+            s.add(base)
+            await s.flush()
+            filed = _kb_document(collection, base.id, None, "")
+            filed.vector_document_id = "filed-doc"
+            s.add(filed)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "filed-0", "filed-doc", base.id)
+            await _document_chunk(s, table, "unstamped-0", "filed-doc", None)
+            await _document_chunk(s, table, "operator-0", "operator-doc", None)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=None, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"operator-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
     @_TEARDOWN_ROUTES
     @pytest.mark.parametrize("collection", ["documents", "Legacy_Upper"])
     async def test_a_name_the_store_refuses_can_still_be_deleted(

@@ -3,6 +3,7 @@
 Contains database operations for RAGDocument entities.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Self, cast
@@ -38,6 +39,8 @@ from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import VECTOR_TABLE_PREFIX, validate_collection_name
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -863,18 +866,20 @@ async def table_holds_unfiled_outside(db: AsyncSession, scope: CollectionScope) 
     `rag-ingest` and the CLI syncs write them into a held name, the syncs with no
     tracking row, so the table is asked rather than the rows (#2747). A filed one
     is never in the way: with no other base on the name it is the base's own, or
-    a deleted base's awaiting its purge. A base with a name from before a naming
-    rule has no table the store can write, and refusing here would make the base
-    impossible to delete, so such a name holds nothing.
+    a deleted base's awaiting its purge. A name from before a naming rule cannot
+    be asked about, and refusing here would make its base impossible to delete.
+    Nothing is lost by answering no: the store refuses to drop that name's table.
     """
+    try:
+        validate_collection_name(scope.collection_name, metadata=Base.metadata)
+    except BadRequestError:
+        logger.warning("Not probing the table of legacy name %s", scope.collection_name)
+        return False
     outside = _CHUNK_METADATA["knowledge_base_id"].astext.is_(None)
     if scope.takes_unfiled:
         tenant = None if scope.tenant is None else str(scope.tenant)
         outside = and_(outside, _CHUNK_METADATA["organization_id"].astext.is_distinct_from(tenant))
-    try:
-        return await _table_holds(db, scope.collection_name, outside)
-    except BadRequestError:
-        return False
+    return await _table_holds(db, scope.collection_name, outside)
 
 
 async def _table_holds(
