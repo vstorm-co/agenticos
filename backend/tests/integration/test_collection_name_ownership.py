@@ -197,6 +197,7 @@ class TestASyncRetiresOnlyItsOwnFailedRows:
 
         assert await _ids(db, "docs") == {theirs.id, opened.id}
 
+    @pytest.mark.security
     async def test_a_base_retires_its_tenants_unfiled_failure(self, db: AsyncSession) -> None:
         """The base lists its tenant's unfiled rows - a failure `mark_unindexed`
         left when the name's table was dropped - so its sync retires them too,
