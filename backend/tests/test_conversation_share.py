@@ -191,8 +191,13 @@ async def test_a_thread_shared_with_you_says_whether_you_starred_it(
         share_repo.count_conversations_shared_with_user = AsyncMock(return_value=2)
         share_repo.share_permissions = AsyncMock(return_value={mine: "view", theirs: "edit"})
         conv_repo.favourite_ids = AsyncMock(return_value={mine})
+        named = AsyncMock()
 
-        items, total = await service.list_shared_with_me(reader)
+        with patch(f"{MODULE}.ConversationService.attach_agents", new=named):
+            items, total = await service.list_shared_with_me(reader)
+
+        # Each row names who it is with, as the reader's own list does.
+        assert [item.id for item in named.await_args.args[0]] == [mine, theirs]
 
         assert total == 2
         assert [item.is_favourite for item in items] == [True, False]

@@ -25,6 +25,7 @@ from app.schemas.conversation_share import (
     SharedVisual,
 )
 from app.services import visual as visuals
+from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -301,6 +302,9 @@ class ConversationShareService:
         permissions = await conversation_share_repo.share_permissions(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]
         )
+        # Who each thread is with, as the reader's own list says: without it a
+        # shared row had no face, until opening it borrowed the composer's.
+        await ConversationService(self.db).attach_agents(items)
         for item in items:
             item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
             item.share_permission = permissions.get(item.id)  # ty: ignore[unresolved-attribute]

@@ -767,7 +767,7 @@ class ConversationService:
         total = await conversation_repo.count_conversations(
             self.db, user_id=None, organization_id=organization_id, project_id=project_id
         )
-        await self._attach_agents(items)
+        await self.attach_agents(items)
         await self._attach_running(items)
         await self._attach_unread(items, user_id=user_id)
         await self._attach_people(items)
@@ -889,7 +889,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
         )
-        await self._attach_agents(items)
+        await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
         await self._attach_fork_origins(items, user_id=user_id)
         await self._attach_running(items)
@@ -941,7 +941,7 @@ class ConversationService:
     async def _attach_running(self, conversations: Sequence[Conversation]) -> None:
         """Say, per row, since when a run has been at work in it, so a list can
         show the thread is busy. Set on the ORM object for the reason
-        `_attach_agents` is, and one query for the page."""
+        `attach_agents` is, and one query for the page."""
         if not conversations:
             return
         since = await conversation_repo.running_since(
@@ -950,7 +950,7 @@ class ConversationService:
         for conversation in conversations:
             conversation.running_since = since.get(conversation.id)  # ty: ignore[unresolved-attribute]
 
-    async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
+    async def attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
 
         Set on the ORM object rather than returned alongside it, because the
@@ -987,7 +987,7 @@ class ConversationService:
     ) -> None:
         """Say, per row, whether this reader has starred it.
 
-        Set on the ORM object for the reason `_attach_agents` is: the route
+        Set on the ORM object for the reason `attach_agents` is: the route
         serializes the row straight through the read schema. One query for the
         page, and none at all for a listing with no reader - the admin one,
         where a star belongs to nobody in particular and the column would be a
@@ -1037,7 +1037,7 @@ class ConversationService:
         await conversation_repo.set_favourite(
             self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
         )
-        await self._attach_agents([conversation])
+        await self.attach_agents([conversation])
         conversation.is_favourite = favourite  # ty: ignore[unresolved-attribute]
         return conversation
 

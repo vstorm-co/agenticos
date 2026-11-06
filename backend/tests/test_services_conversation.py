@@ -2849,7 +2849,7 @@ class TestConversationAgentFaces:
         with patch("app.services.conversation.conversation_repo") as repo:
             repo.agents_in_conversations = AsyncMock(return_value={conv.id: [agent]})
             repo.coding_agents_in_conversations = AsyncMock(return_value={})
-            await ConversationService(AsyncMock())._attach_agents([conv])
+            await ConversationService(AsyncMock()).attach_agents([conv])
 
         assert conv.agents[0].avatar_color == 3
 
@@ -2864,7 +2864,7 @@ class TestConversationAgentFaces:
             repo.coding_agents_in_conversations = AsyncMock(
                 return_value={conv.id: ["claude_code", "codex"]}
             )
-            await ConversationService(AsyncMock())._attach_agents([conv])
+            await ConversationService(AsyncMock()).attach_agents([conv])
         assert conv.agents[0].name == "AgenticOS"
         assert conv.coding_agents == ["claude_code", "codex"]
 
