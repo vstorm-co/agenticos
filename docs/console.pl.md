@@ -1,5 +1,5 @@
 ---
-source_sha: "cd5a3c0d3d72"
+source_sha: "c0f67ecb0e48"
 ---
 
 # Konsola { #the-console }
@@ -921,4 +921,4 @@ Stopki list pozostają przy dolnej krawędzi panelu, ze spójnymi odstępami i k
 Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybranym kolorze, jeśli zdjęcia nie ustawiono. Dostęp do obrazów w tym widoku mają tylko administratorzy wdrożenia; zwykły endpoint avatarów organizacji nadal wymaga członkostwa.
 
 
-**Chat controls → Model → Coding accounts** pokazuje konta Claude Code i Codex z logotypami oraz stanem zgody. Możesz podłączyć konto lub nim zarządzać bez wychodzenia z chatu; te same konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.
+**Chat controls → Tools & files** pokazuje konto coding, którego agent potrzebuje, gdy jego Coding agent działa jako **Private cloud task with my account**: tylko ten harness, z logotypem i stanem zgody. Możesz je podłączyć lub nim zarządzać bez wychodzenia z chatu; wszystkie konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.

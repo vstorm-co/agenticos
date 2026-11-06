@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "6340c7638bd6"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -518,7 +518,7 @@ y la preparación correctos actualizan el estado automáticamente.
 
 En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
 
-La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. Sus pestañas son **Model**, **Herramientas y archivos** (Coding agent, Work on, Browser, Computer use y skills) y **Preferencias** (aprobaciones y notificaciones).
 
 Configura la capability **Coding agent** como **On this computer**, elige una
 carpeta en **Work on** y concédele acceso completo. La autorización nativa se

@@ -1,5 +1,5 @@
 ---
-source_sha: "cd5a3c0d3d72"
+source_sha: "c0f67ecb0e48"
 ---
 
 # Die Konsole { #the-console }
@@ -993,4 +993,4 @@ Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständ
 Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder Initialen in der gewählten Farbe, wenn kein Bild hinterlegt ist. Der Bildzugriff in diesem Bereich bleibt auf Deployment-Administratoren beschränkt; der reguläre Avatar-Endpunkt verlangt weiterhin eine Mitgliedschaft.
 
 
-**Chat controls → Model → Coding accounts** zeigt deine Claude-Code- und Codex-Verbindungen mit Logos und Zustimmungsstatus. Verbinde oder verwalte ein Konto direkt im Chat; dieselben Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.
+**Chat controls → Tools & files** zeigt das Coding-Konto, das ein Agent braucht, wenn sein Coding agent als **Private cloud task with my account** läuft: nur diesen Harness, mit Logo und Zustimmungsstatus. Verbinde oder verwalte es direkt im Chat; alle Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.

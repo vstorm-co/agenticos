@@ -13424,7 +13424,8 @@
     "disconnectHelp": "Disconnect removes AgenticOS’s copy and stops its tasks. Revoke a ChatGPT grant at OpenAI from ChatGPT Settings. Scheduled and channel jobs do not use these accounts.",
     "personalAccount": "Personal account: {label}",
     "baseRevision": "Workspace snapshot: {revision}",
-    "chatHelp": "Connect your account here for private cloud coding. The agent’s Coding agent tool must use Private cloud task with my account. Local desktop coding uses its own sign-in."
+    "chatTitle": "Your {name} account",
+    "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it."
   },
   "mirage": {
     "folders": "Folders",

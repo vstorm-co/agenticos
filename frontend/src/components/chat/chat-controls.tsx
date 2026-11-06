@@ -9,7 +9,7 @@ import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CodingAccounts } from "@/components/settings/coding-accounts";
+import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
@@ -17,7 +17,8 @@ import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useOrgStore } from "@/stores";
+import { useAgents } from "@/hooks/use-agents";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -92,6 +93,14 @@ export function ChatControls({
   const [open, setOpen] = useState(false);
   const desktop = isDesktopShell(useShell());
   const [tab, setTab] = useState("model");
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents } = useAgents();
+  const personalHarness =
+    agents.find((agent) => agent.id === selectedAgentId)?.personal_coding_harness ?? null;
+  // What the agent reaches, kept apart from the model it runs on: the folder,
+  // browser, screen and coding agent on the desktop, and the coding account an
+  // agent that codes on the person's own account needs anywhere.
+  const tools = desktop || personalHarness !== null;
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -190,6 +199,11 @@ export function ChatControls({
             <TabsTrigger value="model" className="px-0">
               {t("modelSection")}
             </TabsTrigger>
+            {tools && (
+              <TabsTrigger value="tools" data-tour="chat-settings-tools" className="px-0">
+                {t("toolsTab")}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="preferences" data-tour="chat-settings-preferences" className="px-0">
               {t("preferencesTab")}
             </TabsTrigger>
@@ -222,17 +236,13 @@ export function ChatControls({
                   {t("backAgentAposS")}
                 </button>
               )}
-
-              <CodingAccounts compact />
-              {desktop && (
-                <div className="mt-5 border-t pt-4">
-                  <p className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">
-                    {t("toolsTab")}
-                  </p>
-                  <WorkOn agentCapabilities={agentCapabilities} />
-                </div>
-              )}
             </TabsContent>
+            {tools && (
+              <TabsContent value="tools" forceMount hidden={tab !== "tools"} className="mt-0">
+                {personalHarness !== null && <PersonalCodingAccount harness={personalHarness} />}
+                {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
+              </TabsContent>
+            )}
             <TabsContent
               value="preferences"
               forceMount

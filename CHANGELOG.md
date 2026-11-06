@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Chat controls split into three tabs: **Model** holds only the model, **Tools & files** holds the coding agent, Work on, browser, computer use and skills, and **Preferences** is unchanged. The chat no longer lists both coding accounts under the model: where an agent codes as a private cloud task on the person's account, Tools & files offers that one account to connect. The agent listing gains `personal_coding_harness`.
+
 ## [1.50.1] - 2026-11-06
 
 ### Security

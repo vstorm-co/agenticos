@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "6340c7638bd6"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -527,7 +527,7 @@ Einrichtung aktualisieren den Status automatisch.
 
 Wählen Sie in der Desktop-App unter **Chat-Steuerung → Werkzeuge und Dateien → Programmieragent** entweder **Claude Code** oder **Codex**, auch wenn die veröffentlichte Fähigkeit deaktiviert ist oder fehlt. Die App richtet lokale Dateiwerkzeuge ein und öffnet die native Ordnerauswahl, sofern der aktuelle Ordner noch keinen Vollzugriff hat. Abbrechen behält die bisherigen Einstellungen bei. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her.
 
-Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Oben steht das Modell, darunter Tools und Dateien. Klappen Sie **Work on** für den Ordnerzugriff und **Einstellungen** für Freigaben und Benachrichtigungen auf.
+Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Ihre Tabs sind **Modell**, **Werkzeuge und Dateien** (Programmieragent, Work on, Browser, Computer use und Skills) und **Einstellungen** (Freigaben und Benachrichtigungen).
 
 Wähle für die Capability **Coding agent** die Option **On this computer**, einen
 Ordner unter **Work on** und vollständigen Zugriff. Die native Zustimmung wird für
