@@ -595,3 +595,89 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
         if change == "consent_missing":
             assert not w.trigger.is_active
     execute.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change",
+    [
+        "changed",
+        "creator_left",
+        "device_gone",
+        "queued",
+        "running",
+        "cancelled",
+        "missing_job",
+        "dead",
+        "three_failures",
+        "offline",
+        "online",
+    ],
+)
+async def test_device_wait_sweep_never_replays_or_spends_model_work_before_readiness(
+    db: AsyncSession, monkeypatch, change
+):
+    from unittest.mock import AsyncMock
+
+    from app.db.models.background_job import BackgroundJob
+    from app.db.models.organization import OrganizationMember
+    from app.services import agent_trigger as module
+    from app.services.agent_trigger import AgentTriggerService
+
+    w = await world(db)
+    if change != "creator_left":
+        db.add(
+            OrganizationMember(
+                organization_id=w.ctx.organization_id, user_id=w.user.id, role="owner"
+            )
+        )
+        await db.flush()
+    activation = await park(db, w, context="Private event")
+    wait = await repo.get(db, activation)
+    assert wait is not None
+    if change == "changed":
+        w.trigger.prompt = "Different work"
+    elif change == "device_gone":
+        await db.delete(w.device)
+    elif change in {"queued", "running", "cancelled", "dead"}:
+        job = BackgroundJob(
+            kind="fire-trigger",
+            pool="agent",
+            max_attempts=3,
+            status=change,
+            organization_id=w.ctx.organization_id,
+            payload={},
+        )
+        db.add(job)
+        await db.flush()
+        wait.last_job_id = job.id
+    elif change == "missing_job":
+        wait.last_job_id = uuid4()
+    elif change == "three_failures":
+        wait.admission_failures = 3
+    await db.flush()
+    online = AsyncMock(return_value=object() if change == "online" else None)
+    monkeypatch.setattr(module.device_hub, "wait_for", online)
+    count = await AgentTriggerService(db).resume_device_waits()
+    await db.refresh(wait)
+    await db.refresh(w.trigger)
+    assert count == (1 if change == "online" else 0)
+    if change in {"changed", "cancelled"}:
+        assert wait.status == "cancelled" and wait.event_context is None
+    elif change in {"creator_left", "device_gone", "three_failures"}:
+        assert not w.trigger.is_active
+        if change == "three_failures":
+            assert wait.status == "failed"
+    else:
+        assert wait.status == "waiting"
+        assert wait.admission_failures == (1 if change in {"missing_job", "dead"} else 0)
+    if change in {
+        "queued",
+        "running",
+        "cancelled",
+        "creator_left",
+        "device_gone",
+        "changed",
+        "three_failures",
+    }:
+        online.assert_not_awaited()

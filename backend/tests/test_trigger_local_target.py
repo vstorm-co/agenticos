@@ -56,3 +56,17 @@ def test_no_other_identity_can_grant_local_access(caller: str) -> None:
         AgentTriggerService._guard_local_target(
             ctx, trigger, {"local_target": {}}, LocalTarget(folder="/approved")
         )
+
+
+def test_an_unbound_legacy_folder_requires_fresh_native_consent():
+    from app.services.routine_devices import RoutineLocalConsentRequired
+
+    owner = uuid4()
+    ctx = AuthContext(user_id=owner, organization_id=uuid4(), role="owner")
+    trigger = MagicMock(
+        id=uuid4(), created_by_user_id=owner, runs_as_creator=True, local_target=None
+    )
+    with pytest.raises(RoutineLocalConsentRequired, match="Review this routine"):
+        AgentTriggerService._guard_local_target(
+            ctx, trigger, {"local_target": {}}, LocalTarget(folder="/work")
+        )
