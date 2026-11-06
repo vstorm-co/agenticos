@@ -89,6 +89,8 @@ class AgentDeps:
     # action needs a person refuses when this is `None`, so the default fails
     # closed - a deps built without it reaches nothing that needs one.
     run_person: UUID | None = None
+    phone_call_id: UUID | None = None
+    draft_tool_names: frozenset[str] = field(default_factory=frozenset)
 
     # Whether the run was started under an administrator's impersonation of
     # `run_person`. Carried on the run because the request that knew is gone by

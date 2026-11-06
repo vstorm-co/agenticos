@@ -9,11 +9,11 @@ import {
   Quote,
   Code2,
   Minus,
-  Table2,
   ImagePlus,
   Video,
   Link2,
 } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import { Textarea } from "@/components/ui";
 import { discardTableImage } from "@/lib/tables-api";

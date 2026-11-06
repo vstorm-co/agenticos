@@ -26,7 +26,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { recordCellText } from "@/lib/format-cell-value";
 import { useTableViewStore } from "@/stores";
 import type { RecordConflict } from "@/stores/table-view-store";
-import { selectChips } from "./option-chip";
+import { OptionChip, selectChips } from "./option-chip";
 import { useKanbanDrag } from "./use-kanban-drag";
 import type { ColumnDef, OptionDef, RecordFilter, RecordRead, RecordSort } from "@/types/tables";
 
@@ -107,7 +107,7 @@ function KanbanCard({
     >
       <div
         {...dragProps}
-        className="border-border/70 bg-background hover:border-border has-[[data-kanban-actions][data-state=open]]:border-border space-y-3 rounded-xl border p-3.5 text-sm shadow-sm transition-shadow hover:shadow-md"
+        className="group border-border/60 bg-card hover:border-foreground/20 has-[[data-kanban-actions][data-state=open]]:border-foreground/20 space-y-4 rounded-xl border p-4 text-sm shadow-sm transition-[border-color,box-shadow] hover:shadow-md"
         style={{ touchAction: canEdit ? "pan-y" : undefined }}
       >
         <div className="flex items-start justify-between gap-2">
@@ -125,7 +125,7 @@ function KanbanCard({
                   data-kanban-actions
                   variant="ghost"
                   size="icon"
-                  className="size-7 shrink-0"
+                  className="touch:opacity-100 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
                   aria-label={t("moveTo")}
                 >
                   <MoreHorizontal className="size-4" aria-hidden />
@@ -147,8 +147,10 @@ function KanbanCard({
         {shown.length > 0 && (
           <dl className="space-y-1 text-xs">
             {shown.map(({ column, value }) => (
-              <div key={column.id} className="flex min-w-0 items-center gap-2">
-                <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
+              <div key={column.id} className="flex min-w-0 items-start gap-2">
+                <dt className="text-muted-foreground w-24 shrink-0 leading-5 break-words">
+                  {column.label}
+                </dt>
                 <dd
                   className={cn(
                     "min-w-0 flex-1",
@@ -184,6 +186,7 @@ function KanbanCard({
 }
 
 function KanbanLane({
+  groupColumn,
   tableId,
   lane,
   baseFilters,
@@ -204,6 +207,7 @@ function KanbanLane({
   onDiscard,
   canEdit,
 }: {
+  groupColumn: ColumnDef;
   tableId: string;
   lane: Lane;
   baseFilters: RecordFilter[];
@@ -260,17 +264,23 @@ function KanbanLane({
 
   return (
     <div
-      className="bg-muted/30 data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-72 shrink-0 flex-col gap-3 rounded-xl p-3 transition-colors data-[drag-over=true]:ring-2 data-[drag-over=true]:ring-inset"
+      className="bg-foreground/[0.025] data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-80 shrink-0 flex-col gap-3 rounded-2xl p-3 transition-colors data-[drag-over=true]:ring-2 data-[drag-over=true]:ring-inset"
       {...laneDropProps}
     >
-      <div className="flex items-center justify-between px-1">
-        <span className="text-sm font-medium">{lane.label}</span>
+      <div className="flex items-center justify-between gap-3 px-1 py-1.5">
+        {lane.optionId !== null && !lane.archived ? (
+          <OptionChip column={groupColumn} optionId={lane.optionId} />
+        ) : (
+          <span className="text-muted-foreground text-xs font-medium">{lane.label}</span>
+        )}
         <Badge variant="secondary">{records.length}</Badge>
       </div>
-      <div className="min-h-16 space-y-2">
+      <div className="min-h-24 space-y-2.5">
         {isLoading && records.length === 0 && <Skeleton className="h-16 w-full" />}
         {!isLoading && !error && records.length === 0 && (
-          <p className="text-muted-foreground px-1 text-xs">{t("empty")}</p>
+          <p className="text-muted-foreground border-border/60 flex min-h-24 items-center justify-center rounded-xl border border-dashed px-3 text-xs">
+            {t("empty")}
+          </p>
         )}
         {records.map((record) => (
           <KanbanCard
@@ -483,10 +493,11 @@ export function TableKanbanView({
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div data-kanban-board className="flex min-h-0 flex-1 gap-3 overflow-auto p-3">
+        <div data-kanban-board className="flex min-h-0 flex-1 items-start gap-4 overflow-auto p-4">
           {lanes.map((lane) => (
             <KanbanLane
               key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}
+              groupColumn={groupByColumn}
               tableId={tableId}
               lane={lane}
               baseFilters={baseFilters}

@@ -269,7 +269,7 @@ test.describe("Agents", () => {
     );
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are \{\{agent_name\}\}, an assistant in/,
+      /You are \{\{agent_name\}\}, the helpful general-purpose assistant in/,
     );
 
     // The model section leads with the profile this agent actually runs on, and
@@ -561,6 +561,7 @@ test.describe("Agents", () => {
     // until a reasoning model refused the run.
     await openAgent(page, DRAFT_AGENT_NAME);
 
+    await page.getByText("Model settings", { exact: true }).click();
     const temperature = page.getByLabel("Temperature");
     const reset = page.getByRole("button", { name: "Use provider default" });
 
@@ -583,6 +584,7 @@ test.describe("Agents", () => {
     await saveDraft(page);
 
     await page.reload();
+    await page.getByText("Model settings", { exact: true }).click();
 
     await expect(page.getByLabel("Temperature")).toHaveValue("0.95");
     await expect(page.getByText("0.95")).toBeVisible();
@@ -593,6 +595,7 @@ test.describe("Agents", () => {
     await saveDraft(page);
 
     await page.reload();
+    await page.getByText("Model settings", { exact: true }).click();
 
     await expect(page.getByRole("button", { name: "Use provider default" })).toBeHidden();
     await expect(page.getByText("Provider default").first()).toBeVisible();

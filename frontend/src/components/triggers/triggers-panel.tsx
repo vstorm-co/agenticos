@@ -10,6 +10,8 @@ import { TriggerRow } from "@/components/triggers/trigger-row";
 import { LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { useTriggers } from "@/hooks/use-triggers";
+import { WatchesCard, useCanWatch } from "@/components/watches/watches-card";
+import { WatchDialog } from "@/components/watches/watch-dialog";
 
 interface TriggersPanelProps {
   agentId: string;
@@ -43,57 +45,78 @@ interface TriggersPanelProps {
  */
 export function TriggersPanel({ agentId, canCreate, reachesPersonal = false }: TriggersPanelProps) {
   const t = useTranslations("triggers");
+  const tw = useTranslations("watches");
+  const canWatch = useCanWatch();
   const { triggers, isLoading } = useTriggers(agentId);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [creatingWatch, setCreatingWatch] = useState(false);
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("panelTitle")}</CardTitle>
-        <CardDescription>{t("panelDescription")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {triggers.length === 0 && <p className="text-muted-foreground text-sm">{t("empty")}</p>}
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("panelTitle")}</CardTitle>
+          <CardDescription>{t("panelDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {triggers.length === 0 && <p className="text-muted-foreground text-sm">{t("empty")}</p>}
 
-        {reachesPersonal && triggers.length > 0 && (
-          <p className="bg-muted/50 text-muted-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
-            {t("personalReachHint")}
-          </p>
+          {reachesPersonal && triggers.length > 0 && (
+            <p className="bg-muted/50 text-muted-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
+              {t("personalReachHint")}
+            </p>
+          )}
+
+          {triggers.map((trigger) => (
+            <TriggerRow key={trigger.id} trigger={trigger} />
+          ))}
+
+          {canCreate && (
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <Button variant="outline" size="sm" onClick={() => setCreatingSchedule(true)}>
+                <CalendarClock className="mr-2 h-4 w-4" />
+                {t("newSchedule")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCreatingEvent(true)}>
+                <Zap className="mr-2 h-4 w-4" />
+                {t("newEvent")}
+              </Button>
+              {canWatch && (
+                <Button variant="outline" size="sm" onClick={() => setCreatingWatch(true)}>
+                  {tw("watchAndInform")}
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+
+        {creatingSchedule && (
+          <TriggerFormDialog
+            agentId={agentId}
+            open
+            initialType="schedule"
+            onOpenChange={(next) => !next && setCreatingSchedule(false)}
+          />
         )}
 
-        {triggers.map((trigger) => (
-          <TriggerRow key={trigger.id} trigger={trigger} />
-        ))}
-
-        {canCreate && (
-          <div className="flex flex-wrap gap-2 border-t pt-3">
-            <Button variant="outline" size="sm" onClick={() => setCreatingSchedule(true)}>
-              <CalendarClock className="mr-2 h-4 w-4" />
-              {t("newSchedule")}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setCreatingEvent(true)}>
-              <Zap className="mr-2 h-4 w-4" />
-              {t("newEvent")}
-            </Button>
-          </div>
+        {creatingEvent && (
+          <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
         )}
-      </CardContent>
-
-      {creatingSchedule && (
-        <TriggerFormDialog
+      </Card>
+      <WatchesCard
+        agentId={agentId}
+        onNew={canCreate && canWatch ? () => setCreatingWatch(true) : undefined}
+      />
+      {creatingWatch && (
+        <WatchDialog
           agentId={agentId}
           open
-          initialType="schedule"
-          onOpenChange={(next) => !next && setCreatingSchedule(false)}
+          onOpenChange={(next) => !next && setCreatingWatch(false)}
         />
       )}
-
-      {creatingEvent && (
-        <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
-      )}
-    </Card>
+    </div>
   );
 }

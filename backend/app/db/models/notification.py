@@ -4,7 +4,7 @@ Every event this feature covers - budget, approvals, run completion, ingestion,
 security, configuration changes, reports, an app admin's own announcement -
 resolves to one row here per person it is addressed to. The row existing *is*
 the in-app delivery; nothing further has to succeed for it to show up in an
-inbox. A side channel (email today) is a separate, retried
+inbox. An external channel has a separate, independently settled
 :class:`app.db.models.notification_delivery.NotificationDelivery` row, because
 only that part can fail independently of the write that created this one - see
 `docs/design/notification-center-plan.md`, Decisions 2 and 3.
@@ -71,7 +71,7 @@ class NotificationChannel(enum.StrEnum):
 
     `notification_preferences.channel` (Decision 4) holds every value, since a
     person can turn each off independently. `notification_deliveries.channel`
-    (Decision 3) holds `EMAIL` and `PUSH` - in-app has no delivery row, because
+    (Decision 3) holds external channels - in-app has no delivery row, because
     the :class:`Notification` row itself is the in-app delivery. `PUSH` is Web
     Push to every browser the person subscribed (#2097).
     """
@@ -79,6 +79,26 @@ class NotificationChannel(enum.StrEnum):
     IN_APP = "in_app"
     EMAIL = "email"
     PUSH = "push"
+    SLACK = "slack"
+    TELEGRAM = "telegram"
+    MATTERMOST = "mattermost"
+    TEAMS = "teams"
+    SMS = "sms"
+    IMESSAGE = "imessage"
+    DISCORD = "discord"
+
+
+CHAT_NOTIFICATION_CHANNELS = frozenset(
+    {
+        NotificationChannel.SLACK,
+        NotificationChannel.TELEGRAM,
+        NotificationChannel.MATTERMOST,
+        NotificationChannel.TEAMS,
+        NotificationChannel.SMS,
+        NotificationChannel.IMESSAGE,
+        NotificationChannel.DISCORD,
+    }
+)
 
 
 class Notification(Base, TimestampMixin):
@@ -141,6 +161,14 @@ class Notification(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    outcome_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("outcomes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # The shared state this delivery belongs to (#2575): settling the outcome clears this
+    # row from the inbox and cancels what is still waiting to be sent for it.
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # When the recipient cleared this row out of their own inbox - not a
     # delete, and the distinction is the reason the column exists. This row is

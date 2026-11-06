@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
+import { CalendarClock, Pause, Pencil, Play, ShieldCheck, Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
+import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerRunsSheet } from "@/components/triggers/trigger-runs-view";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import { Badge, Button, ConfirmDialog } from "@/components/ui";
+import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
+import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger } from "@/types/triggers";
 
@@ -58,6 +61,8 @@ interface TriggerRowProps {
  */
 export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const t = useTranslations("triggers");
+  const me = useAuthStore((state) => state.user?.id);
+  const [consenting, setConsenting] = useState(false);
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -88,7 +93,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   return (
     // On a phone the actions take a line of their own under the routine: four
     // icons beside it squeezed its name and schedule down to "Getti... Ever...".
-    <div className="hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
+    <div className="border-foreground/8 bg-card hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
       <button
         type="button"
         onClick={openRuns}
@@ -130,16 +135,44 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           <p className="text-muted-foreground/80 truncate text-xs">{trigger.prompt}</p>
         </div>
       </button>
+      {trigger.last_delivery_status === "unavailable" && (
+        <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
+      )}
       {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
-      {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
+      {(trigger.waiting_device_count ?? 0) > 0 && (
+        <Badge variant="secondary">
+          {t("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 })}
+        </Badge>
+      )}
+      <RoutineAutoPause stoppedAt={trigger.auto_stopped_at} count={trigger.consecutive_failures} />
+      {!trigger.is_active && !trigger.auto_stopped_at && (
+        <Badge variant="secondary">{t("paused")}</Badge>
+      )}
+      {trigger.is_active && trigger.paused_for_budget && (
+        <Badge variant="secondary">{t("pausedBudget")}</Badge>
+      )}
       {trigger.can_manage && (
         <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
+          {me != null && me === trigger.created_by_user_id && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              data-tour="routine-access"
+              aria-label={t("actionConsents.title")}
+              onClick={() => setConsenting(true)}
+            >
+              <ShieldCheck className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             aria-label={t("runNow")}
-            disabled={!trigger.is_active || runNow.isPending}
+            disabled={
+              !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0
+            }
             onClick={fireAndWatch}
             data-tour="routine-run-now"
           >
@@ -177,6 +210,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
+      )}
+      {consenting && (
+        <ActionConsentsDialog trigger={trigger} onClose={() => setConsenting(false)} />
       )}
       {editing && (
         <TriggerFormDialog

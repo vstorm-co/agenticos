@@ -36,7 +36,10 @@ interface TurnExtrasProps {
 export function TurnExtras({ message, agentName }: TurnExtrasProps) {
   if (message.role !== "assistant" || message.isStreaming) return null;
   const changes = memoryChangesOf(message.toolCalls);
-  const cards = capabilityCardsOf(message.toolCalls);
+  // Historical table requests cannot enable the withdrawn capability.
+  const cards = capabilityCardsOf(message.toolCalls).filter(
+    (card) => card.capabilityId !== "virtual_tables",
+  );
   const proposals = setupProposalsOf(message.toolCalls);
   if (!changes.length && !cards.length && !proposals.length) return null;
   return (
@@ -46,7 +49,11 @@ export function TurnExtras({ message, agentName }: TurnExtrasProps) {
         <CapabilityRequestCard key={card.callId} card={card} agentName={agentName} />
       ))}
       {proposals.length > 0 && (
-        <SetupProposals proposals={proposals} agentId={message.agentId ?? null} />
+        <SetupProposals
+          proposals={proposals}
+          agentId={message.agentId ?? null}
+          conversationId={message.conversationId}
+        />
       )}
     </div>
   );

@@ -92,7 +92,7 @@ class TestReading:
         trigger_id = uuid.uuid4()
         session = _RecordingSession(_scalar(None))
         await agent_trigger_repo.get_by_id(session, trigger_id)
-        assert set(_filters(session).values()) == {trigger_id}
+        assert set(_filters(session).values()) == {trigger_id, "waiting"}
 
     async def test_a_run_log_conversation_maps_back_to_its_trigger(self):
         """How a conversation read learns the thread is a trigger's run-log. Filtered
@@ -101,7 +101,7 @@ class TestReading:
         conversation_id = uuid.uuid4()
         session = _RecordingSession(_scalars_first(None))
         await agent_trigger_repo.get_by_conversation_id(session, conversation_id)
-        assert set(_filters(session).values()) == {conversation_id}
+        assert set(_filters(session).values()) == {conversation_id, "waiting"}
 
     async def test_the_connection_sweep_reads_only_that_accounts_rows_in_the_org(self):
         """`list_for_connection` feeds the pre-delete hook sweep; without the

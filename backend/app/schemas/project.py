@@ -106,6 +106,10 @@ class ProjectRead(BaseSchema):
     chat_count: int = Field(
         default=0, description="How many chats it holds, whoever started them; archived ones aside"
     )
+    has_unread_chats: bool = Field(
+        default=False,
+        description="A non-archived project chat has an answer this caller has not read",
+    )
     last_active_at: datetime | None = Field(
         default=None, description="When its latest chat was active, whoever wrote in it"
     )

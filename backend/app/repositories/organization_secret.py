@@ -260,3 +260,15 @@ async def agents_using_for_secrets(
     for agent_id, name, secret_id in result.all():
         usage[UUID(secret_id)].append((agent_id, name))
     return usage
+
+
+async def authorization_generation(
+    db: AsyncSession, secret_id: UUID, *, organization_id: UUID
+) -> UUID | None:
+    """Read credential identity afresh without unsealing it or using an ORM cache."""
+    return await db.scalar(
+        select(OrganizationSecret.authorization_generation).where(
+            OrganizationSecret.id == secret_id,
+            OrganizationSecret.organization_id == organization_id,
+        )
+    )

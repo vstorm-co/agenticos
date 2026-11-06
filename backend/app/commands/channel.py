@@ -131,7 +131,9 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--platform",
     required=True,
-    type=click.Choice(["telegram", "slack", "mattermost", "teams", "discord"]),
+    type=click.Choice(
+        ["telegram", "slack", "mattermost", "teams", "discord", "sms", "email", "imessage"]
+    ),
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")
@@ -151,7 +153,7 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--api-base-url",
     default=None,
-    help="The bot's own server, e.g. https://mattermost.acme.internal. Mattermost only.",
+    help="The bot's own Mattermost or BlueBubbles server URL. Required for self-hosted channels.",
 )
 @click.option(
     "--webhook-secret",

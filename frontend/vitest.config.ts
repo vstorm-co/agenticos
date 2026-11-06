@@ -57,6 +57,11 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/triggers/source-consents-panel.tsx",
+        "src/components/triggers/routine-options.tsx",
+        "src/components/chat/tool-results/memory.tsx",
+        "src/components/projects/project-tracking-control.tsx",
+        "src/components/projects/project-tracking-dialog.tsx",
         // The workflow editor's client-side validation mirror (#1787): pure TS
         // over the in-memory graph, held to the gate the way the agents
         // components above are.
@@ -113,6 +118,7 @@ export default defineConfig({
         "src/components/settings/create-api-key-dialog.tsx",
         "src/components/settings/scope-picker.tsx",
         "src/components/settings/connected-apps.tsx",
+        "src/components/settings/notification-routes.tsx",
         "src/components/settings/api-reference/**",
         "src/components/settings/api-usage.tsx",
         // What the MCP catalog check found, on a server's card (#2103).
@@ -283,6 +289,9 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/phone/**/*.tsx",
+        "src/lib/phone-api.ts",
+        "src/hooks/use-phone.ts",
         "src/components/tables/**/*.{ts,tsx}",
         // The workflows visual editor's undo/redo history leaf (#1787).
         "src/components/workflows/history.ts",

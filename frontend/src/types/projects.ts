@@ -32,6 +32,7 @@ export interface Project {
   sandbox_connection_id?: string | null;
   sandbox_connection_name?: string | null;
   chat_count: number;
+  has_unread_chats?: boolean;
   last_active_at: string | null;
   shared_groups: string[];
   /** May chat in it and add files. */

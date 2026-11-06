@@ -61,7 +61,7 @@ class TestTheJoin:
         page two holds the last 49 of them plus the mirror's first."""
         await _mirror(db, 40)
         seen: list[str] = []
-        for index in range(4):
+        for index in range((len(mcp_catalog.CATALOG) + 40 + 49) // 50):
             found = await mcp_listing.page(db, skip=index * 50, limit=50)
             seen += [server.key for server in found.items]
 

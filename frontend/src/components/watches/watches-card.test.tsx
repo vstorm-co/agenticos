@@ -27,6 +27,9 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks", () => ({
+  useAgents: () => ({
+    agents: [{ id: "a-monitor", name: "Monitor", can_run: true, current_version_id: "v1" }],
+  }),
   useOrganizations: () => ({
     activeOrg: state.orgOn === undefined ? null : { proactive_watches_enabled: state.orgOn },
   }),
@@ -65,6 +68,11 @@ vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }
 
 const watch = (overrides: Partial<Watch> = {}): Watch => ({
   id: "w1",
+  agent_id: "a-monitor",
+  environment_id: null,
+  pinned_version_id: null,
+  source_conversation_id: null,
+  ends_at: null,
   connection_id: "c-gh",
   connection_name: "github",
   server: "github",
@@ -78,6 +86,8 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   stopped: null,
   next_run_at: "2026-10-22T10:00:00Z",
   last_run_at: null,
+  last_attempt_at: null,
+  last_attempt_status: null,
   waiting: 0,
   created_at: "2026-10-22T09:00:00Z",
   ...overrides,
@@ -101,6 +111,61 @@ beforeEach(() => {
 const onNew = vi.fn();
 
 describe("WatchesCard", () => {
+  it("shows only this agent’s watches and current authorized chat references", () => {
+    state.watches = [
+      watch(),
+      watch({ id: "w2", agent_id: "another-agent", title: "Another responsibility" }),
+    ];
+    const { unmount } = render(<WatchesCard agentId="a-monitor" />);
+    expect(screen.getByText("Reviews")).toBeVisible();
+    expect(screen.queryByText("Another responsibility")).not.toBeInTheDocument();
+    unmount();
+    render(<WatchesCard watchId="removed-id" />);
+    expect(screen.getByText("This watch is no longer available.")).toBeVisible();
+    expect(screen.queryByText("Reviews")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Monitor and inform" })).not.toBeInTheDocument();
+  });
+  it.each([
+    ["source_unavailable", "Source unavailable — no successful check."],
+    ["access_revoked", "Access unavailable — check the account and organization permissions."],
+    ["not_completed", "Check did not complete — review Activity and budget settings."],
+  ] as const)("shows %s as an unsuccessful attempt, not an empty check", (status, message) => {
+    state.watches = [
+      watch({ last_attempt_status: status, last_attempt_at: new Date().toISOString() }),
+    ];
+    render(<WatchesCard onNew={onNew} />);
+    expect(screen.getByRole("status")).toHaveTextContent(message);
+    expect(screen.getByRole("status")).toHaveTextContent("Last attempt just now");
+    expect(screen.queryByText(/first look within a minute/)).toBeNull();
+    expect(screen.queryByText(/looked just now/)).toBeNull();
+  });
+
+  it("shows a later failure even after an earlier successful check", () => {
+    state.watches = [
+      watch({
+        last_run_at: "2026-10-22T09:00:00Z",
+        last_attempt_status: "source_unavailable",
+        last_attempt_at: new Date().toISOString(),
+      }),
+    ];
+    render(<WatchesCard onNew={onNew} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Source unavailable");
+    expect(screen.queryByText(/looked/)).toBeNull();
+  });
+
+  it("a successful no-change check clears the failure message", () => {
+    state.watches = [
+      watch({
+        last_run_at: new Date().toISOString(),
+        last_attempt_at: new Date().toISOString(),
+        last_attempt_status: "completed",
+      }),
+    ];
+    render(<WatchesCard onNew={onNew} />);
+    expect(screen.getByText("Every hour · looked just now")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("says the organization has watches off, and still lists what is stopped by it", () => {
     state.orgOn = undefined;
     render(<WatchesCard onNew={onNew} />);
@@ -121,7 +186,7 @@ describe("WatchesCard", () => {
     state.connections = [{ id: "c-gh", authorized: true }];
     render(<WatchesCard onNew={onNew} />);
     expect(screen.getByText("No watches yet", { selector: "p" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "New watch" }));
+    await userEvent.click(screen.getByRole("button", { name: "Monitor and inform" }));
     expect(onNew).toHaveBeenCalled();
   });
 
@@ -151,7 +216,7 @@ describe("WatchesCard", () => {
     expect(screen.getAllByText("GitHub")).toHaveLength(1);
     expect(screen.getByText("Every hour · looked just now")).toBeInTheDocument();
     expect(screen.getByText("Our wiki")).toBeInTheDocument();
-    expect(screen.getByText("Daily · first look within a minute")).toBeInTheDocument();
+    expect(screen.getByText("Daily")).toBeInTheDocument();
     expect(screen.getByText("GitHub (Work)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2 in your inbox" })).toHaveAttribute(
       "href",

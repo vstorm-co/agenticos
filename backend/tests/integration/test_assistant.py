@@ -152,7 +152,9 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     }
     # Its skills for building agents, installed with it (#2069), and the guide
     # to AgenticOS itself, plus workflow-builder and virtual-tables.
-    assert len(spec.skill_ids) == 10
+    from app.services.assistant import _template
+
+    assert len(spec.skill_ids) == len(_template().skills)
     # What the chat offers somebody opening it there with nothing said yet (#2301).
     assert spec.starters[0] == "Build me an agent that answers questions from our documents"
 
@@ -626,6 +628,7 @@ async def test_refresh_publishes_new_instructions_and_guide_without_changing_con
     state = await service.state(ctx)
     assert state.agent_id is not None
     agent = await service.registry.get(ctx, state.agent_id)
+    await _bind_legacy_guide(db, ctx, service, agent)
     before = AgentSpec.model_validate(agent.draft_spec)
     first_id = agent.current_version_id
     assert first_id is not None
@@ -650,7 +653,7 @@ async def test_refresh_publishes_new_instructions_and_guide_without_changing_con
     assert dry.instructions is LibraryRefresh.UPDATE and dry.guide is LibraryRefresh.UPDATE
     assert agent.current_version_id == first_id
     result = await service.refresh(ctx)
-    assert result.published_version == 2
+    assert result.published_version == 3
     after = AgentSpec.model_validate(agent.draft_spec)
     assert after.instructions == refreshed.instructions
     assert after.model_dump(exclude={"instructions"}) == before.model_dump(exclude={"instructions"})
@@ -681,6 +684,7 @@ async def test_refresh_protects_organization_edits_and_pending_configuration(
     state = await service.state(ctx)
     assert state.agent_id is not None
     agent = await service.registry.get(ctx, state.agent_id)
+    await _bind_legacy_guide(db, ctx, service, agent)
     spec = AgentSpec.model_validate(agent.draft_spec)
     custom = spec.model_copy(update={"instructions": "Our instructions"})
     await service.registry.save_draft(ctx, agent.id, custom)
@@ -701,7 +705,7 @@ async def test_refresh_protects_organization_edits_and_pending_configuration(
     assert agent.draft_spec["description"] == "Pending description" and copy.content == "Our guide"
     await service.registry.save_draft(ctx, agent.id, custom)
     forced = await service.refresh(ctx, replace_edited=True)
-    assert forced.published_version == 3
+    assert forced.published_version == 4
     assert agent.draft_spec["instructions"] == spec.instructions and copy.content == guide.content
 
 
@@ -718,3 +722,44 @@ async def test_refresh_refuses_members_and_does_not_install_missing_assistants(
     viewer = await _member(db, organization, OrgRoleName.VIEWER)
     with pytest.raises(AuthorizationError):
         await service.refresh(viewer, replace_edited=True)
+
+
+async def _bind_legacy_guide(
+    db: AsyncSession, ctx: AuthContext, service: AssistantService, agent: Agent
+) -> None:
+    """A legacy installation may still bind the optional, editable Architect guide."""
+    from app.repositories import skill_repo
+    from app.services import skill_library
+    from app.services.assistant import GUIDE_KEY
+    from app.services.skills import SkillService
+
+    await SkillService(db).install_gallery(ctx, [GUIDE_KEY])
+    guide = skill_library.gallery_get(GUIDE_KEY)
+    assert guide is not None
+    copy = await skill_repo.get_by_name(db, guide.name, organization_id=ctx.organization_id)
+    assert copy is not None
+    spec = AgentSpec.model_validate(agent.draft_spec)
+    await service.registry.save_draft(
+        ctx, agent.id, spec.model_copy(update={"skill_ids": [*spec.skill_ids, copy.id]})
+    )
+    await service.registry.publish(ctx, agent.id)
+
+
+async def test_a_shipped_refresh_failure_keeps_the_existing_assistant_available(db, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import BadRequestError
+    from app.services.shipped_agents import ShippedAgentService
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    service = AssistantService(db)
+    original = await service.state(ctx)
+    monkeypatch.setattr(
+        ShippedAgentService,
+        "refresh",
+        AsyncMock(side_effect=BadRequestError(message="Model temporarily unavailable")),
+    )
+    current = await service.state(ctx)
+    assert current.agent_id == original.agent_id
+    assert current.status == original.status

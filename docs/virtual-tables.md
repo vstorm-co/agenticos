@@ -748,3 +748,72 @@ dialogs, and its label in the three message catalogs. Tests belong in
 test that writes, filters and sorts a record of the new type.
 
 When creating an empty table, required columns do not need defaults: every new record must supply their values. Adding a required column to an existing schema still requires a default to protect existing records.
+
+## Durable tasks {#durable-tasks}
+
+You can create a project task from a private conversation outside that project. Leave the working conversation unspecified: the task opens its own conversation in the project, without linking your private transcript. Explicitly linking a conversation from another project is refused.
+
+**Background work** (`/work`) shows durable commitments beside running background
+chats. A task is a Virtual Table record, with a working-chat link and one Inbox
+case when attention is needed. Table and Kanban edits use the same revision as
+the task API; there is no separately synchronized TODO list.
+
+A board is created on first use for a **person**, **project**, **group** or
+**organization**, then reused. Projects and Groups have a **Tasks** action; Tables
+opens your private board. Empty boards are not created during installation or for
+every new membership. The first creation requires `tables:create`. Project boards
+inherit current project access, group boards current group membership, and personal
+boards remain private even to another organization owner. These checks also apply
+through generic table APIs, links and saved views. Existing custom task tables and
+project-tracking presets are not automatically converted.
+
+Tasks have a title, rich-text **Notes**, state, linked **Person** and **Agent**,
+**Next step** (person or agent), **Start at** and **Due at**. Keep the human owner
+while an agent prepares work; the next step returns to the person for review. Due at is only a deadline.
+
+When the next step belongs to a person, Start at schedules an
+Inbox reminder without a model call. When it belongs to an agent, Start at schedules one pinned
+execution through the normal routine runner; no start means now. Its reviewed
+sources, live permissions, budgets and approvals still apply. Assignment grants
+no access to another person's accounts. Agent work returns to its linked working
+chat, or a new private chat, and waits for review. Failure leaves it blocked.
+
+Routine Inbox findings also keep one private task per source case. New source
+revisions reuse the same task and chat. **Mark done** closes its Inbox case;
+resolving the case completes the task. Acknowledging it only means seen. Cancelling
+or deleting a task withdraws queued reminders and stops subsequent agent tools;
+an action already sent to an external provider cannot be undone by cancellation.
+Drafting a mail does not send it: authorize the send in chat, and complete the task
+only after the send succeeds.
+
+AgenticOS MCP exposes `list_task_boards`, `ensure_task_board`, `list_tasks`,
+`get_task`, `create_task` and `update_task`. Creation accepts a stable `external_id`
+for source deduplication. Updates require `expected_revision`; a stale edit returns
+409. HTTP uses `/tasks/boards`, `/tasks` and `/tasks/{id}` under `/api/v1`.
+Core task fields and state choices retain their identities; add custom columns
+without changing their types or archiving them. Saved Board, Planned, Agent tasks
+and Waiting for review views are installed with the board. The agent's `write_plan`
+checklist stays internal to a run and does not create scheduled commitments.
+
+
+Group membership permits reading the group’s task board; writes additionally require table-edit permission or an explicit edit grant. If a reminder’s assigned reviewer loses access, the task becomes blocked and its creator receives an Inbox case to arrange a handoff. New working conversations for project tasks stay in that project. A table quota can prevent the optional task projection of a routine finding, but its working chat, Inbox case and notification are still delivered.
+
+Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
+
+## Default view {#default-view}
+
+An editor can choose **Set as default** in the table toolbar. The current layout,
+filters and grouping are saved as a shared view, then opened whenever someone
+visits the table without an explicit `view` or `viewId` URL override. New task
+boards start in Kanban. A table's default must belong to that table and be shared;
+it cannot be made private until another default is chosen. Deleting it resets
+the table to its plain layout. The API uses `PATCH /tables/{id}` with
+`default_view_id`, or null to clear it. Notes are Markdown documents with the
+same rich-text editor and preview as other document cells.
+
+
+**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** in the toolbar saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
+
+An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
+
+Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work.

@@ -129,12 +129,23 @@ def ensure_channel_adapters() -> None:
     and no stream: a send needs neither.
     """
     from app.services.channels.discord import DiscordAdapter
+    from app.services.channels.email import EmailAdapter
+    from app.services.channels.imessage import ImessageAdapter
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
+    from app.services.channels.sms import SmsAdapter
     from app.services.channels.teams import teams_adapter
     from app.services.channels.telegram import TelegramAdapter
 
-    for adapter_class in (SlackAdapter, TelegramAdapter, MattermostAdapter, DiscordAdapter):
+    for adapter_class in (
+        SlackAdapter,
+        TelegramAdapter,
+        MattermostAdapter,
+        DiscordAdapter,
+        SmsAdapter,
+        EmailAdapter,
+        ImessageAdapter,
+    ):
         try:
             get_adapter(adapter_class.platform)
         except KeyError:

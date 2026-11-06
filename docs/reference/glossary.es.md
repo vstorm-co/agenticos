@@ -1,5 +1,5 @@
 ---
-source_sha: "554bed281e3b"
+source_sha: "bfeef046e22e"
 ---
 
 # Glosario { #glossary }
@@ -70,6 +70,7 @@ se describe en [Capabilities](capabilities.md).
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
@@ -84,7 +85,6 @@ se describe en [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
-| Memory (mem0) | `memory_mem0` |
 | Mirage (terminal virtual) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
@@ -102,5 +102,5 @@ se describe en [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
-| Tables | `virtual_tables` |
+| Tables | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |

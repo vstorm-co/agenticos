@@ -1380,15 +1380,23 @@ class TestTheBundledSkill:
             "templates/dashboard.html",
             "templates/live-table.html",
             "templates/report.html",
+            "references/design-recipes.md",
         }
 
     def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
-        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", self._skill().content))
+        recipes = next(
+            resource.content
+            for resource in self._skill().resources
+            if resource.name == "references/design-recipes.md"
+        )
+        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", recipes))
         assert named == KIT_CLASSES[3]
 
     def test_every_template_is_built_on_kit_3_and_passes_the_lint(self) -> None:
         for resource in self._skill().resources:
+            if not resource.name.startswith("templates/"):
+                continue
             assert "lib/agenticos-3.css" in resource.content, resource.name
             assert "lib/agenticos-3.js" in resource.content, resource.name
             bound = ["tickets"] if resource.name == "templates/live-table.html" else []

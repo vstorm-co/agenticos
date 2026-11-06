@@ -25,7 +25,8 @@ Read the file first when one is listed; it is the documentation page itself, bun
 | Budgets, approvals, alerts, the audit log                                                      | https://vstorm-co.github.io/agenticos/governance/             |
 | Slack, Telegram, Mattermost, the website widget                                                | https://vstorm-co.github.io/agenticos/channels/               |
 | Models, providers, fallbacks, cost                                                             | https://vstorm-co.github.io/agenticos/models/                 |
-| Skills and how they differ from knowledge                                                      | https://vstorm-co.github.io/agenticos/skills/                 |
+| Skills, built-in updates and how they differ from knowledge                                     | `docs/skills.md`                                            |
+| Standing Context, inject versus link, and binding to an agent                                  | `docs/context.md`                                           |
 | Knowledge bases: uploading, parsing, retrieval                                                 | https://vstorm-co.github.io/agenticos/file-processing/        |
 | Every capability and its settings                                                              | https://vstorm-co.github.io/agenticos/reference/capabilities/ |
 | Credentials and the vault                                                                      | https://vstorm-co.github.io/agenticos/secrets/                |

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -205,6 +205,9 @@ describe("the knowledge search", () => {
 
     const { container } = render(<WebSearchResults data={parseWebSearch(mixed)!} />);
 
+    const favicon = container.querySelector('img[src="https://blog.example/favicon.ico"]');
+    expect(favicon).not.toBeNull();
+    fireEvent.error(favicon!);
     expect(container.querySelectorAll(".lucide-globe")).toHaveLength(1);
     expect(screen.getByText("github.com")).toBeInTheDocument();
   });

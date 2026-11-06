@@ -1,5 +1,5 @@
 ---
-source_sha: "7972364d6328"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -540,6 +540,51 @@ deploymentu.
     token, zamiast przyjmować flagę.
 
 ## Wdrażanie zmiany { #deploying-a-change }
+
+### Pamięć natywna i ciągłość rutyn { #native-memory-upgrade }
+
+Przed aktualizacją wykonaj [kopie bazy, mediów i kluczy sejfu](#backups)
+i skoordynuj wdrożenie API oraz workerów. Użyj zwykłego kroku migracji wdrożenia;
+nie kopiuj ręcznie wierszy ani nie twórz zastępczych harmonogramów.
+
+Przed zastosowaniem `0285_member_proactivity.py` zatrzymaj API i procesy zlecające sweepy, poczekaj na zakończenie aktywnych zadań proaktywnych, a następnie zatrzymaj workery. Migracja odmawia działania, gdy trwa zadanie modelu obserwacji lub nocnego przeglądu, i uzupełnia kolejkę o wspólny klucz współbieżności na osobę. Aktualizuj API i workery razem, aby nowe zadania używały tego samego klucza; obserwacja i nocny przegląd jednej osoby nie mogą niezależnie wydać tego samego pozostałego limitu.
+
+- `0248_drop_memory_mem0.py` zatrzymuje aktualizację, jeśli `memory_mem0` pozostaje
+  w którymkolwiek zapisanym szkicu lub opublikowanej specyfikacji. Przed ponowieniem
+  zinwentaryzuj wszystkie endpointy i powiązania poświadczeń sejfu z kopii zapasowej,
+  usuń zewnętrzne wspomnienia i potwierdź zakończenie u każdego dostawcy. Dopiero
+  potem jawnie usuń te bindingi z `agents.draft_spec` i `agent_versions.spec`.
+  Sam eksport nie oznacza usunięcia. Zachowaj dowody czyszczenia, przejrzyj nieużywane
+  klucze sejfu i unieważnij wycofane poświadczenia. Migracja nie wykonuje zdalnych
+  żądań ani nie zakłada udanego usunięcia. Jeśli wcześniejsza wersja rozwojowa już
+  usunęła bindingi, odtwórz inwentarz z kopii sprzed aktualizacji i wykonaj to samo
+  czyszczenie; natywne usuwanie pamięci osoby lub agenta nie dociera do tych danych.
+- `0251_primary_conversations.py` i `0258_primary_channel_history.py` ustanawiają
+  główne czaty prywatne. Istniejące przypisanie ma pierwszeństwo. Tylko dowodnie
+  prywatna historia powiązanego kanału jest przejmowana jednorazowo; historie
+  projektowe, grupowe i niejednoznaczne pozostają oddzielne. Nie uruchamiaj
+  ponownie uzupełnienia po wyczyszczeniu głównego czatu przez osobę.
+- Istniejące identyfikatory rutyn, harmonogramy i logi pozostają na miejscu.
+  `0255_trigger_delivery.py` nadaje starym rutynom `run_log`; nowe domyślnie
+  wybierają główny czat albo zaufaną rozmowę źródłową. W **Rutynach** sprawdź
+  odbiorcę wyniku, działającą osobę, koniec i budżet, zamiast tworzyć kopie.
+- `0259_trigger_version_pin.py` dodaje przypięcie niezmiennej wersji. Pin i nazwane
+  środowisko wzajemnie się wykluczają. Usuń pin przed usunięciem wersji.
+  Zaparkowany run zachowuje przyjętą wersję; `0260_routine_run_origin.py` zachowuje
+  jego pochodzenie, więc usunięcie rutyny nie zwalnia kontroli uprawnień.
+- `0261_watch_attempt_status.py` zaczyna jawne śledzenie prób bez zgadywania starszej
+  historii sukcesów i błędów. Niedostępne lub nieukończone sprawdzenie nie przesuwa
+  daty sukcesu. Przejrzyj istniejące obserwacje i ich dostęp do kont: historyczne
+  wiersze nie dowodzą, w jaki sposób pierwotnie udzielono zgody.
+
+Przed włączeniem utrzymania pamięci wybierz model jawnie; poranny briefing
+zachowuje dotychczasowe ustawienia modelu i budżetu organizacji. Od `0262_watch_agent_sources.py` obserwacje wykonuje wybrany agent, a runy
+zachowują zatwierdzone źródła. Istniejące obserwacje wymagają wybrania agenta
+i zatwierdzenia źródeł; identyfikatory i ustalenia pozostają. Sprawdź [zarządzanie](governance.md#proactive-work)
+i [konfigurację kanałów](channels.md#sms), w tym `PUBLIC_BASE_URL` i wygasłe
+powiązania SMS. W organizacji testowej sprawdź prywatny czat, Aktywność i dostawę
+jednej rutyny, pauzę/wygaśnięcie oraz obserwację niedostępnego źródła, zanim
+rozszerzysz wdrożenie.
 
 ### Granica formatu historii w 1.25.0 { #retry-history-upgrade }
 

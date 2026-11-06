@@ -89,8 +89,13 @@ describe("memoryChangesOf", () => {
       call("write_memory", {
         id: "w-1",
         args: { name: "role.md", description: "Your role is sales" },
+        result: "Saved note 'role.md'.",
       }),
-      call("edit_memory", { id: "e-1", args: { name: "team.md", description: "" } }),
+      call("edit_memory", {
+        id: "e-1",
+        args: { name: "team.md", description: "" },
+        result: "Updated note 'team.md'.",
+      }),
     ];
 
     expect(memoryChangesOf(calls)).toEqual([
@@ -100,9 +105,11 @@ describe("memoryChangesOf", () => {
   });
 
   it("says what was forgotten", () => {
-    expect(memoryChangesOf([call("delete_memory", { args: { name: "role.md" } })])).toEqual([
-      { callId: "delete_memory-1", forgot: true, label: "role.md" },
-    ]);
+    expect(
+      memoryChangesOf([
+        call("delete_memory", { args: { name: "role.md" }, result: "Forgot note 'role.md'." }),
+      ]),
+    ).toEqual([{ callId: "delete_memory-1", forgot: true, label: "role.md" }]);
   });
 
   it("leaves out the agent's own index, a failed save, another tool and a nameless note", () => {
@@ -212,4 +219,41 @@ describe("files a turn changed", () => {
       ]),
     ).toEqual([]);
   });
+});
+
+it("reports only confirmed ledger writes and never infers a saved memory from tool arguments", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const confirmed = `Recorded (claim ${id})`;
+  expect(
+    memoryChangesOf([
+      call("remember", { args: { statement: "Use concise reports" }, result: confirmed }),
+    ]),
+  ).toEqual([{ callId: "remember-1", forgot: false, label: "Use concise reports" }]);
+  for (const value of [null, {}, "Refused", `Recorded (claim invalid)`]) {
+    expect(
+      memoryChangesOf([
+        call("remember", { args: { statement: "Use concise reports" }, result: value }),
+      ]),
+    ).toEqual([]);
+  }
+  expect(
+    memoryChangesOf([call("remember", { args: { statement: 42 }, result: confirmed })]),
+  ).toEqual([]);
+  expect(
+    memoryChangesOf([call("remember", { args: { statement: "" }, result: confirmed })]),
+  ).toEqual([]);
+  expect(
+    memoryChangesOf([
+      call("correct_memory", {
+        args: { statement: "Correct statement" },
+        result: `Corrected (claim ${id})`,
+      }),
+    ]),
+  ).toEqual([{ callId: "correct_memory-1", forgot: false, label: "Correct statement" }]);
+  expect(
+    memoryChangesOf([
+      call("write_memory", { args: { name: "MEMORY.md" }, result: "Saved note 'MEMORY.md'." }),
+      call("write_memory", { args: {}, result: "Saved note 'x.md'." }),
+    ]),
+  ).toEqual([]);
 });

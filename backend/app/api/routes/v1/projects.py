@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
-from app.api.deps import Auth, ProjectSvc, ProjectTransferSvc, require
+from app.api.deps import Auth, ProjectSvc, ProjectTrackingSvc, ProjectTransferSvc, require
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.config import settings
@@ -27,6 +27,11 @@ from app.schemas.project import (
     ProjectUpdate,
     ProjectWorkspaceMoveRead,
     ProjectWorkspaceMoveRequest,
+)
+from app.schemas.project_tracking import (
+    ProjectTrackingCreate,
+    ProjectTrackingRead,
+    ProjectTrackingReview,
 )
 from app.schemas.workspace import WorkspaceFileRead, WorkspaceListing
 from app.services.sandbox_workspace import owner_label, stored_ceiling
@@ -223,3 +228,37 @@ async def move_project_workspace(
     workspace remains selected on failure; the target is activated only after verification.
     """
     return await service.queue(ctx, project_id, data)
+
+
+@router.get("/{project_id}/tracking", response_model=ProjectTrackingRead | None)
+async def get_project_tracking(project_id: UUID, service: ProjectTrackingSvc, ctx: Auth) -> Any:
+    """Your existing project tracker, if installed; other owners' trackers are not returned."""
+    return await service.get(ctx, project_id)
+
+
+@router.get("/{project_id}/tracking/review", response_model=ProjectTrackingReview)
+async def review_project_tracking(
+    project_id: UUID,
+    base_agent_id: UUID,
+    base_version_id: UUID,
+    service: ProjectTrackingSvc,
+    ctx: Auth,
+) -> Any:
+    """Review a pinned editable source agent and exact accounts before creating its tracker."""
+    return await service.review(ctx, project_id, agent_id=base_agent_id, version_id=base_version_id)
+
+
+@router.post(
+    "/{project_id}/tracking",
+    response_model=ProjectTrackingRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_tracking(
+    project_id: UUID, data: ProjectTrackingCreate, service: ProjectTrackingSvc, ctx: Auth
+) -> Any:
+    """Explicitly publish a private tracker, create its task table/views and start its routine.
+
+    The original source agent is unchanged. A repeated identical installation returns
+    the same resources. The project's row lock serializes competing installations.
+    """
+    return await service.create(ctx, project_id, data)

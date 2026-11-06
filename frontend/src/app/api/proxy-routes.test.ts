@@ -24,7 +24,9 @@ import * as approvals from "./approvals/[[...path]]/route";
 import * as apps from "./apps/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
+import * as phone from "./phone/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
+import * as codingAccounts from "./coding-accounts/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
@@ -34,6 +36,8 @@ import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as outcomes from "./outcomes/[[...path]]/route";
+import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
@@ -82,6 +86,7 @@ import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
 import * as tables from "./tables/[[...path]]/route";
+import * as tasks from "./tasks/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
@@ -134,6 +139,8 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
   ["memory", memory],
+  ["outcomes", outcomes],
+  ["system-agents", systemAgents],
   ["ml/calls", mlCalls],
   ["me/channel-link", channelLink],
   ["me/mcp-connections", myMcpConnections],
@@ -177,6 +184,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["spend", spend],
   ["stats", stats],
   ["tables", tables],
+  ["tasks", tasks],
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
@@ -232,4 +240,20 @@ describe("the proxied route mounts", () => {
       expect(response.status, name).toBe(401);
     }
   });
+});
+
+it("the phone proxy exposes only its read and admitted effect verbs", () => {
+  expect(typeof phone.GET).toBe("function");
+  expect(typeof phone.POST).toBe("function");
+  expect(typeof phone.PUT).toBe("function");
+  expect(Object.keys(phone).sort()).toEqual(["GET", "POST", "PUT"]);
+});
+
+it("coding accounts forwards only credential operations and requires a session", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(codingAccounts).sort()).toEqual(["DELETE", "GET", "PATCH", "POST"]);
+  const response = await codingAccounts.GET(
+    new NextRequest("http://localhost:3000/api/coding-accounts"),
+  );
+  expect(response.status).toBe(401);
 });

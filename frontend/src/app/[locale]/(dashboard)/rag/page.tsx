@@ -168,13 +168,13 @@ export default function RAGPage() {
             title={t("bases")}
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
             empty={!loading && !listError && kbs.length === 0}
+            controls={
+              !loading && !listError && kbs.length > 0 ? (
+                <GroupFilter value={groupId} onChange={setGroupId} />
+              ) : undefined
+            }
             contentClassName="p-4"
           >
-            {!loading && !listError && kbs.length > 0 && (
-              <div className="mb-4">
-                <GroupFilter value={groupId} onChange={setGroupId} />
-              </div>
-            )}
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.

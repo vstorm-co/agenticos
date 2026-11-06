@@ -15,10 +15,10 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 
 class Pool(enum.StrEnum):
@@ -48,6 +48,12 @@ class Payload(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class WakeTask(Payload):
+    organization_id: UUID
+    task_id: UUID
+    revision: int = Field(ge=1)
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -67,6 +73,20 @@ class MoveProjectWorkspacePayload(Payload):
 def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
     """Isolate each attempt, so a lost worker cannot write into the activated copy."""
     return uuid5(transfer_id, str(attempt))
+
+
+class ChannelDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    platform: Literal["sms", "imessage"]
+    payload: dict[str, JsonValue]
+
+
+class EmailDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    body: str = Field(max_length=25 * 1024 * 1024)
+    attachment_handles: list[str] = Field(default_factory=list, max_length=10)
 
 
 class ChannelHandbackCall(Payload):
@@ -127,11 +147,22 @@ def sync_source_key(source_id: UUID) -> str:
     return f"sync-source:{source_id}"
 
 
+class DialPhone(Payload):
+    call_id: UUID
+
+
 class FireTrigger(Payload):
     trigger_id: UUID
+    source_policy_id: UUID | None = None
+    activation_id: UUID | None = None
     event_context: str | None = None
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
+
+
+class DeliverRoutineAnswer(Payload):
+    organization_id: UUID
+    run_id: UUID
 
 
 class ConversationTaskJob(Payload):
@@ -179,10 +210,27 @@ class ThinkForPerson(Payload):
     user_id: UUID
 
 
+class ExtractMemory(Payload):
+    """One finished chat run, to be read for what a later conversation should remember (#2090)."""
+
+    organization_id: UUID
+    run_id: UUID
+    audience_user_id: UUID | None = None
+    """The runner's admitted person; absent on jobs queued before audience capture existed."""
+    audience_room_key: str | None = Field(default=None, max_length=200, pattern=r"^room:[^:]+:.+$")
+
+    @model_validator(mode="after")
+    def _room_has_an_admitted_person(self) -> Self:
+        if self.audience_room_key is not None and self.audience_user_id is None:
+            raise ValueError("Room capture requires the runner's admitted person")
+        return self
+
+
 class LookThroughWatch(Payload):
     """One person's watch over one of their connections, due for a look (#2301)."""
 
     watch_id: UUID
+    scheduled_for: datetime | None = None
 
 
 class InstallRolePack(Payload):
@@ -346,6 +394,14 @@ SYNC_SOURCE = Task(
 # and a worker that died under it may already have paid for its model calls and
 # made its tools' side effects. The dead job waits on Admin -> Background jobs,
 # where somebody who knows what the run did can retry it.
+WAKE_TASK = Task(
+    kind="wake-task",
+    payload_type=WakeTask,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.SCHEDULED,
+)
 FIRE_TRIGGER = Task(
     kind="fire-trigger",
     payload_type=FireTrigger,
@@ -354,6 +410,33 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+DIAL_PHONE = Task(
+    kind="dial-phone",
+    payload_type=DialPhone,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(seconds=60),
+    priority=Priority.INTERACTIVE,
+)
+
+END_PHONE = Task(
+    kind="end-phone",
+    payload_type=DialPhone,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.INTERACTIVE,
+)
+
+DELIVER_ROUTINE_ANSWER = Task(
+    kind="deliver-routine-answer",
+    payload_type=DeliverRoutineAnswer,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 RUN_CONVERSATION_TASK = Task(
     kind="run-conversation-task",
     payload_type=ConversationTaskJob,
@@ -412,6 +495,17 @@ THINK_FOR_PERSON = Task(
     pool=Pool.AGENT,
     max_attempts=1,
     timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
+# One attempt: a model call on the maintenance role's budget for one finished run.
+# The conversation is not lost if it fails - the agent can still `remember` - and a
+# retry would pay for the same read twice.
+EXTRACT_MEMORY = Task(
+    kind="extract-memory",
+    payload_type=ExtractMemory,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
     priority=Priority.BULK,
 )
 # One attempt, like the nightly look: a model call on the person's limit, and the
@@ -489,6 +583,7 @@ SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
+CONSOLIDATE_MEMORY = _sweep("consolidate-memory", timeout=timedelta(minutes=10))
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minutes=2))
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
@@ -517,6 +612,24 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROCESS_CHANNEL_DELIVERY = Task(
+    kind="process-channel-delivery",
+    payload_type=ChannelDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
+PROCESS_EMAIL_DELIVERY = Task(
+    kind="process-email-delivery",
+    payload_type=EmailDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
 DELIVER_CHANNEL_HANDBACK = Task(
     kind="deliver-channel-handback",
     payload_type=ChannelHandback,
@@ -529,18 +642,25 @@ DELIVER_CHANNEL_HANDBACK = Task(
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        PROCESS_CHANNEL_DELIVERY,
+        PROCESS_EMAIL_DELIVERY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        WAKE_TASK,
+        DIAL_PHONE,
+        END_PHONE,
+        DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
+        EXTRACT_MEMORY,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,
         INSTALL_ROLE_PACK,
@@ -563,6 +683,7 @@ TASKS: dict[str, TaskKind] = {
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
+        CONSOLIDATE_MEMORY,
         REAP_VOICE_CALLS,
         WORKFLOW_DISPATCH_POLL,
         WORKFLOW_RECONCILE,

@@ -135,6 +135,11 @@ class _Account:
             patch("app.services.user.organization_repo") as organizations,
             patch("app.services.user.member_repo") as members,
             patch("app.services.user.user_repo") as users,
+            patch("app.services.user.try_hold_subject", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.telephony.user_has_unfinished_calls",
+                new=AsyncMock(return_value=False),
+            ),
             patch("app.services.user.hold_name", new=self._step("name")),
             patch("app.services.user.try_hold_name", new=self._step("try name", self.granted)),
         ):
@@ -373,3 +378,14 @@ async def test_a_failed_ingest_holds_its_organization_and_uploader_before_its_st
         organizations.hold_key_share.assert_awaited_once_with(ANY, organization_id)
     if uploader_id is not None:
         users.hold_key_share.assert_awaited_once_with(ANY, [uploader_id])
+
+
+async def test_busy_personal_data_scope_refuses_before_account_teardown() -> None:
+    service = UserService(MagicMock())
+    with (
+        patch("app.services.user.try_hold_subject", new=AsyncMock(return_value=False)),
+        patch("app.services.user.organization_repo.list_created_by", new=AsyncMock()) as listing,
+        pytest.raises(ConcurrentChangeError, match="account is busy"),
+    ):
+        await service._lock_account(uuid.uuid4())
+    listing.assert_not_awaited()

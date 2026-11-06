@@ -70,9 +70,9 @@ export function SecretsTable({
       {
         key: "key",
         header: t("key"),
-        // The column that gives way: it takes what the others leave and cuts a
-        // long name short, rather than pushing the actions off a phone.
-        className: "w-full max-w-0 pl-5",
+        // Names stay readable without taking all spare width on a desktop.
+        // On phones only the name and actions remain, so the name fills the rest.
+        className: "w-full max-w-0 sm:w-[30%] pl-5",
         sortable: true,
         sortValue: (secret) => secret.name,
         cell: (secret) => (
@@ -87,7 +87,9 @@ export function SecretsTable({
               brand={purposes.find((entry) => entry.id === secret.purpose)?.icon || undefined}
             />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{secret.name}</p>
+              <p title={secret.name} className="truncate text-sm font-medium">
+                {secret.name}
+              </p>
               <p className="text-muted-foreground font-mono text-xs">····{secret.hint}</p>
             </div>
           </div>

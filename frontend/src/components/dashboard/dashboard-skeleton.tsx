@@ -17,7 +17,7 @@ import { WidgetSkeleton } from "./widget-states";
 export function DashboardSkeleton({ sections }: { sections: SectionDef[] }) {
   const t = useTranslations("dashboard");
   return (
-    <div role="status" aria-label={t("states.loading")}>
+    <div role="status" aria-busy="true" aria-label={t("states.loading")}>
       <Skeleton className="h-10 w-full" aria-hidden />
       <div className={cn(BAND_GAP, "mt-6")} aria-hidden>
         {sections.map((section) => (

@@ -534,6 +534,24 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    source_conversation_id: UUID | None = None
+    """A private chat carried by a platform-issued run credential.
+
+    Services still authorize the target before using it. External API keys and
+    OAuth tokens never supply this hint.
+    """
+
+    routine_id: UUID | None = None
+    """Trusted origin set by the trigger worker, never accepted from a public API request."""
+
+    routine_source_policy_id: UUID | None = None
+    """Exact reviewed source ceiling admitted by the trigger worker."""
+
+    routine_activation_id: UUID | None = None
+    """A durable device activation, set only by its trigger worker before run admission."""
+
+    routine_kind: Literal["trigger", "watch"] = "trigger"
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.

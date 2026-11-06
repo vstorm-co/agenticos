@@ -687,7 +687,16 @@ class TestATurnThatFinished:
     async def test_a_turn_that_started_a_conversation_announces_it_first(self):
         session = _session()
 
-        with _chat(AsyncMock(return_value=_finished_turn()), newly_created=True):
+        async def enter_room(conversation_id: str) -> None:
+            assert _sent_events(session)[0] == (
+                "conversation_created",
+                {"conversation_id": _CONVERSATION},
+            )
+
+        with (
+            _chat(AsyncMock(return_value=_finished_turn()), newly_created=True),
+            patch.object(session, "_enter_room", side_effect=enter_room),
+        ):
             await session.process_message(_message())
 
         assert _frame_types(session) == [
@@ -992,6 +1001,8 @@ class TestATurnThatFinished:
                         "id": str(approval_id),
                         "tool_call_id": "call-1",
                         "tool_name": "send_email",
+                        "subagent_name": None,
+                        "can_remember": True,
                         "args": {"to": "ops@example.com"},
                         # The tool's stable id, which the card words the call by.
                         "capability_tool_id": "send_email",
@@ -2151,6 +2162,10 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
         # produced - a transcript naming no model cannot answer "which one said
         # this" for the turn most likely to be asked about.
         assert written.args[2] == "gpt-4.1"
+        assert (
+            "message_saved",
+            {"message_id": "saved-1", "conversation_id": session.current_conversation_id},
+        ) in _sent_events(session)
 
     async def test_an_unsaved_partial_reply_reports_the_save_failure_too(self) -> None:
         session = _session()
@@ -3167,6 +3182,51 @@ class TestASocketThatWentAway:
         assert parked == [True]
         assert session._round_parks is False
 
+    @pytest.mark.parametrize("closed", [True, False])
+    async def test_a_question_asked_after_the_reader_left_parks_immediately(self, closed: bool):
+        session = _session()
+        session._live = _CONVERSATION
+        if closed:
+            session._closed = True
+        else:
+            session._park_question_when_leaving(None)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        with pytest.raises(CallDeferred):
+            await session._ask_questions(request)
+        assert session._ask_user_future is None
+        assert "ask_user" not in _frame_types(session)
+
+    async def test_leaving_a_chat_parks_its_unanswered_question(self):
+        session = _session()
+        session._live = _CONVERSATION
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        asking = asyncio.create_task(session._ask_questions(request))
+        await _wait(asked)
+        session._park_question_when_leaving(_CONVERSATION)
+        assert not asking.done()
+        with patch.object(session, "_leave_room", new=AsyncMock()):
+            await session._attach(None)
+        with pytest.raises(CallDeferred):
+            await asking
+        assert session._ask_user_future is None
+
     async def test_a_delegates_question_left_open_is_still_no_answer(self):
         """Only the run's own agent parks: a delegate asking through `ask_parent`
         has nowhere to park, so it carries on with what it had."""
@@ -3806,3 +3866,11 @@ async def test_lost_conversation_access_is_reported_before_any_turn_is_written()
         fake.runner.run.assert_not_called()
     assert ("error", {"message": "Project access was removed"}) in _sent_events(session)
     assert session._admission_stack is None
+
+
+@pytest.mark.anyio
+async def test_a_closed_nonparking_surface_returns_no_answers_without_opening_a_prompt():
+    session = _session()
+    session._closed, session._round_parks = True, False
+    assert await session._ask_user([{"question": "Still there?"}]) == []
+    assert _sent_events(session) == []

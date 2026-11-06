@@ -128,11 +128,7 @@ colleague's account must not delete the agent the team depends on.
 
 !!! warning "What erasure does not reach, and the docs say so rather than the deployment finding out"
 
-    **A configured external memory store.** `mem0` holds what an agent remembered
-    in somebody else's system, and this deployment can only ask it to forget while
-    it still has the organization's credential.
-    `MemoryService.forget_person` does that for a person who is still a member;
-    a deleted account's notes in an external store are the operator's to clear.
+    **Memories in a removed mem0 integration.** A deployment that used mem0 (removed in #2090) may retain those memories in the external service. The upgrade now refuses while legacy bindings remain, preserving endpoint and credential mappings until an operator verifies external erasure and explicitly removes the bindings. It neither deletes vault credentials nor erases/imports remote data. Forgetting a person or clearing an agent here no longer reaches that service. Review unused vault keys, revoke retired provider credentials and handle the external memories separately. See the [upgrade checklist](deploy.md#native-memory-upgrade).
 
     **Backups.** A deletion removes rows from the live database. Whatever backup
     schedule a deployment runs keeps them until it rolls over, and no

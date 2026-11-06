@@ -13,10 +13,9 @@ Three consequences of not being the curated list, all deliberate:
 put in one. A connection made from here shows the publisher's own description and
 nothing about its credential.
 
-**No baked logo.** `mcp-logos.generated.ts` inlines a favicon per catalog host,
-which at 1.9 KB each would be 10.5 MB of base64 in a module the browser loads.
-These fall through to the runtime favicon service that `mcp-catalog.ts` already
-keeps for an unknown host - which is exactly what it was written for.
+**Local icons.** Curated services carry bundled brand marks. Registry rows use
+service or category pictograms when no known mark exists, keeping the browser
+from requesting a favicon for every server in a large mirror.
 
 **In a table, not in memory.** The JSON is the *seed*; the read path is
 `mcp_registry_servers`, because a file can answer "servers matching 'linear'" and

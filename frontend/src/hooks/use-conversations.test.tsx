@@ -388,6 +388,30 @@ describe("the conversation list", () => {
 });
 
 describe("the conversation named in the address bar", () => {
+  it("opens the transcript without waiting for sidebar invalidation", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    const result = await hook();
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+    try {
+      const opening = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(useConversationStore.getState().currentConversationId).toBe("c-9"),
+      );
+      expect(useConversationStore.getState().currentMessages[0]?.content).toBe("hi");
+      await act(async () => {
+        finish();
+        await opening;
+      });
+    } finally {
+      finish();
+      invalidate.mockRestore();
+    }
+  });
+
   it("does nothing for a refresh already cancelled", async () => {
     const result = await hook();
     const controller = new AbortController();
@@ -1431,6 +1455,19 @@ describe("a request that outlives the account that made it", () => {
 });
 
 describe("starting a new chat", () => {
+  it("requests composer focus again even if the previous draft was already empty", async () => {
+    const result = await hook();
+    const before = useConversationStore.getState().composerFocusRequest;
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    expect(useConversationStore.getState().composerFocusRequest).toBe(before + 1);
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    expect(useConversationStore.getState().composerFocusRequest).toBe(before + 2);
+  });
+
   it("leaves even an empty stored conversation so its project cannot leak into a new draft", async () => {
     // A stored conversation has a fixed project identity, even before any messages.
     const result = await hook();
@@ -1901,5 +1938,24 @@ it("does not send a read marker after the organization changes during query canc
     expect(apiClient.post).not.toHaveBeenCalled();
   } finally {
     cancel.mockRestore();
+  }
+});
+
+it("does not reopen the previous address when a refresh starts navigation", async () => {
+  const result = await hook();
+  window.history.replaceState({}, "", "/chat?id=c-9");
+  vi.mocked(apiClient.get).mockClear();
+  const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockImplementation(() => {
+    window.history.replaceState({}, "", "/chat");
+    return Promise.resolve();
+  });
+  try {
+    await result.current.fetchConversations();
+    expect(apiClient.get).not.toHaveBeenCalledWith(
+      expect.stringContaining("c-9/messages"),
+      expect.anything(),
+    );
+  } finally {
+    invalidate.mockRestore();
   }
 });

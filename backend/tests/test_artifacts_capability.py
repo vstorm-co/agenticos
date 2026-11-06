@@ -36,10 +36,10 @@ from app.agents.capabilities.artifacts._toolset import (
     build_artifacts_toolset,
     parse_published_artifact,
 )
-from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
 from app.agents.capabilities.workflows import workflow_ids_of
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec
+from app.agents.table_bindings import TABLE_GRANTS_RESOURCE
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
@@ -844,7 +844,11 @@ def _artifacts_built_for(spec: AgentSpec) -> Artifacts[Any]:
     ctx = registry.CapabilityBuildContext(
         binding=registry.CapabilityBinding(capability_id="artifacts"),
         config=None,
-        resources={TABLE_GRANTS_RESOURCE: table_grants_of(spec)},
+        resources={
+            TABLE_GRANTS_RESOURCE: {
+                grant.table_id: frozenset(grant.operations) for grant in spec.table_bindings
+            }
+        },
     )
     built = registry.get("artifacts").builder(ctx)
     assert isinstance(built, Artifacts)

@@ -53,6 +53,38 @@ beforeEach(() => {
 });
 
 describe("the sites your agents' browser starts signed in to", () => {
+  it("shows the bundled service mark for GitHub without a remote favicon request", () => {
+    state.signIns = [
+      { id: "github", site: "github.com", created_at: null, updated_at: null, last_used_at: null },
+    ];
+    mount();
+    const row = screen.getByText("github.com").closest("li");
+    expect(row?.querySelector("svg")).toBeInTheDocument();
+    expect(row?.querySelector(".lucide-globe")).toBeNull();
+    expect(row?.querySelector("img")).toBeNull();
+  });
+
+  it("loads a site's own favicon without a referrer and keeps the entry when it is missing", () => {
+    state.signIns = [
+      {
+        id: "portal",
+        site: "portal.example.test",
+        created_at: null,
+        updated_at: null,
+        last_used_at: null,
+      },
+    ];
+    mount();
+    const row = screen.getByText("portal.example.test").closest("li");
+    const icon = row?.querySelector("img");
+    if (!icon) throw new Error("missing site favicon");
+    expect(icon).toHaveAttribute("src", "https://portal.example.test/favicon.ico");
+    expect(icon).toHaveAttribute("referrerpolicy", "no-referrer");
+    fireEvent.error(icon);
+    expect(row?.querySelector(".lucide-globe")).toBeInTheDocument();
+    expect(screen.getByText("portal.example.test")).toBeVisible();
+  });
+
   it("lists each site with when it was kept and last used, and forgets one", () => {
     state.signIns = [
       {

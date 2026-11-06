@@ -26,6 +26,9 @@ vi.mock("./local-agent-settings", () => ({
 vi.mock("./local-service-settings", () => ({
   LocalServiceSettings: () => <div data-testid="services" />,
 }));
+vi.mock("./routine-permissions", () => ({
+  RoutinePermissions: () => <div data-testid="routine-permissions" />,
+}));
 beforeEach(() => {
   env.shell = MAC_MAIN;
   env.status = { linked: false, connected: false };

@@ -17,7 +17,9 @@ So these run against a real `ConversationService` and a real database, and
 assert the consequence: the row is reported missing, and nothing is written.
 """
 
+import json
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -26,7 +28,7 @@ from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
@@ -351,3 +353,52 @@ async def test_submission_correlation_round_trips_with_its_actual_author(db) -> 
     correlated = next(item for item in items if item.id == saved.id)
     assert correlated.client_message_id == "local-123"
     assert correlated.sender.user_id == owner.id
+
+
+async def test_only_successful_loads_from_the_selected_thread_are_restored(
+    db: AsyncSession,
+) -> None:
+    from pydantic_ai.messages import CapabilityLoadDeltaPart
+
+    organization = await _org(db, name="Skills")
+    owner = await _member(db)
+    selected = await _conversation(db, organization, owner)
+    other = await _conversation(db, organization, owner)
+    messages = []
+    for conversation in (selected, other):
+        message = Message(
+            id=uuid.uuid4(), conversation_id=conversation.id, role="assistant", content="Ready."
+        )
+        db.add(message)
+        messages.append(message)
+    await db.flush()
+    for message, name, status in (
+        (messages[0], "interview", "completed"),
+        (messages[0], "pending", "pending"),
+        (messages[1], "other-thread", "completed"),
+    ):
+        db.add(
+            ToolCall(
+                id=uuid.uuid4(),
+                message_id=message.id,
+                tool_call_id=str(uuid.uuid4()),
+                tool_name="load_capability",
+                args={"id": name},
+                result=json.dumps(
+                    {"message": f"Capability {name!r} loaded. Its instructions, if any, follow."}
+                ),
+                status=status,
+                started_at=datetime.now(UTC),
+            )
+        )
+    await db.flush()
+    history = await ConversationService(db).model_history(selected.id, limit=50)
+    loads = [
+        part
+        for message in history
+        for part in message.parts
+        if isinstance(part, CapabilityLoadDeltaPart)
+    ]
+    assert len(loads) == 1
+    assert loads[0].loaded == ["interview"]
+    assert await conversation_repo.capability_loads_in_messages(db, set()) == []

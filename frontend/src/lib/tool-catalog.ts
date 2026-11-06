@@ -77,6 +77,7 @@ export type ToolRenderer =
   | "asked"
   | "delegation"
   | "workspace"
+  | "memory"
   | "generic";
 
 /**
@@ -541,43 +542,13 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
-  // virtual_tables - reads are lookups, writes are edits; `delete_record` is `edit`
-  // because `StepKind` has no delete, the same choice `delete_memory` makes.
-  list_tables: { kind: "list", render: "generic", captionKey: "tablesListing" },
-  table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
-  describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
-  list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
-  create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
-  record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
-  list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },
-  get_record: { kind: "read", render: "generic", captionKey: "recordsReading" },
-  create_record: {
-    kind: "write",
-    render: "generic",
-    captionKey: "recordsCreating",
-    approvalSummary: { key: "approveCreateRecord", needs: ["table"] },
-  },
-  upsert_record: {
-    kind: "write",
-    render: "generic",
-    captionKey: "recordsUpserting",
-    approvalSummary: { key: "approveUpsertRecord", needs: ["table"] },
-  },
-  update_record: {
-    kind: "edit",
-    render: "generic",
-    captionKey: "recordsUpdating",
-    approvalSummary: { key: "approveUpdateRecord", needs: ["table"] },
-  },
-  delete_record: {
-    kind: "edit",
-    render: "generic",
-    captionKey: "recordsDeleting",
-    approvalSummary: { key: "approveDeleteRecord", needs: ["table"] },
-  },
-
   // workflows - starting one is a write: it sets a process going.
   list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
+  get_phone_contact_policy: { kind: "read", render: "generic", captionKey: "phoneContactPolicy" },
+  call_me: { kind: "write", render: "generic", captionKey: "phoneCalling" },
+  list_phone_transfer_contacts: { kind: "read", render: "generic", captionKey: "phoneContacts" },
+  transfer_phone_call: { kind: "write", render: "generic", captionKey: "phoneTransferring" },
+  end_phone_call: { kind: "write", render: "generic", captionKey: "phoneEnding" },
   run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
   get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
 
@@ -609,50 +580,64 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     hidden: true,
   },
   // memory - the agent's own file store. An index and a note read back as text, so the
-  // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
+  // dedicated renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.
   list_memory: {
     kind: "list",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryChecking",
     displayNameKey: "listMemory",
     staysClosed: true,
   },
   read_memory: {
     kind: "read",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryReading",
     displayNameKey: "readMemory",
     staysClosed: true,
   },
   write_memory: {
     kind: "write",
-    render: "generic",
+    render: "memory",
     captionKey: "memorySaving",
     displayNameKey: "writeMemory",
     staysClosed: true,
   },
   edit_memory: {
     kind: "edit",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryUpdating",
     displayNameKey: "editMemory",
     staysClosed: true,
   },
   delete_memory: {
     kind: "edit",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryForgetting",
     displayNameKey: "deleteMemory",
     staysClosed: true,
   },
+  correct_memory: {
+    kind: "edit",
+    render: "memory",
+    captionKey: "memoryCorrecting",
+    displayNameKey: "correctMemory",
+    staysClosed: true,
+  },
+  share_memory: {
+    kind: "write",
+    render: "memory",
+    captionKey: "memorySharing",
+    displayNameKey: "shareMemory",
+    staysClosed: true,
+  },
   remember: {
     kind: "write",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryRemembering",
     staysClosed: true,
   },
-  recall: { kind: "search", render: "generic", captionKey: "memoryRecalling", staysClosed: true },
+  recall: { kind: "search", render: "memory", captionKey: "memoryRecalling", staysClosed: true },
 
   // conversation search - past threads, found and opened. Both answer in Markdown,
   // which the generic renderer already shows as prose.
@@ -894,6 +879,42 @@ export const CALL_TOOLS: Record<string, ToolEntry> = {
  * registers.
  */
 export const LEGACY_TOOLS: Record<string, ToolEntry> = {
+  // Retired Tables capability: saved approvals and transcripts still name these tools.
+  // Reads are lookups, writes are edits; `delete_record` is `edit`
+  // because `StepKind` has no delete, the same choice `delete_memory` makes.
+  list_tables: { kind: "list", render: "generic", captionKey: "tablesListing" },
+  table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
+  describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
+  list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
+  create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
+  record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
+  list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },
+  get_record: { kind: "read", render: "generic", captionKey: "recordsReading" },
+  create_record: {
+    kind: "write",
+    render: "generic",
+    captionKey: "recordsCreating",
+    approvalSummary: { key: "approveCreateRecord", needs: ["table"] },
+  },
+  upsert_record: {
+    kind: "write",
+    render: "generic",
+    captionKey: "recordsUpserting",
+    approvalSummary: { key: "approveUpsertRecord", needs: ["table"] },
+  },
+  update_record: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "recordsUpdating",
+    approvalSummary: { key: "approveUpdateRecord", needs: ["table"] },
+  },
+  delete_record: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "recordsDeleting",
+    approvalSummary: { key: "approveDeleteRecord", needs: ["table"] },
+  },
+
   list_skills: {
     kind: "skill",
     render: "skill-list",

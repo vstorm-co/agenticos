@@ -61,17 +61,10 @@
 
 /* --- Layer 1: the accent ramp. This is the retheme knob. ----------------- */
 :root {
-  /* Accent: NONE - a slate ramp with almost no chroma. Colour is kept for what
-     it means (green for on and healthy, red for failed and destructive, amber
-     for waiting) and for the small section tiles; links, selection and focus
-     are ink. Both a framework blue and a sunset orange were tried here and
-     read as decoration. Chroma is scaled per step because sRGB holds far less chroma at the pale
-     and deep ends; the factors keep all 11 steps inside the gamut so the
-     browser never clips. The previous single `oklch(65% 0.2 250)` was outside
-     sRGB and shipped clipped to a cyan-leaning #0091ff, which is why the
-     derived hover/muted variants did not track the hue they claimed to. */
+  /* Standard emphasis is neutral. Statuses, avatars and provider marks keep
+     meaningful color; custom looks may override the accent ramp. */
   --brand-h: 265;
-  --brand-c: 0.018;
+  --brand-c: 0;
 
   --brand-50: oklch(97% calc(var(--brand-c) * 0.06) var(--brand-h));
   --brand-100: oklch(94% calc(var(--brand-c) * 0.12) var(--brand-h));
@@ -183,24 +176,15 @@
   --color-chart-fill: oklch(66% 0.16 277);
   --color-track: oklch(95% 0.022 277);
 
-  /* Light theme - NEUTRAL near-white, and neutral is the change. The ladder
-     used to carry `0.003-0.004` of chroma at hue 250, which is a blue cast on
-     every surface in the product: faint on one panel, cumulative across a full
-     page of them, and visibly cold beside the accent it was meant to support.
-     At `0.002 265` the surfaces read as paper and the one blue thing on screen
-     is the accent.
-
-     Four layers, deepest first: the sidebar, the page, a card, a popover. The
-     sidebar is its own token rather than a translucent card, because the
-     translucency put it between the page and a card - a column whose apparent
-     depth changed with whatever it happened to be over. */
-  --color-sidebar: oklch(96.3% 0.002 265);
-  --color-background: oklch(97.8% 0.002 265);
-  --color-foreground: oklch(16% 0.004 265);
+  /* Neutral page chrome. Page, card and floating surfaces have separate roles;
+     fields use the page surface as a well inside a card or dialog. */
+  --color-sidebar: #eeeef1;
+  --color-background: #f7f7f9;
+  --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(16% 0.004 265);
+  --color-card-foreground: #242428;
   --color-popover: oklch(100% 0 0);
-  --color-popover-foreground: oklch(16% 0.004 265);
+  --color-popover-foreground: #242428;
   /* The document peek: a card's content drawn as a sheet of paper resting in a
      well, with the rest of it stacked behind. The paper is always the lightest
      of the three, in both themes, which is why these are their own tokens
@@ -214,19 +198,19 @@
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-action: var(--color-primary);
-  --color-action-foreground: var(--color-primary-foreground);
-  --color-action-hover: var(--color-primary-hover);
-  --color-action-active: var(--color-primary-active);
-  --color-secondary: oklch(95.5% 0.002 265);
+  --color-action: #2c2c2c;
+  --color-action-foreground: #f7f7f9;
+  --color-action-hover: #3b3b3b;
+  --color-action-active: #232323;
+  --color-secondary: #eeeef1;
   --color-secondary-foreground: oklch(22% 0.004 265);
-  --color-muted: oklch(95.5% 0.002 265);
-  --color-muted-foreground: oklch(40% 0.006 265);
+  --color-muted: #eeeef1;
+  --color-muted-foreground: #62626c;
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
      was a 1.01:1 difference from the column behind it, which is no difference. */
-  --color-accent: oklch(93.2% 0.003 265);
+  --color-accent: #e5e5ea;
   --color-accent-foreground: oklch(22% 0.004 265);
   /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
      any page it appeared on. At this chroma the fill still carries white text
@@ -245,10 +229,13 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  /* Decorative edges stay quiet; input edges remain stronger so fields
-     remain easy to locate independently of the panel around them. */
-  --color-border: oklch(89% 0 0);
-  --color-input: oklch(77% 0.005 265);
+  /* Fields use a soft filled surface and a quiet edge. Focus adds a wider,
+     low-opacity halo rather than a bright hairline. */
+  --color-border: #dddde3;
+  --color-input: #c6c6ce;
+  --color-destructive-ink: #a52a34;
+  --color-warning-ink: #795000;
+  --color-success-ink: #236846;
   /* The bright step, not the text step: a focused field ringed in the deep
      rust of `brand` read as a field in error. */
   --color-ring: var(--brand-500);
@@ -277,34 +264,59 @@
   --duration-slow: 400ms;
 }
 
-/* Dark theme - cool graphite, and the whole ladder sits clear of near-black on
-   purpose.
+/* Dark surfaces rise from navigation to page, cards and floating panels.
+   Input wells use the page surface. Their edge stays stronger than decorative
+   card borders. Keep both root dark mappings aligned. */
+@theme inline {
+  /* Neutral controls resolve against the current look, not whatever sits behind them. */
+  --color-control: color-mix(in oklab, var(--color-card) 92%, var(--color-foreground));
+  --color-control-hover: color-mix(in oklab, var(--color-card) 87%, var(--color-foreground));
+  --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
+  --color-field: color-mix(in oklab, var(--color-background) 80%, var(--color-card));
+  --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
+  /* Table labels inherit the app surface and ink, including an explicit Light
+     choice on a dark OS. Mixing in hue keeps color secondary to readable text. */
+  --color-table-blue: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.11 230));
+  --color-table-blue-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.11 230)
+  );
+  --color-table-green: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.1 155));
+  --color-table-green-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.1 155)
+  );
+  --color-table-yellow: color-mix(in oklab, var(--color-card) 90%, oklch(68% 0.12 75));
+  --color-table-yellow-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(68% 0.12 75)
+  );
+  --color-table-purple: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.12 295));
+  --color-table-purple-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.12 295)
+  );
+  --color-table-red: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.12 20));
+  --color-table-red-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.12 20)
+  );
+}
 
-   OKLCH lightness is perceptual, which is what made the previous mapping much
-   darker than its numbers read: a 14% page renders `#07090c` and a 17.5% card
-   `#0f1113`, so the product was black on black with a 1.05:1 step between a page
-   and the cards it holds - eight sRGB points, less than the gamma difference
-   between two monitors. The page reads as switched off and a card's edge is
-   carried entirely by its border.
-
-   So the floor is `#141619` and the card sits on `#1d2022`, a 1.10:1 step. Every
-   layer above keeps the offset it had to within half a point - popover +2, muted
-   +4, accent +6, input +8, border +10 - because the relationships were right and
-   it was only the floor that was wrong.
-
-   Two attempts are on the record here: an 8% page under 23% cards with 36%
-   borders, which read as grey boxes floating on black, and its replacement,
-   which cured the floating by flattening everything into the black. This is the
-   third. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-sidebar: oklch(20.5% 0.0025 265);
-    --color-background: oklch(23.5% 0.0025 265);
-    --color-foreground: oklch(96.5% 0.003 265);
-    --color-card: oklch(26.2% 0.0025 265);
-    --color-card-foreground: oklch(96.5% 0.003 265);
-    --color-popover: oklch(28.5% 0.0025 265);
-    --color-popover-foreground: oklch(96.5% 0.003 265);
+    --color-sidebar: #141416;
+    --color-background: #1c1c1f;
+    --color-foreground: #eeeef1;
+    --color-card: #232326;
+    --color-card-foreground: #eeeef1;
+    --color-popover: #2b2b30;
+    --color-popover-foreground: #eeeef1;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
     --color-peek-paper: oklch(29.5% 0.003 265);
@@ -316,10 +328,10 @@
     --color-primary-foreground: oklch(16% 0.01 250);
     --color-primary-hover: oklch(88% 0.004 250);
     --color-primary-active: oklch(81% 0.005 250);
-    --color-action: var(--color-primary);
-    --color-action-foreground: var(--color-primary-foreground);
-    --color-action-hover: var(--color-primary-hover);
-    --color-action-active: var(--color-primary-active);
+    --color-action: #dddde3;
+    --color-action-foreground: #242428;
+    --color-action-hover: #e9e9ee;
+    --color-action-active: #ccccd4;
     --color-brand: var(--brand-400);
     --color-brand-hover: var(--brand-300);
     --color-brand-active: var(--brand-200);
@@ -327,14 +339,17 @@
     --color-brand-subtle: var(--brand-950);
     --color-brand-subtle-hover: var(--brand-900);
     --color-brand-line: var(--brand-800);
-    --color-secondary: oklch(30% 0.0025 265);
+    --color-secondary: #2d2d32;
     --color-secondary-foreground: oklch(95% 0 0);
-    --color-muted: oklch(30% 0.0025 265);
-    --color-muted-foreground: oklch(78% 0.006 265);
-    --color-accent: oklch(32.5% 0.0025 265);
+    --color-muted: #2d2d32;
+    --color-muted-foreground: #b1b1b9;
+    --color-accent: #38383f;
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(34% 0 0);
-    --color-input: oklch(47% 0.004 265);
+    --color-border: #3b3b43;
+    --color-input: #51515c;
+    --color-destructive-ink: #ffb4b4;
+    --color-warning-ink: #f0cc84;
+    --color-success-ink: #99d5b1;
     --color-chart: oklch(74% 0.14 277);
     --color-chart-fill: oklch(60% 0.16 277);
     --color-track: oklch(31% 0.035 277);
@@ -349,13 +364,13 @@
 }
 
 :root.dark {
-  --color-sidebar: oklch(20.5% 0.0025 265);
-  --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(96.5% 0.003 265);
-  --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(96.5% 0.003 265);
-  --color-popover: oklch(28.5% 0.0025 265);
-  --color-popover-foreground: oklch(96.5% 0.003 265);
+  --color-sidebar: #141416;
+  --color-background: #1c1c1f;
+  --color-foreground: #eeeef1;
+  --color-card: #232326;
+  --color-card-foreground: #eeeef1;
+  --color-popover: #2b2b30;
+  --color-popover-foreground: #eeeef1;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
   --color-peek-paper: oklch(29.5% 0.003 265);
@@ -365,10 +380,10 @@
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
-  --color-action: var(--color-primary);
-  --color-action-foreground: var(--color-primary-foreground);
-  --color-action-hover: var(--color-primary-hover);
-  --color-action-active: var(--color-primary-active);
+  --color-action: #dddde3;
+  --color-action-foreground: #242428;
+  --color-action-hover: #e9e9ee;
+  --color-action-active: #ccccd4;
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -376,14 +391,17 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-secondary: oklch(30% 0.0025 265);
+  --color-secondary: #2d2d32;
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(78% 0.006 265);
-  --color-accent: oklch(32.5% 0.0025 265);
+  --color-muted: #2d2d32;
+  --color-muted-foreground: #b1b1b9;
+  --color-accent: #38383f;
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(34% 0 0);
-  --color-input: oklch(47% 0.004 265);
+  --color-border: #3b3b43;
+  --color-input: #51515c;
+  --color-destructive-ink: #ffb4b4;
+  --color-warning-ink: #f0cc84;
+  --color-success-ink: #99d5b1;
   --color-chart: oklch(74% 0.14 277);
   --color-chart-fill: oklch(60% 0.16 277);
   --color-track: oklch(31% 0.035 277);
@@ -402,23 +420,29 @@
    ========================================================================= */
 
 .theme-light {
-  --color-background: oklch(97.5% 0.003 250);
-  --color-foreground: oklch(15% 0 0);
-  --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(15% 0 0);
-  --color-muted: oklch(94% 0.004 250);
-  --color-muted-foreground: oklch(44% 0 0);
-  --color-border: oklch(89% 0 0);
+  --color-input: #c6c6ce;
+  --color-destructive-ink: #a52a34;
+  --color-warning-ink: #795000;
+  --color-success-ink: #236846;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #242428;
+  --color-background: #f7f7f9;
+  --color-foreground: #242428;
+  --color-card: #ffffff;
+  --color-card-foreground: #242428;
+  --color-muted: #eeeef1;
+  --color-muted-foreground: #62626c;
+  --color-border: #dddde3;
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-action: var(--color-primary);
-  --color-action-foreground: var(--color-primary-foreground);
-  --color-action-hover: var(--color-primary-hover);
-  --color-action-active: var(--color-primary-active);
+  --color-action: #2c2c2c;
+  --color-action-foreground: #f7f7f9;
+  --color-action-hover: #3b3b3b;
+  --color-action-active: #232323;
   --color-brand: var(--brand-700);
   --color-brand-hover: var(--brand-800);
   --color-brand-active: var(--brand-900);
@@ -436,25 +460,36 @@
   --series-3: oklch(80% 0.15 78);
   --series-4: oklch(64% 0.19 22);
   --series-5: oklch(58% 0.18 312);
+  --color-sidebar: #eeeef1;
+  --color-secondary: #eeeef1;
+  --color-secondary-foreground: #242428;
+  --color-accent: #e5e5ea;
+  --color-accent-foreground: #242428;
 }
 
 .theme-dark {
-  --color-sidebar: oklch(20.5% 0.0025 265);
-  --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(96.5% 0.003 265);
-  --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(96.5% 0.003 265);
-  --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(78% 0.006 265);
-  --color-border: oklch(34% 0 0);
+  --color-input: #51515c;
+  --color-destructive-ink: #ffb4b4;
+  --color-warning-ink: #f0cc84;
+  --color-success-ink: #99d5b1;
+  --color-popover: #2b2b30;
+  --color-popover-foreground: #eeeef1;
+  --color-sidebar: #141416;
+  --color-background: #1c1c1f;
+  --color-foreground: #eeeef1;
+  --color-card: #232326;
+  --color-card-foreground: #eeeef1;
+  --color-muted: #2d2d32;
+  --color-muted-foreground: #b1b1b9;
+  --color-border: #3b3b43;
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
-  --color-action: var(--color-primary);
-  --color-action-foreground: var(--color-primary-foreground);
-  --color-action-hover: var(--color-primary-hover);
-  --color-action-active: var(--color-primary-active);
+  --color-action: #dddde3;
+  --color-action-foreground: #242428;
+  --color-action-hover: #e9e9ee;
+  --color-action-active: #ccccd4;
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -472,6 +507,10 @@
   --series-3: oklch(78% 0.14 78);
   --series-4: oklch(64% 0.17 22);
   --series-5: oklch(62% 0.16 312);
+  --color-secondary: #2d2d32;
+  --color-secondary-foreground: oklch(95% 0 0);
+  --color-accent: #38383f;
+  --color-accent-foreground: oklch(95% 0 0);
 }
 
 @layer base {
@@ -991,7 +1030,7 @@
    ========================================================================= */
 
 .step-card-in {
-  animation: step-card-in var(--duration-slow) var(--ease-spring) both;
+  animation: step-card-in var(--duration-base) var(--ease-out) both;
 }
 @keyframes step-card-in {
   0% {
@@ -1036,7 +1075,7 @@
 }
 
 .pop-in {
-  animation: pop-in var(--duration-base) var(--ease-spring) both;
+  animation: pop-in var(--duration-base) var(--ease-out) both;
 }
 
 /* The Architect's speech bubble arriving above its face (#2075): rising a few
@@ -2053,35 +2092,17 @@ body .tour-spotlight {
      that is what it is now - a class called `glass` that is not glass is the
      kind of name this codebase spends its comments avoiding. */
   .panel {
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 8%, transparent);
     background: var(--color-popover);
     box-shadow:
       0 1px 2px 0 rgb(0 0 0 / 0.08),
       0 12px 40px -12px rgb(0 0 0 / 0.3);
   }
-  /* The same panel over a dimmed overlay - a dialog, a drawer. It was the
-     nearly-opaque variant back when the ordinary one was see-through; with
-     both solid the only difference left is the surface it sits on, and a
-     sheet sits on `card` so its own contents are on the card colour they
-     would be anywhere else. */
-  /* The chat's composer over the transcript: the panel's own colour, partly
-     clear and blurred, so what scrolls behind it reads as depth rather than as
-     text cut off at an opaque edge. Declared after .panel so it wins. */
-  /* The composer sits on the page, not over it: a card's shadow, not a menu's.
-     The panel's long drop read as a dark haze under the box. */
+  /* Keep the typing surface opaque so scrolling text cannot compete with a draft. */
   .panel.composer-box {
-    box-shadow: var(--shadow-card);
-  }
-  .composer-glass {
-    /* Clearer at the top, where the text is typed, and nearly solid by the row
-       of controls, which have to read whatever has scrolled behind them. */
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--color-popover) 66%, transparent),
-      color-mix(in oklab, var(--color-popover) 94%, transparent)
-    );
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    backdrop-filter: blur(18px) saturate(1.4);
+    background: var(--color-card);
+    border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
+    box-shadow: 0 4px 20px -8px rgb(0 0 0 / 0.12);
   }
   /* Menus, popovers and select lists: open for a moment and closed again, so
      the blur the .panel note retired from everything costs a frame or two here,
@@ -2544,10 +2565,11 @@ body .tour-spotlight {
 }
 
 @utility animate-in {
-  animation: overlay-enter var(--tw-duration, 180ms) var(--tw-ease, var(--ease-out)) both;
+  animation: overlay-enter var(--tw-duration, var(--duration-base)) var(--tw-ease, var(--ease-out))
+    both;
 }
 @utility animate-out {
-  animation: overlay-exit var(--tw-duration, 130ms) cubic-bezier(0.4, 0, 1, 1) both;
+  animation: overlay-exit var(--tw-duration, var(--duration-fast)) var(--ease-out) both;
 }
 @utility fade-in-* {
   --tw-enter-opacity: calc(--value(integer) * 1%);
@@ -2923,6 +2945,26 @@ body .tour-spotlight {
     min-height: 44px;
     padding-block: 10px;
   }
+  /* Keep the scroll gesture, without a scrollbar beside the send action. */
+  .chat-input-form .composer-editor {
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  .chat-input-form .composer-editor::-webkit-scrollbar {
+    display: none;
+  }
+  /* The hit area stays 44px; only the visible action face is compact. */
+  .chat-input-form .chat-input-primary {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .chat-input-form .chat-input-primary-face {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
   .chat-input-form[data-editing] .chat-input-actions > button,
   .chat-input-form[data-editing] .chat-input-send > button {
     min-height: 44px;
@@ -2937,8 +2979,46 @@ body .tour-spotlight {
     order: 0;
     width: 100%;
   }
-  .chat-surface:has(.chat-input-form[data-editing]) .chat-empty-state,
-  .chat-surface:has(.chat-input-form[data-editing]) .chat-composer-suggestions {
+  /* A programmatic focus does not mean the person has started writing. */
+  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) {
+    justify-content: flex-end;
+  }
+  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) [data-transcript] {
+    padding-block: 0;
+  }
+  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-empty-state,
+  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-composer-suggestions,
+  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-home-hints {
     display: none;
   }
+}
+
+/* Default UI glyphs share a quieter optical weight. Explicit weights (status
+   marks, loaders, diagrams) and provider logos retain their own treatment. */
+@layer base {
+  :where(svg.lucide[stroke-width="2"]) {
+    stroke-width: 1.75;
+  }
+}
+
+/* Recharts makes SVG groups focusable for keyboard navigation. Pointer clicks
+   must not leave the browser's blue outline around an entire series; the
+   shared :focus-visible rule still identifies keyboard focus. */
+@layer base {
+  .recharts-wrapper :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* Deferred content fades into its reserved slot; it never pushes the page as an effect. */
+@keyframes soft-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.soft-enter {
+  animation: soft-enter var(--duration-base) var(--ease-out) both;
 }

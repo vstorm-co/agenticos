@@ -2624,3 +2624,30 @@ class TestPreferences:
 
         assert len(written) == 1
         assert written[0].in_app_visible is False
+
+
+@pytest.mark.security
+async def test_routine_policy_database_errors_propagate_without_a_savepoint(db, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.services import notification_center
+
+    owner = await _user(db)
+    org = await _org(db, owner)
+    monkeypatch.setattr(
+        notification_center,
+        "routine_channels",
+        AsyncMock(side_effect=SQLAlchemyError("policy lookup failed")),
+    )
+    with pytest.raises(SQLAlchemyError, match="policy lookup failed"):
+        await NotificationCenterService(db).write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="routine-policy-failed",
+            organization_id=org.id,
+            summary="Result",
+            render_context={"routine_origin_id": str(uuid.uuid4())},
+            use_savepoint=False,
+        )

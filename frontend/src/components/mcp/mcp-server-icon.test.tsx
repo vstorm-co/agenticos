@@ -13,6 +13,24 @@ vi.mock("@/components/icons/custom-icons", async () => {
 });
 
 describe("McpServerIcon", () => {
+  it("uses a calendar pictogram for CalendarMCP without pretending it is an official Google server", () => {
+    const { container } = render(<McpServerIcon icon={null} name="CalendarMCP" />);
+    expect(container.querySelector("svg")).toHaveClass("lucide-calendar-days");
+    expect(container.textContent).toBe("");
+    expect(container.querySelector("[src]")).toBeNull();
+  });
+
+  it("uses the category when a registry service has no recognizable product name", () => {
+    const { container } = render(<McpServerIcon icon={null} name="Acme" category="data" />);
+    expect(container.querySelector("svg")).toHaveClass("lucide-database");
+  });
+
+  it("keeps an unknown registry category recognizable without a broken logo request", () => {
+    const { container } = render(<McpServerIcon icon={null} name="Acme" category="new-category" />);
+    expect(container.querySelector("svg")).toHaveClass("lucide-wrench");
+    expect(container.querySelector("[src]")).toBeNull();
+  });
+
   it("draws a deployment-supplied mark for a name no compiled set carries", () => {
     // The cascade's middle step: the operator dropped `acme.svg` beside the
     // catalog, so an entry with `icon: "acme"` gets its mark rather than the

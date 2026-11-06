@@ -38,7 +38,10 @@ async def _client() -> AsyncIterator[AsyncClient]:
 
 def _decision() -> EventFireDecision:
     return EventFireDecision(
-        trigger_id=uuid4(), event_context="an issue was opened", organization_id=uuid4()
+        trigger_id=uuid4(),
+        source_policy_id=uuid4(),
+        event_context="an issue was opened",
+        organization_id=uuid4(),
     )
 
 
