@@ -9,6 +9,7 @@ dropped the operator's table. Only a real `WHERE` answers whether a predicate
 keeps owners apart, so these run against Postgres.
 """
 
+import json
 import uuid
 
 import pytest
@@ -22,6 +23,7 @@ from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
 from app.repositories import rag_document_repo
+from app.repositories.rag_document import CollectionScope
 from app.services.collection_access import CollectionAccessService
 from app.services.rag_document import RAGDocumentService
 
@@ -340,3 +342,83 @@ class TestAClaimDoesNotAdoptUnownedContent:
         assert not await rag_document_repo.table_holds_chunks_outside(
             db, collection_name="manuals", tenant=uuid.uuid4()
         )
+
+
+async def _chunks(db: AsyncSession, collection_name: str, *metadata: dict[str, str]) -> None:
+    """A `rag_<name>` table holding one chunk per `metadata`."""
+    table = f"rag_{collection_name}"
+    await db.execute(
+        text(f"CREATE TABLE {table} (id VARCHAR(100) PRIMARY KEY, metadata JSONB DEFAULT '{{}}')")
+    )
+    for index, meta in enumerate(metadata):
+        await db.execute(
+            text(f"INSERT INTO {table} (id, metadata) VALUES (:id, CAST(:meta AS JSONB))"),  # noqa: S608
+            {"id": f"c{index}", "meta": json.dumps(meta)},
+        )
+
+
+class TestALastHolderAsksTheTableWhatIsNotItsOwn:
+    """What keeps a last holder's table: an unfiled chunk its tenant does not hold.
+
+    A filed chunk is never what keeps it. With the last base gone none is read by
+    any scope, and one filed under a base deleted a moment ago is waiting for its
+    purge (#2537)."""
+
+    @pytest.mark.security
+    async def test_an_organizations_base_is_kept_from_any_other_tenants_chunk(
+        self, db: AsyncSession
+    ) -> None:
+        org, _ = await _org(db, "Alpha")
+        other, _ = await _org(db, "Beta")
+        for name, metadata in (
+            ("untagged", {}),
+            ("other", {"organization_id": str(other.id)}),
+        ):
+            base = await _kb(db, name, org.id)
+            await _chunks(db, name, metadata)
+            assert await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(base))
+
+    @pytest.mark.security
+    async def test_its_own_and_filed_chunks_keep_no_table(self, db: AsyncSession) -> None:
+        org, _ = await _org(db, "Alpha")
+        other, _ = await _org(db, "Beta")
+        base = await _kb(db, "docs", org.id)
+        await _chunks(
+            db,
+            "docs",
+            {"organization_id": str(org.id)},
+            {"organization_id": str(org.id), "knowledge_base_id": str(base.id)},
+            {"organization_id": str(other.id), "knowledge_base_id": str(uuid.uuid4())},
+            {"knowledge_base_id": str(uuid.uuid4())},
+        )
+        assert not await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(base))
+
+    @pytest.mark.security
+    async def test_an_app_scoped_base_takes_the_untagged_chunks_only(
+        self, db: AsyncSession
+    ) -> None:
+        org, _ = await _org(db, "Alpha")
+        takes = await _kb(db, "takes", None, scope=KBScope.APP.value)
+        await _chunks(db, "takes", {})
+        assert not await rag_document_repo.table_holds_unfiled_outside(
+            db, CollectionScope.of(takes)
+        )
+
+        kept = await _kb(db, "kept", None, scope=KBScope.APP.value)
+        await _chunks(db, "kept", {"organization_id": str(org.id)})
+        assert await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(kept))
+
+    @pytest.mark.security
+    async def test_a_personal_base_outside_an_organization_takes_no_unfiled_chunk(
+        self, db: AsyncSession
+    ) -> None:
+        """Its tenant `None` is the app scope's, so the operator's untagged chunks
+        are as foreign to it as to an organization's base."""
+        base = await _kb(db, "mine", None, scope=KBScope.PERSONAL.value)
+        await _chunks(db, "mine", {})
+        assert await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(base))
+
+    async def test_no_table_keeps_nothing(self, db: AsyncSession) -> None:
+        org, _ = await _org(db, "Alpha")
+        base = await _kb(db, "docs", org.id)
+        assert not await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(base))

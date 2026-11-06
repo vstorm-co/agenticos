@@ -296,10 +296,11 @@ class CollectionAccessService:
 
         Content no base owns is the third refusal (#2747). A name can hold rows
         and chunks with no knowledge base behind them - `rag-ingest` writes both,
-        tagged with no organization - and the last holder's teardown drops the
-        name's table. A claim adopting such a name let a member with ordinary
-        `collections:edit` create a base on it and delete that base, dropping the
-        operator's chunks with it. So a name no base holds is refused while it
+        tagged with no organization. A claim adopting such a name let a member with
+        ordinary `collections:edit` create a base on it and, in deleting that base,
+        drop the operator's chunks. The last holder's teardown now keeps a table
+        holding such chunks; this keeps the name from being adopted at all, an
+        ingest still running included. So a name no base holds is refused while it
         holds unfiled rows describing chunks of any tenant but the caller's
         organization, or a vector table with such chunks. A name a base holds is
         not checked: the caller passed `writable_kb` on every holder, and may
@@ -329,8 +330,9 @@ class CollectionAccessService:
         for kb in holders:
             if not await writable_kb(self.db, ctx, kb):
                 raise _taken(name)
-        # A caller who may write every holder may already delete or clear them all
-        # and drop the table with them, so a held name has nothing more to refuse.
+        # A caller who may write every holder may already delete or clear them all,
+        # so a held name has nothing more to refuse: the teardown spares what is not
+        # theirs.
         if ctx.is_app_admin or holders:
             return
         if await rag_document_repo.holds_unfiled_outside(

@@ -31,6 +31,10 @@ def _nothing_left_unindexed(monkeypatch: pytest.MonkeyPatch) -> None:
     """A last holder's teardown marks another tenant's rows left under the name;
     the statement hits the database, so it is a no-op unless a test asserts it."""
     monkeypatch.setattr("app.repositories.rag_document_repo.mark_unindexed", AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.table_holds_unfiled_outside",
+        AsyncMock(return_value=False),
+    )
 
 
 @pytest.fixture(autouse=True)

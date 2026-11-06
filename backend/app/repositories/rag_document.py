@@ -833,6 +833,10 @@ async def holds_unfiled_outside(db: AsyncSession, *, collection_name: str, tenan
     return bool(result.scalar())
 
 
+# A chunk's `metadata` column in a `rag_<name>` table, which no model maps.
+_CHUNK_METADATA = column("metadata", JSONB)
+
+
 async def table_holds_chunks_outside(
     db: AsyncSession, *, collection_name: str, tenant: UUID
 ) -> bool:
@@ -842,22 +846,45 @@ async def table_holds_chunks_outside(
     another organization's, is not this tenant's to adopt. A table that does not
     exist holds nothing.
     """
+    return await _table_holds(
+        db,
+        collection_name,
+        _CHUNK_METADATA["organization_id"].astext.is_distinct_from(str(tenant)),
+    )
+
+
+async def table_holds_unfiled_outside(db: AsyncSession, scope: CollectionScope) -> bool:
+    """Whether the base's table holds an unfiled chunk the base does not take.
+
+    For the last holder of a name, whose caller has no authority over such a chunk:
+    `rag-ingest` and the CLI syncs write them into a held name, the syncs with no
+    tracking row, so the table is asked rather than the rows (#2747). A chunk the
+    base takes goes with it. A filed one is never in the way: with no other base
+    on the name it is the base's own, or a deleted base's awaiting its purge.
+    """
+    outside = _CHUNK_METADATA["knowledge_base_id"].astext.is_(None)
+    if scope.takes_unfiled:
+        tenant = None if scope.tenant is None else str(scope.tenant)
+        outside = and_(outside, _CHUNK_METADATA["organization_id"].astext.is_distinct_from(tenant))
+    return await _table_holds(db, scope.collection_name, outside)
+
+
+async def _table_holds(
+    db: AsyncSession, collection_name: str, matching: ColumnElement[bool]
+) -> bool:
+    """Whether the name's vector table holds a chunk `matching` selects.
+
+    A table that does not exist holds nothing. No index serves these predicates
+    (the tenant's is a hash index, and neither it nor the base's btree finds a
+    missing tag), so a table with no match is scanned to the end. Asked only by a
+    claim of a name no base holds and by a last holder's teardown, both rare.
+    """
     validate_collection_name(collection_name, metadata=Base.metadata)
     name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
     if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
         return False
-    metadata = column("metadata", JSONB)
-    runtime = table(name, metadata, schema="public")
-    # No index serves `IS DISTINCT FROM` (the tag's is a hash index), so a table
-    # holding only the caller's chunks is scanned to the end. Asked only when a name
-    # no base holds is claimed, which is rare.
-    result = await db.execute(
-        select(
-            exists()
-            .select_from(runtime)
-            .where(metadata["organization_id"].astext.is_distinct_from(str(tenant)))
-        )
-    )
+    runtime = table(name, schema="public")
+    result = await db.execute(select(exists().select_from(runtime).where(matching)))
     return bool(result.scalar())
 
 
