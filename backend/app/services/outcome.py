@@ -195,8 +195,8 @@ class OutcomeService:
         if ctx.api_key_id is None and ctx.key_scopes is None:
             return
         _caller(ctx)
-        if ctx.source_conversation_id is None:
-            raise AuthorizationError(message="Inbox cases require a private conversation")
+        # _caller already refuses a key without its private source conversation.
+        assert ctx.source_conversation_id is not None
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, ctx.source_conversation_id, fresh=True
         )

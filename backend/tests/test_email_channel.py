@@ -389,6 +389,7 @@ class TestPromptsAndFiles:
 async def _client(bot: object | None) -> AsyncIterator[AsyncClient]:
     db = MagicMock()
     db.info = {}
+    db.execute = AsyncMock()
     app.dependency_overrides[deps.get_db_session] = lambda: db
     register_adapter(EmailAdapter())
     try:
@@ -445,6 +446,10 @@ class TestTheWebhook:
             patch("app.api.routes.v1.email_webhook.unseal_webhook_secret", return_value=secret),
             patch("app.api.routes.v1.email_webhook.unseal_bot_token", return_value=BOT_ADDRESS),
             patch("app.services.channels.email.enqueue", new=queue),
+            patch(
+                "app.services.channels.email.background_job_repo.retained_payload_usage",
+                new=AsyncMock(return_value=(0, 0)),
+            ),
             patch(
                 "app.services.channels.email.background_job_repo.get_by_idempotency_key",
                 new=existing,

@@ -144,7 +144,7 @@ async def test_a_conversation_first_reached_from_a_channel_is_named_for_the_agen
 
 
 @pytest.mark.parametrize("private", [True, False])
-async def test_imessage_shares_only_the_linked_private_primary_conversation(
+async def test_imessage_keeps_private_console_history_separate_from_channel_history(
     db: AsyncSession,
     private: bool,
 ) -> None:
@@ -193,7 +193,7 @@ async def test_imessage_shares_only_the_linked_private_primary_conversation(
         chosen = await ChannelMessageRouter._first_conversation(incoming, bot, identity, db)
     finally:
         await adapter.aclose()
-    assert (chosen == console) is private
+    assert chosen != console
     same_owner = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
     other_owner = await PrimaryConversationService(db).open(ctxs[1], agents[0].id)
     assert same_owner == console
@@ -306,7 +306,10 @@ async def test_rebinding_a_bot_rotates_the_previous_agents_primary_history(
     session = await router._resolve_session(incoming, bot, identity, db)
     previous = session.conversation_id
     first_primary = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
-    assert previous == first_primary
+    assert previous != first_primary
+    # Simulate a session created by the legacy private-history sharing policy.
+    session.conversation_id = first_primary
+    await db.flush()
     await db.delete(exposure)
     await db.flush()
     db.add(
@@ -317,4 +320,4 @@ async def test_rebinding_a_bot_rotates_the_previous_agents_primary_history(
     await db.flush()
     changed = await router._resolve_session(incoming, bot, identity, db)
     second_primary = await PrimaryConversationService(db).open(ctxs[0], agents[1].id)
-    assert changed.conversation_id == second_primary and changed.conversation_id != previous
+    assert changed.conversation_id not in {first_primary, second_primary, previous}

@@ -311,9 +311,12 @@ class ApprovalService:
     ) -> UUID | None:
         """Recheck current authority before consuming a scoped, version-pinned human choice."""
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
-        if not self.can_remember_in_run(ctx, run) or not await self._may_remember(ctx):
-            return None
-        if run is None or ctx.user_id is None:
+        if (
+            run is None
+            or ctx.user_id is None
+            or not self.can_remember_in_run(ctx, run)
+            or not await self._may_remember(ctx)
+        ):
             return None
         consent = await agent_run_repo.remembered_tool_approval(
             self.db,

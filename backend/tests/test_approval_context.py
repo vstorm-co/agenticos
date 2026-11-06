@@ -279,3 +279,79 @@ class TestWhichToolsAreDescribed:
             }
         finally:
             REGISTRY.pop("test_described")
+
+
+def test_only_tools_with_their_own_describer_are_enriched() -> None:
+    from app.agents.capabilities.approval._policy import approval_describers
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+
+    @register(
+        id="partial_described",
+        name="Partial",
+        category="test",
+        description="Mixed",
+        tools=(
+            CapabilityToolInfo(id="write", description="Writes"),
+            CapabilityToolInfo(id="read", description="Reads"),
+        ),
+        describers={"write": AsyncMock()},
+    )
+    def build(_ctx: CapabilityBuildContext) -> None:
+        return None
+
+    try:
+        assert set(
+            approval_describers(
+                AgentSpec(
+                    name="Mixed", capabilities=[CapabilityBindingSpec(id="partial_described")]
+                )
+            )
+        ) == {"write"}
+    finally:
+        REGISTRY.pop("partial_described")
+
+
+@pytest.mark.parametrize("mode", ["all", "load", "other", "none"])
+async def test_replayed_skill_loads_cannot_bypass_the_current_gate(mode: str) -> None:
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        CapabilityLoadDeltaPart,
+        ModelRequest,
+        ModelResponse,
+        TextPart,
+        UserPromptPart,
+    )
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.capabilities._registry import LOAD_CAPABILITY
+    from app.agents.deps import AgentDeps
+
+    gate = ApprovalGate(
+        gate_every_tool=mode == "all",
+        required_tool_names=frozenset({LOAD_CAPABILITY if mode == "load" else "other"})
+        if mode != "none"
+        else frozenset(),
+    )
+    restored = CapabilityLoadDeltaPart(
+        loaded=["skills:test"], tool_call_id="agenticos:restored-loads"
+    )
+    approved = CapabilityLoadDeltaPart(loaded=["skills:approved"], tool_call_id="approved-call")
+    prompt = UserPromptPart(content="Continue")
+    request = ModelRequest(parts=[prompt, restored, approved])
+    response = ModelResponse(parts=[TextPart(content="Earlier answer")])
+    ctx = RunContext(
+        deps=AgentDeps(),
+        model=TestModel(),
+        usage=RunUsage(),
+        messages=[request, response, ModelRequest(parts=[restored])],
+    )
+    handler = AsyncMock(return_value=object())
+    assert await gate.wrap_run(ctx, handler=handler) is handler.return_value
+    gated = mode in {"all", "load"}
+    assert any(part is restored for message in ctx.messages for part in message.parts) is (
+        not gated
+    )
+    assert any(part is approved for message in ctx.messages for part in message.parts)
+    assert request.parts == [prompt, restored, approved]
+    assert response in ctx.messages

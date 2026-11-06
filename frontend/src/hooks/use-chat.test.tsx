@@ -5992,12 +5992,19 @@ it.each(["completed", "awaiting_approval"] as const)(
       resumed_run_id: "resume-run",
     });
     receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "next-call", tool_name: "change_record", args: {} });
+    receive("tool_call", { tool_call_id: "read-call", tool_name: "read_record", args: {} });
+    receive("tool_result", { tool_call_id: "read-call", result: "Read" });
     receive("text_delta", { index: 0, content: "Approved and done" });
     act(() => {
       useWorkingStore.getState().start("c-resume", "2026-11-06T09:00:00Z");
       useWorkingStore.getState().handOff("c-resume");
     });
-    receive("message_saved", { message_id: "persisted-resume", conversation_id: "c-resume" });
+    receive("message_saved", {
+      message_id: "persisted-resume",
+      conversation_id: "c-resume",
+      run_id: "resume-run",
+    });
     receive("turn_followed_to_end", { conversation_id: "c-resume" });
     await act(async () => {
       finish({

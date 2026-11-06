@@ -101,7 +101,16 @@ class PersonalExecutor:
 
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "outcome", ["structured", "edited", "unstructured", "non-text", "refused", "subscription"]
+    "outcome",
+    [
+        "structured",
+        "edited",
+        "unstructured",
+        "non-text",
+        "refused",
+        "subscription",
+        "unstructured_read",
+    ],
 )
 async def test_profile_execution_uses_only_the_persons_key_and_private_workspace(
     tmp_path: Path,
@@ -157,7 +166,7 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
                 from app.core.exceptions import BadRequestError
 
                 raise BadRequestError(message="Budget refused")
-            if outcome == "unstructured":
+            if outcome in {"unstructured", "unstructured_read"}:
                 return f"Unstructured result {KEY}"
             return CodingReport(
                 harness="claude_code",
@@ -186,7 +195,7 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
         return
     result = await outer.tools["run_coding_agent"].function(ctx, "Do the task")
     assert isinstance(result, str)
-    if outcome in {"unstructured", "refused"}:
+    if outcome in {"unstructured", "unstructured_read", "refused"}:
         assert KEY not in result and executor.closed
         if editable:
             discard.assert_awaited()
@@ -230,3 +239,28 @@ async def test_personal_mode_without_initiating_authority_never_uses_the_tool_ke
     )
     result = await toolset.tools["run_coding_agent"].function(ctx, task)
     assert "Scheduled jobs and channel publishers cannot borrow your account" in result
+
+
+async def test_personal_coding_requires_a_nonempty_task_before_opening_the_account(
+    tmp_path: Path,
+) -> None:
+    isolated = Workspace(LocalWorkspaceBackend(tmp_path))
+    executor = PersonalExecutor(isolated)
+    outer = _toolset.build_coding_toolset(
+        harness="claude_code",
+        access="read_only",
+        model=None,
+        base_url=None,
+        api_key=None,
+        timeout_seconds=60,
+        runs_on="personal_sandbox",
+        personal_executor=executor,
+    )
+    ctx = RunContext(
+        deps=AgentDeps(organization_id=uuid4(), user_id=str(uuid4())),
+        model=TestModel(),
+        usage=RunUsage(),
+    )
+    result = await outer.tools["run_coding_agent"].function(ctx, "  ")
+    assert "Describe the coding task first" in result
+    assert not executor.closed

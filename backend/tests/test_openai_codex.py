@@ -419,3 +419,17 @@ class TestReadingThePastedAddress:
     def test_an_address_without_a_code_and_a_state_is_refused(self, pasted):
         with pytest.raises(BadRequestError, match="Paste the whole address"):
             openai_codex._read_callback(pasted)
+
+
+async def test_personal_sign_in_returns_an_owner_bound_grant_without_an_org_secret() -> None:
+    ctx = _ctx()
+    service = OpenAICodexService(MagicMock(), _redis())
+    url = await service.start_sign_in(ctx)
+    with patch.object(
+        openai_codex.OpenAICodexOAuthFlow, "exchange_code", AsyncMock(return_value=_pair())
+    ):
+        pair = await service.finish_personal_sign_in(ctx, _callback(url))
+    assert pair.account_id == "acct-1234abcd"
+    assert pair.refresh_token.get_secret_value() == "refresh-1"
+    with pytest.raises(BadRequestError, match="expired or was already used"):
+        await service.finish_personal_sign_in(ctx, _callback(url))

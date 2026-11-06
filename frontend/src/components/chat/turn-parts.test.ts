@@ -1,8 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { MessagePart, ToolCall } from "@/types";
 
-import { browseCalls, type PartRun } from "./turn-parts";
+import { TurnParts, browseCalls, type PartRun } from "./turn-parts";
+
+vi.mock("@/components/phone/phone-call-card", () => ({
+  PhoneCallCard: ({ callId }: { callId: string }) =>
+    createElement("span", null, `Phone call ${callId}`),
+}));
 
 function tool(id: string, name: string): MessagePart {
   const toolCall: ToolCall = { id, name, args: {}, status: "completed" };
@@ -95,4 +102,29 @@ it("leaves a final answer without prior work directly visible", async () => {
   expect(
     foldWork(runsOf([{ id: "answer", type: "text", content: "Hello." }]), false, false),
   ).toBeNull();
+});
+
+it("keeps a telephone receipt visible as a result of the turn", () => {
+  render(
+    createElement(TurnParts, {
+      parts: [{ id: "receipt", type: "phone_call", phoneCallId: "call-1" }],
+      isStreaming: false,
+      isUser: false,
+      mcpServers: [],
+    }),
+  );
+  expect(screen.getByText("Phone call call-1")).toBeVisible();
+});
+
+it("does not treat incomplete or nonvisual tool steps as visual artifacts", async () => {
+  const { visualCalls } = await import("./turn-parts");
+  const runs: PartRun[] = [
+    {
+      kind: "tools",
+      isLast: false,
+      parts: [{ id: "pending", type: "tool" }, tool("read", "read_file")],
+    },
+    { kind: "other", isLast: true, part: { id: "text", type: "text" }, content: "Done" },
+  ];
+  expect(visualCalls(runs)).toEqual([]);
 });

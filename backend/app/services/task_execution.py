@@ -348,9 +348,7 @@ class TaskExecution:
         table = await self._live_table(board)
         if not table:
             return
-        recipient = fields.assignee_user_id or ctx.user_id
-        if recipient is None:
-            return
+        recipient = fields.assignee_user_id or ctx.subject_id
         recipient_ctx = await member_context(
             self.db, organization_id=payload.organization_id, user_id=recipient
         )

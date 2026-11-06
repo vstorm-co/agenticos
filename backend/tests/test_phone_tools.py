@@ -69,11 +69,13 @@ async def test_removed_member_cannot_request_contact(method, admission):
     admission[0].commit.assert_not_awaited()
 
 
-@pytest.mark.parametrize("change", ["valid", "missing", "other_agent", "denied"])
+@pytest.mark.parametrize("change", ["valid", "no_conversation", "missing", "other_agent", "denied"])
 async def test_policy_lists_only_current_agent_cases_without_phone_numbers(
     monkeypatch, admission, change
 ):
     ctx = context()
+    if change == "no_conversation":
+        ctx.deps.conversation_id = None
     monkeypatch.setattr(
         agent_registry.AgentRegistryService,
         "get",
@@ -102,7 +104,7 @@ async def test_policy_lists_only_current_agent_cases_without_phone_numbers(
     cases = AsyncMock(return_value=[SimpleNamespace(id=case_id, summary="x" * 600)])
     monkeypatch.setattr(repo, "open_phone_cases", cases)
     result = await PhoneCallTools(uuid4()).get_phone_contact_policy(ctx)
-    if change == "valid":
+    if change in ("valid", "no_conversation"):
         parsed = json.loads(result)
         assert parsed["open_cases"] == [{"outcome_id": str(case_id), "summary": "x" * 500}]
         assert parsed["importance_instructions"] == "Only urgent blocks"

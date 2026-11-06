@@ -168,3 +168,9 @@ def test_credential_whitespace_is_rejected_without_changing_the_secret() -> None
         CodingAccountCreate(
             harness="codex", label="Mine", api_key=SecretStr(" key-with-whitespace ")
         )
+
+
+def test_empty_redaction_values_do_not_erase_the_report() -> None:
+    from app.agents.capabilities.coding_agent._redaction import redact_text
+
+    assert redact_text("A private-token result", ("", "private-token")) == "A [redacted] result"

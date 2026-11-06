@@ -380,6 +380,7 @@ async def test_missing_trigger_is_not_a_successful_installation(db: AsyncSession
         await ProjectTrackingService(db)._read(ctx, row)
 
 
+@pytest.mark.security
 async def test_tracker_refuses_a_secret_rotated_during_trigger_admission(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
