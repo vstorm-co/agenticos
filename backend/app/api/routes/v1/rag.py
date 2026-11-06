@@ -234,13 +234,15 @@ async def drop_collection(
     KB row go in the request; the
     stored files and the vector table are torn down by the durable cleanup the
     service hands over after the commit, which takes the collection-teardown lock
-    and re-reads the reference check before dropping only what no base still
-    claims (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
+    and drops only a name the delete reserved
+    (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
     another base - possibly another organization's - still holds it, only this
     base's documents go and its chunks are purged from the kept table (#2560).
-    When it is the last holder, another tenant's unfiled rows under the name
-    stay, marked as failed since their chunks go with the table (#2568). So the
-    route no longer wires a store in.
+    When it is the last holder the table goes too, and another tenant's unfiled
+    rows under the name stay, marked as failed (#2568), unless the table holds
+    unfiled chunks the base does not take - an operator's `rag-ingest`, another
+    tenant's: then it stays for them, the same purge applies, and those rows are
+    left as they are (#2747). So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
     await kb_svc.delete_for_rag_collection(collection)

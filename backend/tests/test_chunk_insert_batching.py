@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.db.vector_tables import VectorScope
+from app.repositories import collection_teardown_repo
 from app.services.rag import vectorstore as vectorstore_module
 from app.services.rag.models import (
     Document,
@@ -89,6 +90,12 @@ def _store(session: RecordingSession, *, dim: int = 3) -> PgVectorStore:
     store._ensure_collection = AsyncMock()  # ty: ignore[invalid-assignment]
     store._for_collection = AsyncMock(return_value=(embedder, dim))  # ty: ignore[invalid-assignment]
     return store
+
+
+@pytest.fixture(autouse=True)
+def _name_free_to_write(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The name's hold is not one of the statements these count."""
+    monkeypatch.setattr(collection_teardown_repo, "hold_unreserved", AsyncMock(return_value=True))
 
 
 class TestHowManyStatementsOneDocumentCosts:

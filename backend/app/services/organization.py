@@ -838,8 +838,8 @@ class OrganizationService:
         # A store is wired only on the teardown path, and it is the signal to clean up
         # the vector tables. A collection another organization still references is left
         # alone - the name is not tenant-unique (#913). The rest are dropped by the
-        # deferred cleanup, which re-reads the reference check under the teardown lock
-        # (#1355), and every one of them is reserved, so a claim in the
+        # deferred cleanup, under the teardown lock (#1355) and only while reserved,
+        # and every one of them is reserved here, so a claim in the
         # commit-to-drop window is refused rather than adopting the still-populated
         # table (#1362). Both readings below therefore happen under the name's lock:
         # the ones the snapshot saw are already held, and one created since is taken
