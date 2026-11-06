@@ -1,5 +1,5 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "50909fb55378"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -495,9 +495,12 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 ## Lo que no hace a propósito { #what-it-deliberately-does-not-do }
 
 - **Sin guardia de navegación.** Un enlace que sale del origen del servidor se abre
-  en la ventana, porque un flujo OAuth - conectar un servidor MCP - tiene que volver
-  al mismo webview para que su cookie llegue. El título de la ventana nombra
-  cualquier otro host que muestre.
+  en la ventana, porque algunos flujos OAuth - conectar una cuenta para un terminal -
+  tienen que volver al mismo webview para que su cookie llegue. El título de la
+  ventana nombra cualquier otro host que muestre. Conectar un servidor MCP no es uno
+  de ellos: su consentimiento se abre en tu propio navegador, donde están tus
+  sesiones y passkeys, porque el callback se autentica solo con su `state`. Termina
+  allí y vuelve; el servidor aparece en la app cuando queda autorizado.
 
 - **Sin acceso permanente.** Vincular el ordenador no concede nada por sí solo: un
   run llega solo a las carpetas que elegiste, en los modos que elegiste, y a la

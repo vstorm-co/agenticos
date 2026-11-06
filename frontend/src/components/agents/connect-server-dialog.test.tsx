@@ -26,6 +26,11 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
   useMcpConnections: () => ({ create: createOwn, connections: held.own }),
 }));
 vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
+const shell = vi.hoisted(() => ({ desktop: false, openConsent: vi.fn() }));
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () => (shell.desktop ? { platform: "macos", window: "main" } : null),
+}));
+vi.mock("@/lib/desktop/commands", () => ({ openConsent: shell.openConsent }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
@@ -150,6 +155,25 @@ describe("ConnectServerDialog", () => {
   });
 
   describe("OAuth", () => {
+    it("signs in through the person's browser in the desktop app, leaving the console", async () => {
+      shell.desktop = true;
+      shell.openConsent.mockResolvedValue(undefined);
+      const opened = vi.spyOn(window, "open");
+      const assign = vi.fn();
+      Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(shell.openConsent).toHaveBeenCalledWith("https://consent"));
+        expect(opened).not.toHaveBeenCalled();
+        expect(assign).not.toHaveBeenCalled();
+        expect(toast.info).toHaveBeenCalled();
+      } finally {
+        shell.desktop = false;
+      }
+    });
+
     it("sends a client registered by hand, for a server that registers none itself", async () => {
       // HubSpot publishes no registration endpoint: without these two fields
       // the flow ended at "This server rejected the client registration

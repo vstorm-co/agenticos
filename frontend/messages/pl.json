@@ -7040,6 +7040,7 @@
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
     "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
+    "finishConsentInBrowser": "Dokończ logowanie w przeglądarce i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
     "consentTabBlocked": "Przeglądarka zablokowała kartę logowania. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
     "fromRegistry": "Rejestr",
     "fromRegistryHint": "Z publicznego rejestru MCP. Nikt tutaj go nie sprawdzał: opis pochodzi od wydawcy i nie ma wskazówek, jakiego poświadczenia wymaga.",

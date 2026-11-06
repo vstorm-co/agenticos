@@ -1,5 +1,5 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "50909fb55378"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -477,9 +477,12 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 ## Czego celowo nie robi { #what-it-deliberately-does-not-do }
 
 - **Brak strażnika nawigacji.** Link wychodzący poza origin serwera otwiera się w
-  oknie, bo przepływ OAuth - podłączanie serwera MCP - musi wrócić do tego samego
-  webview, żeby jego ciasteczko trafiło na miejsce. Tytuł okna nazywa każdy inny
-  host, który pokazuje.
+  oknie, bo niektóre przepływy OAuth - podłączanie konta dla terminala - muszą
+  wrócić do tego samego webview, żeby ich ciasteczko trafiło na miejsce. Tytuł okna
+  nazywa każdy inny host, który pokazuje. Podłączanie serwera MCP do nich nie
+  należy: jego zgoda otwiera się w twojej przeglądarce, gdzie są twoje logowania i
+  passkeye, bo callback uwierzytelnia sam `state`. Dokończ tam i wróć; serwer
+  pojawi się w aplikacji po autoryzacji.
 
 - **Brak stałego dostępu.** Połączenie komputera samo niczego nie daje: run sięga
   tylko zatwierdzonych folderów lub całego komputera po osobnej zgodzie dla rozmowy, a ekranu dopiero po

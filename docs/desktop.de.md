@@ -1,5 +1,5 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "50909fb55378"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -506,9 +506,13 @@ seiner eigenen öffentlichen Adresse.
 ## Was sie bewusst nicht tut { #what-it-deliberately-does-not-do }
 
 - **Kein Navigationswächter.** Ein Link, der den Origin des Servers verlässt,
-  öffnet sich im Fenster, weil ein OAuth-Ablauf - das Verbinden eines MCP-Servers -
-  zur selben Webview zurückkehren muss, damit sein Cookie ankommt. Der Fenstertitel
-  nennt jeden anderen Host, den es zeigt.
+  öffnet sich im Fenster, weil manche OAuth-Abläufe - das Verbinden eines Kontos für
+  ein Terminal - zur selben Webview zurückkehren müssen, damit ihr Cookie ankommt.
+  Der Fenstertitel nennt jeden anderen Host, den es zeigt. Das Verbinden eines
+  MCP-Servers gehört nicht dazu: Seine Zustimmung öffnet sich in Ihrem eigenen
+  Browser, wo Ihre Anmeldungen und Passkeys sind, weil der Callback allein durch
+  seinen `state` authentifiziert wird. Schließen Sie sie dort ab und kehren Sie
+  zurück; der Server erscheint in der App, sobald er autorisiert ist.
 
 - **Kein dauerhafter Zugriff.** Das Verknüpfen des Computers gewährt für sich
   nichts: Ein Run erreicht nur die Ordner, die Sie gewählt haben, in den Modi, die

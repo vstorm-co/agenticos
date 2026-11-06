@@ -465,9 +465,12 @@ and about its own public address.
 ## What it deliberately does not do
 
 - **No navigation guard.** A link that leaves the server's origin opens inside the
-  window, because an OAuth flow - connecting an MCP server - has to come back to
-  the same webview for its cookie to land. The window's title names any other host
-  it shows.
+  window, because some OAuth flows - connecting an account for a terminal - have to
+  come back to the same webview for their cookie to land. The window's title names
+  any other host it shows. Connecting an MCP server is not one of them: its consent
+  opens in your own browser, where your sign-ins and passkeys are, because the
+  callback is authenticated by its `state` alone. Finish there and come back; the
+  server appears in the app once it is authorised.
 
 - **No standing access.** Linking the computer grants nothing on its own: a run
   reaches only approved folders or a separately approved whole-computer conversation, and the screen only

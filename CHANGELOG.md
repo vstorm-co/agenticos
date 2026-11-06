@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Connecting an MCP server in the desktop app opens the provider's sign-in in your own browser instead of inside the app window, so saved passwords, passkeys and existing sign-ins work there. Finish signing in and return to the app; the server appears once it is authorised.
+
 ## [1.52.0] - 2026-11-06
 
 ### Fixed

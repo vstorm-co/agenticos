@@ -49,6 +49,7 @@ const COMMANDS: &[&str] = &[
     "use_local",
     "resume_local",
     "open_docker_download",
+    "open_consent",
     "download_docker",
     "open_docker",
     "finish_onboarding",

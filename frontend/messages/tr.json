@@ -4566,6 +4566,7 @@
     "failedLoadConnections": "Bağlantılar yüklenemedi",
     "failedLoadOrgServers": "Kuruluşun MCP server'ları yüklenemedi",
     "finishConsentThenReturn": "Açılan sekmedeki işlemi tamamlayıp geri dönün. Yetkilendirildiğinde server burada görünür.",
+    "finishConsentInBrowser": "Tarayıcınızda oturum açmayı tamamlayıp geri dönün. Yetkilendirildiğinde server burada görünür.",
     "consentTabBlocked": "Tarayıcınız oturum açma sekmesini engelledi. Bu site için açılır pencerelere izin verip yeniden deneyin.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "Genel MCP registry'den. Burada kimse incelemedi: açıklama yayınlayana aittir ve hangi kimlik bilgisini istediğine dair yönlendirme yoktur.",
