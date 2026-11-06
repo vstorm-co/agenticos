@@ -201,12 +201,15 @@ class SkillCatchUpService:
             NotFoundError: The skill, or the fork, is not one the caller may reach.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        # The skill, the fork and then each agent by id: the order a decision on the fork's
+        # check takes, and the one archiving the fork needs afterwards.
+        await skill_repo.lock(self.db, skill.id)
         fork = await skill_version_repo.get_fork(
-            self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id
+            self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id, lock=True
         )
         if fork is None:
             raise NotFoundError(message="Fork not found", details={"fork_id": fork_id})
-        readers = await self.agents.fork_users(skill, fork.id)
+        readers = sorted(await self.agents.fork_users(skill, fork.id), key=lambda agent: agent.id)
         visible = await accessible_ids(self.db, ctx, readers, Perm.AGENTS_VIEW, resource_type=AGENT)
         wanted = None if data.agent_ids is None else set(data.agent_ids)
         returned: list[ReturnedAgent] = []
@@ -236,7 +239,7 @@ class SkillCatchUpService:
         if archived:
             await self.versions.archive_fork(ctx, skill.id, fork.id)
         return ReturnedToMain(
-            agents=returned,
+            agents=sorted(returned, key=lambda row: row.agent.name),
             hidden=len(readers) - len(visible),
             remaining=len(remaining),
             archived=archived,
