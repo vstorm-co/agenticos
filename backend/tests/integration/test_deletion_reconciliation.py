@@ -2636,6 +2636,10 @@ class TestALastHolderLeavesContentThatIsNotItsOwn:
                 await s.commit()
 
 
+async def _chunk_count(s: AsyncSession, table: str) -> int:
+    return (await s.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one()  # noqa: S608
+
+
 async def _waiting_on_a_lock_or_done(engine: AsyncEngine, task: asyncio.Task[None]) -> None:
     """Return once `task` has ended or a session of this database waits on a lock."""
     while not task.done():
@@ -2661,7 +2665,7 @@ class TestAnUnfiledWriteInFlightAtTheTeardown:
     @pytest.mark.security
     @pytest.mark.parametrize("tracked", [True, False], ids=["rag-ingest", "rag-sync"])
     async def test_the_teardown_waits_for_it_and_keeps_its_table(
-        self, engine: AsyncEngine, tracked: bool
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, tracked: bool
     ) -> None:
         from app.repositories import collection_teardown_repo
 
@@ -2704,7 +2708,7 @@ class TestAnUnfiledWriteInFlightAtTheTeardown:
 
         try:
             await store.insert_document(collection, _parsed("member"), base.vector_scope)
-            store._ensure_collection = ensure_then_pause  # type: ignore[method-assign]
+            monkeypatch.setattr(store, "_ensure_collection", ensure_then_pause)
             write = asyncio.create_task(
                 store.insert_document(collection, operators, VectorScope(tenant=None))
             )
@@ -2750,5 +2754,34 @@ class TestAnUnfiledWriteInFlightAtTheTeardown:
         finally:
             async with factory() as s:
                 await collection_teardown_repo.release(s, collection)
+                await s.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_a_rerun_of_the_job_leaves_a_write_made_after_its_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The first attempt released the name, so the write was rightly let through;
+        a job failing later, or a lost lease, then runs the same drop again."""
+        from app.repositories import collection_teardown_repo
+        from app.worker.tasks.teardown_tasks import cleanup_external_state
+
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbflight{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            await collection_teardown_repo.reserve(s, collection)
+            await s.commit()
+
+        try:
+            assert (await cleanup_external_state([], [collection]))["dropped"] == 1
+            await store.insert_document(collection, _parsed("after"), VectorScope(tenant=None))
+
+            assert (await cleanup_external_state([], [collection]))["dropped"] == 0
+
+            async with factory() as s:
+                assert await _chunk_count(s, f"rag_{collection}") == 1
+        finally:
+            async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
                 await s.commit()

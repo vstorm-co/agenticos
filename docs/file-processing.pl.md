@@ -1,5 +1,5 @@
 ---
-source_sha: "64a66e5123ec"
+source_sha: "becc901db10a"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -909,9 +909,10 @@ przy bramce `still_wanted` tuż przed zapisem wektorów, więc synchronizacja do
 wyczyszczonej kolekcji domyślnej (której wiersz czyszczenie zachowuje) zatrzymuje
 się, zamiast zapełniać tabelę, która jest właśnie usuwana (#1382). Oba są
 sprawdzeniami rezerwacji w trybie best-effort, a nie serializacją trzymaną na
-blokadzie: trzymanie blokady rozbiórki przez cały zapis zakleszczyłoby się
-z czyszczeniem organizacji, które najpierw blokuje wiersz `organizations`, więc
-zamknięcie ostatniego wąskiego okna zostawiono #1382.
+blokadzie. Zapis przypisany do bazy opiera się na nich oraz na blokadach swojej bazy
+i wiersza, a zamknięcie ostatniego wąskiego okna zostawiono #1382. Zapis chunków bez
+bazy trzyma blokadę rozbiórki do swojego zatwierdzenia, co opisano niżej przy
+rozbiórce ostatniej bazy.
 
 Rezerwacja, której usunięcie nigdy się nie wykonało — stracone przez awarię
 między zatwierdzeniem a rozesłaniem albo przez usunięcie, które zawiodło na
@@ -1078,10 +1079,11 @@ Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki 
 wszystkim poza administratorem aplikacji i organizacją, której chunki są jedynymi, jakie
 zostały ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
-Zapis fragmentów bez bazy trzyma nazwę do swojego zatwierdzenia, więc tabela jest
+Zapis chunków bez bazy trzyma nazwę do swojego zatwierdzenia, więc tabela jest
 sprawdzana dopiero po zakończeniu każdego takiego zapisu, który już trwa. Zapis, który
-przyjdzie po decyzji o usunięciu tabeli, jest odrzucany i plik trzeba zaindeksować
-ponownie.
+dotrze do nazwy, gdy jest zarezerwowana, jest odrzucany i plik trzeba zaindeksować
+ponownie. Zadanie czyszczenia usuwa tylko zarezerwowaną nazwę, więc jego ponowne
+uruchomienie zostawia zapis wykonany po pierwszym usunięciu.
 
 Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
 chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez

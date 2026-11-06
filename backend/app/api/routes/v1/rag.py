@@ -234,8 +234,8 @@ async def drop_collection(
     KB row go in the request; the
     stored files and the vector table are torn down by the durable cleanup the
     service hands over after the commit, which takes the collection-teardown lock
-    and re-reads the reference check before dropping only what no base still
-    claims (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
+    and drops only a name the delete reserved
+    (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
     another base - possibly another organization's - still holds it, only this
     base's documents go and its chunks are purged from the kept table (#2560).
     When it is the last holder the table goes too, and another tenant's unfiled

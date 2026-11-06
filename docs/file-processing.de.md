@@ -1,5 +1,5 @@
 ---
-source_sha: "64a66e5123ec"
+source_sha: "becc901db10a"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -970,9 +970,11 @@ am `still_wanted`-Tor unmittelbar vor dem Vektorschreiben, ein Sync in eine
 geleerte Vorgabe (deren Zeile das Leeren behält) hält also an, statt eine Tabelle
 neu zu füllen, die gerade gelöscht wird (#1382). Beides sind
 Best-Effort-Prüfungen der Reservierung und keine mit Sperren serialisierte
-Abfolge: die Teardown-Sperre über einen Schreibvorgang zu halten würde gegen eine
-Organisationsbereinigung verklemmen, die zuerst die `organizations`-Zeile sperrt,
-das Schließen des letzten schmalen Fensters bleibt deshalb #1382 überlassen.
+Abfolge. Ein Schreibvorgang, der unter einer Basis abgelegt ist, stützt sich auf sie
+und auf die Sperren seiner Basis und Zeile, und das Schließen des letzten schmalen
+Fensters bleibt #1382 überlassen. Ein Chunk-Schreibvorgang ohne Basis hält die
+Teardown-Sperre bis zu seinem Commit, wie unten beim Teardown der letzten Basis
+beschrieben.
 
 Eine Reservierung, deren Löschen nie lief — verloren durch einen Absturz zwischen
 Commit und Anstoß oder durch ein Löschen, das endgültig scheitert — würde ihren
@@ -1155,8 +1157,10 @@ als einzige übrig sind ([#2747](https://github.com/vstorm-co/agenticos/issues/2
 
 Ein Chunk-Schreibvorgang ohne Basis hält den Namen bis zu seinem Commit. Die Tabelle wird
 deshalb erst geprüft, wenn jeder bereits laufende Schreibvorgang dieser Art beendet ist.
-Ein Schreibvorgang, der nach der Entscheidung für das Löschen kommt, wird abgelehnt, und
-die Datei muss erneut indexiert werden.
+Ein Schreibvorgang, der den Namen erreicht, solange er reserviert ist, wird abgelehnt, und
+die Datei muss erneut indexiert werden. Der Bereinigungsjob löscht nur einen reservierten
+Namen, ein erneuter Lauf lässt also einen Schreibvorgang nach seinem ersten Löschen
+bestehen.
 
 Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
 Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne

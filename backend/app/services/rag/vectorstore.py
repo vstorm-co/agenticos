@@ -898,8 +898,8 @@ class PgVectorStore(BaseVectorStore):
                         message="The collection is being deleted",
                         details={"collection": collection_name},
                     )
+            # In this transaction, before the rows: see `hold_key_share` (#2561).
             elif not await knowledge_base_repo.hold_key_share(session, scope.knowledge_base_id):
-                # In this transaction, before the rows: see `hold_key_share` (#2561).
                 raise KnowledgeBaseRemovedError(
                     message="The knowledge base was deleted while this file was being indexed",
                     details={

@@ -40,6 +40,9 @@ async def hold_unreserved(db: AsyncSession, collection_name: str) -> bool:
     name while it decides on the drop and reserves it, so a writer holding it
     commits before that decision is made, and one that comes after finds the
     reservation. False means the table is about to go, with the name still held.
+
+    Exclusive, not shared, though writers need only exclude a teardown: it is also
+    what keeps two first writes from colliding as they create the table.
     """
     await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection_name)
     return not await is_reserved(db, collection_name)

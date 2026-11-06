@@ -334,7 +334,7 @@ class KnowledgeBaseService:
         it. `force_drop` is that operator's override, so a `rag-drop` of a held name
         still drops the table. An unfiled write holds the name through its commit
         (`insert_document`), so the table is asked after any such write in flight,
-        and one that comes after a drop is decided is refused by the reservation.
+        and one that reaches the name while it is reserved is refused.
 
         When the table does go, another tenant's unfiled rows under the name stay
         with their files - the caller holds no authority over them, so what happens
@@ -350,7 +350,7 @@ class KnowledgeBaseService:
         they happen only once the delete has committed: an in-request drop
         stranded a rolled-back delete on a dropped table, lost it to a worker
         restart, and raced a concurrent claim (#1293, #1347, #1349, #1355). The
-        job re-reads the reference check on its own session before dropping. The
+        job drops only while the name is reserved. The
         name is held against a claim while the reference check and the
         reservation are made, and reserved in `collection_teardowns` until the
         drop runs, so neither a create (`claim`) nor an upload

@@ -287,9 +287,9 @@ class CollectionAccessService:
         what is in it.
 
         The taken-check and the row this request goes on to write are serialized
-        against a concurrent teardown of the same name: the drop re-reads the same
-        reference check before dropping the table, and without the lock a claim that
-        reads "free" and a drop that reads "unreferenced" both act, leaving this
+        against a concurrent teardown of the same name: the teardown reads the same
+        reference check to decide the drop, and without the lock a claim that
+        reads "free" and a teardown that reads "unreferenced" both act, leaving this
         base's committed row pointing at a table the drop removed (#1355, #913). The
         lock is transaction-scoped, so it is held until this request commits the
         row - past `create_collection`, which builds the table this protects.

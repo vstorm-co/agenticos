@@ -1,5 +1,5 @@
 ---
-source_sha: "64a66e5123ec"
+source_sha: "becc901db10a"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -930,10 +930,11 @@ sincronización, un reintento — también la comprueban, en la barrera `still_w
 justo antes de la escritura de vectores, así que una sincronización hacia un
 predeterminado vaciado (cuya fila el vaciado conserva) se detiene en vez de
 repoblar una tabla que se está borrando (#1382). Las dos son comprobaciones de
-reserva de mejor esfuerzo y no una serialización con bloqueo: sostener el bloqueo
-de desmontaje durante una escritura provocaría un interbloqueo contra la purga de
-una organización, que bloquea antes la fila de `organizations`, así que cerrar la
-última ventana estrecha queda para #1382.
+reserva de mejor esfuerzo y no una serialización con bloqueo. Una escritura
+archivada bajo una base se apoya en ellas y en los bloqueos de su base y su fila, y
+cerrar la última ventana estrecha queda para #1382. Una escritura de chunks sin base
+retiene el bloqueo de desmontaje hasta su commit, como se describe más abajo en el
+desmontaje de la última base.
 
 Una reserva cuyo borrado nunca llegó a ejecutarse — perdida por una caída entre
 el commit y el despacho, o por un borrado que falla definitivamente — bloquearía
@@ -1103,10 +1104,11 @@ Salvo en una base por defecto, que sigue en el nombre, este queda como lo deja
 todos menos a un administrador de la aplicación y a una organización cuyos fragmentos
 son los únicos que quedan ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
-Una escritura de fragmentos sin base retiene el nombre hasta su commit, así que la tabla
+Una escritura de chunks sin base retiene el nombre hasta su commit, así que la tabla
 se consulta solo cuando ha terminado cualquier escritura de ese tipo que ya estuviera en
-curso. Una escritura que llega después de decidirse la eliminación se rechaza, y el
-archivo debe ingerirse de nuevo.
+curso. Una escritura que llega al nombre mientras está reservado se rechaza, y el
+archivo debe ingerirse de nuevo. El trabajo de limpieza solo elimina un nombre reservado,
+así que repetirlo respeta una escritura hecha después de su primera eliminación.
 
 Una base personal fuera de una organización no toma ningún fragmento sin asignar,
 aunque un fragmento que nombran sus propias filas se va con ella. Un fragmento antiguo

@@ -865,8 +865,8 @@ async def table_holds_unfiled_outside(db: AsyncSession, scope: CollectionScope) 
     For the last holder of a name, whose caller has no authority over such a chunk:
     `rag-ingest` and the CLI syncs write them into a held name, the syncs with no
     tracking row, so the table is asked rather than the rows (#2747). The answer
-    covers every such write: each holds the name through its commit, so one the
-    caller did not wait out finds the reservation or the kept table. A filed one
+    covers every such write in flight: each holds the name through its commit, and
+    one that comes later finds the reservation, the kept table or a free name. A filed one
     is never in the way: with no other base on the name it is the base's own, or
     a deleted base's awaiting its purge. A name from before a naming rule cannot
     be asked about, and refusing here would make its base impossible to delete.

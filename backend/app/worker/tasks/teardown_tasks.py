@@ -182,9 +182,11 @@ async def cleanup_external_state(
     is a no-op, and the drop issues `DROP TABLE IF EXISTS`. The delete path decided
     each name should be dropped and reserved it against reuse (`collection_teardowns`,
     #1362), so a reserved name is dropped whatever now claims it - the reservation
-    blocked any legitimate claim. A name with no reservation falls back to the
-    reference check, so it does not drop a name reclaimed since. The drop, the
-    ordered release and the lock live in :func:`_drop_then_release`.
+    blocked any legitimate claim. A name with no reservation is left alone: every
+    drop is queued with one, so an earlier attempt or the sweep has already dropped
+    this table, and whatever is on the name now arrived since - a claim, or a write
+    no probe has asked about (#2747). The drop, the ordered release and the lock
+    live in :func:`_drop_then_release`.
 
     `restamps` are the personal bases an organization purge orphaned: each
     untags that org's rows for that base's own
@@ -220,7 +222,7 @@ async def cleanup_external_state(
     from app.core.exceptions import DatabaseError, ExternalServiceError
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
-    from app.repositories import collection_teardown_repo, knowledge_base_repo
+    from app.repositories import collection_teardown_repo
     from app.services.file_storage import get_file_storage
 
     restamps = restamps or []
@@ -262,13 +264,10 @@ async def cleanup_external_state(
         async with _vector_store() as store, get_worker_db_context() as db:
             for collection in collections:
                 await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
-                # A reserved name drops unconditionally; one with no reservation
-                # falls back to the reference check and does not drop a name that
-                # was reclaimed since it was queued (#1362 review, #913).
-                reserved = await collection_teardown_repo.is_reserved(db, collection)
-                if not reserved and await knowledge_base_repo.list_by_collection_name(
-                    db, collection
-                ):
+                # A reserved name drops unconditionally. One with no reservation was
+                # dropped by an earlier attempt, so a rerun has nothing of its own
+                # left to drop (#1362 review, #913, #2747).
+                if not await collection_teardown_repo.is_reserved(db, collection):
                     continue
                 if await _drop_then_release(store, db, collection):
                     dropped += 1

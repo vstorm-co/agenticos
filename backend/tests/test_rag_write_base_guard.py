@@ -185,6 +185,31 @@ class TestTheWriteHoldsItsBase:
         assert session.commits == 1
 
     @pytest.mark.security
+    async def test_a_tracked_unfiled_write_takes_the_name_before_its_row(
+        self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A teardown takes the name and then locks the rows, so the other order
+        ends in `deadlock detected` against `mark_unindexed` (#2747)."""
+        order: list[str] = []
+
+        async def hold_name(*_: object) -> bool:
+            order.append("name")
+            return True
+
+        async def hold_row(*_: object, **__: object) -> bool:
+            order.append("row")
+            return True
+
+        monkeypatch.setattr(collection_teardown_repo, "hold_unreserved", hold_name)
+        monkeypatch.setattr(rag_document_repo, "hold_for_vector_write", hold_row)
+        document = _document()
+        document.metadata.rag_document_id = uuid4()
+
+        await _store(_Session()).insert_document("docs", document, VectorScope(tenant=None))
+
+        assert order == ["name", "row"]
+
+    @pytest.mark.security
     async def test_a_name_going_away_gets_no_unfiled_chunks(
         self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -852,10 +852,10 @@ window cannot recreate the table the drop is about to destroy and lose its own c
 to it (#1364). The **worker** ingestion paths — a sync, a retry — check it too, at the
 `still_wanted` gate right before the vector write, so a sync into a cleared default
 (whose row the clear keeps) stops rather than repopulating a table being dropped
-(#1382). Both are best-effort reservation checks rather than lock-held serialisation:
-holding the teardown lock across a write would deadlock against an organization purge,
-which locks the `organizations` row first, so closing the last narrow window is left
-to #1382.
+(#1382). Both are best-effort reservation checks rather than lock-held serialisation.
+A write filed under a base relies on them and on its base and row locks, and closing
+the last narrow window is left to #1382. A chunk write with no base holds the teardown
+lock through its commit, as described under the last holder's teardown below.
 
 A reservation whose drop never ran — lost to a crash between the commit and the
 dispatch, or to a drop that fails for good — would block its name forever, since
@@ -1020,8 +1020,9 @@ everyone but an app admin and an organization whose chunks are all that remain
 ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
 A chunk write with no base holds the name until it commits, so the table is asked only
-after any such write already running has finished. A write that comes after the drop is
-decided is refused, and the file has to be ingested again.
+after any such write already running has finished. A write that reaches the name while
+it is reserved is refused, and the file has to be ingested again. The cleanup job drops
+only a reserved name, so a rerun of the job leaves a write made after its first drop.
 
 A personal base outside an organization takes no unfiled chunk, though a chunk its own
 rows name goes with it. A legacy chunk with no base, no organization and no row cannot
