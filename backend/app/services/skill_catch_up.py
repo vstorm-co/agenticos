@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
+import anyio
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -290,7 +291,10 @@ class SkillCatchUpService:
                 details={"fork_id": fork.id},
             )
         try:
-            parts = merge_text(base.content, ours.content, main.content)
+            # Seconds of CPU for a long text: off the event loop, which serves every tenant.
+            parts = await anyio.to_thread.run_sync(
+                merge_text, base.content, ours.content, main.content
+            )
         except MergeTooLarge as exc:
             raise TooLargeToMerge(
                 message=(
@@ -311,16 +315,24 @@ class SkillCatchUpService:
         )
 
     async def build_merge(
-        self, ctx: AuthContext, *, run: SkillImprovementRun, skill: Skill, fork: SkillFork
+        self,
+        ctx: AuthContext,
+        *,
+        run: SkillImprovementRun,
+        skill: Skill,
+        fork: SkillFork,
+        sides: MergeSides | None = None,
     ) -> SkillMerge:
-        """Merge the session's three versions, without the model, and keep the parts.
+        """Merge the session's three versions, without the model, and keep the parts;
+        `sides` is a merge of them already made in this transaction.
 
         Raises:
             ConflictError: There is nothing to merge; see `merge_sides`.
         """
         kind = SkillImprovementPurpose(run.purpose)
         assert kind is not SkillImprovementPurpose.IMPROVE, "only a catch-up or a move merges"
-        sides = await self.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
+        if sides is None:
+            sides = await self.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
         return await skill_merge_repo.create(
             self.db,
             organization_id=ctx.organization_id,

@@ -6,6 +6,7 @@ the fake the improvement session's tests use, and the conflicts' model call is p
 here and answered by settling its request, so each move is the session's own.
 """
 
+import threading
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -47,6 +48,7 @@ from app.schemas.skill_improvement import (
     SkillMergeStart,
 )
 from app.schemas.skill_version import SkillForkRead, SkillVersionCreate
+from app.services import skill_catch_up as skill_catch_up_module
 from app.services.authoring import AuthoringService
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_improvement import SkillImprovementService
@@ -243,6 +245,28 @@ class TestStarting:
         assert caught.merge_id is not None and caught.max_iterations == 1
         assert (moved.purpose, moved.fork_id, moved.source_fork_id) == ("to_main", None, fork.id)
         assert call_price["chars"] == []
+
+    async def test_starting_merges_once_and_off_the_event_loop(self, db, call_price, monkeypatch):
+        """A long text takes the merge seconds of CPU, which the API's event loop serves
+        every tenant's requests in between; starting reuses the merge the estimate made."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx)
+        threads: list[int] = []
+        merging = skill_catch_up_module.merge_text
+
+        def merge(base: str, fork_text: str, main: str) -> Any:
+            threads.append(threading.get_ident())
+            return merging(base, fork_text, main)
+
+        monkeypatch.setattr(skill_catch_up_module, "merge_text", merge)
+
+        await SkillImprovementService(db).start_merge(
+            ctx, skill.id, fork.id, CATCH_UP, SkillMergeStart(budget_usd=Decimal("0"))
+        )
+
+        assert len(threads) == 1
+        assert threads[0] != threading.get_ident()
 
     @pytest.mark.security
     async def test_conflicts_are_priced_as_one_call_the_budget_has_to_cover(
