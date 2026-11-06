@@ -425,22 +425,32 @@ function removable(graph: WorkflowGraph, removing: ReadonlySet<string>): Set<str
 }
 
 /**
- * Drop everything the current node set no longer supports — a removed loop's whole
- * body, and an edge or binding or scope that names a removed node — and re-home the
- * entry on the first surviving node if it was the one removed. The client mirror
- * of the invariant the server keeps: the graph never references a node it does not
- * hold.
+ * `graph` without the bodies of the loops in `removed`, nested bodies too. Only a
+ * loop being deleted takes steps with it: a step naming a loop the graph never held
+ * stays, for validation to report.
+ */
+function withoutBodiesOf(graph: WorkflowGraph, removed: ReadonlySet<string>): WorkflowGraph {
+  const gone = new Set(removed);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const node of graph.nodes) {
+      if (node.scope_id != null && gone.has(node.scope_id) && !gone.has(node.id)) {
+        gone.add(node.id);
+        grew = true;
+      }
+    }
+  }
+  const nodes = graph.nodes.filter((node) => !gone.has(node.id));
+  return nodes.length === graph.nodes.length ? graph : { ...graph, nodes };
+}
+
+/**
+ * Drop everything the current node set no longer supports — an edge or binding
+ * or scope that names a removed node — and re-home the entry on the first
+ * surviving node if it was the one removed. The client mirror of the invariant
+ * the server keeps: the graph never references a node it does not hold.
  */
 function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
-  let nodes = graph.nodes;
-  // A body goes with its loop, nested bodies too: drop until nothing names a missing loop.
-  for (;;) {
-    const present = new Set(nodes.map((node) => node.id));
-    const next = nodes.filter((node) => node.scope_id == null || present.has(node.scope_id));
-    if (next.length === nodes.length) break;
-    nodes = next;
-  }
-  graph = nodes === graph.nodes ? graph : { ...graph, nodes };
   const ids = new Set(graph.nodes.map((node) => node.id));
   const edges = graph.edges.filter(
     (edge) => ids.has(edge.source_node_id) && ids.has(edge.target_node_id),
@@ -600,7 +610,10 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         nodes: nodesChanged ? nodes : graph.nodes,
         ...(notes !== undefined ? { notes } : {}),
       };
-      commit(nodesChanged ? pruneToNodes(updated) : updated);
+      const removed = new Set(
+        graph.nodes.flatMap((node) => (nodes.some((kept) => kept.id === node.id) ? [] : [node.id])),
+      );
+      commit(nodesChanged ? pruneToNodes(withoutBodiesOf(updated, removed)) : updated);
     },
 
     applyEdgeChanges: (changes) => {
@@ -732,7 +745,11 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       const nodes = graph.nodes.filter((node) => !nodeIds.has(node.id));
       const edges = graph.edges.filter((edge) => !edgeIds.has(edge.id));
       const notes = graph.notes?.filter((note) => !nodeIds.has(note.id));
-      commit(pruneToNodes({ ...graph, nodes, edges, ...(notes ? { notes } : {}) }));
+      commit(
+        pruneToNodes(
+          withoutBodiesOf({ ...graph, nodes, edges, ...(notes ? { notes } : {}) }, nodeIds),
+        ),
+      );
       set({ selection: EMPTY_SELECTION });
     },
 

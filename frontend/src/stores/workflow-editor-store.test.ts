@@ -1790,3 +1790,24 @@ describe("a loop's body in the working graph (#2770)", () => {
     expect(ids()?.slice(-3)).toEqual(["new-loop", "new-item", "new-result"]);
   });
 });
+
+describe("a step naming a loop the graph does not hold", () => {
+  const store = useWorkflowEditorStore;
+  beforeEach(reset);
+
+  it("stays through an edit, for validation to report", () => {
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [nodeAt("a", 0, 0), { ...nodeAt("stray", 100, 0), scope_id: "gone" }],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store
+      .getState()
+      .applyNodeChanges([{ type: "position", id: "a", position: { x: 5, y: 5 }, dragging: false }]);
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.nodes.map((node) => node.id)).toEqual(["stray"]);
+  });
+});
