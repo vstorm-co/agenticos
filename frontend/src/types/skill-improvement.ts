@@ -6,7 +6,6 @@
 import type {
   ContinuationEstimate,
   Improvement,
-  ImprovementEvidenceItem,
   ImprovementIteration,
   ImprovementStatus,
   ImprovementStage,
@@ -97,6 +96,13 @@ export interface SkillContinuationEstimate extends ContinuationEstimate {
   main_alone_estimate?: SkillCheckEstimate | null;
 }
 
+/** A passage of one run that shows a problem, checked word for word against it. */
+export interface SkillProblemExample {
+  run_id: string;
+  /** Null for a reader who may not read runs: the example is named, not quoted. */
+  quote: string | null;
+}
+
 /** A problem found in answers where the line's versions were loaded, and where it occurs. */
 export interface SkillProblem {
   title: string;
@@ -104,7 +110,7 @@ export interface SkillProblem {
   runs: number;
   agents: { id: string; name: string; runs: number }[];
   hidden_agents: number;
-  examples: ImprovementEvidenceItem[];
+  examples: SkillProblemExample[];
   /** Examples from runs the reader may not see, counted and never shown. */
   hidden_examples: number;
 }

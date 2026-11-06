@@ -46,7 +46,7 @@ function Problem({ problem }: { problem: SkillProblem }) {
   const agents = new Intl.ListFormat(locale, { type: "conjunction" }).format(
     problem.agents.map((agent) => t("agent", { name: agent.name, runs: agent.runs })),
   );
-  const example = problem.examples.find((item) => item.question);
+  const example = problem.examples.find((item) => item.quote);
   return (
     <li className="space-y-1.5 rounded-xl border p-4">
       <p className="text-sm font-medium">{problem.title}</p>
@@ -54,9 +54,9 @@ function Problem({ problem }: { problem: SkillProblem }) {
       <p className="text-muted-foreground text-xs">
         {t("occursIn", { agents, hidden: problem.hidden_agents, runs: problem.runs })}
       </p>
-      {example?.question && (
+      {example?.quote && (
         <blockquote className="text-muted-foreground border-l-2 pl-3 text-xs">
-          {example.question}
+          {example.quote}
         </blockquote>
       )}
       {problem.hidden_examples > 0 && (
