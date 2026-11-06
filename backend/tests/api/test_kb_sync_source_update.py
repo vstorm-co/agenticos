@@ -65,7 +65,9 @@ class _Fakes:
         )
         self.role = OrgRoleName.OWNER
 
-    async def kb_sync_source(self, kb: MagicMock, source_id: str) -> MagicMock:
+    async def kb_sync_source(
+        self, ctx: AuthContext, kb: MagicMock, source_id: str, *, for_update: bool
+    ) -> MagicMock:
         """`CollectionAccessService.kb_sync_source` for an organization's base.
 
         The rule itself is `tests/test_collection_access.py`'s; this stands in at the
