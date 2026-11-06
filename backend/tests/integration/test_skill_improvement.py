@@ -999,6 +999,36 @@ class TestEdges:
 
         assert (run.status, run.stage, run.stop_reason) == ("stopped", "proposing", "budget")
 
+    async def test_a_last_attempt_stopped_for_its_budget_resumes_the_same_attempt(
+        self, db, evidence
+    ):
+        """Nothing was written yet, so a raised limit takes the same step, not a new attempt."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        run.max_iterations = 1
+        await db.flush()
+        await _continue(db, ctx, run)
+        evidence["price"] = Decimal("5")
+        service = SkillImprovementService(db)
+        await service.advance(run.id, ctx.organization_id)
+
+        quote = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
+        read = await service.continue_run(
+            ctx,
+            skill.id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=Decimal("10"),
+            ),
+        )
+
+        assert (quote.mode, quote.number) == ("resume", 1)
+        assert (read.status, read.stage, read.iteration) == ("running", "proposing", 1)
+
     @pytest.mark.security
     async def test_a_proposal_the_organization_cannot_afford_is_refused_not_queued(
         self, db, evidence

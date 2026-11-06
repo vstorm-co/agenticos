@@ -179,6 +179,13 @@ class SkillStanding:
         return self.edits_skill and self.views_runs and self.ai_assistance
 
 
+_RESUMABLE = (StopReason.BUDGET.value, StopReason.PERMISSION.value)
+"""Stops a person can lift - a higher limit, regained access - and take the same step again."""
+
+_BEFORE_A_PROPOSAL = (Stage.ANALYZING.value, Stage.CLASSIFYING.value, Stage.PROPOSING.value)
+"""Steps of an attempt that has not written its edits yet."""
+
+
 @dataclass(frozen=True)
 class SessionLine:
     """One line of a skill, as a session improves it."""
@@ -910,8 +917,9 @@ class SkillImprovementService:
                 await self._remeasure(ctx, run, await self._iteration(run))
             await self._start_check(ctx, run, line, consent.mode, base=base)
         else:
+            stage = Stage(run.stage) if quote.mode == "resume" else Stage.PROPOSING
             await self._move(
-                run, rules.Transition(Status.RUNNING, Stage.PROPOSING), actor_user_id=ctx.subject_id
+                run, rules.Transition(Status.RUNNING, stage), actor_user_id=ctx.subject_id
             )
         return await self._read(ctx, run, line)
 
@@ -2206,9 +2214,17 @@ class SkillImprovementService:
                 check_estimate=check,
             ), check.affordable
         self._refuse_moved(run, line)
-        step: Literal["next_step", "next_round"]
+        step: Literal["next_step", "next_round", "resume"]
         if run.status == Status.WAITING and run.stage == Stage.CLASSIFYING:
             step, number = "next_step", run.iteration
+        elif (
+            run.status == Status.STOPPED
+            and run.stop_reason in _RESUMABLE
+            and run.stage in _BEFORE_A_PROPOSAL
+        ):
+            # Stopped before the attempt wrote anything: the same step again, not a new
+            # attempt, so a raised limit or regained access loses nothing paid for.
+            step, number = "resume", run.iteration
         elif run.status in (Status.READY, Status.STOPPED) and run.stage not in (
             None,
             Stage.ANALYZING,
