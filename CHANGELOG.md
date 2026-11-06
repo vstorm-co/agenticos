@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop Quick Ask (Option+Space) and blobby no longer say "Sign in in the console" after you have signed in. Both pages load beside the console and stay loaded; one built before the sign-in kept its first, signed-out answer until the app restarted. A page that found nobody signed in now checks again when it is shown or focused.
+
 ### Security
 
 - A sync, a local-directory sync or `rag-ingest` now clears earlier failed attempts at a file only in the new row's own scope: the knowledge base it is filed under, or, for a row with no base, rows of the same organization. Until now it cleared every failed row at that path under the collection name, so one organization's sync deleted another organization's failed rows (their error and retry) when both used the same collection name and path. The same applied to two knowledge bases of one organization that share a name. (#2747)

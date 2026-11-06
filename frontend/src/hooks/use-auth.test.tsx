@@ -876,3 +876,41 @@ describe("keeping the in-memory token fresh", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
+
+describe("a page that found nobody signed in", () => {
+  it("asks again when it is shown, once the console has signed in (2026-11-06)", async () => {
+    // Quick Ask is built beside the console and kept loaded; built before the
+    // sign-in, it said "sign in" until the app restarted.
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ ...user(), access_token: "after" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+    expect(useAuthStore.getState().accessToken).toBe("after");
+  });
+
+  it("asks again on focus too", async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce(user());
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-1"));
+  });
+
+  it("does not ask on every focus once somebody is signed in", async () => {
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+    const asked = vi.mocked(apiClient.get).mock.calls.length;
+
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(asked);
+  });
+});

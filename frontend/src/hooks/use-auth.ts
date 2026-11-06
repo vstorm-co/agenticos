@@ -257,13 +257,23 @@ export function useAuth() {
     void runAuthCheck(adopt);
     ensureTokenRefresh(adopt);
     const retry = () => {
+      // A page that found nobody signed in asks again when it is looked at: the
+      // desktop's Quick Ask and blobby load beside the console and stay loaded,
+      // so one built before the person signed in kept saying "sign in" after
+      // they had (2026-11-06).
+      if (authChecked && useAuthStore.getState().user === null) authChecked = false;
       if (!authChecked) void runAuthCheck(adopt);
+    };
+    const shown = () => {
+      if (document.visibilityState === "visible") retry();
     };
     window.addEventListener("online", retry);
     window.addEventListener("focus", retry);
+    document.addEventListener("visibilitychange", shown);
     return () => {
       window.removeEventListener("online", retry);
       window.removeEventListener("focus", retry);
+      document.removeEventListener("visibilitychange", shown);
     };
   }, [setUser, queryClient]);
 
