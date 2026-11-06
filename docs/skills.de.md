@@ -1,5 +1,5 @@
 ---
-source_sha: "d80090c01ab6"
+source_sha: "547f15ce451b"
 ---
 
 # Skills { #skills }
@@ -527,9 +527,9 @@ geprüft werden konnte, kehren erst nach einer Bestätigung zurück (`acknowledg
 (`from_fork`), die die übernommene Fork-Version nennt, samt Dateien. Die Agents des
 Forks können danach zu main zurückkehren.
 
-Beides wird abgelehnt (409), wenn der Fork archiviert ist, wenn er keine eigene
-Version hat (seine Agents kehren dann zu main zurück) und wenn die Zusammenführung
-nichts ändern würde. Abgelehnt wird auch (422), wenn ein Text zu lang ist oder seine
+Beides wird abgelehnt (400), wenn der Fork archiviert ist, und (409), wenn er keine
+eigene Version hat (seine Agents kehren dann zu main zurück) oder wenn die
+Zusammenführung nichts ändern würde. Abgelehnt wird auch (422), wenn ein Text zu lang ist oder seine
 Zeilen zu oft wiederholt, um in vertretbarer Zeit Zeile für Zeile zusammengeführt zu
 werden; die Änderungen werden dann von Hand übernommen. Annehmen wird abgelehnt, sobald main oder der Fork eine neuere
 Version hat als die, die die Zusammenführung gelesen hat, und eine Sitzung, deren
@@ -862,8 +862,8 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
 Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut
 prüfen** an: dieselben gewählten Änderungen, gemessen an der Linie, wie sie
-jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
-Verwerfen bleiben möglich. Ändert sich die Linie, während die Sitzung bei Changes
+jetzt ist, zu einem Preis, der zuerst angezeigt wird. Verwerfen bleibt
+möglich; Weiterverbessern setzt voraus, dass die Änderungen erneut geprüft wurden. Ändert sich die Linie, während die Sitzung bei Changes
 wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
 neuesten Version.
 

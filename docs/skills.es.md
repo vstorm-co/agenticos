@@ -1,5 +1,5 @@
 ---
-source_sha: "d80090c01ab6"
+source_sha: "547f15ce451b"
 ---
 
 # Skills { #skills }
@@ -500,8 +500,8 @@ los que main sola no se pudo comprobar vuelven solo tras confirmarlo
 (`from_fork`) que nombra la versión del fork que tomó, archivos incluidos. Después
 los agents del fork pueden volver a main.
 
-Ambos se rechazan (409) cuando el fork está archivado, cuando no tiene versión propia
-(sus agents vuelven entonces a main) y cuando la combinación no cambiaría nada.
+Ambos se rechazan (400) cuando el fork está archivado, y (409) cuando no tiene versión
+propia (sus agents vuelven entonces a main) o cuando la combinación no cambiaría nada.
 También se rechazan (422) cuando un texto es demasiado largo o repite sus líneas
 demasiado para combinarlo línea a línea en un tiempo razonable; los cambios se llevan
 entonces a mano.
@@ -815,8 +815,8 @@ Lo que ofrece Aceptar depende del resultado:
 Cuando la línea recibe una versión nueva, o cambian sus agents, después de la
 comprobación, el resultado deja de valer y ofrece **Check again** en lugar de
 aplicar: los mismos cambios elegidos, medidos en la línea tal como está ahora, a
-un precio que se muestra primero. Seguir mejorando y descartar siguen
-disponibles. Si la línea cambia mientras la sesión espera en Changes, se vuelve a
+un precio que se muestra primero. Descartar sigue
+disponible; seguir mejorando exige comprobar de nuevo los cambios primero. Si la línea cambia mientras la sesión espera en Changes, se vuelve a
 calcular el precio: el siguiente paso comprueba los cambios en la versión más
 reciente.
 
