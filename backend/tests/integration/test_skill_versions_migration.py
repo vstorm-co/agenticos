@@ -28,8 +28,10 @@ from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_version import SkillFile, SkillVersion
-from app.repositories import dataset_repo
+from app.repositories import dataset_repo, skill_proposal_repo
 from tests.integration.test_authoring import _owner, _published
+from tests.integration.test_skill_bindings import _fork
+from tests.integration.test_skill_bindings import _skill as _bound_skill
 from tests.integration.test_skill_checks import _dataset
 from tests.integration.test_skill_usage import _agent, _org, _used, _version
 from tests.integration.test_skill_usage import _run as _agent_run
@@ -210,6 +212,42 @@ async def _arm(
     db.add(arm)
     await db.flush()
     return arm
+
+
+async def test_a_downgrade_discards_a_change_waiting_for_a_fork(db: AsyncSession):
+    """Without its fork it would read as a change to main and put the fork's text there."""
+    ctx = await _owner(db)
+    skill = await _bound_skill(db, ctx)
+    fork = await _fork(db, ctx, skill)
+    to_fork = await _pending(db, ctx, skill.id, fork_id=fork.id)
+    to_main = await _pending(db, ctx, skill.id, fork_id=None)
+
+    await db.run_sync(_run, "_discard_fork_proposals")
+
+    await db.refresh(to_fork)
+    await db.refresh(to_main)
+    assert (to_fork.status, to_fork.revision) == ("discarded", 2)
+    assert to_fork.decided_at is not None
+    assert to_main.status == "pending"
+
+
+async def _pending(
+    db: AsyncSession, ctx: AuthContext, skill_id: uuid.UUID, *, fork_id: uuid.UUID | None
+) -> SkillProposal:
+    return await skill_proposal_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=skill_id,
+        agent_id=None,
+        conversation_id=None,
+        name="returns",
+        description="d",
+        content="A change",
+        resources={},
+        base_version=1,
+        base_version_id=None,
+        fork_id=fork_id,
+    )
 
 
 async def test_a_downgrade_forgets_the_version_each_use_was_served(db: AsyncSession):
