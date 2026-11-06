@@ -3,6 +3,8 @@
 Pure functions over text, so each case is the three texts and what comes out.
 """
 
+import time
+
 import pytest
 
 from app.services.skill_merge import (
@@ -156,6 +158,29 @@ class TestWhatIsTooLargeToMerge:
         repeated = "Check the date.\n" * 1000
         assert MAX_PAIRS == 1000 * 1000
         assert merged_text(merge_text(repeated, repeated, repeated)) == repeated
+
+    def test_paragraphs_between_blank_lines_merge_at_once_one_conflict_each(self):
+        """Blank lines repeat in every skill; matched like other lines, a thousand rewritten
+        paragraphs held the CPU for a minute. Paired in order, each paragraph is still
+        its own conflict, between the blank lines both sides kept."""
+
+        def paragraphs(side: str) -> str:
+            return "".join(f"Paragraph {number} as {side} has it.\n\n" for number in range(1000))
+
+        started = time.perf_counter()
+        parts = merge_text(paragraphs("base"), paragraphs("fork"), paragraphs("main"))
+        took = time.perf_counter() - started
+
+        assert took < 2
+        assert _states(parts) == [PartState.CONFLICT, PartState.SAME] * 1000
+        assert {part.base for part in parts if part.state is PartState.SAME} == {"\n"}
+
+    def test_a_blank_line_one_side_adds_between_paragraphs_is_its_change(self):
+        base = "One.\n\nTwo.\n"
+        fork = "One.\n\n\nTwo.\n"
+        main = "One!\n\nTwo.\n"
+
+        assert merged_text(merge_text(base, fork, main)) == "One!\n\n\nTwo.\n"
 
 
 class TestMergeValue:

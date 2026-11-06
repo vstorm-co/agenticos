@@ -16,24 +16,28 @@ line endings has changed nothing a person would see.
 The description is one value, merged whole, and files are merged by name on their
 digests. Nothing here reads the database; the catch-up service stores the parts.
 
-Matching a side against the base compares every pair of equal lines, so a body of one
-line repeated thousands of times costs seconds of CPU while a long body of distinct
-lines costs almost nothing. The merge is therefore refused, before it runs, for a side
-longer than `MAX_LINES` or a pair of sides with more than `MAX_PAIRS` equal-line pairs.
+Matching a side against the base compares every pair of equal lines, and goes over
+them again for each stretch it splits the texts into, so a line that repeats costs CPU
+quadratic in how often it does. Blank lines repeat the most - a skill's paragraphs are
+separated by them - so they never anchor the matching: the other lines are matched
+first, and in each stretch between those matches the blank lines are paired in order,
+which keeps as many of them as any matching could. A merge is refused, before it
+runs, for a side longer than `MAX_LINES` or a pair of sides with more than `MAX_PAIRS`
+pairs of equal lines that are not blank.
 """
 
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from difflib import SequenceMatcher
+from difflib import Match, SequenceMatcher
 from enum import StrEnum
 
 MAX_LINES = 5000
 """The most lines a side may hold for the merge to run."""
 
 MAX_PAIRS = 1_000_000
-"""The most pairs of equal lines between the base and a side, about a thousand identical
-lines on both: a tenth of a second of matching."""
+"""The most pairs of equal lines that are not blank between the base and a side, about
+a thousand identical lines on both: a tenth of a second of matching."""
 
 
 class MergeTooLarge(ValueError):
@@ -184,9 +188,12 @@ class _Kept:
 def _refuse_too_large(base: list[str], fork: list[str], main: list[str]) -> None:
     if max(len(base), len(fork), len(main)) > MAX_LINES:
         raise MergeTooLarge(f"a side holds more than {MAX_LINES} lines")
-    counts = Counter(base)
+    counts = Counter(line for line in base if not _blank(line))
     for side in (fork, main):
-        pairs = sum(counts[line] * times for line, times in Counter(side).items())
+        pairs = sum(
+            counts[line] * times
+            for line, times in Counter(line for line in side if not _blank(line)).items()
+        )
         if pairs > MAX_PAIRS:
             raise MergeTooLarge(f"more than {MAX_PAIRS} pairs of equal lines to compare")
 
@@ -201,8 +208,8 @@ def _kept_by_both(base: list[str], fork: list[str], main: list[str]) -> Iterator
     Each side's kept stretches come from matching it against the base; where a
     stretch of one overlaps a stretch of the other, both kept those base lines.
     """
-    by_fork = SequenceMatcher(None, base, fork, autojunk=False).get_matching_blocks()
-    by_main = SequenceMatcher(None, base, main, autojunk=False).get_matching_blocks()
+    by_fork = _matched(base, fork)
+    by_main = _matched(base, main)
     at_fork = at_main = 0
     while at_fork < len(by_fork) and at_main < len(by_main):
         fork_block, main_block = by_fork[at_fork], by_main[at_main]
@@ -220,6 +227,31 @@ def _kept_by_both(base: list[str], fork: list[str], main: list[str]) -> Iterator
         else:
             at_main += 1
     yield _Kept(base=len(base), fork=len(fork), main=len(main), size=0)
+
+
+def _blank(line: str) -> bool:
+    return not line.strip()
+
+
+def _matched(base: list[str], side: list[str]) -> list[Match]:
+    """The stretches of the base a side kept, in order, then an empty one at the end.
+
+    The lines that are not blank are matched first, and a blank line only extends such
+    a match; in each stretch left between two matches, the blank lines on both sides
+    are then paired in order.
+    """
+    anchored = SequenceMatcher(_blank, base, side, autojunk=False).get_matching_blocks()
+    found: list[Match] = []
+    at_base = at_side = 0
+    for block in anchored:
+        base_blanks = [i for i in range(at_base, block.a) if _blank(base[i])]
+        side_blanks = [j for j in range(at_side, block.b) if _blank(side[j])]
+        found.extend(Match(i, j, 1) for i, j in zip(base_blanks, side_blanks, strict=False))
+        if block.size:
+            found.append(block)
+        at_base, at_side = block.a + block.size, block.b + block.size
+    found.append(Match(len(base), len(side), 0))
+    return found
 
 
 def _state[T](base: Sequence[T], fork: Sequence[T], main: Sequence[T]) -> PartState:
