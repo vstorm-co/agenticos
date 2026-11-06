@@ -260,7 +260,7 @@ class TranscriptService:
         context_used_tokens: int | None = None,
         mcp_origins: Mapping[str, UUID] | None = None,
         draft_tools: Collection[str] = (),
-    ) -> None:
+    ) -> UUID | None:
         """Write whatever this run produced, and never fail the run for it.
 
         `prompt` is `None` where there is nothing new to record: a resumed run
@@ -331,7 +331,7 @@ class TranscriptService:
         row rides on stays usable.
         """
         if run.conversation_id is None:
-            return
+            return None
         try:
             async with self.db.begin_nested():
                 if prompt or attachments:
@@ -360,7 +360,7 @@ class TranscriptService:
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:
-                    await self._answer(
+                    return await self._answer(
                         run.conversation_id,
                         run,
                         answer=answer,
@@ -447,7 +447,7 @@ class TranscriptService:
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
         draft_tools: Collection[str],
-    ) -> None:
+    ) -> UUID:
         """The assistant turn and the calls it made, attributed to the version.
 
         `agent_version_id` comes off the run rather than the agent: an agent is
@@ -511,3 +511,5 @@ class TranscriptService:
             from app.services.follow_ups import queue_next_steps
 
             queue_next_steps(self.db, message.id, run.organization_id)
+
+        return message.id

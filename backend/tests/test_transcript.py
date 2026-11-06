@@ -407,7 +407,8 @@ class TestWritingTheTranscript:
             MagicMock(id=prompt_id),
             MagicMock(id=answer_id),
         ]
-        await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        saved_id = await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        assert saved_id == answer_id
         steps.assert_called_once_with(db, answer_id, run.organization_id)
 
     @pytest.fixture

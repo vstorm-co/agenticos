@@ -5995,6 +5995,7 @@ it.each(["completed", "awaiting_approval"] as const)(
       useWorkingStore.getState().start("c-resume", "2026-11-06T09:00:00Z");
       useWorkingStore.getState().handOff("c-resume");
     });
+    receive("message_saved", { message_id: "persisted-resume", conversation_id: "c-resume" });
     receive("turn_followed_to_end", { conversation_id: "c-resume" });
     await act(async () => {
       finish({
@@ -6018,6 +6019,9 @@ it.each(["completed", "awaiting_approval"] as const)(
       result.current.messages.filter((message) => message.content === "Approved and done"),
     ).toHaveLength(1);
     expect(result.current.messages.some((message) => message.isStreaming)).toBe(false);
+    expect(
+      result.current.messages.filter((message) => message.id === "persisted-resume"),
+    ).toHaveLength(1);
     expect(useWorkingStore.getState().since["c-resume"]).toBeUndefined();
     expect(useWorkingStore.getState().handedOff["c-resume"]).toBeUndefined();
     expect(reread).toHaveBeenCalled();

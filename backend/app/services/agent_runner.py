@@ -372,6 +372,8 @@ from app.services.watch_sources import constrain_sources, source_identity
 if TYPE_CHECKING:
     from pydantic_ai_harness.planning import PlanStore
 
+    from app.services.run_stream import RunFrames
+
 logger = logging.getLogger(__name__)
 
 _DELEGATION_RUN_STATUS: Mapping[DelegationStatus, RunStatus] = {
@@ -2909,6 +2911,7 @@ class RunSegment:
     """Published delegates settled in this segment, independent of the parent pause."""
     generated_files: frozenset[str] = frozenset()
     """Leaf names actually stored by this run, never inferred from tool result text."""
+    message_id: UUID | None = None
 
 
 def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
@@ -6413,7 +6416,7 @@ class AgentRunnerService:
         ]
 
     @asynccontextmanager
-    async def _resume_stream(self, prepared: PreparedRun) -> AsyncGenerator[RunStream | None]:
+    async def _resume_stream(self, prepared: PreparedRun) -> AsyncGenerator[RunFrames | None]:
         """Publish web continuations through the same trace as socket turns.
 
         The HTTP response still owns the final result. Room subscribers can watch
@@ -6450,7 +6453,7 @@ class AgentRunnerService:
             # Deferred tools run before the next model request. Open their bubble
             # now so their results do not disappear before `model_request_start`.
             await emit("model_request_start", {})
-            yield RunFrames(emit=emit).drive
+            yield RunFrames(emit=emit)
         finally:
             await live_turn.end(turn)
 
@@ -6705,8 +6708,8 @@ class AgentRunnerService:
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
-            async with self._resume_stream(prepared) as stream:
-                return await self._run(
+            async with self._resume_stream(prepared) as frames:
+                segment = await self._run(
                     prepared,
                     # A resume continues the approved call without another user turn.
                     user_prompt=None,
@@ -6714,8 +6717,17 @@ class AgentRunnerService:
                     message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
-                    stream=stream,
+                    stream=frames.drive if frames is not None else None,
                 )
+                if frames is not None and segment.message_id is not None:
+                    await frames.emit(
+                        "message_saved",
+                        {
+                            "conversation_id": str(run.conversation_id),
+                            "message_id": str(segment.message_id),
+                        },
+                    )
+                return segment
         except Exception as exc:
             # The continuation raised. `_run` has recorded the run terminal and
             # committed before re-raising, so this re-raise carries the failure to
@@ -7274,6 +7286,7 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
+        message_id: UUID | None = None
         # True once this run reaches a terminal state here rather than unwinding -
         # a completion, a park, or a caught budget/guardrail stop. It is what the
         # terminal write below reads to decide whether a persistence failure
@@ -7400,7 +7413,7 @@ class AgentRunnerService:
                     paused = None
                 # So a run that failed, parked or was stopped still says what was
                 # asked and what it managed to do.
-                await self.transcript.record(
+                message_id = await self.transcript.record(
                     prepared.run,
                     prompt=said,
                     answer=output,
@@ -7483,6 +7496,7 @@ class AgentRunnerService:
             structured=structured,
             delegations=tuple(prepared.delegations),
             generated_files=frozenset(prepared.built.deps.generated_files),
+            message_id=message_id,
         )
 
     async def list_runs(

@@ -8854,3 +8854,25 @@ async def test_resume_without_a_web_trace_keeps_the_http_result(web: bool) -> No
         async with AgentRunnerService(_db())._resume_stream(prepared) as stream:
             assert stream is None
         assert begin.await_count == int(web)
+
+
+@pytest.mark.anyio
+async def test_a_settled_segment_carries_its_persisted_message_identity() -> None:
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    prepared.built.agent.run = AsyncMock(
+        return_value=MagicMock(output="Done", new_messages=MagicMock(return_value=[]))
+    )
+    message_id = uuid.uuid4()
+    with (
+        patch.object(service.transcript, "record", new=AsyncMock(return_value=message_id)),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+    ):
+        segment = await service._run(
+            prepared,
+            user_prompt=None,
+            said=None,
+            message_history=None,
+            deferred_tool_results=None,
+        )
+    assert segment.message_id == message_id
