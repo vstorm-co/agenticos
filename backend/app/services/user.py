@@ -79,8 +79,6 @@ logger = logging.getLogger(__name__)
 _ACCOUNT_LOCK_SECONDS = 10.0
 """How long an account deletion's lock phase keeps starting again before refusing."""
 
-"""The SQLSTATE a `NOWAIT` lock raises when another transaction holds the row."""
-
 _DEADLOCK_DETECTED = "40P01"
 """The SQLSTATE of the statement Postgres aborts to break a deadlock."""
 

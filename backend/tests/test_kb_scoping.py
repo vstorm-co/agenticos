@@ -21,6 +21,14 @@ from app.worker.jobs import BasePurge
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """No connectors unless a teardown test explicitly supplies one."""
     monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
