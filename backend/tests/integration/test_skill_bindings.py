@@ -790,6 +790,23 @@ class TestArchivingAFork:
 
         assert refused.value.details["agents"][0]["name"] == "Draft"
 
+    async def test_a_hidden_agent_refuses_the_archive_without_being_named(self, db):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        skill = await _skill(db, member)
+        fork = await _fork(db, member, skill)
+        secret = await _published(db, owner, name="Secret", spec=_spec(skill, fork_id=str(fork.id)))
+        secret.visibility = "private"
+        await db.flush()
+
+        with pytest.raises(InUseError) as refused:
+            await SkillVersionService(db).archive_fork(member, skill.id, fork.id)
+
+        assert refused.value.details["hidden"] == 1
+        assert refused.value.details["agents"] == []
+        assert "Secret" not in refused.value.message
+        assert "Secret" not in str(refused.value.details)
+
     async def test_a_fork_only_a_specialist_reads_is_read_counted_and_listed(self, db):
         """The agent reads main itself and the fork through its specialist: both count."""
         ctx = await _owner(db)
