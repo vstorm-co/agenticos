@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "becc901db10a"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -929,6 +929,26 @@ Ein Name, den ein Aufrufer nicht angibt, wird aus dem Anzeigenamen plus sechs
 zufälligen Hexzeichen abgeleitet und auf demselben Weg beansprucht, statt ihm
 wegen seiner Zufälligkeit zu vertrauen.
 
+**Auch ein Name mit Inhalt, den keine Basis besitzt, ist nicht frei.** `rag-ingest`
+schreibt Tracking-Zeilen und eine `rag_<name>`-Tabelle ohne Wissensbasis und ohne
+Organisation. Deshalb lehnt `claim` einen Namen, den keine Basis hält, ab, solange er
+keiner Basis zugeordnete Zeilen mit Chunks eines anderen Tenants als der Organisation
+des Aufrufers hält, oder eine Vektortabelle mit solchen Chunks. Früher konnte ein
+Mitglied mit `collections:edit` eine Basis auf der Collection eines Operators anlegen
+und löschen und damit dessen Chunks verwerfen
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Ein Name, den eine
+Basis hält, wird nicht geprüft: Der Aufrufer darf jede dieser Basen schreiben und
+könnte sie ohnehin alle löschen oder leeren. Ein App-Admin darf einen solchen Namen
+übernehmen; eine fehlgeschlagene Zeile ohne Vektor-Id beschreibt keinen Chunk und hält
+den Namen nicht. Ein mitten in einer Datei abgebrochenes `rag-ingest` hinterlässt eine
+`processing`-Zeile, die den Namen hält, bis ein App-Admin ihn übernimmt oder `rag-drop
+<name>` ausführt.
+
+Inhalt, der *nach* dem Beanspruchen durch eine Basis unter den Namen kommt, lässt sich
+hier nicht ablehnen, deshalb schont ihn der Abbau: Die Tabelle der letzten Basis bleibt,
+solange sie einen nicht zugeordneten Chunk hält, den die Basis nicht übernimmt, wie
+unten beim Löschen einer Basis beschrieben.
+
 **Und ein Name mitten im Abbau ist auch nicht frei.** Eine Collection zu löschen
 entfernt ihre Wissensdatenbank-Zeilen in der Anfrage, lässt die physische
 Vektortabelle `rag_<name>` aber erst *nach* dem Commit der Anfrage fallen, einem
@@ -950,9 +970,11 @@ am `still_wanted`-Tor unmittelbar vor dem Vektorschreiben, ein Sync in eine
 geleerte Vorgabe (deren Zeile das Leeren behält) hält also an, statt eine Tabelle
 neu zu füllen, die gerade gelöscht wird (#1382). Beides sind
 Best-Effort-Prüfungen der Reservierung und keine mit Sperren serialisierte
-Abfolge: die Teardown-Sperre über einen Schreibvorgang zu halten würde gegen eine
-Organisationsbereinigung verklemmen, die zuerst die `organizations`-Zeile sperrt,
-das Schließen des letzten schmalen Fensters bleibt deshalb #1382 überlassen.
+Abfolge. Ein Schreibvorgang, der unter einer Basis abgelegt ist, stützt sich auf sie
+und auf die Sperren seiner Basis und Zeile, und das Schließen des letzten schmalen
+Fensters bleibt #1382 überlassen. Ein Chunk-Schreibvorgang ohne Basis hält die
+Teardown-Sperre bis zu seinem Commit, wie unten beim Teardown der letzten Basis
+beschrieben.
 
 Eine Reservierung, deren Löschen nie lief — verloren durch einen Absturz zwischen
 Commit und Anstoß oder durch ein Löschen, das endgültig scheitert — würde ihren
@@ -987,6 +1009,10 @@ Jetzt leert es die eine Basis, die den Namen hält, oder löscht einen Namen ohn
 lehnt es ab und listet ihre IDs; `--knowledge-base <id>` nennt die zu leerende Basis,
 und die Tabelle bleibt für die anderen. Ein Worker löscht Tabelle und Dateien, nachdem
 der Befehl committet hat (#2560).
+
+Die Tabelle der letzten Basis geht, gleich was sie hält: Der Operator hat das Löschen
+verlangt, und ihm gehört der Inhalt, den ein Löschen in der Konsole schonen würde
+(#2747).
 
 `documents` war auch die **Vorgabe**-Collection, der CLI-Schnellstart zielte also
 früher auf die Verfolgungstabelle; die Vorgabe ist jetzt `default`. Eine
@@ -1117,9 +1143,35 @@ einer Organisation oder eine persönliche Basis die Zeilen ihrer Organisation, f
 app-scoped Basis die Zeilen ohne Organisation (die `rag-ingest` schreibt) und für eine
 persönliche Basis außerhalb einer Organisation keine.
 
-Nicht zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren
-Dateien, denn der Aufrufer hat keine Befugnis über sie. Ihre Chunks gehen mit der
-Tabelle, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
+Beide Routen behalten die Tabelle danach, wenn sie einen nicht zugeordneten Chunk hält,
+den die Basis nicht übernimmt: ein `rag-ingest` oder eine CLI-Synchronisierung des
+Operators in den gehaltenen Namen oder einen Chunk eines anderen Tenants. Ein Claim
+kann Inhalt, der erst danach kommt, nicht ablehnen, und der Aufrufer hat keine
+Befugnis darüber. Nur die Chunks, die die Basis übernimmt, werden entfernt, und die
+übrigen Zeilen unter dem Namen bleiben unverändert.
+
+Außer bei einer Standardbasis, die auf dem Namen bleibt, ist der Name so, wie
+`rag-ingest` ihn hinterlässt: Keine Basis hält ihn, `rag-drop <name>` entfernt ihn, und
+`claim` lehnt ihn für alle ab außer einem App-Admin und einer Organisation, deren Chunks
+als einzige übrig sind ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Ein Chunk-Schreibvorgang ohne Basis hält den Namen bis zu seinem Commit. Die Tabelle wird
+deshalb erst geprüft, wenn jeder bereits laufende Schreibvorgang dieser Art beendet ist.
+Ein Schreibvorgang, der den Namen erreicht, solange er reserviert ist, wird abgelehnt, und
+die Datei muss erneut indexiert werden. Der Bereinigungsjob löscht nur einen reservierten
+Namen, ein erneuter Lauf lässt also einen Schreibvorgang nach seinem ersten Löschen
+bestehen.
+
+Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
+Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne
+Basis, ohne Organisation und ohne Zeile lässt sich nicht von dem eines Operators
+unterscheiden: Auch er behält die Tabelle, bleibt bis `rag-drop <name>` und gehört dem
+App-Scope, sodass eine app-scoped Basis auf dem Namen ihn liest.
+
+Andernfalls, und bei `rag-drop` immer, löscht der Aufräum-Job die Tabelle. Nicht
+zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren Dateien,
+denn der Aufrufer hat keine Befugnis über sie. Ohne die Tabelle steht nichts mehr
+hinter ihnen, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
 Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument muss
 erneut hochgeladen werden, und eine Synchronisierung indexiert ein synchronisiertes
 Dokument neu.
@@ -1277,7 +1329,7 @@ hat. Eine Adresse `NULL` trifft auf keinen Vergleich zu, und das ist die
 gewünschte Antwort und keine, die zu umgehen wäre, und es ist das, was jede vor
 der Spalte geschriebene Zeile hält.
 
-Drei Dinge entscheiden, was eine Außerdienststellung mitnehmen darf, und jedes
+Vier Dinge entscheiden, was eine Außerdienststellung mitnehmen darf, und jedes
 davon war zuerst falsch:
 
 - **Nach Adresse, nie nach Dateiname.** Das ist die Kollision, die
@@ -1285,6 +1337,12 @@ davon war zuerst falsch:
   beseitigt hat, aus der anderen Richtung erreicht: `a/readme.md` und
   `b/readme.md` in einem Bucket teilen sich einen Basisnamen, ein Namenstreffer
   löscht also die Zeile der anderen Datei.
+- **Im Bereich der neuen Zeile, nie nach Collection-Namen.** Ein Name ist nicht
+  eindeutig, also können zwei Organisationen oder zwei Basen einer Organisation
+  denselben Pfad hinein synchronisieren. Eine einer Basis zugeordnete Zeile nimmt nur
+  die Zeilen, die diese Basis auflistet - ihre eigenen und die keiner Basis
+  zugeordneten ihres Tenants -, eine Zeile ohne Basis nur die Zeilen ohne Basis ihrer
+  eigenen Organisation ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, nicht "hat keine Vektor-Id".** Das sind verschiedene Mengen, und sie
   als eine zu behandeln ist eine Race Condition: eine `PROCESSING`-Zeile gehört zu
   einem noch laufenden Versuch, und bei zwei überlappenden Ingestionen einer

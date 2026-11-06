@@ -1,5 +1,5 @@
 ---
-source_sha: "5ceebb576717"
+source_sha: "aa26227d35e6"
 ---
 
 # Polecenia { #commands }
@@ -582,7 +582,9 @@ uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 `rag-drop` czyści bazę wiedzy, która ma tę nazwę, tak jak usuwanie w konsoli, a tabelę
 wektorów i zapisane pliki usuwa worker po commicie polecenia. Nazwa, którą ma kilka baz
 wiedzy - także w różnych organizacjach - jest odrzucana, z ich identyfikatorami, dopóki
-`--knowledge-base` nie wskaże jednej; tabela zostaje wtedy dla pozostałych.
+`--knowledge-base` nie wskaże jednej; tabela zostaje wtedy dla pozostałych. W
+odróżnieniu od usuwania w konsoli usuwa też tabelę ostatniej bazy, która ma chunki
+niepowiązane z żadną bazą.
 
 #### Synchronizacja z Google Drive { #google-drive-sync }
 
