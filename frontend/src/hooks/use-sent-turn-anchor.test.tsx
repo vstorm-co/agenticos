@@ -2,6 +2,13 @@ import { useRef } from "react";
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/types";
+vi.mock("@/lib/scroll-gently", () => ({
+  scrollGently: (element: HTMLElement, top: number) => {
+    element.scrollTop = top;
+    return () => {};
+  },
+}));
+
 import { useSentTurnAnchor } from "./use-sent-turn-anchor";
 
 function Harness({ messages, sentTurnId }: { messages: ChatMessage[]; sentTurnId?: string }) {

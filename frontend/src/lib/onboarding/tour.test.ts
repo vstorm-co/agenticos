@@ -237,7 +237,6 @@ describe("visibleTourSteps", () => {
 describe("stepsForPage", () => {
   it("returns every highlight on a standalone page — launch and '?'-only — never an interstitial", () => {
     expect(stepsForPage(ROUTES.CHAT, () => true).map((step) => step.id)).toEqual([
-      "workspace-pulse",
       "chat-start",
       "chat-agent-picker",
       "chat-composer",

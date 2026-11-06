@@ -1,5 +1,5 @@
 ---
-source_sha: "8c15d7e07ff0"
+source_sha: "7a1a5254ed9d"
 ---
 
 # La consola { #the-console }
@@ -186,7 +186,9 @@ los mismos avatares que en el chat.
 
 Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
-El chat vacío de cada agente muestra los asuntos que requieren atención y el trabajo en segundo plano: la bandeja del miembro y sus tareas activas en la organización actual. El saludo y las sugerencias de mensajes siguen siendo propios del agente seleccionado.
+El chat vacío saluda según la hora local y muestra primero el campo de mensaje, seguido de hasta cuatro sugerencias. Tienen prioridad los mensajes publicados del agente; AgenticOS puede usar sugerencias personales, guardadas durante cinco minutos en la caché de la sesión actual de la cuenta. Los marcadores reservan espacio hasta conocer la fuente. La bienvenida no muestra vistas previas de la bandeja, trabajo en segundo plano ni atajos de teclado; abre Inbox o Background work desde la navegación.
+
+Los chats guardados muestran directamente marcadores del historial, sin destellos de bienvenida; la barra lateral y el historial cargan de forma independiente. Los envíos manuales desplazan suavemente el mensaje hacia arriba; la cola no mueve al lector. El desplazamiento, el tacto y el teclado cancelan el movimiento. Los menús y diálogos compartidos usan transiciones pequeñas y suaves; la preferencia Motion desactiva el movimiento.
 
 ## La bandeja { #the-inbox }
 

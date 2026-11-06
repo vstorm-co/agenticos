@@ -1,5 +1,5 @@
 ---
-source_sha: "8c15d7e07ff0"
+source_sha: "7a1a5254ed9d"
 ---
 
 # Konsola { #the-console }
@@ -178,7 +178,9 @@ pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
-Pusty czat każdego agenta pokazuje przegląd spraw wymagających uwagi oraz pracy w tle: Inbox członka i aktywne zadania w bieżącej organizacji. Powitanie i proponowane pierwsze wiadomości nadal pochodzą od wybranego agenta.
+Pusty chat wita zależnie od lokalnej pory dnia. Najpierw pokazuje pole wiadomości, a pod nim do czterech podpowiedzi. Pierwszeństwo mają opublikowane podpowiedzi agenta; AgenticOS może korzystać z osobistych sugestii, przechowywanych przez pięć minut w cache bieżącej sesji konta. Placeholdery zachowują miejsce do ustalenia źródła. Ekran startowy nie pokazuje podglądu Inbox, pracy w tle ani podpowiedzi skrótów klawiaturowych; otwórz Inbox lub pracę w tle z nawigacji.
+
+Zapisana rozmowa od razu pokazuje placeholdery historii, bez migania powitania; sidebar i historia ładują się niezależnie. Ręcznie wysłana wiadomość łagodnie przesuwa się pod górę; wiadomości z kolejki nie przestawiają widoku. Scrollowanie, dotyk i klawiatura przerywają ruch. Wspólne menu i modale używają niewielkich, łagodnych przejść; preferencja Motion wyłącza ruch.
 
 ## Inbox { #the-inbox }
 

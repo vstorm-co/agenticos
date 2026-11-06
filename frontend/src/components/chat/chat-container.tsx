@@ -155,6 +155,8 @@ export interface ChatPrompt {
 }
 
 interface ChatContainerProps {
+  /** Keep the welcome screen out of a saved conversation's initial load. */
+  requestedConversationId?: string | null;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
   prompt?: ChatPrompt | null;
   /** What an empty conversation shows instead of the generic suggestions. */
@@ -185,6 +187,7 @@ export interface PinnedPrompts {
 }
 
 export function ChatContainer({
+  requestedConversationId = null,
   prompt = null,
   emptyState,
   agentFixed = false,
@@ -828,7 +831,8 @@ export function ChatContainer({
       turns={turns}
       attachments={attachments}
       isLoadingConversation={
-        currentConversationId !== null && isConversationLoading && messages.length === 0
+        (requestedConversationId !== null && requestedConversationId !== currentConversationId) ||
+        (currentConversationId !== null && isConversationLoading && messages.length === 0)
       }
       isArchived={isArchived}
       sendMessage={send}
@@ -1286,6 +1290,7 @@ function ChatUI({
   // already carries - nothing streams a plan frame. Memoized because the fold walks
   // every message and this component re-renders on every streaming delta.
   const plan = useMemo(() => dockedPlan(messages), [messages]);
+  const [homeHintsSlot, setHomeHintsSlot] = useState<HTMLDivElement | null>(null);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   // Where the files button sits: among the composer's own controls, rather than
   // in a strip of its own down the conversation's right edge.
@@ -1351,7 +1356,7 @@ function ChatUI({
         <div
           className={cn(
             "@container/chat relative flex h-full min-w-0 flex-1 flex-col",
-            showWorkspaceHome && "md:justify-center",
+            showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}
@@ -1360,7 +1365,7 @@ function ChatUI({
             ref={scrollContainerRef}
             className={cn(
               "flex-1 scrollbar-thin overflow-y-auto",
-              showWorkspaceHome && "md:flex-initial md:pb-0!",
+              showWorkspaceHome && "flex-none overflow-visible pb-0!",
             )}
             style={{
               paddingBottom: dockHeight,
@@ -1401,7 +1406,10 @@ function ChatUI({
                   {emptyState ? (
                     emptyState((picked) => sendMessage(picked))
                   ) : (
-                    <ChatEmptyState onPick={(picked) => sendMessage(picked)} />
+                    <ChatEmptyState
+                      suggestionsSlot={!compact && !emptyState ? homeHintsSlot : undefined}
+                      onPick={(picked) => sendMessage(picked)}
+                    />
                   )}
                 </div>
               ) : (
@@ -1499,6 +1507,7 @@ function ChatUI({
             column the composer sits in, so the gutters beside it stay clear. */}
           <div
             ref={dockRef}
+            data-chat-dock
             onMouseDownCapture={(event) => {
               // Keep the keyboard and caret while tapping Send or attachment
               // actions. Menus manage their own focus after their click.
@@ -1511,7 +1520,7 @@ function ChatUI({
             }}
             className={cn(
               "pointer-events-none inset-x-0 bottom-0 z-20",
-              showWorkspaceHome ? "absolute md:relative" : "absolute",
+              showWorkspaceHome ? "relative shrink-0" : "absolute",
               compact && "bg-background",
             )}
           >
@@ -1699,6 +1708,7 @@ function ChatUI({
                           hints={messages.length === 0}
                           disabled={
                             isStopping ||
+                            isLoadingConversation ||
                             (!isConnected && !keepsOutbox) ||
                             isArchived ||
                             onCall ||
@@ -1842,6 +1852,12 @@ function ChatUI({
               </div>
             </div>
           </div>
+          {showWorkspaceHome && !emptyState && (
+            <div
+              ref={setHomeHintsSlot}
+              className="chat-home-hints mx-auto min-h-40 w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5"
+            />
+          )}
         </div>
         <FilePreviewDialog />
         <SourcesPanel contained={compact} />

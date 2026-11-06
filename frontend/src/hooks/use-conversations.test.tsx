@@ -388,6 +388,30 @@ describe("the conversation list", () => {
 });
 
 describe("the conversation named in the address bar", () => {
+  it("opens the transcript without waiting for sidebar invalidation", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    const result = await hook();
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+    try {
+      const opening = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(useConversationStore.getState().currentConversationId).toBe("c-9"),
+      );
+      expect(useConversationStore.getState().currentMessages[0]?.content).toBe("hi");
+      await act(async () => {
+        finish();
+        await opening;
+      });
+    } finally {
+      finish();
+      invalidate.mockRestore();
+    }
+  });
+
   it("does nothing for a refresh already cancelled", async () => {
     const result = await hook();
     const controller = new AbortController();

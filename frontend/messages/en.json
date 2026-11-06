@@ -1354,7 +1354,11 @@
       "visualToolTitle": "Make a calculator",
       "visualToolPrompt": "Make me a bill splitter: the total, the tip and how many people, recalculated as I type.",
       "visualMapTitle": "Plan a trip on a map",
-      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each."
+      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each.",
+      "greetingNight": "Up late, {name}? What are we working on?",
+      "greetingMorning": "Good morning, {name}. What’s on your mind?",
+      "greetingAfternoon": "Good afternoon, {name}. What can I help with?",
+      "greetingEvening": "Good evening, {name}. What are we working on?"
     },
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
@@ -5217,10 +5221,6 @@
       "workspace-background": {
         "title": "Background work",
         "body": "Follow the topics your agents are working on, and return to their results."
-      },
-      "workspace-pulse": {
-        "title": "Needs your attention",
-        "body": "Ask, create, or hand a task to your agents."
       },
       "org-system-agents": {
         "title": "Background services",
@@ -13237,7 +13237,6 @@
     "background": "Background work",
     "retry": "Try again",
     "loading": "Loading…",
-    "allClear": "You’re all caught up.",
     "nothingRunning": "Nothing running right now",
     "backgroundDescription": "Follow the work your agents continue outside the conversation.",
     "backgroundEmpty": "Ask an agent to work on something in the background. You can follow its progress here and open the conversation whenever you need to.",

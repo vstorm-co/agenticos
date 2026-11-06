@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
+import { scrollGently } from "@/lib/scroll-gently";
 import type { ChatMessage } from "@/types";
 
 /** Leave room for the reply so a newly sent message can sit near the top. */
@@ -65,10 +66,19 @@ export function useSentTurnAnchor(
       if (remaining === 0) anchoredRef.current = false;
     };
     size();
-    element.scrollTop += row.getBoundingClientRect().top - element.getBoundingClientRect().top - 24;
+    const stopScrolling = scrollGently(
+      element,
+      element.scrollTop +
+        row.getBoundingClientRect().top -
+        element.getBoundingClientRect().top -
+        24,
+    );
     const observer = new ResizeObserver(size);
     observer.observe(transcript);
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      stopScrolling();
+      observer.disconnect();
+    };
   }, [key, scrollerRef, contentRef, spacerRef, anchoredRef, readerScrolledUpRef]);
 }

@@ -168,7 +168,9 @@ Projects show descriptions, and agent rows use the same avatars as chat.
 
 Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
 
-Every agent’s empty chat shows **Needs your attention** and **Background work**, summarizing the member’s Inbox and active background tasks in the current organization. The greeting and opening messages still belong to the selected agent.
+An empty chat greets you by local time, with the composer first and up to four opening messages beneath it. Published agent prompts take priority; AgenticOS can use personal suggestions, cached in the current account session for five minutes. Placeholders hold their space until the source is ready. Inbox and background-work previews and keyboard-shortcut hints stay off the welcome screen; use **Inbox** or **Background work** in navigation to review them.
+
+Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.
 
 ## The inbox { #the-inbox }
 

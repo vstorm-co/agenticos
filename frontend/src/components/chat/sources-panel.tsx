@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ExternalLink, FileSearch, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -33,7 +35,7 @@ function ScoreDot({ score }: { score: number }) {
 function useScrolledTo(highlighted: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (highlighted) ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (highlighted) ref.current?.scrollIntoView({ behavior: glideOrJump(), block: "nearest" });
   }, [highlighted]);
   return ref;
 }

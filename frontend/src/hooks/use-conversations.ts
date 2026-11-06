@@ -317,32 +317,39 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
       const stillAddressed = () =>
         scoped || new URLSearchParams(window.location.search).get("id") === urlId;
-      await invalidateLists();
-      if (!stillCurrent() || !stillAddressed()) return;
-      if (urlId && conversationApi.getState().currentConversationId !== urlId) {
-        const selectedBefore = conversationApi.getState().currentConversationId;
-        const stillSelected = () =>
-          conversationApi.getState().currentConversationId === selectedBefore;
-        try {
-          const msgs = await readConversation(urlId, () =>
-            apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
-          );
-          if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
-          clearMessages();
-          setCurrentConversationId(urlId);
-          const page = transcriptPage(msgs);
-          setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
-        } catch {
-          // The failure belongs to whoever asked. A refusal answering after
-          // somebody else has signed in says nothing about the conversation they
-          // are looking at, and clearing the id would close it under them.
-          if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
-          // Not accessible (deleted, no permission) - clear the stale id
-          clearMessages();
-          setCurrentMessages([]);
-          setCurrentConversationId(null);
+      // The transcript does not depend on the sidebar page. Start both reads together.
+      const openAddress = async () => {
+        if (!stillCurrent() || !stillAddressed()) return;
+        if (urlId && conversationApi.getState().currentConversationId !== urlId) {
+          const selectedBefore = conversationApi.getState().currentConversationId;
+          const stillSelected = () =>
+            conversationApi.getState().currentConversationId === selectedBefore;
+          try {
+            const msgs = await readConversation(urlId, () =>
+              apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
+            );
+            if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
+            clearMessages();
+            setCurrentConversationId(urlId);
+            const page = transcriptPage(msgs);
+            setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
+          } catch {
+            // The failure belongs to whoever asked. A refusal answering after
+            // somebody else has signed in says nothing about the conversation they
+            // are looking at, and clearing the id would close it under them.
+            if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
+            // The rejected address must not keep the page in its opening state.
+            const address = new URL(window.location.href);
+            address.searchParams.delete("id");
+            window.history.replaceState(window.history.state, "", address);
+            // Not accessible (deleted, no permission) - clear the stale id
+            clearMessages();
+            setCurrentMessages([]);
+            setCurrentConversationId(null);
+          }
         }
-      }
+      };
+      await Promise.all([invalidateLists(), openAddress()]);
     },
     [
       invalidateLists,

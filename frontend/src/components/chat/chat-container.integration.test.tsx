@@ -171,11 +171,11 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
-function mount() {
+function mount(requestedConversationId?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer />
+      <ChatContainer requestedConversationId={requestedConversationId} />
     </QueryClientProvider>,
   );
 }
@@ -396,7 +396,7 @@ describe("the chat container - following the transcript", () => {
         timestamp: new Date(),
       }),
     );
-    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const dock = screen.getByRole("textbox").closest("[data-chat-dock]") as HTMLElement;
     const scroller = dock.previousElementSibling as HTMLElement;
     expect(scroller).toHaveClass("overflow-y-auto");
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
@@ -964,7 +964,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // was detached by the time it was asserted on (230 ms, well inside the
     // timeout), so what is checked is the message on screen, not one node.
     await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
-    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const dock = screen.getByRole("textbox").closest("[data-chat-dock]") as HTMLElement;
     const scroller = dock.previousElementSibling as HTMLElement;
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
     const follow = observers.find(
@@ -1617,7 +1617,28 @@ it("keeps actionable outcome notices beside the composer instead of above the tr
   useConversationStore.getState().setCurrentConversationId("c-notice");
   mount();
   const notice = await screen.findByText("Review the pending operation");
-  const dock = screen.getByRole("textbox").closest(".absolute");
+  const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
   expect(dock).toContainElement(notice);
   expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
+});
+
+describe("opening a saved chat", () => {
+  it("never shows welcome prompts while the requested transcript is unresolved", () => {
+    useConversationStore.setState({ currentConversationId: null, currentMessages: [] });
+    useChatStore.getState().clearMessages();
+    const view = mount("c-link");
+    expect(view.container.querySelector(".chat-empty-state")).toBeNull();
+    expect(screen.getByRole("textbox")).toHaveAttribute("contenteditable", "false");
+    act(() => {
+      useConversationStore.setState({ currentConversationId: "c-link" });
+      useChatStore.getState().addMessage({
+        id: "saved",
+        role: "user",
+        content: "Saved question",
+        timestamp: new Date(),
+      });
+    });
+    expect(screen.getByText("Saved question")).toBeInTheDocument();
+    expect(view.container.querySelector(".chat-empty-state")).toBeNull();
+  });
 });

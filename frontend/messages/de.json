@@ -1354,7 +1354,11 @@
       "visualToolTitle": "Einen Rechner bauen",
       "visualToolPrompt": "Bau mir einen Rechnungsteiler: Betrag, Trinkgeld und Anzahl der Personen, neu berechnet beim Tippen.",
       "visualMapTitle": "Eine Reise auf der Karte planen",
-      "visualMapPrompt": "Plane fünf Tage in Japan auf einer Karte: nummerierte Stopps in Reihenfolge und was man an jedem macht."
+      "visualMapPrompt": "Plane fünf Tage in Japan auf einer Karte: nummerierte Stopps in Reihenfolge und was man an jedem macht.",
+      "greetingNight": "Noch wach, {name}? Woran arbeiten wir?",
+      "greetingMorning": "Guten Morgen, {name}. Was beschäftigt dich?",
+      "greetingAfternoon": "Guten Tag, {name}. Wobei kann ich helfen?",
+      "greetingEvening": "Guten Abend, {name}. Woran arbeiten wir?"
     },
     "failedArchiveConversation": "Unterhaltung konnte nicht archiviert werden",
     "failedCreateConversation": "Unterhaltung konnte nicht erstellt werden",
@@ -5095,10 +5099,6 @@
       "workspace-background": {
         "title": "Arbeit im Hintergrund",
         "body": "Verfolge die Themen deiner Agenten und kehre zu ihren Ergebnissen zurück."
-      },
-      "workspace-pulse": {
-        "title": "Braucht deine Aufmerksamkeit",
-        "body": "Stelle eine Frage, erstelle etwas oder übergib deinen Agenten eine Aufgabe."
       },
       "org-system-agents": {
         "title": "Hintergrunddienste",
@@ -12909,7 +12909,6 @@
     "background": "Arbeit im Hintergrund",
     "retry": "Erneut versuchen",
     "loading": "Wird geladen…",
-    "allClear": "Alles erledigt.",
     "nothingRunning": "Derzeit läuft nichts im Hintergrund",
     "backgroundDescription": "Verfolge die Arbeit, die deine Agenten außerhalb des Gesprächs fortsetzen.",
     "backgroundEmpty": "Bitte einen Agenten, eine Aufgabe im Hintergrund zu bearbeiten. Hier siehst du den Fortschritt und kannst jederzeit das Gespräch öffnen.",

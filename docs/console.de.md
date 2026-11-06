@@ -1,5 +1,5 @@
 ---
-source_sha: "8c15d7e07ff0"
+source_sha: "7a1a5254ed9d"
 ---
 
 # Die Konsole { #the-console }
@@ -187,7 +187,9 @@ Avatare wie im Chat.
 
 Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
 
-Der leere Chat jedes Agenten zeigt offene Anliegen und Hintergrundarbeit: den persönlichen Posteingang und aktive Hintergrundaufgaben in der aktuellen Organisation. Begrüßung und erste Nachrichtenvorschläge stammen weiterhin vom gewählten Agenten.
+Ein leerer Chat begrüßt nach lokaler Tageszeit und zeigt zuerst das Eingabefeld, darunter bis zu vier Nachrichtenvorschläge. Veröffentlichte Agentenvorschläge haben Vorrang; AgenticOS kann persönliche Vorschläge nutzen, die fünf Minuten im Cache der aktuellen Kontositzung bleiben. Platzhalter reservieren den Raum, bis die Quelle feststeht. Posteingangs- und Hintergrundvorschauen sowie Tastenkürzel bleiben vom Startbildschirm entfernt; öffne dafür Inbox oder Background work über die Navigation.
+
+Gespeicherte Chats zeigen sofort Verlaufsplatzhalter, ohne Begrüßungsblitz; Seitenleiste und Verlauf laden unabhängig. Manuell gesendete Nachrichten gleiten nach oben, Nachrichten aus der Warteschlange verschieben den Leser nicht. Scrollen, Berührung und Tastatur brechen die Bewegung ab. Gemeinsame Menüs und Dialoge verwenden kleine, sanfte Übergänge; die Motion-Einstellung deaktiviert Bewegung.
 
 ## Der Posteingang { #the-inbox }
 

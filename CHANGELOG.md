@@ -61,6 +61,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Stabilize chat opening: load saved transcripts independently from the sidebar, reserve starter space until personalized prompts resolve, and place quiet suggestions beneath the composer. Remove workspace previews and keyboard hints from chat home, greet by local time and soften shared overlays and explicit-send scrolling with reduced-motion support.
+
 - Keep quoted replies inside the user message, with a matching compact composer preview, keyboard cancellation and reduced-motion navigation.
 
 - Collapse chat activity after agent messages by default, grouping adjacent thinking and tool steps while keeping actionable approvals beside the composer.

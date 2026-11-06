@@ -55,9 +55,14 @@ export function useSuggestions() {
  * (#2301) - kept per membership, since they are drawn from this organization's
  * week. Mounted only where they are offered: the starter agent's empty chat.
  */
-export function usePersonalStarters(): string[] {
-  const { data } = useQuery({ queryKey: qk.suggestions.starters(), queryFn: listPersonalStarters });
-  return data ?? [];
+export function usePersonalStarterQuery(enabled = true) {
+  return useQuery({
+    queryKey: qk.suggestions.starters(),
+    queryFn: listPersonalStarters,
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 }
 
 /**

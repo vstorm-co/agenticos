@@ -403,7 +403,11 @@
       "visualToolTitle": "Zrób kalkulator",
       "visualToolPrompt": "Zrób mi kalkulator dzielenia rachunku: kwota, napiwek i liczba osób, przeliczane na bieżąco.",
       "visualMapTitle": "Zaplanuj podróż na mapie",
-      "visualMapPrompt": "Zaplanuj pięć dni w Japonii na mapie: ponumerowane przystanki po kolei i co robić w każdym."
+      "visualMapPrompt": "Zaplanuj pięć dni w Japonii na mapie: ponumerowane przystanki po kolei i co robić w każdym.",
+      "greetingNight": "Późna noc, {name}? Nad czym działamy?",
+      "greetingMorning": "Dzień dobry, {name}. Co masz na myśli?",
+      "greetingAfternoon": "Cześć, {name}. W czym mogę pomóc?",
+      "greetingEvening": "Dobry wieczór, {name}. Nad czym działamy?"
     },
     "failedArchiveConversation": "Nie udało się zarchiwizować rozmowy",
     "failedCreateConversation": "Nie udało się utworzyć rozmowy",
@@ -6803,10 +6807,6 @@
         "title": "Praca w tle",
         "body": "Śledź tematy, nad którymi pracują Twoi agenci, i wracaj do wyników."
       },
-      "workspace-pulse": {
-        "title": "Wymaga Twojej uwagi",
-        "body": "Zapytaj, stwórz coś lub powierz zadanie swoim agentom."
-      },
       "org-system-agents": {
         "title": "Usługi w tle",
         "body": "Wybierz modele i budżety usług platformy oraz sprawdź ich użycie. Ustawienia dziennych podsumowań znajdziesz w Proaktywności."
@@ -13012,7 +13012,6 @@
     "background": "Praca w tle",
     "retry": "Spróbuj ponownie",
     "loading": "Wczytywanie…",
-    "allClear": "Wszystko załatwione.",
     "nothingRunning": "Teraz nic nie pracuje w tle",
     "backgroundDescription": "Śledź pracę, którą agenci kontynuują poza rozmową.",
     "backgroundEmpty": "Poproś agenta o wykonanie zadania w tle. Tutaj zobaczysz postęp i wrócisz do rozmowy, kiedy zechcesz.",
