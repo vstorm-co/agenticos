@@ -1818,12 +1818,15 @@ class SkillImprovementService:
             None if alone is None else alone.status,
         ):
             return
-        cost = Decimal(0)
-        for measured in (check, alone):
-            if measured is not None:
-                cost += await skill_improvement_repo.check_cost(
-                    self.db, measured.id, organization_id=run.organization_id
-                )
+        cost = await skill_improvement_repo.check_cost(
+            self.db, check.id, organization_id=run.organization_id
+        )
+        # A check of main alone kept through a retry was started before the merge's new
+        # check, and its cost was counted when the failed attempt was judged.
+        if alone is not None and alone.created_at >= check.created_at:
+            cost += await skill_improvement_repo.check_cost(
+                self.db, alone.id, organization_id=run.organization_id
+            )
         if check.verdict is None:
             await skill_improvement_repo.update_iteration(
                 self.db,

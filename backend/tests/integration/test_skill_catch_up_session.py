@@ -8,7 +8,7 @@ here and answered by settling its request, so each move is the session's own.
 
 import uuid
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -589,6 +589,33 @@ class TestACatchUp:
 
         assert (retried.status, retried.stage) == ("running", "evaluating")
         assert len(fake.files) == 3 and await _alone_id(db, run) == kept
+
+    async def test_a_kept_check_of_main_alone_is_paid_for_once(self, db, call_price, monkeypatch):
+        """Its cost went into the attempt when the failed check was judged."""
+        _checked(db, monkeypatch)
+
+        async def cost(*_args: object, **_kwargs: object) -> Decimal:
+            return Decimal("0.10")
+
+        monkeypatch.setattr(skill_improvement_repo, "check_cost", cost)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, None, "passed")
+        kept = await db.get(SkillCheck, await _alone_id(db, run))
+        assert kept is not None
+        # The retry runs in a later transaction than the checks it keeps.
+        kept.created_at -= timedelta(minutes=1)
+        await db.flush()
+        await SkillImprovementService(db).retry(ctx, skill.id, run.id)
+
+        await _settle(db, run, "passed", "passed")
+
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+        )
+        assert iteration is not None and iteration.cost_usd == Decimal("0.30")
 
     async def test_a_retry_checks_main_alone_again_when_it_failed_too(
         self, db, call_price, monkeypatch
