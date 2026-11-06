@@ -390,6 +390,32 @@ async def published_capabilities(
     }
 
 
+async def published_local_workspaces(db: AsyncSession, *, version_ids: Sequence[UUID]) -> set[UUID]:
+    """The frozen versions whose workspace is the person's own computer.
+
+    Read from the version's published sandbox binding, never its draft: such an
+    agent has no cloud workspace, so a chat must choose a folder or the whole
+    computer before its first run.
+    """
+    if not version_ids:
+        return set()
+    result = await db.execute(
+        select(AgentVersion.id, AgentVersion.spec["capabilities"]).where(
+            AgentVersion.id.in_(list(version_ids))
+        )
+    )
+    return {
+        version_id
+        for version_id, raw in result.all()
+        if any(
+            binding.id == "sandbox"
+            and binding.enabled
+            and (binding.config or {}).get("backend") == "local"
+            for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
+        )
+    }
+
+
 async def published_coding_agents(
     db: AsyncSession, *, version_ids: Sequence[UUID]
 ) -> dict[UUID, PublishedCodingAgent]:

@@ -1,5 +1,5 @@
 ---
-source_sha: "c60a0a5cad27"
+source_sha: "af48402946ea"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1628,6 +1628,8 @@ odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadanie
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
 
+**Nazwane sesje.** Każde zadanie wskazuje `session` - `main`, gdy nie wskazuje żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną, a niezależne sesje działają równolegle, gdy agent wywołuje narzędzie kilka razy naraz. `fresh_session` zaczyna jedną sesję od nowa. Na tym komputerze sesja może też wybrać `harness` - Claude Code albo Codex, na logowaniu tego komputera - oraz `folder` wewnątrz folderu czatu, więc dwa projekty albo oba harnessy pracują jednocześnie. W sandboxie i w prywatnym zadaniu w chmurze jedynym harnessem jest ten z bindingu, bo należy do niego klucz albo konto.
+
 **Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
 
 Kolejne zadania ładują tę samą sesję rozmowy; `fresh_session` jawnie zaczyna od nowa. Korekta przerywa turę ACP i kontynuuje tę samą sesję po potwierdzeniu zatrzymania. Identyfikatory sesji pozostają poza repozytorium i są usuwane po odłączeniu. Niewycenione zadania subskrypcji, także rozpoczęte zadania zakończone błędem, oznaczają koszt runu jako dolną granicę. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
@@ -3254,3 +3256,9 @@ Wpis decyzji może przechowywać ustrukturyzowane dowody: sytuację, wybór, alt
 W **Ustawienia → Pamięć** przeczytaj dowody i zapisz zaobserwowany wynik przez korektę. Korekta dopisuje nowy wpis; wcześniejszy epizod i jego pochodzenie pozostają w historii. Konsolidacja deterministyczna nie zamienia epizodów w ogólne reguły. Usuwanie pamięci usuwa ich treść razem z wpisami; eksport danych osobistych ją uwzględnia.
 
 **Przygotuj przypadek Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź. Sprawdź tekst, usuń informacje, które muszą pozostać prywatne, i jawnie zatwierdź pobranie jednego rekordu JSONL. Pola `input`, `reference_answer`, `tags` i `note` odpowiadają importerowi zbiorów w [PR Improve #2172](https://github.com/vstorm-co/agenticos/pull/2172). Zaimportuj plik do zbioru Improve po instalacji tej funkcji, przeprowadź ocenę i tam zaakceptuj/opublikuj zmiany. Ten eksport nie tworzy zbioru, nie uruchamia optymalizatora ani nie publikuje instrukcji automatycznie.
+
+Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
+
+Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
+
+ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.

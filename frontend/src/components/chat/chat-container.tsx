@@ -50,6 +50,8 @@ import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
+import { LocalAccessDialog } from "./local-access-dialog";
+import { useLocalAccessGate } from "@/hooks/use-local-access-gate";
 import { CompactionNotice } from "./compaction-notice";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
@@ -218,7 +220,7 @@ export function ChatContainer({
   // is a share of *its* window rather than of the agent's default.
   const { modelProfileId } = useSavedChatControls();
   const contextWindow = useContextWindow(modelProfileId);
-  const { agents } = useAgents({ includeArchived: true });
+  const { agents, isLoading: agentsLoading } = useAgents({ includeArchived: true });
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
   const agentModel = selectedAgent?.published_model ?? null;
@@ -455,7 +457,7 @@ export function ChatContainer({
     lastUsage,
     delegations,
     browses,
-    sendMessage,
+    sendMessage: sendChatMessage,
     stopGeneration,
     clearMessages,
     queuedMessages,
@@ -482,6 +484,13 @@ export function ChatContainer({
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
     testing,
+  });
+  // An agent that works on this computer is sent to once it knows where: the
+  // chat's folder, the one remembered for it, or the person's answer, asked once.
+  const sendMessage = useLocalAccessGate(sendChatMessage, selectedAgent, {
+    selectedAgentId,
+    metadataPending: agentsLoading,
+    projectId: openConversation?.project_id,
   });
 
   // A message addressed to a workflow goes to it instead of the agent: the
@@ -787,99 +796,102 @@ export function ChatContainer({
   };
 
   return (
-    <ChatUI
-      hasEarlierMessages={hasEarlierMessages}
-      isLoadingEarlier={isLoadingEarlier}
-      loadEarlierMessages={loadEarlierMessages}
-      messages={messages}
-      present={present}
-      typing={typing}
-      onTyping={notifyTyping}
-      // Not a project's chat: who reads one is the project's to say, so a
-      // conversation share would invite nobody - the project's Share does.
-      ownsConversation={
-        openConversation !== undefined &&
-        openConversation.user_id === meId &&
-        !openConversation.project_id
-      }
-      isConnected={isConnected}
-      isProcessing={isProcessing}
-      compacting={compacting}
-      compactionImpossible={compactionImpossible}
-      sandboxPreparing={sandboxPreparing}
-      interrupted={interrupted}
-      detachedTurnPending={detachedTurnPending}
-      leftTurnPending={leftTurnPending || answeringElsewhere}
-      answerLost={lostQuestion !== null}
-      onAskAgain={lostQuestion === null ? undefined : () => askAgain(lostQuestion)}
-      onRecheck={handleRecheck}
-      personalGaps={personalGaps}
-      // The live turn's cost while there is one, and the newest measured answer in
-      // the transcript otherwise - which is what makes the strip appear on a
-      // conversation somebody has just reopened instead of after their next message.
-      lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
-      contextWindow={contextWindow}
-      agentCapabilities={agentCapabilities}
-      agentModel={agentModel}
-      // Only for the thread that is actually open. The store keeps the transcript
-      // it last loaded, so between clicking another conversation and its messages
-      // arriving this figure belongs to the one just left - the same reason
-      // `latestUsage` is given the id rather than trusting the list.
-      conversationCost={currentConversationId === null ? null : currentCost}
-      delegations={delegations}
-      browses={browses}
-      conversationId={currentConversationId}
-      turns={turns}
-      attachments={attachments}
-      isLoadingConversation={
-        (requestedConversationId !== null && requestedConversationId !== currentConversationId) ||
-        (currentConversationId !== null && isConversationLoading && messages.length === 0)
-      }
-      isArchived={isArchived}
-      sendMessage={send}
-      steers={steers}
-      // Kept here as well as pushed into the hook, because the context gauge is a
-      // share of *this* model's window: a switch has to move the figure at once,
-      // and one carried over from a 1M-context model reads "50%" for a history
-      // that is really at 390% of a 128K one.
-      onModelProfileChange={(profileId) => {
-        setModelProfile(profileId);
-      }}
-      // Only into the hook: nothing on screen is a share of it, unlike the
-      // context gauge the model switch has to move.
-      onApprovalModeChange={setApprovalMode}
-      onRegenerate={handleRegenerate}
-      pins={pins}
-      slashContext={slashContext}
-      slashCommands={slashCommands}
-      queuedMessages={queuedMessages}
-      onCancelQueued={cancelQueued}
-      onRetryQueued={retryQueued}
-      onSendQueuedNow={sendQueuedNow}
-      onMoveQueued={moveQueued}
-      transcriptRef={transcriptRef}
-      scrollContainerRef={scrollContainerRef}
-      userScrolledUpRef={userScrolledUpRef}
-      sentTurnAnchoredRef={sentTurnAnchoredRef}
-      sentTurnSpacerRef={sentTurnSpacerRef}
-      pendingApproval={pendingApproval}
-      onResumeDecisions={sendResumeDecisions}
-      mayRememberApproval={mayRememberApproval}
-      pendingQuestions={pendingQuestions}
-      onAnswerQuestions={sendAskUserResponses}
-      pendingConnection={pendingConnection}
-      onConnectionResponse={sendConnectionResponse}
-      onStop={stopGeneration}
-      isStopping={isStopping}
-      canStopParked={canStopParked}
-      voice={voice}
-      onStartCall={startCall}
-      emptyState={emptyState}
-      agentFixed={agentFixed}
-      testingDraft={testing?.draft ?? false}
-      incomingFiles={incomingFiles ?? sharedHere}
-      onVisualReport={reportVisual}
-    />
+    <>
+      <LocalAccessDialog />
+      <ChatUI
+        hasEarlierMessages={hasEarlierMessages}
+        isLoadingEarlier={isLoadingEarlier}
+        loadEarlierMessages={loadEarlierMessages}
+        messages={messages}
+        present={present}
+        typing={typing}
+        onTyping={notifyTyping}
+        // Not a project's chat: who reads one is the project's to say, so a
+        // conversation share would invite nobody - the project's Share does.
+        ownsConversation={
+          openConversation !== undefined &&
+          openConversation.user_id === meId &&
+          !openConversation.project_id
+        }
+        isConnected={isConnected}
+        isProcessing={isProcessing}
+        compacting={compacting}
+        compactionImpossible={compactionImpossible}
+        sandboxPreparing={sandboxPreparing}
+        interrupted={interrupted}
+        detachedTurnPending={detachedTurnPending}
+        leftTurnPending={leftTurnPending || answeringElsewhere}
+        answerLost={lostQuestion !== null}
+        onAskAgain={lostQuestion === null ? undefined : () => askAgain(lostQuestion)}
+        onRecheck={handleRecheck}
+        personalGaps={personalGaps}
+        // The live turn's cost while there is one, and the newest measured answer in
+        // the transcript otherwise - which is what makes the strip appear on a
+        // conversation somebody has just reopened instead of after their next message.
+        lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
+        contextWindow={contextWindow}
+        agentCapabilities={agentCapabilities}
+        agentModel={agentModel}
+        // Only for the thread that is actually open. The store keeps the transcript
+        // it last loaded, so between clicking another conversation and its messages
+        // arriving this figure belongs to the one just left - the same reason
+        // `latestUsage` is given the id rather than trusting the list.
+        conversationCost={currentConversationId === null ? null : currentCost}
+        delegations={delegations}
+        browses={browses}
+        conversationId={currentConversationId}
+        turns={turns}
+        attachments={attachments}
+        isLoadingConversation={
+          (requestedConversationId !== null && requestedConversationId !== currentConversationId) ||
+          (currentConversationId !== null && isConversationLoading && messages.length === 0)
+        }
+        isArchived={isArchived}
+        sendMessage={send}
+        steers={steers}
+        // Kept here as well as pushed into the hook, because the context gauge is a
+        // share of *this* model's window: a switch has to move the figure at once,
+        // and one carried over from a 1M-context model reads "50%" for a history
+        // that is really at 390% of a 128K one.
+        onModelProfileChange={(profileId) => {
+          setModelProfile(profileId);
+        }}
+        // Only into the hook: nothing on screen is a share of it, unlike the
+        // context gauge the model switch has to move.
+        onApprovalModeChange={setApprovalMode}
+        onRegenerate={handleRegenerate}
+        pins={pins}
+        slashContext={slashContext}
+        slashCommands={slashCommands}
+        queuedMessages={queuedMessages}
+        onCancelQueued={cancelQueued}
+        onRetryQueued={retryQueued}
+        onSendQueuedNow={sendQueuedNow}
+        onMoveQueued={moveQueued}
+        transcriptRef={transcriptRef}
+        scrollContainerRef={scrollContainerRef}
+        userScrolledUpRef={userScrolledUpRef}
+        sentTurnAnchoredRef={sentTurnAnchoredRef}
+        sentTurnSpacerRef={sentTurnSpacerRef}
+        pendingApproval={pendingApproval}
+        onResumeDecisions={sendResumeDecisions}
+        mayRememberApproval={mayRememberApproval}
+        pendingQuestions={pendingQuestions}
+        onAnswerQuestions={sendAskUserResponses}
+        pendingConnection={pendingConnection}
+        onConnectionResponse={sendConnectionResponse}
+        onStop={stopGeneration}
+        isStopping={isStopping}
+        canStopParked={canStopParked}
+        voice={voice}
+        onStartCall={startCall}
+        emptyState={emptyState}
+        agentFixed={agentFixed}
+        testingDraft={testing?.draft ?? false}
+        incomingFiles={incomingFiles ?? sharedHere}
+        onVisualReport={reportVisual}
+      />
+    </>
   );
 }
 

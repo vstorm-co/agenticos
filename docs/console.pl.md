@@ -1,5 +1,5 @@
 ---
-source_sha: "c80bcad21f56"
+source_sha: "361689f179db"
 ---
 
 # Konsola { #the-console }
@@ -912,7 +912,7 @@ Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropk�
 
 Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji.
 
-Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla konta i organizacji między chatami. Ustawienia plików projektu mają pierwszeństwo. Zgoda na cały komputer nadal dotyczy jednej rozmowy. Pomijanie zatwierdzeń wymaga bieżących uprawnień i zgody organizacji. Agent setting (lub Cloud dla plików) jest nieaktywne, jeśli opublikowany agent nie ma tej funkcji; lokalna opcja nie włącza się sama. Kliknięcie wybranej lokalnej opcji wyłącza ją.
+Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla konta i organizacji między chatami. Ustawienia plików projektu mają pierwszeństwo. Zgoda na cały komputer dotyczy jednej rozmowy albo jednego agenta, gdy ten agent pracuje na Twoim komputerze. Pomijanie zatwierdzeń wymaga bieżących uprawnień i zgody organizacji. Agent setting (lub Cloud dla plików) jest nieaktywne, jeśli opublikowany agent nie ma tej funkcji; lokalna opcja nie włącza się sama. Kliknięcie wybranej lokalnej opcji wyłącza ją.
 
 Wyciszanie powiadomień ma ikonę dzwonka; pole wiadomości nie powtarza już plakietki folderu i dostępu. Avatary wielu agentów zachodzą na siebie bez zmiany rozmiaru, a w rozwiniętej liście delikatnie rozsuwają się po najechaniu.
 

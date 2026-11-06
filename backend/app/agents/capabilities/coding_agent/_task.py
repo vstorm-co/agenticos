@@ -18,6 +18,7 @@ here, and only whole lines are parsed.
 import base64
 import binascii
 import json
+import re
 import shlex
 import time
 from collections.abc import Awaitable, Callable
@@ -283,7 +284,14 @@ async def clean_up(ctx: RunContext[Any], files: TaskFiles) -> None:
     await ctx.workspace.run(line, shell=True, timeout=30)  # noqa: S604
 
 
-def session_path(harness: str, conversation_id: UUID) -> str:
+MAIN_SESSION = "main"
+"""The session a task continues when it names none."""
+
+SESSION_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+"""A session's name: short, lower case, safe in a file name and a resume key."""
+
+
+def session_path(harness: str, conversation_id: UUID, session: str = MAIN_SESSION) -> str:
     """Where a conversation's session is kept, per harness and per conversation.
 
     Per conversation, not per sandbox: a project's sandbox, or one scoped to a
@@ -291,10 +299,15 @@ def session_path(harness: str, conversation_id: UUID) -> str:
     people - and one chat continuing another's session would carry its hidden
     prompt and context across.
     """
-    return f"{WORK_DIR}/{harness}-{conversation_id}.session"
+    if session == MAIN_SESSION:
+        # The name every conversation's tasks used before sessions had names.
+        return f"{WORK_DIR}/{harness}-{conversation_id}.session"
+    return f"{WORK_DIR}/{harness}-{conversation_id}-{session}.session"
 
 
-async def remembered_session(ctx: RunContext[Any], harness: str) -> str | None:
+async def remembered_session(
+    ctx: RunContext[Any], harness: str, session: str = MAIN_SESSION
+) -> str | None:
     """The session this conversation's last task left, to continue it.
 
     `None` for a run in no conversation: there is nothing it could continue.
@@ -302,12 +315,16 @@ async def remembered_session(ctx: RunContext[Any], harness: str) -> str | None:
     conversation_id = ctx.deps.conversation_id
     if conversation_id is None:
         return None
-    text = (await _read(ctx, session_path(harness, conversation_id))).strip()
+    text = (await _read(ctx, session_path(harness, conversation_id, session))).strip()
     return text or None
 
 
-async def remember_session(ctx: RunContext[Any], harness: str, session_id: str) -> None:
+async def remember_session(
+    ctx: RunContext[Any], harness: str, session_id: str, session: str = MAIN_SESSION
+) -> None:
     conversation_id = ctx.deps.conversation_id
     if conversation_id is None:
         return
-    await ctx.workspace.write_bytes(session_path(harness, conversation_id), session_id.encode())
+    await ctx.workspace.write_bytes(
+        session_path(harness, conversation_id, session), session_id.encode()
+    )

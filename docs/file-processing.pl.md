@@ -1,5 +1,5 @@
 ---
-source_sha: "becc901db10a"
+source_sha: "ae8b5a53d44f"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1084,6 +1084,11 @@ sprawdzana dopiero po zakończeniu każdego takiego zapisu, który już trwa. Za
 dotrze do nazwy, gdy jest zarezerwowana, jest odrzucany i plik trzeba zaindeksować
 ponownie. Zadanie czyszczenia usuwa tylko zarezerwowaną nazwę, więc jego ponowne
 uruchomienie zostawia zapis wykonany po pierwszym usunięciu.
+
+Duży dokument może trzymać nazwę przez kilka sekund. Utworzenie na tej nazwie
+(`POST /kb`, `POST /rag/collections/{name}`) czeka sekundę, a potem odpowiada 409
+z prośbą o ponowienie, bo każde czekające żądanie zajmuje połączenie z bazą danych,
+a dość takich żądań odrzuca wszystkie pozostałe. Usunięcie czeka na koniec zapisu.
 
 Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
 chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez

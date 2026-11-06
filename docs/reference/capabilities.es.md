@@ -1,5 +1,5 @@
 ---
-source_sha: "c60a0a5cad27"
+source_sha: "af48402946ea"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1660,6 +1660,8 @@ rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 **Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
 compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
 herramientas: la única herramienta es la capability.
+
+**Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.
 
 **En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
 
@@ -3343,3 +3345,9 @@ Una decisión puede guardar pruebas estructuradas: situación, elección, altern
 En **Ajustes → Memoria**, lee las pruebas y registra un resultado observado mediante una corrección. La corrección añade un registro; el episodio anterior y su procedencia permanecen en el historial. La consolidación determinista no convierte episodios en reglas generales. El borrado elimina su contenido junto con los registros; la exportación de datos personales lo incluye.
 
 **Preparar caso Improve** abre una entrada y una respuesta esperada editables. Revisa el texto, elimina lo que deba permanecer privado y aprueba expresamente la descarga de un registro JSONL. Los campos `input`, `reference_answer`, `tags` y `note` corresponden al importador de [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importa el archivo en un conjunto Improve cuando esa función esté instalada, evalúalo y acepta/publica los cambios allí. Esta exportación no crea un conjunto, no ejecuta un optimizador ni publica instrucciones automáticamente.
+
+La elección de acceso local pertenece al agente seleccionado, no a un valor global heredado por otros agentes. Revocar una carpeta también elimina las elecciones guardadas y los consentimientos de programación de sus subcarpetas. Las aplicaciones de escritorio antiguas conservan el consentimiento para todo el equipo solo en una conversación; actualiza la aplicación para reutilizarlo en las conversaciones del mismo agente.
+
+La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
+
+ Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.

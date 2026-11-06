@@ -8,7 +8,7 @@ so the polling, the cursor and the failures the hub raises all run.
 """
 
 import json
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import anyio
@@ -16,12 +16,13 @@ import pytest
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from pydantic_ai.workspaces import Workspace, WrapperWorkspace
+from pydantic_ai.workspaces import Workspace, WorkspaceUnavailableError, WrapperWorkspace
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities.coding_agent import CodingAgent, CodingAgentConfig
 from app.agents.capabilities.coding_agent import _acp as acp
 from app.agents.capabilities.coding_agent._harness import (
+    CodingReport,
     CodingStep,
     Said,
     StepEnded,
@@ -353,9 +354,13 @@ class FakeDevice:
         self.polls = polls
         self.opened = {"id": "proc"} if opened is None else opened
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.roots: list[str | None] = []
 
-    async def agent_call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+    async def agent_call(
+        self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
+    ) -> dict[str, Any]:
         self.calls.append((op, args))
+        self.roots.append(root)
         if op == "agent.open":
             return self.opened
         if op == "agent.poll":
@@ -435,7 +440,9 @@ class Computer:
         if self.unavailable:
             raise DeviceUnavailable(message="Your computer is not connected")
         if op == "agent.open":
-            assert args["agent"] == "claude_code" and args["root"] == "/w"
+            # Either harness, in the chat's folder or a project inside it.
+            assert args["agent"] in {"claude_code", "codex"}
+            assert args["root"] == "/w" or args["root"].startswith("/w/")
             return {"id": "p1"}
         if op == "agent.send":
             self.agent.on_message(args["message"])
@@ -694,7 +701,8 @@ def test_a_rejection_is_recognised_by_the_option_that_was_chosen() -> None:
 
 def test_local_tasks_describe_continuation_and_an_explicit_fresh_start() -> None:
     local = CodingAgent(runs_on="this_computer")
-    assert "continue the same session" in local.get_instructions()
+    assert "continues that session" in local.get_instructions()
+    assert "`harness`" in local.get_instructions() and "`folder`" in local.get_instructions()
     tools = build_coding_toolset(
         harness="claude_code",
         access="edit",
@@ -739,11 +747,11 @@ def test_local_codex_accepts_read_only_without_relaxing_the_sandbox() -> None:
 async def test_launch_consent_has_its_own_interaction_timeout() -> None:
     class TimedDevice(FakeDevice):
         async def agent_call(
-            self, op: str, args: dict[str, Any], *, timeout: float
+            self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
         ) -> dict[str, Any]:
             if op == "agent.open":
                 assert timeout >= 300
-            return await super().agent_call(op, args, timeout=timeout)
+            return await super().agent_call(op, args, timeout=timeout, root=root)
 
     await acp.DevicePipe(TimedDevice([]), "claude_code").open()
 
@@ -1211,3 +1219,172 @@ def test_local_coding_settings_reject_unbounded_or_malformed_values(field: str, 
                 field: value,
             }
         )
+
+
+def _local_tools(harness: Literal["claude_code", "codex"] = "claude_code") -> Any:
+    return (
+        build_coding_toolset(
+            harness=harness,
+            access="edit",
+            model="anthropic:claude-opus-5-5" if harness == "claude_code" else None,
+            base_url=None,
+            api_key=None,
+            timeout_seconds=60,
+            runs_on="this_computer",
+        )
+        .tools["run_coding_agent"]
+        .function
+    )
+
+
+async def test_named_sessions_run_apart_and_main_keeps_the_key_it_always_had(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two projects, or both harnesses, at once: each name is its own session."""
+    computer = Computer(ScriptedAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    monkeypatch.setattr("app.agents.capabilities.coding_agent._acp.POLL_WAIT_MS", 0)
+    call = _local_tools()
+    ctx = _ctx(_local_workspace(), [])
+    await call(ctx, task="Before names")
+    await call(ctx, task="Main by name", session="main", folder=".")
+    await call(ctx, task="The API", session="api")
+    await call(ctx, task="The API again", session="api")
+    await call(ctx, task="Review it", session="review", harness="codex")
+    await call(ctx, task="The web app", session="web", folder="apps/web")
+    opens = [args for op, args in computer.arguments if op == "agent.open"]
+    keys = [args["resume_key"] for args in opens]
+    assert keys[0] == keys[1]
+    assert keys[2] == keys[3] != keys[0]
+    assert len({keys[0], keys[2], keys[4], keys[5]}) == 4
+    assert [args["agent"] for args in opens] == ["claude_code"] * 4 + ["codex", "claude_code"]
+    assert [args["root"] for args in opens] == ["/w"] * 5 + ["/w/apps/web"]
+    # Every later operation of the session names its folder too.
+    web = [args["root"] for op, args in computer.arguments if op != "agent.open"][-1]
+    assert web == "/w/apps/web"
+
+
+async def test_another_harness_does_not_inherit_the_configured_ones_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def run_task(*_: Any, **kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return CodingReport(harness="codex", access="edit", outcome="completed", answer="ok")
+
+    monkeypatch.setattr("app.agents.capabilities.coding_agent._toolset.run_task", run_task)
+    computer = Computer(ScriptedAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    await _local_tools()(_ctx(_local_workspace(), []), task="Review", harness="codex")
+    assert captured["harness"] == "codex" and captured["model"] is None
+
+
+@pytest.mark.parametrize("folder", ["../outside", "/elsewhere", "a/../../b"])
+async def test_a_session_folder_must_lie_inside_the_chats_folder(
+    monkeypatch: pytest.MonkeyPatch, folder: str
+) -> None:
+    from pydantic_ai.exceptions import ModelRetry
+
+    computer = Computer(ScriptedAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    with pytest.raises(ModelRetry, match="outside the folder this chat works in"):
+        await _local_tools()(_ctx(_local_workspace(), []), task="Fix", folder=folder)
+    assert computer.ops == []
+
+
+@pytest.mark.parametrize("session", ["", "Main", "has space", "x" * 41, "../up"])
+async def test_a_session_name_is_short_and_safe(session: str) -> None:
+    from pydantic_ai.exceptions import ModelRetry
+
+    with pytest.raises(ModelRetry, match="Name the session"):
+        await _local_tools()(_ctx(_local_workspace(), []), task="Fix", session=session)
+
+
+async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> None:
+    from pydantic_ai.exceptions import ModelRetry
+
+    call = (
+        build_coding_toolset(
+            harness="claude_code",
+            access="edit",
+            model=None,
+            base_url=None,
+            api_key="sk-ant-key",
+            timeout_seconds=60,
+        )
+        .tools["run_coding_agent"]
+        .function
+    )
+    with pytest.raises(ModelRetry, match="runs only on the person's computer"):
+        await call(_ctx(_local_workspace(), []), task="Fix", harness="codex")
+    with pytest.raises(ModelRetry, match="`folder` chooses a project"):
+        await call(_ctx(_local_workspace(), []), task="Fix", folder="app")
+
+
+def test_the_main_session_keeps_its_file_and_a_named_one_gets_its_own() -> None:
+    from app.agents.capabilities.coding_agent._task import session_path
+
+    chat = uuid4()
+    assert session_path("codex", chat) == session_path("codex", chat, "main")
+    assert session_path("codex", chat).endswith(f"codex-{chat}.session")
+    assert session_path("codex", chat, "api").endswith(f"codex-{chat}-api.session")
+
+
+def test_a_windows_folder_is_resolved_the_windows_way() -> None:
+    device = workspace_module.DeviceWorkspace(
+        uuid4(), uuid4(), LocalTarget(folder="C:\\work", mode="full_access")
+    )
+    assert device.subfolder("app") == "C:\\work\\app"
+    with pytest.raises(WorkspaceUnavailableError):
+        device.subfolder("..\\other")
+
+
+def test_windows_folder_containment_ignores_drive_and_path_casing() -> None:
+    device = workspace_module.DeviceWorkspace(
+        uuid4(), uuid4(), LocalTarget(folder="C:\\Work", mode="full_access")
+    )
+    assert device.subfolder("c:\\work\\app") == "c:\\work\\app"
+    assert device.is_root("c:\\work\\.")
+    assert not device.is_root("c:\\work\\app")
+
+
+async def test_parallel_local_tools_use_independent_targeted_steering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.steering import SteeringInbox
+
+    inbox = SteeringInbox()
+    ready = anyio.Event()
+    started = 0
+    corrections: list[list[str]] = []
+
+    async def run(
+        *_args: object, steering: SteeringInbox | None, **_kwargs: object
+    ) -> CodingReport:
+        nonlocal started
+        assert steering is not None and steering is not inbox
+        started += 1
+        if started == 2:
+            inbox.add("[session:api] Change the API")
+            inbox.add("[session:web] Change the web app")
+            ready.set()
+        await ready.wait()
+        corrections.append([item.text for item in steering.take()])
+        return CodingReport(harness="claude_code", access="edit", outcome="completed", answer="ok")
+
+    monkeypatch.setattr("app.agents.capabilities.coding_agent._toolset.run_task", run)
+    computer = Computer(ScriptedAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    ctx = _ctx(_local_workspace(), [])
+    ctx.deps.steering = inbox
+    call = _local_tools()
+
+    async def task(session: str) -> None:
+        await call(ctx, task="Fix", session=session)
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(task, "api")
+        group.start_soon(task, "web")
+    assert sorted(corrections) == [["Change the API"], ["Change the web app"]]
+    assert len(inbox.unapplied()) == 2

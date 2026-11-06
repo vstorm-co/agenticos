@@ -5758,15 +5758,18 @@ class TestLocalDeviceSelection:
         )
         monkeypatch.setattr(device_hub, "wait_for", wait)
         service = SandboxWorkspaceService(mock_db_session)
+        identity = _identity()
         result = await service.open(
             _spec(),
             ctx=ctx,
-            identity=_identity(),
+            identity=identity,
             local=LocalTarget(folder="/approved", mode=mode, device_id=session),
         )
         assert result is not None and result.local
         assert result.row_id is None
         assert result.workspace.backend.session_id == session
+        # The run's agent rides along: the app may hold consent for that agent.
+        assert result.workspace.backend._agent_id == identity.agent_id
         wait.assert_awaited_once_with(ctx.user_id, session, timeout=0)
         assert "/approved" in result.briefing
         await service.close(result)

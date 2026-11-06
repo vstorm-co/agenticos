@@ -1,5 +1,5 @@
 ---
-source_sha: "956aedbad8a2"
+source_sha: "700737c6ce4e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -384,7 +384,9 @@ ein Modus, der weiter geht als erlaubt, oder ein Pfad, der aus dem Ordner
 herausführt, wird auf dem Computer abgelehnt, egal was der Server verlangt hat. Die
 Wahl wird je Unterhaltung gespeichert. Neue Chats übernehmen die letzten Ordner-
 und Werkzeugeinstellungen dieses Kontos und dieser Organisation; Projekteinstellungen
-haben Vorrang. Die Zustimmung zum gesamten Computer wird niemals übernommen.
+haben Vorrang. Die im Chat erteilte Zustimmung zum gesamten Computer wird niemals
+übernommen; eine einem Agenten erteilte Zustimmung gilt für diesen Agenten (siehe
+**Gesamter Computer**).
 
 **Nur Ihre eigenen Runs.** Ein Chat erreicht Ihren Computer nur, wenn er Ihr
 eigener ist - nie ein API-Schlüssel, ein Widget-Besucher oder der Chat eines
@@ -401,20 +403,26 @@ Tray, dass ein Agent auf diesem Computer arbeitet.
 Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abgelaufene Sitzungen verweigern neue Arbeit; der Heartbeat schließt auch inaktive Verbindungen. Laufende Operationen werden beim Schließen der Desktop-Verbindung abgebrochen.
 
 Im Builder speichert **Sandbox → Computer** `backend: local` ohne Pfad oder
-native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ohne
-Auswahl bittet der Run darum, statt eine Cloud-Sandbox zu öffnen. Beim Erstellen
+native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ein
+solcher Agent hat keinen Cloud-Workspace, daher bietet **Work on** für ihn keine
+Cloud an. Seine erste Nachricht fragt einmal, wo er arbeiten darf - **Gesamter
+Computer** oder ein Ordner -, und die Antwort wird für diesen Agenten auf diesem
+Computer gespeichert, sodass seine späteren Chats ohne Nachfrage dort beginnen. Beim Erstellen
 eines Projekts öffnet **Projekt-Sandbox → Computer · Ihre Dateien** die persönliche
 Ordnerauswahl; andere Mitglieder behalten den gemeinsamen Projekt-Workspace.
 
 **Gesamter Computer.** Im Desktop-Chat ist **Gesamter Computer** ohne
-Ordnerauswahl verfügbar. Eine native Warnung erlaubt den Zugriff für dieses Gespräch:
+Ordnerauswahl verfügbar. Eine native Warnung erlaubt den Zugriff: Für einen
+Agenten mit dem Workspace **Computer** nennt die Warnung den Agenten, und die
+Zustimmung gilt für ihn in jedem Gespräch; sonst gilt sie für dieses Gespräch.
 Dateiwerkzeuge erreichen absolute Pfade im Rahmen Ihres Kontos; Befehle laufen als
 Sie, ohne einzelne native Bestätigungen. Systemberechtigungen und Freigaberegeln des
 Agents gelten weiterhin. **Zugriff auf den gesamten Computer widerrufen** oder
 **Cloud** blockiert neue Operationen; laufende Befehle werden nicht abgebrochen.
-Die Zustimmung übersteht Neustarts, gilt für diesen Server und dieses Gespräch und
-wird bei einem Entwurf mit der ersten Operation gebunden. Ein neuer Chat braucht
-eine eigene Zustimmung. Dieser Modus durchsucht das Heimatverzeichnis nicht und
+Die Zustimmung übersteht Neustarts und gilt für diesen Server und den Agenten oder
+das Gespräch; bei einem Entwurf wird die Zustimmung eines Gesprächs mit der ersten
+Operation gebunden. Ein neuer Chat mit einem anderen Agenten braucht eine eigene
+Zustimmung. Dieser Modus durchsucht das Heimatverzeichnis nicht und
 sammelt Dateien nicht automatisch als Anhänge.
 
 Lokale Browser- und Dateiwerkzeuge sind im Desktop-Chat auch ohne Browser- oder
@@ -541,12 +549,12 @@ diesen Agenten, Ordner, die Adapterversion und Verbindung gespeichert. Entfernen
 oder erneutes Auswählen des Ordners löscht die Zustimmung und stoppt dort laufende
 Agenten; Konto- und Serverwechsel löschen Zustimmungen ebenfalls. Der Adapter
 läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis,
-keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen
-Coding agent. Aufgabenfreigaben und Systemberechtigungen gelten weiterhin.
+keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet auch einen
+Coding agent, im Heimatordner oder einem Ordner darin. Aufgabenfreigaben und Systemberechtigungen gelten weiterhin.
 
 Die Capability-Freigabe gilt einmal pro Aufgabe. `edit` erlaubt angefragte Aktionen; `read_only` verweigert Änderungen. Claude deaktiviert im Lesemodus die Umgehung von Berechtigungen und bietet nur Lesewerkzeuge an. Codex wählt seine native schreibgeschützte Sandbox. Lokale Agents verwenden ihre eigenen Modelleinstellungen. Abonnementnutzung bleibt unbepreist; die angezeigten Run-Kosten sind eine Untergrenze.
 
-Weitere Aufgaben setzen die Harness-Sitzung für dieselbe Unterhaltung, denselben Agent, Ordner, Account und dieselbe Zugriffsrichtlinie fort. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
+Weitere Aufgaben setzen die benannte Sitzung (`main`, wenn eine Aufgabe keine nennt) für dieselbe Unterhaltung, denselben Agent, Harness, Ordner, Account und dieselbe Zugriffsrichtlinie fort; mehrere Sitzungen laufen gleichzeitig, bis zu acht auf einem Computer, jede im Chat-Ordner oder einem Ordner darin. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
 
 Eine während der lokalen Aufgabe gesendete Korrektur unterbricht den aktuellen ACP-Turn. Sobald der Adapter den Stopp bestätigt, setzt dieselbe Sitzung mit der Korrektur fort. Das Transkript hält die angewendete Korrektur fest. Nach Abschluss eingehende Nachrichten bleiben für den übergeordneten Agent verfügbar.
 
@@ -710,3 +718,9 @@ Ist genau der bestätigte Computer vor der Ausführung offline, wartet eine daue
 Pause, geänderte Aufgabe oder lokale Berechtigung, Löschung und Ablauf der Routine stornieren alte wartende Arbeit statt sie auf einen anderen Ordner umzulenken. Eine widerrufene Gerätesitzung benötigt Prüfung. Drei tote oder verlorene Aufträge vor der Zulassung stoppen die Routine und erzeugen einen Vorfall für die besitzende Person. Der fehlgeschlagene Ereigniskontext bleibt in deren Datenexport verfügbar. Gestartete und stornierte Kontexte werden sofort gelöscht. Abgeschlossene Metadaten und fehlgeschlagene Kontexte folgen der Laufaufbewahrung der Organisation; aktive Offline-Arbeit bleibt bis Zulassung, Stornierung oder Löschung erhalten.
 
 API, Worker und Desktop gemeinsam aktualisieren und alte Worker vor Aktivierung des Vertrags leeren. Ältere Desktops bestätigen keine Routine-Freigaben; bestehende lokale Routinen benötigen ausdrückliche Prüfung. Migration `0272_routine_device_waits.py` ergänzt Wartezustände ohne neue Routine-Identität. Vor einem Downgrade lokale Routinen pausieren und deren Aufträge leeren: der Downgrade löscht wartenden Kontext und führt ihn nicht aus. Ältere geparkte lokale Läufe ohne Ziel-Snapshot benötigen einen neuen Lauf.
+
+Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
+
+Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
+
+ Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.

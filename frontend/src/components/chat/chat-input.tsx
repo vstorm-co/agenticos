@@ -343,6 +343,9 @@ export function ChatInput({
   useEffect(() => {
     if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
     initialFocusAttempted.current = true;
+    // A phone must not open its keyboard or switch the composer's layout while
+    // the person is reaching for an action after navigation.
+    if (touchKeyboard()) return;
     // A navigation button may still be focused on arrival. Only preserve an
     // editable field, a dialog, or a control used after this composer mounted.
     if (

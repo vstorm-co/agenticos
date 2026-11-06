@@ -975,8 +975,8 @@
     "addSeparateModel": "Separates Modell hinzufügen",
     "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird.",
     "backendComputerLabel": "Computer",
-    "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
-    "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
+    "backendComputerDetail": "Nutzt den Computer der Person, einmal pro Agent in der Desktop-App erlaubt.",
+    "backendComputerConsent": "Jede Person wählt bei der ersten Nachricht an diesen Agenten in der Desktop-App einen Ordner oder den ganzen Computer; die Wahl wird für den Agenten gespeichert. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Ein gehosteter Chat braucht für diesen Workspace die Desktop-App.",
     "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
     "unavailableTitle": "Agent nicht verfügbar",
     "unavailableDescription": "Prüfe die ausgewählte Organisation. Dieser Agent gehört möglicherweise zu einer anderen Organisation, wurde entfernt oder ist nicht mehr für dich freigegeben.",
@@ -1276,7 +1276,10 @@
           "unavailableOption": "{value} (nicht verfügbar)",
           "effortUnsupported": "Von diesem Modell nicht angeboten"
         },
-        "off": "Aus"
+        "off": "Aus",
+        "asksFirst": "Fragt bei der ersten Nachricht",
+        "noCloud": "Dieser Agent arbeitet auf deinem Computer und hat daher keinen Cloud-Arbeitsbereich. Wähle einen Ordner oder den ganzen Computer.",
+        "agentComputerConsent": "Für {agent} in jeder Unterhaltung auf diesem Computer erlaubt. Befehle laufen ohne einzelne native Rückfragen. Du kannst den Zugriff hier widerrufen; Betriebssystemberechtigungen gelten weiterhin."
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",
@@ -2367,7 +2370,18 @@
     "approvalRememberedEmpty": "Keine gespeicherten Freigaben.",
     "approvalRememberForget": "Erneut fragen",
     "approvalRememberFailed": "Die Freigabe konnte nicht entfernt werden. Erneut versuchen.",
-    "approvalRememberRetry": "Erneut versuchen"
+    "approvalRememberRetry": "Erneut versuchen",
+    "localAccess": {
+      "title": "Wo darf {agent} arbeiten?",
+      "description": "{agent} arbeitet auf deinem Computer. Du wirst einmal für diesen Agenten gefragt; ändere oder widerrufe es später unter Chat controls → Work on.",
+      "computer": "Ganzer Computer",
+      "computerHint": "Darf überall, wo dein Konto Zugriff hat, Dateien lesen und ändern und Befehle als du ausführen. Dein Computer fragt nach einer Bestätigung.",
+      "folder": "Ordner wählen",
+      "folderHint": "Arbeitet nur in dem Ordner, den du auswählst.",
+      "cancel": "Nicht jetzt",
+      "agentUnavailable": "Der ausgewählte Agent konnte nicht geladen werden. Versuche es erneut.",
+      "failed": "Zugriff auf diesem Computer konnte nicht eingerichtet werden"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

@@ -6647,8 +6647,8 @@
     "addSeparateModel": "Ayrı model ekle",
     "separateEndpointHint": "Mevcut profili diğer Agent'lar için korumak üzere bu endpoint'i ayrı bir model olarak kaydedin. “Modeli güncelle” kullanıldığı her yerde paylaşılan profili değiştirir.",
     "backendComputerLabel": "Bilgisayar",
-    "backendComputerDetail": "Kişinin bilgisayarını kullanın; her desktop chat'te ayrıca onaylanır.",
-    "backendComputerConsent": "Her kişi chat ayarlarında bir klasör veya Tüm bilgisayar seçer. Bu ayar erişim vermez ve kişisel yol saklamaz. Hosted chat'te bu workspace için desktop app kullanılmalıdır.",
+    "backendComputerDetail": "Kişinin bilgisayarını kullanır; masaüstü uygulamasında agent başına bir kez onaylanır.",
+    "backendComputerConsent": "Her kişi masaüstü uygulamasında bu agent'a ilk mesajında bir klasör ya da Tüm bilgisayarı seçer; seçim agent için hatırlanır. Bu ayar erişim vermez ve kişisel yol saklamaz. Barındırılan bir sohbet bu çalışma alanı için masaüstü uygulamasını kullanmalıdır.",
     "workflowTablesViaMcp": "Workflow'lar ve Tables, AgenticOS MCP server'ında tool olarak sunulur. MCP servers bölümünden ekleyip Agent'ın ihtiyacı olan tool'ları seçin. Mevcut capability bağlantılarının kayıtlı izinleri korunur.",
     "modelApiFromModel": "Modelin belirlediği {api}",
     "modelApiFromModelHint": "Stav.ai çoğu modeli Chat Completions, bazılarını ise yalnızca Responses üzerinden sunar. Kullanılacak API’yi model belirler.",
@@ -8634,7 +8634,10 @@
           "refreshSettings": "Seçenekleri yenile",
           "unavailableOption": "{value} (kullanılamıyor)"
         },
-        "off": "Kapalı"
+        "off": "Kapalı",
+        "asksFirst": "İlk mesajda sorar",
+        "noCloud": "Bu agent bilgisayarında çalışır, bu yüzden bulut çalışma alanı yoktur. Bir klasör ya da tüm bilgisayarı seç.",
+        "agentComputerConsent": "Bu bilgisayardaki her konuşmada {agent} için izin verildi. Komutlar tek tek yerel onay istemeden çalışır. Erişimi buradan geri alabilirsin; işletim sistemi izinleri geçerli olmaya devam eder."
       },
       "modelSection": "Model",
       "permissionsSection": "İzinler",
@@ -9698,7 +9701,18 @@
     "approvalRememberedEmpty": "Hatırlanan onay yok.",
     "approvalRememberForget": "Tekrar sor",
     "approvalRememberFailed": "Onay kaldırılamadı. Tekrar deneyin.",
-    "approvalRememberRetry": "Tekrar dene"
+    "approvalRememberRetry": "Tekrar dene",
+    "localAccess": {
+      "title": "{agent} nerede çalışabilir?",
+      "description": "{agent} bilgisayarında çalışır. Bu agent için bir kez sorulur; daha sonra Chat controls → Work on altında değiştirebilir ya da geri alabilirsin.",
+      "computer": "Tüm bilgisayar",
+      "computerHint": "Hesabının erişebildiği her yerde dosyaları okuyup değiştirebilir ve senin adına komut çalıştırabilir. Bilgisayarın onay ister.",
+      "folder": "Klasör seç",
+      "folderHint": "Yalnızca seçtiğin klasörde çalışır.",
+      "cancel": "Şimdi değil",
+      "agentUnavailable": "Seçilen ajan yüklenemedi. Tekrar deneyin.",
+      "failed": "Bu bilgisayarda erişim ayarlanamadı"
+    }
   },
   "admin": {
     "actions": "Eylemler",

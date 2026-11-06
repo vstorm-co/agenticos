@@ -626,7 +626,7 @@ class KnowledgeBaseService:
                 named embedding configuration disagrees with the one the
                 collection already indexes with.
             AlreadyExistsError: If the collection name is already held outside
-                this caller's reach.
+                this caller's reach, or is busy and worth asking for again.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
         collection_name = data.collection_name or _derive_collection_name(data.name)

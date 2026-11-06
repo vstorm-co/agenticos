@@ -100,14 +100,19 @@ fn validate_mode(mode: Mode) -> Result<(), String> {
 pub struct LocalState {
     grants: Vec<Grant>,
     modes: Vec<&'static str>,
+    computer_grants: Vec<String>,
 }
 
 #[tauri::command]
-pub fn local_grants(app: AppHandle) -> LocalState {
-    LocalState {
+pub fn local_grants(app: AppHandle) -> Result<LocalState, String> {
+    Ok(LocalState {
         grants: settings::current(&app).local_grants,
         modes: modes(),
-    }
+        computer_grants: crate::computer_access::active(&app)?
+            .into_iter()
+            .map(|grant| grant.id)
+            .collect(),
+    })
 }
 
 /// Pick a folder in the native picker and allow agents to work there, up to `mode`.
@@ -274,6 +279,10 @@ pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> 
     Ok(LocalState {
         grants: settings.local_grants,
         modes: modes(),
+        computer_grants: crate::computer_access::active(&app)?
+            .into_iter()
+            .map(|grant| grant.id)
+            .collect(),
     })
 }
 
@@ -337,6 +346,52 @@ pub(crate) fn granted_folder(app: &AppHandle, root: &str, asked: Mode) -> Result
         ));
     }
     Ok(PathBuf::from(grant.path))
+}
+
+/// `root`, when it is a granted folder or a folder inside one granted at least
+/// `asked`: a coding session may work in one project of a granted workspace.
+///
+/// Both sides are resolved on disk first, so `..` and symbolic links cannot
+/// climb out of the grant.
+pub(crate) fn granted_folder_within(app: &AppHandle, root: &str, asked: Mode) -> Result<PathBuf, Refusal> {
+    if let Ok(folder) = granted_folder(app, root, asked) {
+        return Ok(folder);
+    }
+    let wanted = std::fs::canonicalize(root)
+        .ok()
+        .filter(|path| path.is_dir())
+        .ok_or_else(|| Refusal::new("denied", format!("{root} is not a folder on this computer.")))?;
+    let grants = settings::current(app).local_grants;
+    within(&wanted, &grants, asked)?;
+    Ok(wanted)
+}
+
+/// Whether a resolved folder sits inside a grant that allows `asked`.
+fn within(wanted: &Path, grants: &[Grant], asked: Mode) -> Result<(), Refusal> {
+    let inside = grants
+        .iter()
+        .filter(|grant| std::fs::canonicalize(&grant.path).is_ok_and(|path| wanted.starts_with(path)));
+    let mut found = false;
+    for grant in inside {
+        found = true;
+        if asked <= grant.mode {
+            return Ok(());
+        }
+    }
+    Err(Refusal::new(
+        "denied",
+        if found {
+            format!(
+                "You allowed less than that in {}. Running an agent needs full access.",
+                wanted.display()
+            )
+        } else {
+            format!(
+                "{} is not inside a folder you allowed agents to work in.",
+                wanted.display()
+            )
+        },
+    ))
 }
 
 fn text(args: &Map<String, Value>, key: &str) -> Result<String, Refusal> {
@@ -781,6 +836,36 @@ async fn allowed(app: &AppHandle, root: &Path, line: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_session_may_start_inside_a_full_access_folder_and_nowhere_else() {
+        let base = std::fs::canonicalize(std::env::temp_dir())
+            .unwrap()
+            .join(format!("agenticos-within-{}", uuid::Uuid::new_v4()));
+        let granted = base.join("work");
+        let app = granted.join("app");
+        let sibling = base.join("work-other");
+        for folder in [&app, &sibling] {
+            std::fs::create_dir_all(folder).unwrap();
+        }
+        let full = [Grant {
+            path: granted.to_string_lossy().into_owned(),
+            mode: Mode::FullAccess,
+        }];
+        assert!(super::within(&app, &full, Mode::FullAccess).is_ok());
+        // A name that merely starts the same is not inside it.
+        assert!(super::within(&sibling, &full, Mode::FullAccess).is_err());
+        let read = [Grant {
+            path: granted.to_string_lossy().into_owned(),
+            mode: Mode::ReadOnly,
+        }];
+        let refused = super::within(&app, &read, Mode::FullAccess).unwrap_err();
+        assert!(refused.message.contains("less than that"));
+        // `..` is resolved before it is compared, so it cannot climb out.
+        let climbed = std::fs::canonicalize(app.join("../../work-other")).unwrap();
+        assert!(super::within(&climbed, &full, Mode::FullAccess).is_err());
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
     use super::*;
 
     #[test]

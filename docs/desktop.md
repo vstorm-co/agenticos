@@ -353,7 +353,8 @@ the app checks against them: a folder you never picked, a mode wider than you
 allowed, or a path that climbs out of the folder is refused on the computer,
 whatever the server asked. The choice is remembered per conversation. New chats inherit the last folder
 and tool preferences for this account and organization; project settings take
-precedence. Whole-computer consent is never inherited.
+precedence. Whole-computer consent given in a chat is never inherited; consent
+given to an agent holds for that agent (see **Whole computer**).
 
 **Only your own runs.** A chat reaches your computer only when it is your own -
 never an API key, a widget visitor or someone else's chat - and a
@@ -369,19 +370,25 @@ operation is in flight, the tray says an agent is working on this computer.
 The server checks the sign-in before forwarding each local operation. Revoked or expired sessions refuse new work; the heartbeat also closes idle connections. Operations already in progress are cancelled when the desktop socket closes.
 
 In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
-native consent. Each person approves their own target in desktop chat. Without a
-selection, the run asks for it instead of opening a cloud sandbox. When creating a
+native consent. Each person approves their own target in desktop chat. Such an
+agent has no cloud workspace, so **Work on** offers no Cloud for it. Its first
+message asks once where it may work - **Whole computer** or a folder - and the
+answer is remembered for that agent on this computer, so its later chats start
+there without asking. When creating a
 project, **Project sandbox → Computer · your files** opens the personal folder
 selector; other members keep the project’s shared workspace.
 
 **Whole computer.** Desktop chat also offers **Whole computer** without a folder
-picker. One native warning grants access for this conversation: file tools can reach
+picker. One native warning grants access: for an agent whose workspace is
+**Computer**, the warning names the agent and the consent holds for it in every
+conversation; otherwise it is for this conversation. File tools can reach
 absolute paths anywhere your account can access and commands run as you, without
 individual native prompts. Operating system permissions and the agent's approval
 rules still apply. **Revoke whole-computer access** or choosing **Cloud** blocks new
 operations; commands already running are not interrupted. Consent survives app
-restarts, is scoped to this server and conversation, and a draft binds on its first
-operation. A new chat needs its own consent. This mode does not crawl the home
+restarts and is scoped to this server and to the agent or conversation; a draft binds
+a conversation's consent on its first operation. A new chat with another agent needs
+its own consent. This mode does not crawl the home
 directory or automatically collect files as attachments.
 
 Local browser and file tools are available in desktop chat even when the agent has
@@ -498,11 +505,11 @@ this agent, folder, adapter version and connection. Removing or reselecting the
 folder clears its approval and stops its running agents; account and server
 changes clear approvals too. The adapter runs as your operating-system account:
 the folder selects its working directory, not an OS sandbox. Whole-computer
-access cannot start a coding agent. Task approval and OS permissions still apply.
+access starts a coding agent too, in your home folder or a folder inside it. Task approval and OS permissions still apply.
 
 The capability's approval applies once per task. Inside it, `edit` allows requested operations and `read_only` refuses changes. Claude read-only disables bypass permissions and exposes only reading tools. Codex read-only selects its native read-only sandbox mode. Local agents use their own model settings; subscription usage is unpriced, so the run's reported cost is a floor.
 
-Later tasks resume the same harness session for this conversation, agent, folder, account and access policy. `fresh_session` explicitly starts over. Resume identifiers stay in desktop settings, outside your repository, and are cleared when you unlink or change accounts. If a saved session cannot load, the task fails explicitly; start fresh when appropriate. Processes stop on disconnect, but their saved harness history can be resumed.
+Later tasks resume the named session (`main` when a task names none) for this conversation, agent, harness, folder, account and access policy; several sessions run at once, up to eight on one computer, each in the chat's folder or a folder inside it. `fresh_session` explicitly starts over. Resume identifiers stay in desktop settings, outside your repository, and are cleared when you unlink or change accounts. If a saved session cannot load, the task fails explicitly; start fresh when appropriate. Processes stop on disconnect, but their saved harness history can be resumed.
 
 A correction sent while a local task is running interrupts its current ACP turn. After the adapter confirms the stop, the same session continues with the correction. The transcript records the applied correction; a message arriving after completion stays available to the parent agent.
 
@@ -664,3 +671,9 @@ When the exact approved computer is offline before execution, a durable activati
 Pausing, changing the task or native authority, deleting the routine or reaching its end cancels the old waiting work rather than moving it to another folder. A revoked device session requires review. Three dead or missing pre-admission dispatches stop the routine and create an owner incident; the failed event context remains available in the owner's data export. Completed/cancelled contexts are cleared immediately. Finished wait metadata and failed context follow the organization's run-history retention; live offline waits remain until admission, cancellation or deletion.
 
 Deploy API, workers and desktop together and drain old workers before enabling this contract. Older desktops cannot confirm routine grants; legacy local routines need explicit review. Migration `0272_routine_device_waits.py` adds the waits without changing routine identity. Before downgrading, pause local routines and drain their jobs: downgrade removes pending wait context and does not run it again. Existing parked local runs without the native-target snapshot require a fresh run.
+
+Local access choices belong to the selected agent, not to a global default inherited by other agents. Revoking a folder also removes its remembered choices and coding consents for folders inside it. Older desktop apps keep whole-computer consent within one conversation; upgrade the app to remember it across an agent’s conversations.
+
+While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
+
+ Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.

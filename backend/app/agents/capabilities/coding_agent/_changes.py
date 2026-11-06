@@ -16,9 +16,9 @@ time changed are read again. The store is removed once the diff is read.
 
 Left out, and so never in a diff: `.agenticos/` (the task's own files), the
 folders a toolchain fills (`TOOLING_DIRS`, `.git` among them), and any file past
-`MAX_FILE_BYTES`. A task running beside another in a shared sandbox sees that
-one's edits in its diff as well: the snapshot is of the workspace, not of one
-process's writes.
+`MAX_FILE_BYTES`. Coding tasks within one toolset queue around their snapshots and execution.
+Other writers in a shared sandbox can still appear in the diff: a snapshot
+records the workspace, not one process's writes.
 """
 
 import base64

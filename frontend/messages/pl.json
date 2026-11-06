@@ -1012,7 +1012,10 @@
           "unavailableOption": "{value} (niedostępny)",
           "effortUnsupported": "Model nie oferuje tej opcji"
         },
-        "off": "Wyłączone"
+        "off": "Wyłączone",
+        "asksFirst": "Zapyta przy pierwszej wiadomości",
+        "noCloud": "Ten agent pracuje na Twoim komputerze, więc nie ma przestrzeni w chmurze. Wybierz folder albo cały komputer.",
+        "agentComputerConsent": "Dozwolone dla {agent} w każdej rozmowie na tym komputerze. Polecenia działają bez osobnych natywnych pytań. Możesz cofnąć dostęp tutaj; uprawnienia systemu nadal obowiązują."
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",
@@ -1515,7 +1518,18 @@
     "approvalRememberedEmpty": "Brak zapamiętanych akceptacji.",
     "approvalRememberForget": "Pytaj ponownie",
     "approvalRememberFailed": "Nie udało się usunąć zgody. Spróbuj ponownie.",
-    "approvalRememberRetry": "Spróbuj ponownie"
+    "approvalRememberRetry": "Spróbuj ponownie",
+    "localAccess": {
+      "title": "Gdzie {agent} może pracować?",
+      "description": "{agent} pracuje na Twoim komputerze. Pytamy raz dla tego agenta; zmienisz lub cofniesz to później w Chat controls → Work on.",
+      "computer": "Cały komputer",
+      "computerHint": "Może czytać i zmieniać pliki wszędzie, gdzie ma dostęp Twoje konto, i uruchamiać polecenia jako Ty. Komputer poprosi o potwierdzenie.",
+      "folder": "Wybierz folder",
+      "folderHint": "Pracuje tylko w wybranym folderze.",
+      "cancel": "Nie teraz",
+      "agentUnavailable": "Nie udało się wczytać wybranego agenta. Spróbuj ponownie.",
+      "failed": "Nie udało się ustawić dostępu na tym komputerze"
+    }
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -8760,8 +8774,8 @@
     "addSeparateModel": "Dodaj osobny model",
     "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany.",
     "backendComputerLabel": "Komputer",
-    "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
-    "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
+    "backendComputerDetail": "Używa komputera osoby; zgoda raz na agenta w aplikacji desktopowej.",
+    "backendComputerConsent": "Każda osoba wybiera folder albo Cały komputer przy pierwszej wiadomości do tego agenta w aplikacji desktopowej; wybór jest zapamiętywany dla agenta. To ustawienie nie daje dostępu i nie zapisuje osobistej ścieżki. Czat w przeglądarce wymaga aplikacji desktopowej dla tego obszaru roboczego.",
     "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
     "unavailableTitle": "Agent niedostępny",
     "unavailableDescription": "Sprawdź wybraną organizację. Agent może należeć do innej organizacji, być usunięty albo nie być już Tobie udostępniony.",

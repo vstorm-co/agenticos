@@ -1,5 +1,5 @@
 ---
-source_sha: "c60a0a5cad27"
+source_sha: "af48402946ea"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1725,6 +1725,8 @@ und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufga
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
 gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
 Tools-Tab: Das eine Tool ist die Capability.
+
+**Benannte Sitzungen.** Jede Aufgabe nennt eine `session` - `main`, wenn sie keine nennt. Derselbe Name setzt die bisherige Arbeit dieser Sitzung in der Unterhaltung fort; ein neuer Name öffnet eine weitere, und unabhängige Sitzungen laufen nebeneinander, wenn der Agent das Tool mehrmals gleichzeitig aufruft. `fresh_session` beginnt eine Sitzung neu. Auf diesem Computer kann eine Sitzung außerdem ihren `harness` wählen - Claude Code oder Codex, mit der Anmeldung dieses Computers - und einen `folder` innerhalb des Chat-Ordners, sodass zwei Projekte oder beide Harnesses gleichzeitig arbeiten. In einer Sandbox oder einer privaten Cloud-Aufgabe ist der Harness des Bindings der einzige, da Schlüssel oder Konto zu ihm gehören.
 
 **Auf diesem Computer.** Setze `runs_on` auf `this_computer`, um den installierten Harness über das [Agent Client Protocol](https://agentclientprotocol.com) zu nutzen. Die Desktop-App startet einen fest versionierten Adapter mit `npx`; der Server spricht ACP. Wähle einen Ordner mit Vollzugriff in **Work on** und bestätige jeden Start nativ. Der Ordner ist ein Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Der Harness verwendet seine eigene Anmeldung; ein Vault-Schlüssel ist optional. Berechtigungsanfragen folgen `access`; die Freigabe gilt einmal pro Aufgabe. Claude read-only deaktiviert Bypass und Schreibwerkzeuge; lokales Codex wählt seinen nativen Lesemodus.
 
@@ -3500,3 +3502,9 @@ Eine Entscheidung kann strukturierte Belege enthalten: Situation, Wahl, Alternat
 Unter **Einstellungen → Gedächtnis** liest du Belege und erfasst mit der Korrektur ein beobachtetes Ergebnis. Eine Korrektur fügt einen neuen Eintrag hinzu; die bisherige Episode und ihre Herkunft bleiben im Verlauf. Die deterministische Konsolidierung macht aus Episoden keine allgemeinen Regeln. Löschung entfernt ihre Inhalte zusammen mit den Einträgen; der persönliche Datenexport enthält sie.
 
 **Improve-Fall vorbereiten** öffnet eine bearbeitbare Eingabe und erwartete Antwort. Prüfe den Text, entferne private Angaben und bestätige ausdrücklich den Download eines JSONL-Datensatzes. Die Felder `input`, `reference_answer`, `tags` und `note` entsprechen dem Importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importiere die Datei nach Installation dieser Funktion in einen Improve-Datensatz, evaluiere sie und akzeptiere/veröffentliche Änderungen dort. Dieser Export erstellt keinen Datensatz, startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
+
+Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
+
+Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
+
+ Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.

@@ -368,6 +368,8 @@ export interface LocalTarget {
   skills?: SkillSource[];
   mode: LocalMode;
   computer_grant?: string;
+  /** Native consent owner; absent on older desktop apps. Never inferred from the request. */
+  computer_grant_agent?: string;
   browser?: boolean;
   computer?: boolean;
   coding_agent?: "claude_code" | "codex";
@@ -387,6 +389,7 @@ export interface LocalGrant {
 export interface LocalState {
   grants: LocalGrant[];
   modes: LocalMode[];
+  computer_grants?: string[];
 }
 
 function parseLocalGrant(value: unknown): LocalGrant {
@@ -400,7 +403,13 @@ export function parseLocalState(value: unknown): LocalState {
     throw new ShellError("malformed", "the granted folders");
   const grants = fields.grants;
   const modes = fields.modes;
-  return { grants: grants.map(parseLocalGrant), modes: modes.filter(isLocalMode) };
+  return {
+    grants: grants.map(parseLocalGrant),
+    modes: modes.filter(isLocalMode),
+    ...(Array.isArray(fields.computer_grants) && fields.computer_grants.every(isString)
+      ? { computer_grants: fields.computer_grants }
+      : {}),
+  };
 }
 
 export async function getLocalState(): Promise<LocalState> {
@@ -413,17 +422,28 @@ export async function pickLocalFolder(mode: LocalMode): Promise<LocalGrant | nul
   return picked === null ? null : parseLocalGrant(picked);
 }
 
-/** Explicit native consent, saved for one conversation; null when cancelled. */
+/**
+ * Ask the person, natively, to let agents use the whole computer.
+ *
+ * With an agent, the consent holds for that agent in every conversation, so the
+ * person is asked once per agent; without one it belongs to this conversation.
+ */
 export async function allowWholeComputer(
   conversationId: string | null,
+  agent?: { id: string; name: string },
 ): Promise<LocalTarget | null> {
-  const result = await invokeShell("local_allow_computer", { conversationId });
+  const result = await invokeShell("local_allow_computer", {
+    conversationId,
+    agentId: agent?.id ?? null,
+    agentName: agent?.name ?? null,
+  });
   if (result === null) return null;
   const grant = record(result, "whole-computer consent");
   return {
     folder: field(grant, "path", isString),
     mode: "full_access",
     computer_grant: field(grant, "id", isString),
+    ...(typeof grant.agent_id === "string" ? { computer_grant_agent: grant.agent_id } : {}),
   };
 }
 

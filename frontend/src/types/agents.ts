@@ -557,6 +557,8 @@ export interface Agent {
    * null when it runs none there; the composer names it. Listing only.
    */
   local_coding_agent?: LocalCodingAgent | null;
+  /** A published local workspace requires a folder or whole-computer access. */
+  local_workspace?: boolean;
   /**
    * The coding agent the published version runs as a private cloud task on the
    * person's own account, or null; the chat offers to connect that account. Listing only.

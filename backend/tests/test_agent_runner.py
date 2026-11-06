@@ -7395,6 +7395,7 @@ class TestPerRunLocalServices:
             folder="/approved" if with_folder else None,
             computer_grant=grant,
             conversation_id=conversation,
+            agent_id=agent.id,
         )
         assert toolset in build.call_args.kwargs["extra_toolsets"]
         assert build.call_args.kwargs["resources"]["background_tasks.local"].device_id == session
@@ -8358,7 +8359,6 @@ def test_local_coding_override_adds_or_enables_only_the_run_binding(
         {"mode": "full_access"},
         {"folder": "/approved", "mode": "workspace_write"},
         {"folder": "/approved", "mode": "read_only"},
-        {"folder": "/approved", "mode": "full_access", "computer_grant": str(uuid.uuid4())},
     ],
 )
 def test_local_coding_override_requires_a_full_access_folder(target: dict[str, str]) -> None:
@@ -8368,6 +8368,21 @@ def test_local_coding_override_requires_a_full_access_folder(target: dict[str, s
 
     with pytest.raises(ValidationError, match="Choose a folder with full access"):
         LocalTarget.model_validate({**target, "coding_agent": "codex"})
+
+
+def test_a_local_coding_agent_may_work_on_the_whole_computer() -> None:
+    """Whole-computer consent covers the coding agent too: no second folder to pick."""
+    from app.schemas.local_target import LocalTarget
+
+    target = LocalTarget.model_validate(
+        {
+            "folder": "/Users/person",
+            "mode": "full_access",
+            "computer_grant": str(uuid.uuid4()),
+            "coding_agent": "claude_code",
+        }
+    )
+    assert target.coding_agent == "claude_code"
 
 
 def test_background_work_keeps_the_authenticated_device_through_workspace_wrappers() -> None:
