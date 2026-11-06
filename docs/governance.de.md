@@ -1,5 +1,5 @@
 ---
-source_sha: "1304682681d5"
+source_sha: "72ff44ebe5ac"
 ---
 
 # Governance { #governance }
@@ -584,16 +584,16 @@ Arbeitszeit, die ihr Profil angibt - und schlägt eine Routine für eine Anfrage
 vor, die sie immer wiederholt, ein Profil oder die ersten Nachrichten, die ihr
 leerer Chat anbietet ([Konsole](console.md#chat)).
 
-Ein Prompt, den ein [Guardrail](reference/capabilities.md#guardrails) abgelehnt
-hat, gehört nicht zu diesen Anfragen: der Job liest ihn nie, also erreicht er
-auch später kein Modell.
-
 Jeder ist ein Modellaufruf,
 auf dem Modell, das die Organisation beim Einschalten gewählt hat (es gibt keinen
 Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
 der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
+
+Die Anfragen, die der Job liest, enthalten nie einen Prompt, den ein
+[Guardrail](reference/capabilities.md#guardrails) abgelehnt hat, also erreicht
+ein solcher Prompt das Proaktivitätsmodell nicht.
 
 Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
 Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,

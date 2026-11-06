@@ -1,5 +1,5 @@
 ---
-source_sha: "1304682681d5"
+source_sha: "72ff44ebe5ac"
 ---
 
 # Governance { #governance }
@@ -541,15 +541,15 @@ czasowej każdej osoby albo godzinę przed godzinami pracy podanymi w jej profil
 i proponuje rutynę dla prośby, którą powtarza, profil albo pierwsze wiadomości,
 które oferuje jej pusty czat ([Konsola](console.md#chat)).
 
-Prompt, który [guardrail](reference/capabilities.md#guardrails) odrzucił, nie
-jest jedną z tych próśb: przegląd nigdy go nie czyta, więc później nie trafia do
-żadnego modelu.
-
 Każde to jedno
 wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie ma
 domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
+
+Prośby, które czyta przegląd, nigdy nie obejmują promptu odrzuconego przez
+[guardrail](reference/capabilities.md#guardrails), więc taki prompt nie trafia
+do modelu proaktywności.
 
 Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
 **limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej

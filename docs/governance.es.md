@@ -1,5 +1,5 @@
 ---
-source_sha: "1304682681d5"
+source_sha: "72ff44ebe5ac"
 ---
 
 # Governance { #governance }
@@ -544,16 +544,16 @@ laboral que indica su perfil - y propone una rutina para una petición que repit
 un perfil o los primeros mensajes que ofrece su chat vacío
 ([Consola](console.md#chat)).
 
-Un prompt que un [guardrail](reference/capabilities.md#guardrails) rechazó no es
-una de esas peticiones: la tarea nunca lo lee, así que tampoco llega después a
-ningún modelo.
-
 Cada uno es una llamada al modelo, con el modelo
 que la organización eligió al activarla (no hay uno por defecto:
 `proactive_model_profile_id` es obligatorio), registrada en el historial de runs
 como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
+
+Las peticiones que lee la tarea nunca incluyen un prompt que un
+[guardrail](reference/capabilities.md#guardrails) rechazó, así que ese prompt
+no llega al modelo de proactividad.
 
 Además, los runs por iniciativa propia de cada persona en un mes natural los
 limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por

@@ -505,14 +505,15 @@ time zone, or an hour before the working hours their profile states - and
 proposes a routine for a request they keep repeating, a profile, or the first
 messages their empty chat offers ([Console](console.md#chat)).
 
-A prompt a [guardrail](reference/capabilities.md#guardrails) refused is not one
-of those requests: the look never reads it, so it reaches no model later.
-
 Each is one model
 call, on the model the organization chose when it turned this on (there is no
 default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
+
+The requests the look reads never include a prompt a
+[guardrail](reference/capabilities.md#guardrails) refused, so such a prompt does
+not reach the proactivity model.
 
 On top of that, each person's proactive runs in a calendar month are capped by
 the organization's **proactive limit** - $1 by default, set on the same card
