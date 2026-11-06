@@ -7632,7 +7632,6 @@
     "everySixHours": "Alle 6 Std.",
     "failedCount": "{count} fehlgeschlagen",
     "ingestedCount": "{count} eingelesen",
-    "integration": "Integration",
     "leaveEmptyAutoGenerate": "Leer lassen für automatische Erzeugung",
     "loading": "Wird geladen …",
     "modeFull": "Vollständig",

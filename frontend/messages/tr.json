@@ -10196,7 +10196,6 @@
     "everySixHours": "6 saatte bir",
     "failedCount": "{count} başarısız",
     "ingestedCount": "{count} içeri aktarıldı",
-    "integration": "Entegrasyon",
     "leaveEmptyAutoGenerate": "Otomatik oluşturmak için boş bırakın",
     "loading": "Yükleniyor…",
     "modeFull": "Tam",

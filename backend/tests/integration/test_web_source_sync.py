@@ -14,6 +14,7 @@ embedding provider, with a deterministic bag-of-words embedder - a search for a
 word has to find the page that holds it, which is all retrieval is asked here.
 """
 
+import asyncio
 import hashlib
 import re
 import socket
@@ -43,6 +44,7 @@ from app.services.rag.models import Document
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.rag_document import RAGDocumentService
 from app.worker.tasks import rag_tasks
+from tests.integration.test_document_delete_mid_ingest import _until_a_statement_waits_on_a_lock
 
 pytestmark = pytest.mark.anyio
 
@@ -394,3 +396,27 @@ async def test_a_page_two_sources_list_stays_until_both_stop_listing_it(
     assert (last.status, last.removed) == ("done", 1)
     assert await _tracked(db) == {"web://docs.example.com/"}
     assert "web://docs.example.com/billing" not in await _found(engine, "invoices", limit=10)
+
+
+async def test_a_source_deleted_as_its_run_settles_keeps_the_runs_outcome(
+    engine: AsyncEngine, _site: _Site
+) -> None:
+    """A route deleting a source holds it, then reaches the run's log through the
+    foreign key. The settlement takes the source first, the same order: taking the
+    log first deadlocked them, and the run that had finished was recorded as
+    stopped (#2745)."""
+    _site.pages.update({"/": _page("Welcome to the product documentation.")})
+    source_id = await _source(engine)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with factory() as deleting:
+        await sync_source_repo.lock(deleting, uuid.UUID(source_id))
+        run = asyncio.ensure_future(_sync(engine, source_id))
+        await _until_a_statement_waits_on_a_lock(factory)
+        await sync_source_repo.delete(deleting, uuid.UUID(source_id))
+        await deleting.commit()
+    finished = await asyncio.wait_for(run, timeout=30)
+
+    assert finished.status == "done"
+    assert finished.ingested == 1
+    assert finished.sync_source_id is None

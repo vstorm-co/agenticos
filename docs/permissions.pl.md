@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "bfd7342ba921"
 ---
 
 # Uprawnienia { #permissions }
@@ -133,6 +133,17 @@ więcej, niż jego wydający ma teraz.
     nowy endpoint dostaje ich zapytania od następnego runu. Klucz pozostaje
     chroniony. Ustawienie klucza profilu albo przeniesienie endpointu profilu,
     który ma klucz, wymaga `secrets:view` na tym kluczu ([Modele](models.md#changing-a-profiles-key-or-endpoint)).
+
+    `connections:manage` wypisuje też integracje synchronizacji organizacji:
+    źródła wszystkich baz, z ich konfiguracją, sekretem w vault, którego każde
+    używa, i ostatnim błędem, oraz źródła nieprzypisane. Tę listę zwracają
+    `/org/integrations` i `GET /rag/sync/sources`, a propozycja ponownego użycia
+    jednej z nich w kreatorze bazy wiedzy
+    (`GET /kb/{kb_id}/sync-sources/org-integrations`) zwraca ją bez bazy, na
+    której jest otwarta. Czytanie jednej bazy ani grant na nią nie otwiera tej
+    listy. Bez tego uprawnienia `GET /rag/sync/sources`
+    wypisuje tylko źródła, które zasilają bazę czytaną przez wywołującego, a
+    kreator pomija propozycję.
 
 Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytanie,
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz *których*
