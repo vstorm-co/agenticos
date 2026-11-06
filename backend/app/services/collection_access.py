@@ -122,6 +122,13 @@ def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[Knowledge
     return target is not None and target.id == kb.id
 
 
+def _taken(name: str) -> AlreadyExistsError:
+    return AlreadyExistsError(
+        message=f"A collection named '{name}' already exists",
+        details={"collection": name},
+    )
+
+
 def _no_collection(name: str) -> NotFoundError:
     return NotFoundError(message="Collection not found", details={"collection": name})
 
@@ -287,10 +294,23 @@ class CollectionAccessService:
         lock is transaction-scoped, so it is held until this request commits the
         row - past `create_collection`, which builds the table this protects.
 
+        Content no base owns is the third refusal (#2747). A name can hold rows
+        and chunks with no knowledge base behind them - `rag-ingest` writes both,
+        tagged with no organization - and the last holder's teardown drops the
+        name's table. A claim adopting such a name let a member with ordinary
+        `collections:edit` create a base on it and delete that base, dropping the
+        operator's chunks with it. So a name is refused while it holds unfiled
+        rows describing chunks of any tenant but the caller's organization, or,
+        when no base holds it, a vector table with such chunks. Only an app admin
+        passes: they administer the deployment and can already drop any
+        collection with `rag-drop`. The refusal is the same "already exists",
+        saying nothing about whose content it is.
+
         Raises:
             BadRequestError: If the name could not safely become an identifier.
             AlreadyExistsError: If a knowledge base outside the caller's reach
-                already owns the name.
+                already owns the name, or it holds content no base of the
+                caller's organization owns and the caller is not an app admin.
         """
         validate_collection_name(name, metadata=Base.metadata)
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
@@ -302,12 +322,20 @@ class CollectionAccessService:
                 message=f"A collection named '{name}' is being torn down; try again shortly",
                 details={"collection": name},
             )
-        for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
+        holders = await knowledge_base_repo.list_by_collection_name(self.db, name)
+        for kb in holders:
             if not await writable_kb(self.db, ctx, kb):
-                raise AlreadyExistsError(
-                    message=f"A collection named '{name}' already exists",
-                    details={"collection": name},
-                )
+                raise _taken(name)
+        if ctx.is_app_admin:
+            return
+        if await rag_document_repo.holds_unfiled_outside(
+            self.db, collection_name=name, tenant=ctx.organization_id
+        ):
+            raise _taken(name)
+        if not holders and await rag_document_repo.table_holds_chunks_outside(
+            self.db, collection_name=name, tenant=ctx.organization_id
+        ):
+            raise _taken(name)
 
     async def _document(self, doc_id: str) -> RAGDocument:
         parsed = _as_uuid(doc_id)

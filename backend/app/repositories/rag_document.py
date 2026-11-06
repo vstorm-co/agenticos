@@ -360,8 +360,26 @@ async def get_superseded(
     return list(result.scalars().all())
 
 
-async def discard_failed(db: AsyncSession, *, collection_name: str, source_path: str) -> int:
-    """Drop this file's *failed* attempts, and count them.
+async def discard_failed(
+    db: AsyncSession,
+    *,
+    collection_name: str,
+    source_path: str,
+    organization_id: UUID | None,
+    scope: CollectionScope | None,
+) -> int:
+    """Drop this file's *failed* attempts in the new row's scope, and count them.
+
+    **The scope, not the name.** A collection name is not unique - two
+    organizations, or two bases of one organization, can hold the same name and
+    sync the same path - so matching by name and path deleted another tenant's
+    failed rows, their error and their retry with them (#2747). `scope` is the
+    base the new row is filed under, and the rows retired are the ones that base
+    lists (`in_collection_scope`): its own, and its tenant's unfiled ones when it
+    takes them - which is how a failure `mark_unindexed` left for the tenant's
+    next base on the name is retired by that base's sync. With no base, the new
+    row is unfiled and only unfiled rows tagged `organization_id` go, `None`
+    matching only rows with no organization.
 
     A failed parse writes no vectors, so the row it leaves has no
     `vector_document_id` - and `complete_ingestion`'s retirement matches on
@@ -386,6 +404,7 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
         await db.execute(
             sql_delete(RAGDocument).where(
                 RAGDocument.collection_name == collection_name,
+                in_collection_scope(scope) if scope is not None else _unfiled_of(organization_id),
                 RAGDocument.source_path == source_path,
                 RAGDocument.status == DocumentStatus.ERROR,
                 RAGDocument.vector_document_id.is_(None),
@@ -786,6 +805,57 @@ async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) 
         db,
         and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
     )
+
+
+async def holds_unfiled_outside(db: AsyncSession, *, collection_name: str, tenant: UUID) -> bool:
+    """Whether the name holds unfiled rows of another tenant that describe chunks.
+
+    Unfiled is filed under no base: `rag-ingest`, a sync with no base, a base
+    since deleted. Another tenant's is tagged with any organization but
+    `tenant`, or with none. A failed row with no vector id describes no chunk -
+    `mark_unindexed` leaves those when a table is dropped - so it is left out:
+    nothing of it is lost if the name's table goes again.
+    """
+    describes_chunks = or_(
+        RAGDocument.status != DocumentStatus.ERROR,
+        RAGDocument.vector_document_id.is_not(None),
+    )
+    result = await db.execute(
+        select(
+            exists().where(
+                RAGDocument.collection_name == collection_name,
+                RAGDocument.knowledge_base_id.is_(None),
+                RAGDocument.organization_id.is_distinct_from(tenant),
+                describes_chunks,
+            )
+        )
+    )
+    return bool(result.scalar())
+
+
+async def table_holds_chunks_outside(
+    db: AsyncSession, *, collection_name: str, tenant: UUID
+) -> bool:
+    """Whether the name's vector table holds a chunk tagged other than `tenant`.
+
+    For a name no base holds, where every chunk is unowned: one with no tag, or
+    another organization's, is not this tenant's to adopt. A table that does not
+    exist holds nothing.
+    """
+    validate_collection_name(collection_name, metadata=Base.metadata)
+    name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
+        return False
+    metadata = column("metadata", JSONB)
+    runtime = table(name, metadata, schema="public")
+    result = await db.execute(
+        select(
+            exists()
+            .select_from(runtime)
+            .where(metadata["organization_id"].astext.is_distinct_from(str(tenant)))
+        )
+    )
+    return bool(result.scalar())
 
 
 UNINDEXED_BY_DROP = (

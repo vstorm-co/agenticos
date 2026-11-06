@@ -57,9 +57,14 @@ def _teardown_reservations(monkeypatch):
     """The teardown-reservation repo (#1362) hits the database; mock it at the
     boundary. A name is free to claim and reserving/releasing is a no-op by default;
     a test that asserts a reservation re-patches `reserve`."""
-    from app.repositories import collection_teardown_repo
+    from app.repositories import collection_teardown_repo, rag_document_repo
 
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+    # A name holding no unowned content (#2747); the claim reads it from the database.
+    monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(collection_teardown_repo, "reserve", AsyncMock())
     monkeypatch.setattr(collection_teardown_repo, "release", AsyncMock())
 

@@ -235,10 +235,21 @@ class RAGDocumentService:
         `sync_source_id` is the source a connector sync ingested this for, and
         the row is opened claimed by it: that claim is what lets a later run of
         the source remove it once it is no longer listed (`unlisted_by_source`).
+
+        The previous attempts retired are those in the new row's own scope - the
+        base it is filed under, else the unfiled rows of `organization_id` - and
+        never another tenant's or another base's at the same path (#2747).
+
+        Raises:
+            NotFoundError: If `knowledge_base_id` names no knowledge base.
         """
         if source_path:
             await rag_document_repo.discard_failed(
-                self.db, collection_name=collection_name, source_path=source_path
+                self.db,
+                collection_name=collection_name,
+                source_path=source_path,
+                organization_id=organization_id,
+                scope=await self._filing_scope(knowledge_base_id),
             )
         return await rag_document_repo.create(
             self.db,
@@ -264,6 +275,18 @@ class RAGDocumentService:
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
         )
+
+    async def _filing_scope(self, knowledge_base_id: UUID | None) -> CollectionScope | None:
+        """The scope of the base a new row is filed under, `None` for an unfiled one."""
+        if knowledge_base_id is None:
+            return None
+        kb = await knowledge_base_repo.get_by_id(self.db, knowledge_base_id)
+        if kb is None:
+            raise NotFoundError(
+                message="Knowledge base not found",
+                details={"knowledge_base_id": str(knowledge_base_id)},
+            )
+        return CollectionScope.of(kb)
 
     async def dispatch_upload(
         self,
