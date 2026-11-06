@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "1c5e78b20653"
+source_sha: "b2581a8347a6"
 ---
 
 # Projekte { #projects }
@@ -286,8 +286,8 @@ mit ihm.
 
 ## Wo Projekte erscheinen { #where-projects-show-up }
 
-- **Projekte** in der Seitenleiste listet die fünf zuletzt genutzten über dem
-  Link zu allen.
+- **Projekte** in der Seitenleiste listet die drei zuletzt genutzten über dem
+  Link zu allen. Ein Symbol kennzeichnet Projekte mit einer noch ungelesenen Chatantwort.
 - Die Chat-Liste führt jeden Chat in den Projekten, die du sehen kannst - deine
   und die deiner Kolleginnen und Kollegen - unter dem Namen des Projekts, über
   den Chats außerhalb von Projekten.

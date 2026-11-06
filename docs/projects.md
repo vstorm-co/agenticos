@@ -264,8 +264,8 @@ was deleted, which only the project still reached and which goes with it.
 
 ## Where projects show up
 
-- **Projects** in the sidebar lists the five you used most recently, above the
-  link to all of them.
+- **Projects** in the sidebar lists the three you used most recently, above the
+  link to all of them. An unread-answer icon marks a project with a chat response you have not read.
 - The chat list files every chat in the projects you can see - yours and your
   teammates' - under the project's name, above the chats outside any project.
 - The dashboard's **Projects** card shows a row of them, with the chats in each.

@@ -45,8 +45,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // list reads its running, unread and order state off runs too - a run started
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
-  run: () => [qk.runs.all(), qk.conversations.list(), qk.outcomes.all()],
-  conversation: () => [qk.conversations.all()],
+  run: () => [qk.runs.all(), qk.conversations.list(), qk.outcomes.all(), qk.projects.all()],
+  conversation: () => [qk.conversations.all(), qk.projects.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {

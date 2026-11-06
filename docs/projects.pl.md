@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "1c5e78b20653"
+source_sha: "b2581a8347a6"
 ---
 
 # Projekty { #projects }
@@ -268,8 +268,8 @@ sięgał do niego już tylko projekt, więc znika razem z nim.
 
 ## Gdzie widać projekty { #where-projects-show-up }
 
-- **Projekty** w pasku bocznym pokazują pięć ostatnio używanych, nad linkiem do
-  wszystkich.
+- **Projekty** w pasku bocznym pokazują trzy ostatnio używanych, nad linkiem do
+  wszystkich. Ikona nowej odpowiedzi oznacza projekt z nieprzeczytaną odpowiedzią w chacie.
 - Lista czatów pokazuje każdy czat w projektach, które widzisz - twoje i twoich
   współpracowników - pod nazwą projektu, nad czatami spoza projektów.
 - Karta **Projekty** na dashboardzie pokazuje ich rząd, z czatami w każdym.

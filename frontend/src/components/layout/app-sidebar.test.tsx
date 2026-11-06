@@ -17,7 +17,9 @@ vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
-const recentProjects = vi.fn<() => { id: string; name: string }[]>(() => []);
+const recentProjects = vi.fn<() => { id: string; name: string; has_unread_chats?: boolean }[]>(
+  () => [],
+);
 vi.mock("@/hooks/use-projects", () => ({
   useProjects: () => ({ projects: recentProjects() }),
 }));
@@ -236,6 +238,26 @@ describe("SidebarNav", () => {
     // The list entry lights on its own page only, not under every project.
     expect(screen.getByRole("link", { name: "allProjects" })).not.toHaveAttribute("aria-current");
     expect(screen.getByText("T")).toBeInTheDocument();
+    recentProjects.mockReturnValue([]);
+  });
+
+  it("limits recent projects to three and marks unseen answers in the column and rail", () => {
+    can.mockReturnValue(true);
+    recentProjects.mockReturnValue([
+      { id: "p-1", name: "Newest", has_unread_chats: true },
+      { id: "p-2", name: "Second" },
+      { id: "p-3", name: "Third" },
+      { id: "p-4", name: "Older" },
+    ]);
+    const { unmount } = renderNav();
+    expect(screen.getByRole("link", { name: /Newest/ })).toBeInTheDocument();
+    expect(screen.queryByText("Older")).toBeNull();
+    expect(screen.getByRole("img", { name: "unread" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "allProjects" })).toBeInTheDocument();
+    unmount();
+    render(<SidebarNav collapsed />);
+    expect(screen.getByRole("link", { name: "Newest · unread" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "unread" })).toBeInTheDocument();
     recentProjects.mockReturnValue([]);
   });
 

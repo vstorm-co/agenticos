@@ -187,6 +187,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show the three most recently active projects in navigation and mark projects with unread chat answers for the current reader.
+
 - Give the conversation sidebar an intermediate surface shade between navigation and chat in every theme.
 
 - Resolve resumed tool results in their original chat segment and share the persisted run clock between the transcript and conversation sidebar.

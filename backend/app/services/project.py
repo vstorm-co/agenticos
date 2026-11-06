@@ -190,6 +190,9 @@ class ProjectService:
 
     async def _read_many(self, ctx: AuthContext, projects: list[Project]) -> list[ProjectRead]:
         ids = [project.id for project in projects]
+        unread = await project_repo.unread_projects(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id, project_ids=ids
+        )
         activity = await project_repo.chat_activity(
             self.db,
             organization_id=ctx.organization_id,
@@ -250,6 +253,7 @@ class ProjectService:
                             moves.get(project.workspace_move_job_id), project
                         ),
                         "chat_count": count,
+                        "has_unread_chats": project.id in unread,
                         "last_active_at": last,
                         "shared_groups": groups[project.id],
                         "can_use": project.id in usable,

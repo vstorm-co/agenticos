@@ -30,11 +30,15 @@ describe("staleQueries", () => {
       qk.notifications.all(),
       qk.outcomes.all(),
     ]);
-    expect(staleQueries(change("conversation"))).toEqual([qk.conversations.all()]);
+    expect(staleQueries(change("conversation"))).toEqual([
+      qk.conversations.all(),
+      qk.projects.all(),
+    ]);
     expect(staleQueries(change("run"))).toEqual([
       qk.runs.all(),
       qk.conversations.list(),
       qk.outcomes.all(),
+      qk.projects.all(),
     ]);
   });
 

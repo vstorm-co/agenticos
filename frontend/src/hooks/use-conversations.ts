@@ -673,6 +673,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           !stillSameTenant(organization)
         )
           return;
+        invalidateSoon(queryClient, qk.projects.all());
         await queryClient.cancelQueries({
           queryKey: qk.conversations.list(),
           predicate: (query) => query.state.data !== undefined,

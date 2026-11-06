@@ -82,6 +82,7 @@ def _service(project: MagicMock | None, *held: Perm) -> ProjectService:
     )
     patcher = [
         patch.object(module.project_repo, "get", AsyncMock(return_value=project)),
+        patch.object(module.project_repo, "unread_projects", AsyncMock(return_value=set())),
         patch.object(module, "resolve_access", _Access(*held)),
     ]
     for started in patcher:
@@ -332,6 +333,7 @@ class TestListing:
         stale = _project(default_agent_id=archived.id)
         service = _service(None)
         with (
+            patch.object(module.project_repo, "unread_projects", AsyncMock(return_value={mine.id})),
             patch.object(module, "visible_resource_ids", AsyncMock(return_value=None)),
             patch.object(module, "shared_with_group", AsyncMock(return_value=None)),
             patch.object(
@@ -367,6 +369,7 @@ class TestListing:
 
         assert listed.await_args.kwargs["see_all"] is True
         first, second, third = page.items
+        assert first.has_unread_chats and not second.has_unread_chats
         assert (third.default_agent_id, third.default_agent_name) == (None, None)
         assert (first.chat_count, first.can_use, first.can_edit) == (3, True, True)
         assert (first.default_agent_id, first.default_agent_name) == (agent.id, "Researcher")
