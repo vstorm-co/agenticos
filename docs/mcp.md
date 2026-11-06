@@ -1162,7 +1162,7 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (the caller's own; a key needs `agents:run` for `test_my_connection`) |
 | `list_watches`, `delete_watch` | the caller’s own watches |
 | `create_watch`, `update_watch` | the person themselves - signed in, through a key or MCP token they issued, or in their private chat; `agents:run` when selecting an agent |
 

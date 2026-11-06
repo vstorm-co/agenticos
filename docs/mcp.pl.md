@@ -1,5 +1,5 @@
 ---
-source_sha: "b580221f3668"
+source_sha: "4c43178a7b56"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1201,7 +1201,7 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
 | `create_watch`, `update_watch` | sama osoba - zalogowana, przez wydany przez nią klucz lub token MCP albo w jej prywatnym czacie; `agents:run` przy wyborze agenta |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b580221f3668"
+source_sha: "4c43178a7b56"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1235,7 +1235,7 @@ permiso que faltaba.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
 | `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
 

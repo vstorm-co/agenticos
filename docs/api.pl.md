@@ -1,5 +1,5 @@
 ---
-source_sha: "a3cbc2a2c1f3"
+source_sha: "051c0d1f170f"
 ---
 
 # API HTTP { #the-http-api }
@@ -74,6 +74,8 @@ Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
 klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i
 `PATCH /api/v1/conversations/{id}` otwierają i zmieniają nazwę czatu
 (`agents:run`) - na przykład wątku tematycznego, do którego pisze routine.
+`POST /api/v1/me/mcp-connections/{id}/test` sprawdza twoje połączenie i odświeża
+jego narzędzia (`agents:run`).
 
 Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`

@@ -611,6 +611,11 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ),
     ),
     (
+        "test_my_connection",
+        {"connection_id": "00000000-0000-0000-0000-000000000002"},
+        ("POST", "/me/mcp-connections/00000000-0000-0000-0000-000000000002/test", {}),
+    ),
+    (
         "list_conversations",
         {"search": "Geopolityka", "limit": 5},
         ("GET", "/conversations", {"params": {"limit": 5, "search": "Geopolityka"}}),
@@ -1698,4 +1703,14 @@ async def test_a_conversation_listing_carries_only_ids_titles_and_dates(api: Mag
     assert await tools["list_conversations"]() == {
         "total": 1,
         "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u"}],
+    }
+
+
+async def test_a_connection_check_names_its_tools(api: MagicMock):
+    api.request.return_value = {"ok": True, "error": None, "tools": [{"name": "search"}]}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["test_my_connection"](connection_id=uuid.uuid4()) == {
+        "ok": True,
+        "error": None,
+        "tools": ["search"],
     }

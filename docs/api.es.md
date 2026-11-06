@@ -1,5 +1,5 @@
 ---
-source_sha: "a3cbc2a2c1f3"
+source_sha: "051c0d1f170f"
 ---
 
 # La API HTTP { #the-http-api }
@@ -76,6 +76,8 @@ Las conversaciones también son públicas: `GET /api/v1/conversations` lista los
 chats del emisor (`runs:view`), y `POST /api/v1/conversations` con `title` y
 `PATCH /api/v1/conversations/{id}` abren y renombran uno (`agents:run`), por
 ejemplo un chat temático en el que responde una rutina.
+`POST /api/v1/me/mcp-connections/{id}/test` comprueba una conexión propia y
+actualiza sus herramientas (`agents:run`).
 
 La consulta de conexiones también es pública y de solo lectura:
 `GET /sandbox-connections`, `GET /sandbox-connections/runtimes` y

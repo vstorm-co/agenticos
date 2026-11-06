@@ -409,6 +409,20 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             params={"limit": limit, "skip": skip},
         )
 
+    async def test_my_connection(connection_id: UUID) -> dict[str, Any]:
+        """Check one of the asker's own connections and list the tools it offers now.
+
+        Use it after connecting a service, or when a routine or watch says a source
+        is unavailable: it reaches the server, records whether it answered, and
+        refreshes the tools the platform knows it has. Needs `agents:run` for a key.
+        """
+        result = await api.request("POST", f"/me/mcp-connections/{connection_id}/test")
+        return {
+            "ok": result.get("ok"),
+            "error": result.get("error"),
+            "tools": [tool.get("name") for tool in result.get("tools", [])],
+        }
+
     async def list_conversations(search: str | None = None, limit: int = 50) -> dict[str, Any]:
         """The asker's own chats, most recently active first. Needs `runs:view`.
 
@@ -1614,6 +1628,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (invite_member, True),
         (search_mcp_servers, False),
         (list_my_connections, False),
+        (test_my_connection, False),
         (list_org_connections, False),
         (list_sandbox_connections, False),
         (list_sandbox_runtimes, False),

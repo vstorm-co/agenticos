@@ -1,5 +1,5 @@
 ---
-source_sha: "a3cbc2a2c1f3"
+source_sha: "051c0d1f170f"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -80,6 +80,8 @@ Auch Unterhaltungen sind öffentlich: `GET /api/v1/conversations` listet die Cha
 des Ausstellers (`runs:view`), `POST /api/v1/conversations` mit `title` und
 `PATCH /api/v1/conversations/{id}` öffnen und benennen einen Chat (`agents:run`) -
 etwa einen Themen-Chat, in dem eine Routine antwortet.
+`POST /api/v1/me/mcp-connections/{id}/test` prüft eine eigene Verbindung und
+aktualisiert ihre Tools (`agents:run`).
 
 Auch die Verbindungssuche ist lesend öffentlich: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` und `GET /sandbox-connections/{id}/policy`

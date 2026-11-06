@@ -66,7 +66,8 @@ neither can an administrator impersonating you.
 Conversations are public too: `GET /api/v1/conversations` lists the issuer's
 chats (`runs:view`), and `POST /api/v1/conversations` with a `title` and
 `PATCH /api/v1/conversations/{id}` open and rename one (`agents:run`) - for
-example a topic chat a routine answers in.
+example a topic chat a routine answers in. `POST /api/v1/me/mcp-connections/{id}/test`
+checks one of your own connections and refreshes its tools (`agents:run`).
 
 Read-only connection discovery is also public: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` and `GET /sandbox-connections/{id}/policy`
