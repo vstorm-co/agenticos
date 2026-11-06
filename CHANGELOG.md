@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A delegation the agent waited for no longer stays drawn under its answer once the turn ends. The answer's "Talked it through with…" line already opens that exchange, so it appeared twice. Background delegations, exchanges still at work and specialists that can still be kept stay where they were.
+
 ### Security
 
 - A sync, a local-directory sync or `rag-ingest` now clears earlier failed attempts at a file only in the new row's own scope: the knowledge base it is filed under, or, for a row with no base, rows of the same organization. Until now it cleared every failed row at that path under the collection name, so one organization's sync deleted another organization's failed rows (their error and retry) when both used the same collection name and path. The same applied to two knowledge bases of one organization that share a name. (#2747)
