@@ -1478,8 +1478,11 @@ class SkillService:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         locked: set[UUID] = set()
         if remove_from_agents:
-            # A draft save or a publish locks its agent before it holds the skill, so the
-            # agents are locked in that order too, or the two wait on each other.
+            # The skill first, then its agents, then the skill for the delete: the order a
+            # check decision takes when it pins or moves an agent. A draft save locks its
+            # agent and then holds the skill shared, which this first lock leaves free, so
+            # the save finishes before the agent is locked here.
+            await skill_repo.lock(self.db, skill.id)
             for agent in sorted(
                 await agents_using_skill(
                     self.db, organization_id=ctx.organization_id, skill_id=skill.id

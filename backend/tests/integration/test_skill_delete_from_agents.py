@@ -332,6 +332,47 @@ class TestBesideAnotherWriter:
             after = await reading.get(Agent, agent.id)
             assert after is not None and AgentSpec.model_validate(after.draft_spec).skill_ids == []
 
+    async def test_a_check_decision_holding_the_skill_lets_the_delete_wait_its_turn(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Deciding a check locks the skill and then an agent it pins or moves; the delete
+        takes them in that order too, so it waits rather than deadlocking."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec=_spec(skill))
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id, remove_from_agents=True)
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as deciding:
+            try:
+                await skill_repo.lock(deciding, skill.id)
+                task = asyncio.create_task(delete())
+                await _waiting_for_a_lock(factory, task)
+
+                await asyncio.wait_for(
+                    agent_repo.get(
+                        deciding, agent.id, organization_id=ctx.organization_id, for_update=True
+                    ),
+                    5,
+                )
+                await deciding.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        async with factory() as reading:
+            assert await reading.get(Skill, skill.id) is None
+
     async def test_an_agent_that_starts_using_it_meanwhile_refuses_the_delete(
         self, db: AsyncSession, engine: AsyncEngine
     ):
