@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "cae20320e3d0"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -929,6 +929,17 @@ Ein Name, den ein Aufrufer nicht angibt, wird aus dem Anzeigenamen plus sechs
 zufälligen Hexzeichen abgeleitet und auf demselben Weg beansprucht, statt ihm
 wegen seiner Zufälligkeit zu vertrauen.
 
+**Auch ein Name mit Inhalt, den keine Basis besitzt, ist nicht frei.** `rag-ingest`
+schreibt Tracking-Zeilen und eine `rag_<name>`-Tabelle ohne Wissensbasis und ohne
+Organisation, und der Abbau der letzten Basis auf dem Namen verwirft dessen Tabelle.
+Deshalb lehnt `claim` einen Namen ab, der keiner Basis zugeordnete Zeilen mit Chunks
+eines anderen Tenants als der Organisation des Aufrufers hält, oder - wenn keine
+Basis den Namen hält - eine Vektortabelle mit solchen Chunks. Sonst könnte ein
+Mitglied mit `collections:edit` eine Basis auf der Collection eines Operators anlegen
+und löschen und damit dessen Chunks verwerfen ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Ein App-Admin darf einen solchen
+Namen übernehmen; eine fehlgeschlagene Zeile ohne Vektor-Id beschreibt keinen Chunk
+und hält den Namen nicht.
+
 **Und ein Name mitten im Abbau ist auch nicht frei.** Eine Collection zu löschen
 entfernt ihre Wissensdatenbank-Zeilen in der Anfrage, lässt die physische
 Vektortabelle `rag_<name>` aber erst *nach* dem Commit der Anfrage fallen, einem
@@ -1277,7 +1288,7 @@ hat. Eine Adresse `NULL` trifft auf keinen Vergleich zu, und das ist die
 gewünschte Antwort und keine, die zu umgehen wäre, und es ist das, was jede vor
 der Spalte geschriebene Zeile hält.
 
-Drei Dinge entscheiden, was eine Außerdienststellung mitnehmen darf, und jedes
+Vier Dinge entscheiden, was eine Außerdienststellung mitnehmen darf, und jedes
 davon war zuerst falsch:
 
 - **Nach Adresse, nie nach Dateiname.** Das ist die Kollision, die
@@ -1285,6 +1296,12 @@ davon war zuerst falsch:
   beseitigt hat, aus der anderen Richtung erreicht: `a/readme.md` und
   `b/readme.md` in einem Bucket teilen sich einen Basisnamen, ein Namenstreffer
   löscht also die Zeile der anderen Datei.
+- **Im Bereich der neuen Zeile, nie nach Collection-Namen.** Ein Name ist nicht
+  eindeutig, also können zwei Organisationen oder zwei Basen einer Organisation
+  denselben Pfad hinein synchronisieren. Eine einer Basis zugeordnete Zeile nimmt nur
+  die Zeilen, die diese Basis auflistet - ihre eigenen und die keiner Basis
+  zugeordneten ihres Tenants -, eine Zeile ohne Basis nur die Zeilen ohne Basis ihrer
+  eigenen Organisation ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, nicht "hat keine Vektor-Id".** Das sind verschiedene Mengen, und sie
   als eine zu behandeln ist eine Race Condition: eine `PROCESSING`-Zeile gehört zu
   einem noch laufenden Versuch, und bei zwei überlappenden Ingestionen einer

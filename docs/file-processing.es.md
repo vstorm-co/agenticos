@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "cae20320e3d0"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -891,6 +891,16 @@ Un nombre que el llamante no aporta se deriva del nombre visible más seis
 caracteres hexadecimales aleatorios, y se reclama por el mismo camino en lugar de
 darlo por bueno por ser aleatorio.
 
+**Tampoco lo está un nombre con contenido que ninguna base posee.** `rag-ingest`
+escribe filas de seguimiento y una tabla `rag_<name>` sin base de conocimiento y sin
+organización, y el desmontaje de la última base del nombre elimina su tabla. Por eso
+`claim` rechaza un nombre que tenga filas sin base que describan chunks de cualquier
+tenant salvo la organización del llamante, o, cuando ninguna base tiene el nombre,
+una tabla vectorial con esos chunks. Si no, un miembro con `collections:edit` podría
+crear una base sobre la colección de un operador y borrarla, eliminando con ella los
+chunks del operador ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Un administrador de la aplicación sí puede adoptar ese
+nombre; una fila fallida sin id de vector no describe ningún chunk y no lo retiene.
+
 **Y un nombre a medio desmontar tampoco está libre.** Borrar una colección elimina
 sus filas de base de conocimiento dentro de la petición, pero elimina la tabla
 física de vectores `rag_<name>` solo *después* de que la petición haga commit,
@@ -1223,7 +1233,7 @@ archivo guardado — para un llamante que no pidió nada de eso. Una dirección 
 no casa con ninguna comparación, que es la respuesta que se quiere y no una que
 haya que esquivar, y es lo que tiene cada fila escrita antes de existir la columna.
 
-Tres cosas deciden qué puede llevarse una retirada, y cada una de ellas se
+Cuatro cosas deciden qué puede llevarse una retirada, y cada una de ellas se
 equivocó primero:
 
 - **Por dirección, nunca por nombre de archivo.** Esa es la colisión que
@@ -1231,6 +1241,11 @@ equivocó primero:
   vectores, alcanzada desde el otro extremo: `a/readme.md` y `b/readme.md` en un
   mismo bucket comparten nombre base, así que casar por nombre borra la fila del
   otro archivo.
+- **En el ámbito de la fila nueva, nunca por nombre de colección.** Un nombre no
+  es único, así que dos organizaciones, o dos bases de una, pueden sincronizar la
+  misma ruta en él. Una fila archivada en una base retira solo las filas que esa base
+  lista —las suyas y las sin base de su tenant—, y una fila sin base solo las filas
+  sin base de su propia organización ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, no "no tiene id de vector".** Son conjuntos distintos, y tratarlos
   como uno solo es una carrera: una fila `PROCESSING` pertenece a un intento aún
   en curso, y de dos ingestas solapadas de un mismo origen la segunda borraría la

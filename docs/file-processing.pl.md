@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "cae20320e3d0"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -873,6 +873,16 @@ Nazwa, której wywołujący nie podaje, wyprowadzana jest z nazwy wyświetlanej 
 sześciu losowych znaków szesnastkowych i jest zajmowana tą samą ścieżką, a nie
 uznawana za bezpieczną dlatego, że jest losowa.
 
+**Nie jest też wolna nazwa z treścią, której nie posiada żadna baza.** `rag-ingest`
+zapisuje wiersze śledzące i tabelę `rag_<name>` bez bazy wiedzy i bez organizacji,
+a rozbiórka ostatniej bazy na tej nazwie usuwa jej tabelę. Dlatego `claim` odrzuca
+nazwę, która ma niezaklasyfikowane do żadnej bazy wiersze opisujące chunki
+dowolnego tenanta poza organizacją wywołującego, albo — gdy nazwy nie trzyma żadna
+baza — tabelę wektorową z takimi chunkami. Inaczej członek z `collections:edit`
+mógłby utworzyć bazę na kolekcji operatora i ją usunąć, a razem z nią chunki
+operatora ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Taką nazwę może przejąć administrator aplikacji; nieudany wiersz bez
+id wektorowego nie opisuje żadnego chunka i nazwy nie blokuje.
+
 **I nazwa w trakcie rozbiórki też nie jest wolna.** Usunięcie kolekcji kasuje jej
 wiersze bazy wiedzy w ramach requestu, ale fizyczną tabelę wektorów `rag_<name>`
 usuwa dopiero *po* zatwierdzeniu requestu, przekazując to trwałemu workerowi —
@@ -1197,7 +1207,7 @@ prosił. Adres `NULL` nie pasuje do żadnego porównania, co jest tu odpowiedzi�
 pożądaną, a nie taką, którą trzeba obchodzić, i jest tym, co ma każdy wiersz
 zapisany przed powstaniem tej kolumny.
 
-Trzy rzeczy decydują o tym, co wycofanie może zabrać, i każdą z nich najpierw
+Cztery rzeczy decydują o tym, co wycofanie może zabrać, i każdą z nich najpierw
 zrobiono źle:
 
 - **Po adresie, nigdy po nazwie pliku.** To ta sama kolizja, którą
@@ -1205,6 +1215,12 @@ zrobiono źle:
   wektorów, osiągnięta z drugiej strony: `a/readme.md` i `b/readme.md` w jednym
   buckecie dzielą nazwę bazową, więc dopasowanie po nazwie kasuje wiersz drugiego
   pliku.
+- **W zakresie nowego wiersza, nigdy po nazwie kolekcji.** Nazwa nie jest
+  unikalna, więc dwie organizacje albo dwie bazy jednej mogą synchronizować do niej
+  tę samą ścieżkę. Wiersz przypisany do bazy wycofuje tylko wiersze, które ta baza
+  wyświetla — własne i niezaklasyfikowane wiersze swojego tenanta — a wiersz bez bazy
+  tylko wiersze bez bazy własnej organizacji
+  ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, a nie „nie ma id wektorowego”.** To są różne zbiory, a traktowanie
   ich jako jednego to wyścig: wiersz `PROCESSING` należy do próby, która wciąż
   trwa, i przy dwóch nakładających się ingestiach jednego source'a druga

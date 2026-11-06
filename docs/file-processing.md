@@ -821,6 +821,17 @@ one of them is theirs.
 A name a caller does not supply is derived from the display name plus six random hex
 characters, and is claimed on the same path rather than trusted for being random.
 
+**Nor is a name holding content no base owns.** `rag-ingest` writes tracking rows and
+a `rag_<name>` table with no knowledge base and no organization, and the last
+holder's teardown drops the name's table. So `claim` refuses a name holding unfiled
+rows that describe chunks of any tenant but the caller's organization, or, when no
+base holds the name, a vector table with such chunks. Otherwise a member with
+`collections:edit` could create a base on an operator's collection and delete it,
+dropping the operator's chunks with it
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). An app admin may
+adopt such a name; a failed row with no vector id describes no chunk and does not
+hold it.
+
 **And a name mid-teardown is not free either.** Dropping a collection removes its
 knowledge-base rows in the request but drops the physical `rag_<name>` vector table
 only *after* the request commits, handed to a durable worker — so a rollback keeps
@@ -1128,13 +1139,18 @@ caller who asked for no such thing. A `NULL` address matches no comparison, whic
 is the answer wanted rather than one to work around, and it is what every row
 written before the column has.
 
-Three things decide what a retirement may take, and each of them was got wrong
+Four things decide what a retirement may take, and each of them was got wrong
 first:
 
 - **By address, never by filename.** That is the collision
   [#990](https://github.com/vstorm-co/agenticos/issues/990) removed on the vector
   side reached from the other direction: `a/readme.md` and `b/readme.md` in one
   bucket share a basename, so a name match deletes the other file's row.
+- **In the new row's scope, never by collection name.** A name is not unique, so
+  two organizations, or two bases of one, can sync the same path into it. A row
+  filed under a base retires only the rows that base lists — its own and its
+  tenant's unfiled ones — and an unfiled row only the unfiled rows of its own
+  organization ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, not "has no vector id".** Those are different sets, and treating
   them as one is a race: a `PROCESSING` row belongs to an attempt still running,
   and two overlapping ingestions of one source would have the second delete the
