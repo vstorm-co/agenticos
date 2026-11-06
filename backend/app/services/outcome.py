@@ -336,9 +336,9 @@ class OutcomeService:
             self.db, outcome_id=outcome.id, at=now, dismiss=closing
         )
         await outcome_repo.skip_unsent_deliveries(self.db, outcome_id=outcome.id)
-        from app.repositories import telephony as phone_repo
+        from app.services.telephony.cases import cancel_pending_case_calls
 
-        await phone_repo.cancel_case_calls(self.db, outcome.id, at=now)
+        await cancel_pending_case_calls(self.db, outcome.id, at=now)
         if project_task and target in (OutcomeStatus.RESOLVED, OutcomeStatus.MUTED):
             from app.services.task_execution import TaskExecution
 

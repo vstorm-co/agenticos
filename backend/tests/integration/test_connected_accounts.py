@@ -245,17 +245,18 @@ async def test_removing_and_reinviting_a_member_does_not_restore_google_grants(
     member = OrganizationMember(organization_id=first.id, user_id=user.id, role="member")
     db.add(member)
     accounts = []
-    for org in (first, second):
+    for org, pending in ((first, False), (second, False), (first, True)):
         account = McpConnection(
             user_id=user.id,
             account_source_organization_id=org.id,
-            name=f"google:{org.id}",
+            name=f"google:{org.id}:{pending}",
             url="https://www.googleapis.com",
             secret_key_version=1,
             purpose="account",
             catalog_key="google",
-            account_email="same@example.com",
-            oauth_payload="sealed",
+            account_email=None if pending else "same@example.com",
+            oauth_payload=None if pending else "sealed",
+            oauth_pending_payload="pending" if pending else None,
         )
         db.add(account)
         accounts.append(account)

@@ -275,3 +275,125 @@ async def test_media_stream_refuses_another_call_or_invalid_encoding():
     )
     with pytest.raises(WebSocketDisconnect):
         await stream.start()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "x" * 16385,
+        "invalid",
+        "[]",
+        '{"event":"media","streamSid":"foreign"}',
+        json.dumps(
+            {"event": "media", "streamSid": STREAM, "media": {"track": "inbound", "payload": "%%%"}}
+        ),
+        json.dumps({"event": "media", "streamSid": STREAM, "media": None}),
+    ],
+)
+async def test_stream_refuses_invalid_or_unbounded_frames(payload: str) -> None:
+    raw, stream = socket()
+    stream.sid = STREAM
+    await stream.receive()
+    raw.receive_text.return_value = payload
+    with pytest.raises(WebSocketDisconnect):
+        await stream.receive()
+
+
+async def test_stream_playback_marks_stop_and_unrecognized_events_are_bounded(monkeypatch) -> None:
+    raw, stream = socket()
+    stream.sid = STREAM
+    await stream.receive()
+    await stream.send_bytes(b"\0" * 960)
+    raw.receive_text.return_value = json.dumps(
+        {"event": "mark", "streamSid": STREAM, "mark": {"name": "1"}}
+    )
+    assert json.loads((await stream.receive())["text"]) == {"type": "played", "bytes": 960}
+    assert json.loads((await stream.receive())["text"]) == {}
+    raw.receive_text.return_value = json.dumps({"event": "stop", "streamSid": STREAM})
+    assert (await stream.receive())["type"] == "websocket.disconnect"
+    stream._frames = 500
+    with pytest.raises(WebSocketDisconnect):
+        await stream.receive()
+    monkeypatch.setattr("app.services.telephony.stream.time.monotonic", lambda: stream._window + 2)
+    assert (await stream.receive())["type"] == "websocket.disconnect"
+    await stream.send_bytes(b"\0\0")
+    stream._marks = {str(i): i for i in range(500)}
+    with pytest.raises(WebSocketDisconnect):
+        await stream.send_bytes(b"\0" * 960)
+
+
+@pytest.mark.parametrize("payload", ["x" * 16385, "{", '{"event":"connected"}'])
+async def test_stream_start_requires_a_valid_handshake_within_three_frames(payload: str) -> None:
+    raw, stream = socket()
+    raw.receive_text.return_value = payload
+    with pytest.raises(WebSocketDisconnect):
+        await stream.start()
+
+
+@pytest.mark.parametrize("body", [b"x" * 16385, b"%ff=bad", b"\xff", b"&".join([b"x=y"] * 101)])
+async def test_webhook_parser_refuses_invalid_utf8_size_and_field_floods(body: bytes) -> None:
+    with pytest.raises(BadRequestError):
+        parse_form(body)
+
+
+async def test_stream_negotiates_rates_and_retains_the_terminal_reason() -> None:
+    raw, stream = socket()
+    frame = {
+        "type": "ready",
+        "call_id": str(uuid4()),
+        "conversation_id": str(uuid4()),
+        "transport": "relay",
+        "input_sample_rate": 16000,
+        "output_sample_rate": 16000,
+        "cap_seconds": 60,
+        "resume_token": "resume",
+    }
+    await stream.send_text(json.dumps(frame))
+    stream.ready.assert_awaited_once()
+    await stream.send_text('{"type":"ended","reason":"limit"}')
+    assert stream.ended_reason == "limit"
+    await stream.send_text('{"type":"state","state":"listening"}')
+    raw.send_json.assert_not_awaited()
+
+
+@pytest.mark.parametrize("response", ["gone", "mismatched", "oversized", "valid"])
+async def test_provider_cleanup_is_idempotent_and_checks_receipt_identity(
+    monkeypatch, response: str
+) -> None:
+    real = httpx.AsyncClient
+    requests = []
+
+    async def reply(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if response == "gone":
+            return httpx.Response(404)
+        if response == "oversized":
+            return httpx.Response(200, content=b"x" * 65537)
+        return httpx.Response(
+            200,
+            json={
+                "sid": SID,
+                "account_sid": "AC" + "c" * 32 if response == "mismatched" else AUTH.account,
+                "status": "completed",
+            },
+        )
+
+    monkeypatch.setattr(
+        provider.httpx,
+        "AsyncClient",
+        lambda **kwargs: real(transport=httpx.MockTransport(reply), **kwargs),
+    )
+    adapter = TwilioPhoneProvider()
+    if response in {"gone", "valid"}:
+        await adapter.hangup(AUTH, SID)
+    else:
+        with pytest.raises(AcceptanceUnknown):
+            await adapter.hangup(AUTH, SID)
+    assert len(requests) == 1
+    if response == "valid":
+        await adapter.cap(AUTH, SID, 60)
+        await adapter.transfer(AUTH, SID, number="+15551234568", seconds=60)
+    with pytest.raises(BadRequestError):
+        await adapter.hangup(AUTH, "invalid")
+    with pytest.raises(BadRequestError):
+        await adapter.dial(AUTH, number="not a phone", twiml="", callback="", cap_seconds=60)

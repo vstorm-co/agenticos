@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -161,4 +161,67 @@ describe("memory browser", () => {
     await userEvent.click(screen.getByRole("button", { name: "newer" }));
     expect(showPage).toHaveBeenCalledWith(0);
   });
+});
+
+it("corrects a decision with an effective date and observed outcome", async () => {
+  mount({
+    items: [
+      claim({
+        kind: "decision",
+        episode: {
+          situation: "Late delivery",
+          choice: "Ask",
+          alternatives: [],
+          expected_outcome: "New date",
+          actual_outcome: null,
+          correction: null,
+        },
+      }),
+    ],
+  });
+  await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+  await userEvent.click(screen.getByRole("button", { name: "correct" }));
+  await userEvent.type(screen.getByLabelText("episode.actual"), "Confirmed Friday");
+  fireEvent.change(screen.getByLabelText("effectiveFrom"), { target: { value: "2026-11-07" } });
+  await userEvent.click(screen.getByRole("button", { name: "save" }));
+  expect(correct).toHaveBeenCalledWith(
+    "c-1",
+    "Prefers short answers",
+    "2026-11-07T00:00:00Z",
+    expect.objectContaining({
+      actual_outcome: "Confirmed Friday",
+      correction: "Prefers short answers",
+    }),
+  );
+});
+it("can cancel an edit and dismiss detail without changing memory", async () => {
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+  await userEvent.click(screen.getByRole("button", { name: "correct" }));
+  await userEvent.click(screen.getByRole("button", { name: "cancel" }));
+  expect(screen.queryByLabelText("statement")).not.toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(correct).not.toHaveBeenCalled();
+});
+it("retains a refused retraction for another review", async () => {
+  retract.mockResolvedValue(false);
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+  await userEvent.click(screen.getByRole("button", { name: "retract" }));
+  await userEvent.click(
+    within(screen.getAllByRole("dialog").at(-1)!).getByRole("button", { name: "retract" }),
+  );
+  expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(2);
+});
+it("supports compact type and scope selection and clears a search with no matches", async () => {
+  mount({ items: [] });
+  await userEvent.click(screen.getByRole("combobox", { name: "typeLabel" }));
+  await userEvent.click(screen.getByRole("option", { name: "kind.fact" }));
+  await userEvent.click(screen.getByRole("button", { name: "filters" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "scopeLabel" }));
+  await userEvent.click(screen.getByRole("option", { name: "scope.agent" }));
+  expect(useMyClaims).toHaveBeenLastCalledWith({ q: "", kind: "fact", scope: "agent" });
+  await userEvent.click(screen.getByRole("button", { name: "clearFilters" }));
+  expect(useMyClaims).toHaveBeenLastCalledWith({ q: "" });
 });

@@ -79,3 +79,18 @@ it("does not export historical decisions", () => {
   mount({ ...claim, status: "retracted" });
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
+
+it("requires fresh consent after changing the reference and allows dismissal", async () => {
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "Prepare Improve case" }));
+  await userEvent.click(screen.getByRole("checkbox"));
+  await userEvent.type(screen.getByRole("textbox", { name: "Expected answer" }), " today");
+  expect(screen.getByRole("button", { name: "Download reviewed case" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(reviewDecisionCase).not.toHaveBeenCalled();
+});
+it("has no evidence to export when the entry is not a decision", () => {
+  mount({ ...claim, episode: undefined });
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});

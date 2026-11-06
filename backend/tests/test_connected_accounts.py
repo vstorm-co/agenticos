@@ -34,7 +34,7 @@ SOURCE_GENERATION = uuid4()
 
 @pytest.fixture(autouse=True)
 def live_source(monkeypatch):
-    from app.repositories import organization_secret_repo
+    from app.repositories import member_repo, organization_secret_repo
 
     monkeypatch.setattr(
         service_module,
@@ -49,6 +49,7 @@ def live_source(monkeypatch):
         AsyncMock(return_value=SOURCE_GENERATION),
     )
     monkeypatch.setattr(service_module, "record_audit", AsyncMock())
+    monkeypatch.setattr(member_repo, "get_active", AsyncMock(return_value=MagicMock(role="owner")))
 
 
 @pytest.fixture
@@ -155,6 +156,7 @@ async def test_connecting_asks_google_for_every_service_with_the_orgs_client(
     written = create.await_args.kwargs
     assert written["purpose"] == "account" and written["catalog_key"] == "google"
     assert written["name"].startswith("google-account-")
+    assert written["account_source_organization_id"] == ctx.organization_id
     if for_organization:
         assert written["organization_id"] == ctx.organization_id
     else:
@@ -621,3 +623,38 @@ async def test_callback_rechecks_that_consent_is_pending_after_obtaining_the_own
         )
     repo.lock_account_owner.assert_awaited_once()
     repo.update.assert_not_awaited()
+
+
+async def test_legacy_pending_personal_consent_cannot_survive_membership_recreation(
+    repo, monkeypatch
+):
+    pending = _account(account_source_organization_id=None, oauth_state="state")
+    pending.oauth_pending_payload = _sealed(
+        pending, _payload(access_token=None, refresh_token=None)
+    )
+    repo.get_by_oauth_state = AsyncMock(return_value=pending)
+    exchange = AsyncMock()
+    monkeypatch.setattr(service_module, "_complete_google_flow", exchange)
+    with pytest.raises(service_module.OAuthError, match="start consent again"):
+        await McpConnectionService(AsyncMock()).oauth_callback(
+            state="state", code="old-code", browser_nonce=NONCE, acting_user_id=INITIATOR
+        )
+    exchange.assert_not_awaited()
+
+
+async def test_account_start_rechecks_membership_under_the_account_owner_lock(
+    ctx, repo, client, monkeypatch
+):
+    from app.repositories import member_repo
+
+    async def membership(*args, **kwargs):
+        repo.lock_account_owner.assert_awaited_once()
+        return
+
+    monkeypatch.setattr(member_repo, "get_active", membership)
+    with pytest.raises(AuthorizationError, match="current organization membership"):
+        await McpConnectionService(AsyncMock()).account_start(
+            ctx, for_organization=False, browser_nonce=NONCE
+        )
+    repo.create.assert_not_awaited()
+    repo.get_pending_account.assert_not_awaited()

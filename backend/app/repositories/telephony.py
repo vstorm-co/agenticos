@@ -265,7 +265,31 @@ async def open_phone_cases(
     )
 
 
-async def cancel_case_calls(db: AsyncSession, outcome_id: UUID, *, at: datetime) -> None:
+async def lock_case_admission(db: AsyncSession, row: PhoneCall) -> None:
+    """Use settlement's case → notification → receipt lock order before dialing."""
+    from app.db.models.notification import Notification
+    from app.db.models.outcome import Outcome
+
+    await db.execute(
+        select(Outcome.id)
+        .where(Outcome.id == row.outcome_id, Outcome.organization_id == row.organization_id)
+        .with_for_update()
+    )
+    await db.execute(
+        select(Notification.id)
+        .where(
+            Notification.outcome_id == row.outcome_id,
+            Notification.organization_id == row.organization_id,
+            Notification.recipient_user_id == row.user_id,
+        )
+        .order_by(Notification.id)
+        .with_for_update()
+    )
+
+
+async def cancel_case_calls(
+    db: AsyncSession, outcome_id: UUID, *, at: datetime
+) -> list[tuple[UUID, UUID]]:
     from sqlalchemy import update
 
     await db.execute(
@@ -273,6 +297,13 @@ async def cancel_case_calls(db: AsyncSession, outcome_id: UUID, *, at: datetime)
         .where(PhoneCall.outcome_id == outcome_id, PhoneCall.status == "queued")
         .values(status="cancelled", finished_at=at, estimated_cost_usd=Decimal(0))
     )
+    result = await db.execute(
+        update(PhoneCall)
+        .where(PhoneCall.outcome_id == outcome_id, PhoneCall.status.not_in((*TERMINAL, "queued")))
+        .values(status="ending")
+        .returning(PhoneCall.id, PhoneCall.organization_id)
+    )
+    return [(identifier, organization_id) for identifier, organization_id in result.all()]
 
 
 async def mark_case_phone_attempt(

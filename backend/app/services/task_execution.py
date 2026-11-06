@@ -292,7 +292,7 @@ class TaskExecution:
             if link.creator_user_id is not None
             else None
         )
-        if ctx is None:
+        if ctx is None or not await board_allows(self.db, ctx, board, Perm.TABLES_EDIT):
             await self._stop(link, payload.organization_id)
             await self._project(board, record, "blocked", actor=None)
             recipient = fields.assignee_user_id
@@ -309,12 +309,12 @@ class TaskExecution:
                         link,
                         recipient,
                         fields.title,
-                        detail="The reminder's creator left this organization. Review this blocked task and take over its next step.",
+                        detail="The reminder's creator no longer has access. Review this blocked task and take over its next step.",
                     )
             return
 
         table = await self._live_table(board)
-        if not table or not await board_allows(self.db, ctx, board, Perm.TABLES_EDIT):
+        if not table:
             return
         recipient = fields.assignee_user_id or ctx.user_id
         if recipient is None:

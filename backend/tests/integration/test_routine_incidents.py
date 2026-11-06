@@ -183,12 +183,13 @@ async def test_automatic_pause_escalates_the_same_case_and_supersedes_the_old_no
         delivery.channel == "email" and delivery.status == "pending" for delivery in deliveries
     )
     if limit > 1:
-        await db.refresh(recorded[0])
-        assert recorded[0].dismissed_at is not None
+        earlier = next(note for note in recorded if note.id != current.id)
+        await db.refresh(earlier)
+        assert earlier.dismissed_at is not None
         previous = list(
             await db.scalars(
                 select(NotificationDelivery).where(
-                    NotificationDelivery.notification_id == recorded[0].id
+                    NotificationDelivery.notification_id == earlier.id
                 )
             )
         )

@@ -24,3 +24,10 @@ async def dial_phone(payload: DialPhone) -> None:
     from app.services.telephony.runtime import dial
 
     await dial(payload.call_id)
+
+
+async def end_phone(payload: DialPhone) -> None:
+    from app.services.telephony.provider import TwilioPhoneProvider
+    from app.services.telephony.runtime import end_media
+
+    await end_media(payload.call_id, provider=TwilioPhoneProvider(), sessions=get_worker_db_context)

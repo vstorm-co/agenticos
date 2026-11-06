@@ -1,5 +1,5 @@
 ---
-source_sha: "fa4309c31901"
+source_sha: "f415e83adfe5"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -419,7 +419,9 @@ Każde żądanie wychodzące ma trwały klucz idempotencji. Niepewny wynik u ope
 Podaj ostrożną stawkę minutową obejmującą kierunek, syntezę głosu i pozostałe opłaty. Platforma rezerwuje zaokrąglone minuty, także możliwy dodatkowy odcinek przekierowania, przed telefonem. Szacunki są niezależne od budżetu modelu AI i nie stanowią faktury Twilio. Potwierdzenia wygasają po 30 dniach; rozmowy podlegają zwykłej retencji. Eksport osobisty obejmuje zgody i historię bez poświadczeń operatora. Na własnym koncie Twilio sprawdź rzeczywiste numery, audio, pocztę głosową, przekierowania i rozliczenia.
 
 
-Wybierz agentów, którzy mogą zamawiać telefony i raporty. Kontakt w ważnej sprawie wymaga dodatkowej zgody i opisanych przez Ciebie kryteriów ważności. Agent odczytuje zasady i otwarte sprawy bieżącej rozmowy przez `get_phone_contact_policy`, a do `call_me` podaje istniejący identyfikator sprawy i uzasadnienie. Ustaw 0 dla kontaktu natychmiastowego albo opóźnienie od pierwszego nieprzeczytanego powiadomienia. Potwierdzenie, rozwiązanie lub wyciszenie tej samej sprawy anuluje oczekujący telefon. Jedna sprawa dopuszcza jedną próbę telefoniczną; deduplikacja przeżywa wygaśnięcie potwierdzenia. Nadal obowiązują kontekst źródłowy i bieżące uprawnienia.
+Wybierz agentów, którzy mogą zamawiać telefony i raporty. Kontakt w ważnej sprawie wymaga dodatkowej zgody i opisanych przez Ciebie kryteriów ważności. Agent odczytuje zasady i otwarte sprawy bieżącej rozmowy przez `get_phone_contact_policy`, a do `call_me` podaje istniejący identyfikator sprawy i uzasadnienie. Ustaw 0 dla kontaktu natychmiastowego albo opóźnienie od pierwszego nieprzeczytanego powiadomienia.
+
+Potwierdzenie, rozwiązanie lub wyciszenie tej sprawy oraz odczytanie jej powiadomienia anuluje oczekujący telefon i zleca zakończenie połączenia rozpoczętego lub aktywnego. Rozpoczęcie telefonu i zmiana powiadomienia korzystają ze wspólnych blokad bazy; żądanie wysłane do operatora zostaje przerwane po otrzymaniu identyfikatora połączenia. Jedna sprawa dopuszcza jedną próbę telefoniczną; deduplikacja przeżywa wygaśnięcie potwierdzenia. Nadal obowiązują kontekst źródłowy i bieżące uprawnienia.
 
 Usuwanie konta i organizacji jest odrzucane, dopóki istnieją niezakończone połączenia telefoniczne. Zakończ je i poczekaj na stan końcowy przed ponownym usuwaniem; zachowuje to obsługę callbacków dostawcy i limity czasu. Eksport osobisty obejmuje wszystkie sprawy, także bez próby połączenia, a pełna treść jest wliczana do limitu rozmiaru eksportu.
 

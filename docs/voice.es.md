@@ -1,5 +1,5 @@
 ---
-source_sha: "fa4309c31901"
+source_sha: "f415e83adfe5"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -426,7 +426,9 @@ Cada solicitud saliente tiene una clave de idempotencia duradera. Si la aceptaci
 Introduce una tarifa conservadora por minuto que cubra destino, síntesis y demás cargos. La plataforma reserva minutos redondeados, incluida una posible segunda conexión de transferencia, antes de llamar. Estas estimaciones son independientes del presupuesto de IA y no son una factura de Twilio. Los comprobantes caducan a los 30 días; las conversaciones mantienen su retención habitual. La exportación personal incluye consentimientos e historial sin credenciales. Verifica números reales, audio, buzón de voz, transferencias y facturación en tu cuenta Twilio.
 
 
-Selecciona los agentes autorizados para solicitar llamadas o informes. El contacto por casos importantes requiere consentimiento adicional y tus criterios escritos de importancia. El agente consulta los criterios y casos abiertos de la conversación actual mediante `get_phone_contact_policy` y entrega a `call_me` el identificador existente y su evaluación. Cero segundos significa contacto inmediato; otro valor retrasa la llamada desde la primera notificación sin leer. Confirmar, resolver o silenciar ese caso cancela la llamada pendiente. Cada caso permite un intento telefónico, incluso después de caducar el comprobante. Se mantienen el contexto de origen y los permisos actuales.
+Selecciona los agentes autorizados para solicitar llamadas o informes. El contacto por casos importantes requiere consentimiento adicional y tus criterios escritos de importancia. El agente consulta los criterios y casos abiertos de la conversación actual mediante `get_phone_contact_policy` y entrega a `call_me` el identificador existente y su evaluación. Cero segundos significa contacto inmediato; otro valor retrasa la llamada desde la primera notificación sin leer.
+
+Confirmar, resolver o silenciar el caso, o leer su notificación, cancela las llamadas pendientes y solicita finalizar las que ya están iniciándose o activas. La admisión y las notificaciones comparten bloqueos de base de datos; una solicitud en curso se cuelga en cuanto llega su identificador del proveedor. Cada caso permite un intento telefónico, incluso después de caducar el comprobante. Se mantienen el contexto de origen y los permisos actuales.
 
 No se permite eliminar cuentas ni organizaciones mientras haya llamadas telefónicas sin finalizar. Finaliza las llamadas y espera su estado final antes de volver a intentar la eliminación; así se conservan los callbacks del proveedor y los límites de duración. La exportación personal incluye todos los casos, incluso sin intento telefónico, y todo su contenido cuenta para el límite de tamaño de la exportación.
 

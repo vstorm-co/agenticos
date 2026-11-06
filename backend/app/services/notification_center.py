@@ -1055,7 +1055,16 @@ class NotificationCenterService:
             notification = await notification_repo.mark_read(
                 self.db, notification, read_at=datetime.now(UTC)
             )
+        await self._stop_case_calls(ctx, [notification.id])
         return notification, gate
+
+    async def _stop_case_calls(self, ctx: AuthContext, ids: list[uuid.UUID]) -> None:
+        from app.services.telephony.cases import cancel_pending_case_calls
+
+        for outcome_id in await notification_repo.outcome_ids_for_notifications(
+            self.db, ids=ids, user_id=self._require_caller(ctx), organization_id=ctx.organization_id
+        ):
+            await cancel_pending_case_calls(self.db, outcome_id, at=datetime.now(UTC))
 
     async def mark_all_read(
         self, ctx: AuthContext, *, after: tuple[datetime, uuid.UUID] | None = None
@@ -1078,6 +1087,7 @@ class NotificationCenterService:
         marked = await notification_repo.mark_ids_read(
             self.db, ids=scan.visible, read_at=datetime.now(UTC)
         )
+        await self._stop_case_calls(ctx, scan.visible)
         return MarkAllRead(marked=marked, remaining=scan.truncated, resume=scan.resume)
 
     async def dismiss_one(self, ctx: AuthContext, notification_id: uuid.UUID) -> None:
@@ -1091,6 +1101,7 @@ class NotificationCenterService:
         """
         notification = await self._own_visible(ctx, notification_id)
         await notification_repo.dismiss(self.db, notification, dismissed_at=datetime.now(UTC))
+        await self._stop_case_calls(ctx, [notification.id])
 
     async def clear_inbox(self, ctx: AuthContext) -> int:
         """Clear everything the caller can currently see, read or not.
@@ -1143,9 +1154,11 @@ class NotificationCenterService:
             if len(visible_ids) >= _DISMISS_CANDIDATE_CAP or len(batch) < _DISMISS_CANDIDATE_CAP:
                 break
             cursor = (batch[-1].created_at, batch[-1].id)
-        return await notification_repo.dismiss_ids(
+        marked = await notification_repo.dismiss_ids(
             self.db, ids=visible_ids, dismissed_at=datetime.now(UTC)
         )
+        await self._stop_case_calls(ctx, visible_ids)
+        return marked
 
     async def _own_visible(self, ctx: AuthContext, notification_id: uuid.UUID) -> Notification:
         """One of the caller's own rows, or `NotFoundError`.

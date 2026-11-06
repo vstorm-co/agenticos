@@ -105,6 +105,7 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
           toolCall: {
             id: String(payload.tool_call_id),
             name: String(payload.tool_name),
+            presentation_kind: payload.presentation_kind === "draft" ? "draft" : null,
             // Absent where the operator does not show what a step returned, and an
             // empty object is the honest stand-in: `toolStep` reads the arguments to
             // name a step by its subject, and finds none rather than being handed a

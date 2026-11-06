@@ -419,6 +419,15 @@ DIAL_PHONE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+END_PHONE = Task(
+    kind="end-phone",
+    payload_type=DialPhone,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.INTERACTIVE,
+)
+
 DELIVER_ROUTINE_ANSWER = Task(
     kind="deliver-routine-answer",
     payload_type=DeliverRoutineAnswer,
@@ -643,6 +652,7 @@ TASKS: dict[str, TaskKind] = {
         FIRE_TRIGGER,
         WAKE_TASK,
         DIAL_PHONE,
+        END_PHONE,
         DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
         RUN_CONVERSATION_TASK,

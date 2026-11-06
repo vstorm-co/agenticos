@@ -117,6 +117,7 @@ def production() -> Handlers:
             Handler(jobs.CONSOLIDATE_MEMORY, _each_tick(memory_tasks.consolidate_memory)),
             Handler(jobs.EXTRACT_MEMORY, memory_tasks.extract_memory),
             Handler(jobs.DIAL_PHONE, voice_tasks.dial_phone),
+            Handler(jobs.END_PHONE, voice_tasks.end_phone),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
             Handler(jobs.WORKFLOW_DISPATCH_POLL, _each_tick(workflow_tasks.poll_due_dispatches)),
             Handler(jobs.WORKFLOW_RECONCILE, _each_tick(workflow_tasks.reconcile)),

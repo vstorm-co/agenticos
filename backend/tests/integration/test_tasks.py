@@ -1043,3 +1043,32 @@ async def test_a_read_only_member_cannot_be_assigned_an_actionable_task(db: Asyn
                 status="waiting_for_user",
             ),
         )
+
+
+async def test_a_reminder_blocks_when_its_creator_loses_group_access(db: AsyncSession) -> None:
+    data = await world(db)
+    group = Group(organization_id=data.org.id, name="Shared")
+    db.add(group)
+    await db.flush()
+    owner = GroupMember(group_id=group.id, user_id=data.users[0].id)
+    db.add_all([owner, GroupMember(group_id=group.id, user_id=data.users[1].id)])
+    await db.flush()
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0],
+        TaskCreate(
+            title="Review handoff",
+            scope="group",
+            scope_id=group.id,
+            assignee_user_id=data.users[1].id,
+            start_at=datetime.now(UTC) - timedelta(seconds=1),
+        ),
+    )
+    await db.delete(owner)
+    await db.flush()
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    assert (await service.get(data.contexts[1], task.id)).status == "blocked"
+    link = await db.get(TaskLink, task.id)
+    assert link is not None and link.outcome_id is not None

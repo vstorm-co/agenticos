@@ -61,3 +61,17 @@ async def eligible_case(
             )
         return notified + timedelta(seconds=contact.escalation_delay_seconds)
     return datetime.now(UTC)
+
+
+async def cancel_pending_case_calls(db: AsyncSession, outcome_id: UUID, *, at: datetime) -> None:
+    from app.services.background_jobs import enqueue
+    from app.worker.jobs import END_PHONE, DialPhone
+
+    for identifier, organization_id in await repo.cancel_case_calls(db, outcome_id, at=at):
+        await enqueue(
+            db,
+            END_PHONE,
+            DialPhone(call_id=identifier),
+            organization_id=organization_id,
+            dedupe_key=f"phone-end:{identifier}",
+        )

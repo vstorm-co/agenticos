@@ -56,6 +56,12 @@ REGISTRY_PATH = "app.services.agent_registry"
 
 
 @pytest.fixture(autouse=True)
+def _agent_deletion_fence(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deletion/FK serialization is covered against PostgreSQL in test_tasks."""
+    monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.fence_deletion", AsyncMock())
+
+
+@pytest.fixture(autouse=True)
 def _no_model_profiles(monkeypatch: pytest.MonkeyPatch) -> None:
     """An organization with no model, so `create` leaves a draft's model alone.
 

@@ -563,3 +563,27 @@ async def test_streamed_draft_identity_comes_from_the_server_binding(
 
     await RunFrames(emit=emit, draft_tools=lambda: {"save_reply"}).tools(events())
     assert len(frames) == 1 and frames[0].get("presentation_kind") == expected
+
+
+@pytest.mark.parametrize("native", [True, False])
+async def test_shared_stream_resolves_draft_identity_from_the_running_agent(native: bool) -> None:
+    from pydantic_ai import Agent
+    from pydantic_ai.models.test import TestModel
+
+    from app.agents.deps import AgentDeps
+
+    async def save_reply() -> str:
+        return "Stored reply"
+
+    emitted: list[dict[str, object]] = []
+
+    async def emit(kind: str, payload: dict[str, object]) -> None:
+        if kind == "tool_call":
+            emitted.append(payload)
+
+    agent = Agent(TestModel(), deps_type=AgentDeps, tools=[save_reply])
+    deps = AgentDeps(draft_tool_names=frozenset({"save_reply"}) if native else frozenset())
+    async with agent.iter("Write a reply", deps=deps) as run:
+        await RunFrames(emit=emit).drive(run)
+    assert len(emitted) == 1
+    assert emitted[0].get("presentation_kind") == ("draft" if native else None)

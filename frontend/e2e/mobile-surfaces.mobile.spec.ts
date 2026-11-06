@@ -157,12 +157,12 @@ for (const platform of ["ios", "android"] as const) {
       await expect(dialog).toBeHidden();
 
       await page.goto("/chat");
+      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
       const picker = page.getByRole("button", { name: /^Agent:/ });
       await expectTouchTarget(picker);
       await picker.tap();
       await expect(page.getByRole("radiogroup")).toBeVisible();
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
       await expect(
         page.getByRole("dialog").getByRole("button", { name: "Files", exact: true }),
       ).toBeVisible();

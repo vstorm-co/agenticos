@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "fa4309c31901"
+source_sha: "f415e83adfe5"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -444,7 +444,9 @@ Ausgehende Aufträge haben dauerhafte Idempotenzschlüssel. Bei unklarer Provide
 Trage einen konservativen Minutenpreis einschließlich Zieltarif, Sprachsynthese und weiterer Gebühren ein. Vor dem Anruf reserviert die Plattform aufgerundete Minuten einschließlich einer möglichen Weiterleitungsstrecke. Diese Schätzung ist vom KI-Budget getrennt und keine Twilio-Rechnung. Belege verfallen nach 30 Tagen; Gespräche behalten ihre normale Aufbewahrung. Persönliche Exporte enthalten Zustimmungen und Belege ohne Providerzugangsdaten. Prüfe echte Nummern, Audio, Mailbox, Weiterleitungen und Abrechnung mit deinem Twilio-Konto.
 
 
-Wähle die Agenten aus, die Anrufe oder Berichte anfordern dürfen. Kontakt zu wichtigen Fällen benötigt eine zusätzliche Zustimmung und deine schriftlichen Wichtigkeitskriterien. Der Agent liest Kriterien und offene Fälle des aktuellen Gesprächs mit `get_phone_contact_policy` und übergibt an `call_me` die vorhandene Fall-ID sowie seine Begründung. Null Sekunden bedeuten sofortigen Kontakt, sonst gilt die Wartezeit ab der ersten ungelesenen Benachrichtigung. Bestätigen, Lösen oder Stummschalten desselben Falls storniert einen wartenden Anruf. Pro Fall ist ein Telefonversuch erlaubt, auch nach Ablauf des Belegs. Quellkontext und aktuelle Berechtigungen bleiben erforderlich.
+Wähle die Agenten aus, die Anrufe oder Berichte anfordern dürfen. Kontakt zu wichtigen Fällen benötigt eine zusätzliche Zustimmung und deine schriftlichen Wichtigkeitskriterien. Der Agent liest Kriterien und offene Fälle des aktuellen Gesprächs mit `get_phone_contact_policy` und übergibt an `call_me` die vorhandene Fall-ID sowie seine Begründung. Null Sekunden bedeuten sofortigen Kontakt, sonst gilt die Wartezeit ab der ersten ungelesenen Benachrichtigung.
+
+Bestätigen, Lösen oder Stummschalten des Falls sowie Lesen seiner Benachrichtigung storniert wartende Anrufe und veranlasst das Beenden bereits gestarteter oder aktiver Anrufe. Anrufzulassung und Benachrichtigungsänderungen teilen Datenbanksperren; eine laufende Anbieteranfrage wird beendet, sobald ihre Anruf-ID eintrifft. Pro Fall ist ein Telefonversuch erlaubt, auch nach Ablauf des Belegs. Quellkontext und aktuelle Berechtigungen bleiben erforderlich.
 
 Konten und Organisationen können nicht gelöscht werden, solange Telefonanrufe noch nicht abgeschlossen sind. Beenden Sie die Anrufe und warten Sie vor dem erneuten Löschen auf deren Endstatus; dadurch bleiben Anbieter-Callbacks und Zeitlimits wirksam. Der persönliche Export enthält alle Vorgänge, auch ohne Telefonversuch. Ihr vollständiger Inhalt zählt zur Größenbegrenzung des Exports.
 

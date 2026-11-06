@@ -566,9 +566,10 @@ async def test_phone_capability_publishes_only_valid_routes_and_routines_freeze_
         await registry.publish(ctx, bad.id)
 
 
-@pytest.mark.parametrize("decision", ["acknowledge", "resolve", "mute"])
+@pytest.mark.parametrize("decision", ["acknowledge", "resolve", "mute", "read"])
+@pytest.mark.parametrize("call_status", ["queued", "dialing", "active", "during_dial"])
 async def test_delayed_case_call_is_one_delivery_and_settlement_cancels_it(
-    db: AsyncSession, monkeypatch, decision
+    db: AsyncSession, monkeypatch, decision, call_status
 ):
     from app.agents.spec import AgentSpec
     from app.db.models.notification import Notification
@@ -663,13 +664,73 @@ async def test_delayed_case_call_is_one_delivery_and_settlement_cancels_it(
     await db.commit()
     await dial(row.id, provider=early, sessions=sessions(db))
     assert early.dials == []
-    await OutcomeService(db).settle(ctx, case.id, decision, via="inbox")
     await db.refresh(row)
-    assert row.status == "cancelled" and row.estimated_cost_usd == 0
+    if call_status == "during_dial":
+        row.not_before = datetime.now(UTC) - timedelta(seconds=1)
+        await db.commit()
+        factory = sessions(db)
+
+        class SettlingPhone(FakePhone):
+            async def dial(
+                self,
+                credentials: PhoneCredentials,
+                *,
+                number: str,
+                twiml: str,
+                callback: str,
+                cap_seconds: int,
+            ) -> str:
+                async with factory() as other:
+                    if decision == "read":
+                        from app.services.notification_center import NotificationCenterService
+
+                        await NotificationCenterService(other).mark_all_read(ctx)
+                    else:
+                        await OutcomeService(other).settle(ctx, case.id, decision, via="inbox")
+                    await other.commit()
+                return await super().dial(
+                    credentials,
+                    number=number,
+                    twiml=twiml,
+                    callback=callback,
+                    cap_seconds=cap_seconds,
+                )
+
+        racing_provider = SettlingPhone()
+        await dial(row.id, provider=racing_provider, sessions=factory)
+        assert racing_provider.dials == [PERSON_NUMBER]
+        assert racing_provider.stops == [SID]
+        await db.refresh(row)
+        assert row.status == "completed" and row.finished_at is not None
+        return
+    row.status = call_status
+    if call_status == "active":
+        row.provider_sid = SID
+    await db.flush()
+    if decision == "read":
+        from app.services.notification_center import NotificationCenterService
+
+        await NotificationCenterService(db).mark_all_read(ctx)
+    else:
+        await OutcomeService(db).settle(ctx, case.id, decision, via="inbox")
+    await db.refresh(row)
+    if call_status == "queued":
+        assert row.status == "cancelled" and row.estimated_cost_usd == 0
+    else:
+        assert row.status == "ending"
+        cleanup = await db.scalar(
+            select(BackgroundJob).where(BackgroundJob.dedupe_key == f"phone-end:{row.id}")
+        )
+        assert cleanup is not None and cleanup.kind == "end-phone"
     await db.commit()
     provider = FakePhone()
     await dial(row.id, provider=provider, sessions=sessions(db))
     assert provider.dials == []
+    if call_status == "active":
+        await end_media(row.id, provider=provider, sessions=sessions(db))
+        assert provider.stops == [SID]
+        await db.refresh(row)
+        assert row.status == "completed"
     plain = PhoneCallCreate(
         request_key=uuid4(), endpoint_id=endpoint.id, mode="report", report="Scheduled report"
     )
@@ -962,3 +1023,44 @@ async def test_sms_credential_rotation_preserves_unfinished_call_cleanup(
     updated = await service.update(bot.id, data, ctx)
     assert updated.authorization_generation != before
     assert unseal_bot_token(updated) == replacement
+
+
+async def test_phone_settings_separate_personal_consent_from_operator_routes(
+    db: AsyncSession, monkeypatch
+) -> None:
+    ctx, bot, identity, contact, endpoint = await setup(db, monkeypatch)
+    policy = PhonePolicyService(db)
+    admin = await policy.settings(ctx)
+    assert admin.contact is not None and admin.contact.masked_number.endswith("1111")
+    assert [row.id for row in admin.sms_identities] == [identity.id]
+    assert [row.id for row in admin.endpoints] == [endpoint.id]
+    assert [row.id for row in admin.sms_bots] == [bot.id]
+    assert [row.id for row in admin.call_endpoints] == [endpoint.id]
+    ordinary = await policy.settings(replace(ctx, role="member"))
+    assert ordinary.endpoints == [] and ordinary.sms_bots == []
+    assert ordinary.contact is not None
+    bot.is_active = False
+    await db.flush()
+    assert (await policy.settings(ctx)).call_endpoints == []
+
+
+async def test_anonymous_and_detached_calls_never_inherit_a_members_authority(
+    db: AsyncSession, monkeypatch
+) -> None:
+    from app.services.telephony.runtime import end_from_agent, transfer_options
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    call = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, call.id)
+    assert row is not None
+    with pytest.raises(AuthorizationError):
+        await end_from_agent(db, call.id, source_run_id=uuid4(), endpoint_id=endpoint.id)
+    with pytest.raises(AuthorizationError):
+        await transfer_options(db, call.id)
+    with pytest.raises(NotFoundError):
+        await transfer_options(db, uuid4(), ctx=ctx)
+    assert await transfer_options(db, call.id, ctx=ctx) == []
+    row.contact_id = None
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="consenting member"):
+        await live_contact(db, row)

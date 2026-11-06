@@ -126,6 +126,8 @@ async def dial(
         if row is None:
             return
         await hold_subject(db, LockScope.PHONE_CALLS_PER_ORG, row.organization_id)
+        if row.purpose == "important":
+            await repo.lock_case_admission(db, row)
         row = await repo.call(db, call_id, lock=True)
         if row is None or row.status != "queued":
             return

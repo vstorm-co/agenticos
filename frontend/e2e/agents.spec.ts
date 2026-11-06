@@ -561,6 +561,7 @@ test.describe("Agents", () => {
     // until a reasoning model refused the run.
     await openAgent(page, DRAFT_AGENT_NAME);
 
+    await page.getByText("Model settings", { exact: true }).click();
     const temperature = page.getByLabel("Temperature");
     const reset = page.getByRole("button", { name: "Use provider default" });
 

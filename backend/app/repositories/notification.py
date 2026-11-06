@@ -279,6 +279,12 @@ async def mark_read(
 async def mark_ids_read(db: AsyncSession, *, ids: list[uuid.UUID], read_at: datetime) -> int:
     if not ids:
         return 0
+    await db.execute(
+        select(Notification.id)
+        .where(Notification.id.in_(ids))
+        .order_by(Notification.id)
+        .with_for_update()
+    )
     result = await db.execute(
         update(Notification)
         .where(Notification.id.in_(ids), Notification.read_at.is_(None))
@@ -316,6 +322,12 @@ async def dismiss_ids(db: AsyncSession, *, ids: list[uuid.UUID], dismissed_at: d
     """
     if not ids:
         return 0
+    await db.execute(
+        select(Notification.id)
+        .where(Notification.id.in_(ids))
+        .order_by(Notification.id)
+        .with_for_update()
+    )
     result = await db.execute(
         update(Notification)
         .where(Notification.id.in_(ids), Notification.dismissed_at.is_(None))
@@ -546,3 +558,21 @@ async def list_failed_deliveries(
         .where(NotificationDelivery.status == DeliveryStatus.FAILED.value)
     )
     return [], total or 0
+
+
+async def outcome_ids_for_notifications(
+    db: AsyncSession, *, ids: list[uuid.UUID], user_id: uuid.UUID, organization_id: uuid.UUID
+) -> list[uuid.UUID]:
+    if not ids:
+        return []
+    rows = await db.scalars(
+        select(Notification.outcome_id)
+        .where(
+            Notification.id.in_(ids),
+            Notification.recipient_user_id == user_id,
+            Notification.organization_id == organization_id,
+            Notification.outcome_id.is_not(None),
+        )
+        .distinct()
+    )
+    return [identifier for identifier in rows if identifier is not None]

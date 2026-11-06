@@ -46,6 +46,7 @@ test.describe("MCP servers", () => {
     await expect(pageHeading(page, "MCP servers")).toBeVisible();
 
     for (const server of CATALOG) {
+      await page.getByRole("textbox", { name: "Search servers…" }).fill(server);
       const card = page.getByRole("group", { name: server });
       await expect(card, `${server} should be in the catalog`).toBeVisible();
       // Every card has the same foot whatever its state: where it stands, and

@@ -42,3 +42,31 @@ it("does not expose an inaccessible receipt", () => {
   render(<PhoneCallCard callId="foreign" />);
   expect(screen.getByText("This call receipt is unavailable to you.")).toBeVisible();
 });
+
+it("previews a delayed report without presenting it as a completed telephone conversation", () => {
+  mount({
+    ...phoneCall,
+    status: "queued",
+    mode: "report",
+    conversation_id: "report",
+    not_before: "2026-11-05T10:00:00Z",
+  });
+  expect(screen.getByRole("link", { name: "Prepared report" })).toHaveAttribute(
+    "href",
+    "/chat?id=report",
+  );
+  expect(screen.getByText(/Earliest call/)).toBeVisible();
+});
+it("offers only current transfer contacts and closes after confirmed transfer", async () => {
+  vi.mocked(phoneApi.transferOptions).mockResolvedValue([
+    { id: "person", label: "On-call person" },
+  ]);
+  vi.mocked(phoneApi.transfer).mockResolvedValue();
+  mount({ ...phoneCall, status: "active" });
+  await userEvent.click(screen.getByRole("button", { name: "Transfer call" }));
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "On-call person" }));
+  await userEvent.click(screen.getAllByRole("button", { name: "Transfer call" }).at(-1)!);
+  await waitFor(() => expect(phoneApi.transfer).toHaveBeenCalledWith("call", "person"));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+});

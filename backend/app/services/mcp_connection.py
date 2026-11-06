@@ -1374,6 +1374,11 @@ class McpConnectionService:
                     "oauth_state": state,
                     "oauth_pending_payload": pending.ciphertext,
                     "secret_key_version": pending.key_version,
+                    **(
+                        {"account_source_organization_id": payload.account_source_organization_id}
+                        if existing.purpose == "account"
+                        else {}
+                    ),
                 },
             )
         else:
@@ -1918,6 +1923,22 @@ class McpConnectionService:
         )
         # A placeholder until Google names the account; names are unique per owner.
         name = f"google-account-{secrets.token_hex(6)}"
+        await mcp_connection_repo.lock_account_owner(
+            self.db,
+            user_id=None if for_organization else ctx.subject_id,
+            organization_id=ctx.organization_id if for_organization else None,
+        )
+        from app.repositories import member_repo
+
+        if (
+            await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
+            is None
+        ):
+            raise AuthorizationError(
+                message="Connecting an account requires current organization membership"
+            )
         existing = await mcp_connection_repo.get_pending_account(
             self.db,
             provider=google_oauth.PROVIDER,
@@ -1938,6 +1959,7 @@ class McpConnectionService:
                     catalog_key=google_oauth.PROVIDER,
                     sealed_token=None,
                     purpose="account",
+                    account_source_organization_id=ctx.organization_id,
                     **kwargs,
                 ),
                 payload=payload,
@@ -1956,6 +1978,7 @@ class McpConnectionService:
                     allowed_tools=None,
                     catalog_key=google_oauth.PROVIDER,
                     purpose="account",
+                    account_source_organization_id=ctx.organization_id,
                     **kwargs,
                 ),
                 payload=payload,
@@ -2196,7 +2219,12 @@ class McpConnectionService:
                         "Your organization access changed; start account consent again."
                     )
         if connection.purpose == "account" and (
-            payload.account_source_organization_id is None
+            (
+                connection.scope == "user"
+                and connection.account_source_organization_id
+                != payload.account_source_organization_id
+            )
+            or payload.account_source_organization_id is None
             or not await self._account_source_current(
                 connection, payload, payload.account_source_organization_id
             )

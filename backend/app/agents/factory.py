@@ -64,6 +64,7 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import (
     ANSWER_TOOLS_RESOURCE,
     GuardrailsConfig,
@@ -424,6 +425,7 @@ def build_agent(
     )
 
     deps = AgentDeps(
+        draft_tool_names=draft_tool_names(spec),
         organization_id=organization_id,
         agent_id=agent_id,
         run_id=run_id,

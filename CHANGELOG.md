@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Cancel important-case telephone calls when their notification is read or the case is settled, including calls already starting or active; serialize admission and queue provider cleanup. Reject abandoned Google consent after membership removal, block inaccessible reminders for review, and preserve native drafts on embedded and background streams.
+
 - Bind Google account grants to their OAuth client’s organization and current credential generation; preserve that authority across terminal approval pauses and routine source reviews. Include safe account metadata in personal exports and audit organization account changes. Older unverifiable personal grants need reconnecting after migration 0293.
 - Preserve renamed draft cards with server-owned presentation provenance (migration `0294_tool_presentation.py`); provider-controlled tool results cannot mark arbitrary arguments as public drafts.
 - Cancel parked approvals when task execution ends, block reminders whose creator has left, require actionable reviewer access, fence agent deletion against task assignment, and recheck delegate instructions and account authority after pauses. Removing a member revokes their tenant-bound Google grants permanently.

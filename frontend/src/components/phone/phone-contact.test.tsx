@@ -93,3 +93,31 @@ it("lets the person remove a deleted agent and revoke call consent", async () =>
   await userEvent.click(screen.getByRole("button", { name: "Save phone consent" }));
   expect(save).toHaveBeenCalledWith(expect.objectContaining({ agent_ids: [], allow_calls: false }));
 });
+
+it("saves language, daily limits and local quiet hours explicitly", async () => {
+  const save = vi.fn();
+  render(<PhoneContactForm settings={phoneSettings} pending={false} onSave={save} />);
+  for (const [label, choice] of [
+    ["Verified SMS number", "••••1111"],
+    ["Spoken report language", "Polski"],
+    ["Quiet hours start", "21:00"],
+    ["Quiet hours end", "09:00"],
+  ]) {
+    await userEvent.click(screen.getByRole("combobox", { name: label }));
+    await userEvent.click(screen.getByRole("option", { name: choice }));
+  }
+  await userEvent.clear(screen.getByRole("textbox", { name: "Time zone (IANA)" }));
+  await userEvent.type(screen.getByRole("textbox", { name: "Time zone (IANA)" }), "Europe/Warsaw");
+  await userEvent.clear(screen.getByRole("spinbutton", { name: "Calls per rolling 24 hours" }));
+  await userEvent.type(screen.getByRole("spinbutton", { name: "Calls per rolling 24 hours" }), "5");
+  await userEvent.click(screen.getByRole("button", { name: "Save phone consent" }));
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      report_language: "pl-PL",
+      timezone: "Europe/Warsaw",
+      calls_per_day: 5,
+      quiet_start_hour: 21,
+      quiet_end_hour: 9,
+    }),
+  );
+});
