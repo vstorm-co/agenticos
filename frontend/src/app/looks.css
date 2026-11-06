@@ -39,24 +39,24 @@
 }
 
 :root.dark[data-look="graphite"] {
-  --color-sidebar: oklch(19.5% 0.004 75);
-  --color-background: oklch(22.5% 0.004 75);
+  --color-sidebar: oklch(18.5% 0.004 75);
+  --color-background: oklch(23% 0.004 75);
   --color-foreground: oklch(94% 0.005 75);
-  --color-card: oklch(25.5% 0.005 75);
+  --color-card: oklch(27.5% 0.005 75);
   --color-card-foreground: oklch(94% 0.005 75);
-  --color-popover: oklch(28% 0.005 75);
+  --color-popover: oklch(31% 0.005 75);
   --color-popover-foreground: oklch(94% 0.005 75);
   --color-peek-well: oklch(20.5% 0.004 75);
   --color-peek-sheet: oklch(24.5% 0.005 75);
   --color-peek-paper: oklch(29% 0.005 75);
-  --color-secondary: oklch(29.5% 0.005 75);
+  --color-secondary: oklch(31.5% 0.005 75);
   --color-secondary-foreground: oklch(94.5% 0.004 75);
-  --color-muted: oklch(29.5% 0.005 75);
+  --color-muted: oklch(31.5% 0.005 75);
   --color-muted-foreground: oklch(73% 0.01 75);
-  --color-accent: oklch(32% 0.006 75);
+  --color-accent: oklch(35% 0.006 75);
   --color-accent-foreground: oklch(94.5% 0.004 75);
-  --color-border: oklch(33.5% 0.007 75);
-  --color-input: oklch(46% 0.008 75);
+  --color-border: oklch(38% 0.007 75);
+  --color-input: oklch(48% 0.008 75);
 }
 
 /* --- Midnight: deep blue-black, for a dark room; its light half is daylight. */
@@ -82,24 +82,24 @@
 }
 
 :root.dark[data-look="midnight"] {
-  --color-sidebar: oklch(14% 0.02 268);
-  --color-background: oklch(16.5% 0.022 268);
+  --color-sidebar: oklch(17% 0.02 268);
+  --color-background: oklch(21% 0.022 268);
   --color-foreground: oklch(95% 0.01 268);
-  --color-card: oklch(19.5% 0.025 268);
+  --color-card: oklch(25% 0.025 268);
   --color-card-foreground: oklch(95% 0.01 268);
-  --color-popover: oklch(22% 0.027 268);
+  --color-popover: oklch(29% 0.027 268);
   --color-popover-foreground: oklch(95% 0.01 268);
-  --color-peek-well: oklch(15% 0.02 268);
-  --color-peek-sheet: oklch(18.5% 0.024 268);
-  --color-peek-paper: oklch(23% 0.027 268);
-  --color-secondary: oklch(23% 0.026 268);
+  --color-peek-well: oklch(21% 0.02 268);
+  --color-peek-sheet: oklch(27% 0.024 268);
+  --color-peek-paper: oklch(33% 0.027 268);
+  --color-secondary: oklch(30% 0.026 268);
   --color-secondary-foreground: oklch(95% 0.01 268);
-  --color-muted: oklch(23% 0.026 268);
+  --color-muted: oklch(30% 0.026 268);
   --color-muted-foreground: oklch(74% 0.025 268);
-  --color-accent: oklch(26% 0.03 268);
+  --color-accent: oklch(34% 0.03 268);
   --color-accent-foreground: oklch(95% 0.01 268);
-  --color-border: oklch(28.5% 0.025 268);
-  --color-input: oklch(40% 0.03 268);
+  --color-border: oklch(37% 0.025 268);
+  --color-input: oklch(46% 0.03 268);
 }
 
 /* --- Paper: warm cream for long reading; its dark half is sepia at night. -- */
@@ -128,9 +128,9 @@
   --color-sidebar: oklch(20% 0.012 70);
   --color-background: oklch(23% 0.013 70);
   --color-foreground: oklch(93% 0.02 85);
-  --color-card: oklch(26% 0.014 70);
+  --color-card: oklch(27.5% 0.014 70);
   --color-card-foreground: oklch(93% 0.02 85);
-  --color-popover: oklch(28.5% 0.015 70);
+  --color-popover: oklch(31% 0.015 70);
   --color-popover-foreground: oklch(93% 0.02 85);
   --color-peek-well: oklch(21% 0.012 70);
   --color-peek-sheet: oklch(25% 0.014 70);
@@ -139,9 +139,9 @@
   --color-secondary-foreground: oklch(93% 0.02 85);
   --color-muted: oklch(30% 0.015 70);
   --color-muted-foreground: oklch(74% 0.025 80);
-  --color-accent: oklch(33% 0.017 70);
+  --color-accent: oklch(35% 0.017 70);
   --color-accent-foreground: oklch(93% 0.02 85);
-  --color-border: oklch(34.5% 0.016 70);
+  --color-border: oklch(38% 0.016 70);
   --color-input: oklch(47% 0.02 70);
 }
 
@@ -163,10 +163,10 @@
 }
 
 :root.dark[data-look="glass"] {
-  --color-sidebar: oklch(22% 0.004 265 / 0.82);
-  --color-background: oklch(21% 0.004 265 / 0.88);
+  --color-sidebar: oklch(19% 0.004 265 / 0.84);
+  --color-background: oklch(24% 0.004 265 / 0.9);
   --color-card: oklch(28% 0.004 265 / 0.9);
-  --color-popover: oklch(27% 0.004 265 / 0.97);
+  --color-popover: oklch(32% 0.004 265 / 0.98);
   --color-peek-well: oklch(20% 0.004 265 / 0.6);
   --color-secondary: oklch(34% 0.004 265 / 0.55);
   --color-muted: oklch(34% 0.004 265 / 0.55);
@@ -180,55 +180,75 @@
    its block above - two places, one mapping, as the standard look has three. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light)[data-look="graphite"] {
-    --color-sidebar: oklch(19.5% 0.004 75);
-    --color-background: oklch(22.5% 0.004 75);
+    --color-sidebar: oklch(18.5% 0.004 75);
+    --color-background: oklch(23% 0.004 75);
     --color-foreground: oklch(94% 0.005 75);
-    --color-card: oklch(25.5% 0.005 75);
+    --color-card: oklch(27.5% 0.005 75);
     --color-card-foreground: oklch(94% 0.005 75);
-    --color-popover: oklch(28% 0.005 75);
+    --color-popover: oklch(31% 0.005 75);
     --color-popover-foreground: oklch(94% 0.005 75);
-    --color-muted: oklch(29.5% 0.005 75);
+    --color-peek-well: oklch(20.5% 0.004 75);
+    --color-peek-sheet: oklch(24.5% 0.005 75);
+    --color-peek-paper: oklch(29% 0.005 75);
+    --color-secondary: oklch(31.5% 0.005 75);
+    --color-secondary-foreground: oklch(94.5% 0.004 75);
+    --color-muted: oklch(31.5% 0.005 75);
     --color-muted-foreground: oklch(73% 0.01 75);
-    --color-accent: oklch(32% 0.006 75);
-    --color-border: oklch(33.5% 0.007 75);
-    --color-input: oklch(46% 0.008 75);
+    --color-accent: oklch(35% 0.006 75);
+    --color-accent-foreground: oklch(94.5% 0.004 75);
+    --color-border: oklch(38% 0.007 75);
+    --color-input: oklch(48% 0.008 75);
   }
 
   :root:not(.light)[data-look="midnight"] {
-    --color-sidebar: oklch(14% 0.02 268);
-    --color-background: oklch(16.5% 0.022 268);
+    --color-sidebar: oklch(17% 0.02 268);
+    --color-background: oklch(21% 0.022 268);
     --color-foreground: oklch(95% 0.01 268);
-    --color-card: oklch(19.5% 0.025 268);
+    --color-card: oklch(25% 0.025 268);
     --color-card-foreground: oklch(95% 0.01 268);
-    --color-popover: oklch(22% 0.027 268);
+    --color-popover: oklch(29% 0.027 268);
     --color-popover-foreground: oklch(95% 0.01 268);
-    --color-muted: oklch(23% 0.026 268);
+    --color-peek-well: oklch(21% 0.02 268);
+    --color-peek-sheet: oklch(27% 0.024 268);
+    --color-peek-paper: oklch(33% 0.027 268);
+    --color-secondary: oklch(30% 0.026 268);
+    --color-secondary-foreground: oklch(95% 0.01 268);
+    --color-muted: oklch(30% 0.026 268);
     --color-muted-foreground: oklch(74% 0.025 268);
-    --color-accent: oklch(26% 0.03 268);
-    --color-border: oklch(28.5% 0.025 268);
-    --color-input: oklch(40% 0.03 268);
+    --color-accent: oklch(34% 0.03 268);
+    --color-accent-foreground: oklch(95% 0.01 268);
+    --color-border: oklch(37% 0.025 268);
+    --color-input: oklch(46% 0.03 268);
   }
 
   :root:not(.light)[data-look="paper"] {
     --color-sidebar: oklch(20% 0.012 70);
     --color-background: oklch(23% 0.013 70);
     --color-foreground: oklch(93% 0.02 85);
-    --color-card: oklch(26% 0.014 70);
+    --color-card: oklch(27.5% 0.014 70);
     --color-card-foreground: oklch(93% 0.02 85);
-    --color-popover: oklch(28.5% 0.015 70);
+    --color-popover: oklch(31% 0.015 70);
     --color-popover-foreground: oklch(93% 0.02 85);
+    --color-peek-well: oklch(21% 0.012 70);
+    --color-peek-sheet: oklch(25% 0.014 70);
+    --color-peek-paper: oklch(29.5% 0.015 70);
+    --color-secondary: oklch(30% 0.015 70);
+    --color-secondary-foreground: oklch(93% 0.02 85);
     --color-muted: oklch(30% 0.015 70);
     --color-muted-foreground: oklch(74% 0.025 80);
-    --color-accent: oklch(33% 0.017 70);
-    --color-border: oklch(34.5% 0.016 70);
+    --color-accent: oklch(35% 0.017 70);
+    --color-accent-foreground: oklch(93% 0.02 85);
+    --color-border: oklch(38% 0.016 70);
     --color-input: oklch(47% 0.02 70);
   }
 
   :root:not(.light)[data-look="glass"] {
-    --color-sidebar: oklch(22% 0.004 265 / 0.82);
-    --color-background: oklch(21% 0.004 265 / 0.88);
+    --color-sidebar: oklch(19% 0.004 265 / 0.84);
+    --color-background: oklch(24% 0.004 265 / 0.9);
     --color-card: oklch(28% 0.004 265 / 0.9);
-    --color-popover: oklch(27% 0.004 265 / 0.97);
+    --color-popover: oklch(32% 0.004 265 / 0.98);
+    --color-peek-well: oklch(20% 0.004 265 / 0.6);
+    --color-secondary: oklch(34% 0.004 265 / 0.55);
     --color-muted: oklch(34% 0.004 265 / 0.55);
     --color-accent: oklch(42% 0.005 265 / 0.45);
     --color-border: oklch(80% 0.006 265 / 0.16);

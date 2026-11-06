@@ -74,7 +74,7 @@ function NavLink({
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
-          ? "bg-foreground/8 text-foreground"
+          ? "bg-accent text-foreground"
           : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
       )}
     >

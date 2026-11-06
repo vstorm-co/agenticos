@@ -199,6 +199,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refine neutral surface levels and control contrast across Standard, Glass, Graphite, Midnight and Paper in light and dark modes. Keep full system-dark look palettes aligned with the selected theme to prevent first-paint colour shifts.
+
 - Distinguish New chat and Search from sidebar navigation with primary and subtle search surfaces shared by desktop and mobile.
 
 - Position global search lower in the viewport and bound its result list to keep the palette comfortable on smaller screens.

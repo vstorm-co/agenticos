@@ -150,7 +150,7 @@ function ConversationItem({
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
         "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-colors",
-        isActive ? "bg-foreground/8" : "hover:bg-foreground/5",
+        isActive ? "bg-accent" : "hover:bg-foreground/5",
       )}
       onClick={onSelect}
     >
@@ -978,7 +978,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     <>
       <aside
         className={cn(
-          "hidden min-h-0 w-64 shrink-0 flex-col bg-[color-mix(in_oklab,var(--color-sidebar),var(--color-background))] md:flex",
+          "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex",
           className,
         )}
       >
@@ -1067,12 +1067,7 @@ function CollapsedSidebar({
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
-    <div
-      className={cn(
-        "hidden w-12 shrink-0 flex-col bg-[color-mix(in_oklab,var(--color-sidebar),var(--color-background))] md:flex",
-        className,
-      )}
-    >
+    <div className={cn("bg-sidebar-secondary hidden w-12 shrink-0 flex-col md:flex", className)}>
       {/* The same 48px header the list has, with its chevron where the list's is. */}
       <div className="flex h-12 shrink-0 items-center justify-center" data-tauri-drag-region="deep">
         <IconButton
@@ -1155,7 +1150,7 @@ function CollapsedSidebar({
                       aria-current={isActive ? "true" : undefined}
                       className={cn(
                         "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
-                        isActive ? "bg-foreground/8" : "hover:bg-foreground/5",
+                        isActive ? "bg-accent" : "hover:bg-foreground/5",
                       )}
                     >
                       <span className="relative">
