@@ -139,6 +139,7 @@ class Dataset(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("skills.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     # Kept in step with the newest version under the minting row lock, so a listing
     # needs no aggregate; 0 means no case was ever added.

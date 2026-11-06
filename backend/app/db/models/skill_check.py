@@ -247,6 +247,10 @@ class SkillCheck(Base):
         # Deleting an agent or a version cascades into these; unindexed, each scans the table.
         Index("ix_skill_checks_agent", "agent_id"),
         Index("ix_skill_checks_candidate_version", "candidate_version_id"),
+        Index("ix_skill_checks_base_version", "base_version_id"),
+        Index("ix_skill_checks_fork", "fork_id"),
+        Index("ix_skill_checks_applied_version", "applied_version_id"),
+        Index("ix_skill_checks_proposal", "proposal_id"),
         Index(
             "ix_skill_checks_running",
             "status",
@@ -333,6 +337,9 @@ class SkillCheckAgent(Base):
         ),
         UniqueConstraint("check_id", "agent_id", name="uq_skill_check_agents_agent"),
         Index("ix_skill_check_agents_agent", "organization_id", "agent_id"),
+        # Deleting an agent or a dataset reaches these by the column alone.
+        Index("ix_skill_check_agents_agent_id", "agent_id"),
+        Index("ix_skill_check_agents_dataset", "dataset_id"),
         Index("ix_skill_check_agents_skill_set_run", "skill_set_run_id"),
         Index("ix_skill_check_agents_dataset_run", "dataset_run_id"),
         CheckConstraint(f"state IN ({_values(AgentState)})", name="ck_skill_check_agent_state"),
