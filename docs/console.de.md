@@ -1,5 +1,5 @@
 ---
-source_sha: "e6abbcae57d0"
+source_sha: "f20da016e0b3"
 ---
 
 # Die Konsole { #the-console }
@@ -81,6 +81,8 @@ Die **Visual map** im Agenten-Builder passt die gesamte Konfiguration beim Öffn
 Das Testpanel im Builder lässt sich auf den ganzen Arbeitsbereich erweitern, ohne Unterhaltung oder ungesendeten Text zurückzusetzen. Der Vergleich zweier Versionen öffnet diesen Bereich automatisch; die Vollbild-Schaltfläche oder Escape führt zum Builder zurück. Die Versionsauswahl hat eine eigene Zeile, damit die Teststeuerung auch in schmalen Panels nutzbar bleibt. Auf dem Telefon wechseln die Versionsschaltflächen zwischen den verglichenen Chats; beide Gespräche laufen weiter und behalten ihre Entwürfe. Der gemeinsame Prompt erreicht weiterhin beide gleichzeitig.
 
 Die Navigation erhält gemeinsame Seitenlayouts beim Wechsel zwischen Bereichen und blendet kurz über, statt den Rahmen neu aufzubauen. Reduzierte Bewegung deaktiviert den Effekt. Dashboard-Karten warten auf die gespeicherte Anordnung, berechtigungsabhängige Seiten auf deren Prüfung und die Benutzerliste der Administration beginnt mit einem Ladezustand statt einer vermeintlich leeren Liste. Gruppen- und App-Autorenfilter reservieren ihren Platz beim Laden. Quellenmarkierungen im Inbox warten auf Katalogmetadaten; Links zur Arbeitskonversation öffnen dieselbe Chat-Route wie die Seitenleiste.
+
+Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-Schaltflächen an, damit das Benutzerbild sichtbar bleibt. Der Gesprächsanfang und der reservierte Platz für eine Antwort berücksichtigen denselben Abstand zur Werkzeugleiste; Desktop und eingebettete Chats behalten ihren kleineren Abstand.
 
 ## Das Dashboard { #the-dashboard }
 

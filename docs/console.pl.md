@@ -1,5 +1,5 @@
 ---
-source_sha: "e6abbcae57d0"
+source_sha: "f20da016e0b3"
 ---
 
 # Konsola { #the-console }
@@ -79,6 +79,8 @@ Metadane linków do plików zapisują dla lokalnych tur tylko niejawny identyfik
 Panel testowania w builderze można rozwinąć na cały obszar bez resetowania rozmowy ani niewysłanego tekstu. Porównanie dwóch wersji automatycznie otwiera ten widok; przycisk pełnego ekranu lub Escape przywraca builder. Wybór wersji ma osobny wiersz, dzięki czemu kontrolki testu mieszczą się w wąskim panelu. Na telefonie przełączaj porównywane chaty przyciskami wersji; obie rozmowy nadal działają i zachowują szkice. Wspólny prompt nadal trafia do obu naraz.
 
 Nawigacja zachowuje wspólne layouty przy przechodzeniu między sekcjami i stosuje krótkie wygaszenie zamiast resetowania ramki. Ograniczony ruch wyłącza animację. Karty dashboardu czekają na zapisany układ, strony zależne od uprawnień czekają na wynik ich odczytu, a lista użytkowników administracji zaczyna od stanu ładowania zamiast chwilowo twierdzić, że jest pusta. Filtry grup i autorów Apps rezerwują miejsce podczas ładowania. Oznaczenia źródeł w Inbox czekają na metadane katalogu; linki do roboczej rozmowy otwierają tę samą trasę chatu co sidebar.
+
+Na telefonach wysłane wiadomości zatrzymują się poniżej pływających przycisków czatu, dzięki czemu avatar użytkownika pozostaje widoczny. Początek rozmowy i miejsce rezerwowane na odpowiedź uwzględniają ten sam odstęp pod przyciskami; desktop i osadzone czaty zachowują mniejszy odstęp.
 
 ## Dashboard { #the-dashboard }
 

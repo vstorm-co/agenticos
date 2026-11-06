@@ -5,8 +5,13 @@ import { scrollGently } from "@/lib/scroll-gently";
 import type { ChatMessage } from "@/types";
 
 /** Leave room for the reply so a newly sent message can sit near the top. */
-export function replySpace(viewport: number, dock: number, turnHeight: number): number {
-  return Math.max(0, Math.round(viewport - dock - turnHeight - 24));
+export function replySpace(
+  viewport: number,
+  dock: number,
+  turnHeight: number,
+  topInset = 24,
+): number {
+  return Math.max(0, Math.round(viewport - dock - turnHeight - topInset));
 }
 
 export function useSentTurnAnchor(
@@ -52,6 +57,9 @@ export function useSentTurnAnchor(
     if (!row) return;
     anchoredRef.current = true;
     readerScrolledUpRef.current = false;
+    // The phone toolbar floats over this viewport; its reserved space must
+    // apply to a sent-turn anchor as well as the transcript's initial padding.
+    const topInset = parseFloat(getComputedStyle(element).scrollPaddingTop) || 24;
     const size = () => {
       const turnHeight =
         transcript.getBoundingClientRect().bottom -
@@ -61,6 +69,7 @@ export function useSentTurnAnchor(
         element.clientHeight,
         parseFloat(getComputedStyle(element).paddingBottom) || 0,
         turnHeight,
+        topInset,
       );
       space.style.height = `${remaining}px`;
       if (remaining === 0) anchoredRef.current = false;
@@ -71,7 +80,7 @@ export function useSentTurnAnchor(
       element.scrollTop +
         row.getBoundingClientRect().top -
         element.getBoundingClientRect().top -
-        24,
+        topInset,
     );
     const observer = new ResizeObserver(size);
     observer.observe(transcript);

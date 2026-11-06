@@ -74,6 +74,8 @@ The Builder’s test panel can expand to a full workspace without resetting its 
 
 Navigation keeps shared page layouts mounted when moving between sections, with a short fade instead of resetting the frame. Reduced motion disables the fade. Dashboard widgets wait for the saved arrangement, permission-dependent pages wait for the permission result, and the administration user list starts in a loading state rather than briefly claiming it is empty. Group and app-publisher filters reserve their space while loading. Inbox source marks wait for catalog metadata; links to a working conversation open the same chat route as the sidebar.
 
+On phones, sent messages stop below the floating chat buttons, keeping the user portrait visible. The initial transcript and the space reserved for a reply use the same toolbar clearance; desktop and embedded chats retain their smaller inset.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

@@ -1,5 +1,5 @@
 ---
-source_sha: "e6abbcae57d0"
+source_sha: "f20da016e0b3"
 ---
 
 # La consola { #the-console }
@@ -81,6 +81,8 @@ Los metadatos de enlaces guardan solo un identificador opaco del origen para los
 El panel de pruebas del editor puede ocupar todo el espacio de trabajo sin reiniciar la conversación ni el texto sin enviar. Comparar dos versiones abre este espacio automáticamente; el botón de pantalla completa o Escape devuelve al editor. Los selectores de versión tienen su propia fila para mantener accesibles los controles en paneles estrechos. En el teléfono, los botones de versión alternan entre los chats comparados; ambas conversaciones siguen funcionando y conservan sus borradores. El prompt compartido sigue llegando a ambas a la vez.
 
 La navegación conserva los layouts compartidos al cambiar de sección y usa una transición breve en lugar de reiniciar el marco. El movimiento reducido desactiva la transición. Las tarjetas del dashboard esperan la disposición guardada, las páginas con permisos esperan su lectura y la lista administrativa de usuarios comienza cargando, sin afirmar que está vacía. Los filtros de grupos y autores de Apps reservan espacio durante la carga. Las fuentes del Inbox esperan los metadatos del catálogo; los enlaces a conversaciones de trabajo usan la misma ruta que la barra lateral.
+
+En el móvil, los mensajes enviados se detienen debajo de los botones flotantes del chat para mantener visible el avatar del usuario. El inicio de la conversación y el espacio reservado para la respuesta usan la misma separación; los chats de escritorio e integrados conservan un margen menor.
 
 ## El dashboard { #the-dashboard }
 

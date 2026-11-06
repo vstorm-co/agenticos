@@ -1363,6 +1363,7 @@ function ChatUI({
           <BrowserPanelAutoOpen browses={browses} />
           <div
             ref={scrollContainerRef}
+            data-chat-scroller
             className={cn(
               "flex-1 scrollbar-thin overflow-y-auto",
               showWorkspaceHome && "flex-none overflow-visible pb-0!",
