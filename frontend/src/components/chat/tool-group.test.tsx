@@ -42,6 +42,40 @@ describe("consecutive tool groups", () => {
     expect(screen.getByText("Search results")).toBeVisible();
   });
 
+  it.each([
+    ["awaiting_answer", "Waiting for an answer"],
+    ["error", "Failed"],
+  ] as const)("keeps a %s visible in a collapsed batch", (status, label) => {
+    render(
+      <ToolGroup calls={[search("one"), { ...search("two"), status }]} mcpServers={[]}>
+        <p>Details</p>
+      </ToolGroup>,
+    );
+    expect(screen.getByText(label)).toBeVisible();
+    expect(screen.getByText("Details")).not.toBeVisible();
+  });
+
+  it("keeps a mixed batch summary short while retaining every operation in its title", () => {
+    const calls: ToolCall[] = [
+      search("search"),
+      ...["web_fetch", "read_file", "write_file"].map((name) => ({
+        id: name,
+        name,
+        args: {},
+        status: "completed" as const,
+      })),
+    ];
+    const { container } = render(
+      <ToolGroup calls={calls} mcpServers={[]}>
+        <p>Four operations</p>
+      </ToolGroup>,
+    );
+    const label = container.querySelector("summary [title]");
+    expect(label?.textContent).toContain("…");
+    expect(label?.getAttribute("title")?.split(", ")).toHaveLength(4);
+    expect(screen.getByText("4 actions")).toBeVisible();
+  });
+
   it("names mixed tools and surfaces a pending approval without expanding arguments", () => {
     render(
       <ToolGroup

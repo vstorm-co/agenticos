@@ -22,7 +22,8 @@ export function ToolGroup({
   const tTools = useTranslations("chat.tools");
   const runText = useTranslations("pages.runs");
   if (calls.length < 2) return children;
-  const steps = calls.map((call) => toolStep(call.name, call.args, false, tTools, mcpServers));
+  const finished = calls.every((call) => call.status === "completed");
+  const steps = calls.map((call) => toolStep(call.name, call.args, finished, tTools, mcpServers));
   const labels = [...new Set(steps.map((step) => step.label))];
   const Icon = STEP_ICONS[steps[0]!.kind];
   const status = calls.some((call) => call.status === "awaiting_answer")
