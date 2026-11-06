@@ -959,7 +959,8 @@ class SkillImprovementService:
         Raises:
             BadRequestError: The session is not a catch-up, main alone was not checked or
                 made an agent worse, or it could not check some agents and that was not
-                acknowledged.
+                acknowledged; or no agent the fork still has could be moved, which leaves
+                the session and its checks as they were.
             ConcurrentChangeError: The session has no result to decide on.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
@@ -992,6 +993,20 @@ class SkillImprovementService:
                 "the fork's agents to main",
             )
         returned = await self.merges.return_to_main(ctx, run.skill_id, run.fork_id, ReturnToMain())
+        if returned.remaining and all(item.refused for item in returned.agents):
+            raise BadRequestError(
+                message=(
+                    "No agent could be moved back to main, so the session stays open with its "
+                    "checks"
+                ),
+                details={
+                    "agents": [
+                        {"id": item.agent.id, "name": item.agent.name, "refused": item.refused}
+                        for item in returned.agents
+                    ],
+                    "hidden": returned.hidden,
+                },
+            )
         await self._discard_checks(ctx, run)
         await self._decide(ctx, run, SkillImprovementOutcome.RETURNED_TO_MAIN, None)
         return SkillImprovementReturned(session=await self._read(ctx, run, line), returned=returned)

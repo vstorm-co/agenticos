@@ -53,7 +53,7 @@ from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_authoring import _improver, _owner
-from tests.integration.test_skill_bindings import _fork, _serving, _spec
+from tests.integration.test_skill_bindings import _fork, _serving, _spec, _with_specialist
 from tests.integration.test_skill_improvement import _checked
 
 pytestmark = pytest.mark.anyio
@@ -509,6 +509,33 @@ class TestACatchUp:
         )
         assert [item.agent.name for item in returned.returned.agents] == ["Desk"]
         assert len([call for call in fake.calls if call[0] == "discard"]) == 2
+
+    async def test_a_return_that_moves_nobody_leaves_the_session_and_its_checks(
+        self, db, call_price, monkeypatch
+    ):
+        """A fork read only through a specialist is changed in the Builder: nothing moved."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx)
+        await _serving(
+            db, ctx, "Desk", _with_specialist({"name": "Desk"}, skill, fork_id=str(fork.id))
+        )
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        await _advance(db, run)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, "passed", "no_better")
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).return_to_main(
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
+            )
+
+        assert [item["name"] for item in refused.value.details["agents"]] == ["Desk"]
+        assert not [call for call in fake.calls if call[0] == "discard"]
+        read = await SkillImprovementService(db).read(ctx, skill.id, run.id)
+        assert (read.status, read.outcome) == ("ready", None)
 
     async def test_agents_main_alone_could_not_check_are_acknowledged_before_returning(
         self, db, call_price, monkeypatch
