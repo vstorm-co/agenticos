@@ -708,9 +708,11 @@ async def update_sync_source(
     moves to (`CollectionAccessService.source_target`). Only `connections:manage`
     lists a source once it is detached.
     """
-    source = await access.writable_sync_source(ctx, source_id)
+    # The target first: it takes the name's lock, and the source's row comes after
+    # it, the order a base's deletion takes them in.
     if data.collection_name is not None:
         await access.source_target(ctx, data.collection_name)
+    source = await access.writable_sync_source(ctx, source_id)
     return await sync_source_svc.update_source(str(source.id), data, ctx=ctx)
 
 

@@ -65,12 +65,15 @@ class _Fakes:
         )
         self.role = OrgRoleName.OWNER
 
-    async def kb_sync_source(self, ctx: AuthContext, kb: MagicMock, source_id: str) -> MagicMock:
+    async def kb_sync_source(
+        self, ctx: AuthContext, kb: MagicMock, source_id: str, *, for_update: bool = False
+    ) -> MagicMock:
         """`CollectionAccessService.kb_sync_source` for an organization's base.
 
         The rule itself is `tests/test_collection_access.py`'s; this stands in at the
         service boundary so the route's own refusals stay what is asserted here.
         """
+        assert for_update, "a change to a source decides on its locked row"
         source = await self.sources.get_source(source_id)
         if (source.collection_name, source.organization_id) != (
             kb.collection_name,

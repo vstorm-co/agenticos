@@ -466,6 +466,30 @@ describe("one collection's page", () => {
     expect(result.current.sectionFailures.orgIntegrations).toBe(false);
   });
 
+  it("stops offering the organization's integrations once connections:manage is lost", async () => {
+    // A disabled query keeps its last answer, so a member downgraded while this
+    // page is open would go on being offered every base's integrations (#2745).
+    serveDetail();
+    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.orgIntegrations).toHaveLength(1));
+
+    held.delete("connections:manage");
+    rerender();
+
+    expect(result.current.orgIntegrations).toEqual([]);
+  });
+
+  it("does not report a failed integrations read once connections:manage is lost", async () => {
+    serveDetail({ integrations: new Error("Nope") });
+    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.sectionFailures.orgIntegrations).toBe(true));
+
+    held.delete("connections:manage");
+    rerender();
+
+    expect(result.current.sectionFailures.orgIntegrations).toBe(false);
+  });
+
   it("says what went wrong when the collection itself cannot be read", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Not your collection"));
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });

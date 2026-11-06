@@ -250,11 +250,14 @@ export function useKBDetail(id: string | null) {
   // The organization's integrations, every base's, behind `connections:manage`
   // (#2745). Not asked without it: the answer would be a 403, which the wizard
   // reports as a list that failed to load rather than one that is not theirs.
+  // Masked below as well: a disabled query keeps its last answer, so a member
+  // losing the permission would go on being offered what it already fetched.
   const { can } = usePermissions();
+  const managesIntegrations = can(Perm.connectionsManage);
   const orgIntegrationsQuery = useQuery({
     queryKey: qk.kb.orgIntegrations(id ?? "none"),
     queryFn: () => apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`),
-    enabled: enabled && can(Perm.connectionsManage),
+    enabled: enabled && managesIntegrations,
     retry: false,
   });
   const connectorsQuery = useQuery({
@@ -304,11 +307,11 @@ export function useKBDetail(id: string | null) {
   const documentsTotal = documentsQuery.data?.pages.at(-1)?.total ?? 0;
 
   const syncSources = sourcesQuery.data?.items ?? [];
-  const orgIntegrations = orgIntegrationsQuery.data?.items ?? [];
+  const orgIntegrations = managesIntegrations ? (orgIntegrationsQuery.data?.items ?? []) : [];
   const connectors = connectorsQuery.data?.items ?? [];
   const sectionFailures: KBSectionFailures = {
     syncSources: sourcesQuery.isError,
-    orgIntegrations: orgIntegrationsQuery.isError,
+    orgIntegrations: managesIntegrations && orgIntegrationsQuery.isError,
     connectors: connectorsQuery.isError,
   };
 

@@ -221,6 +221,7 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     monkeypatch.setattr(rag_document_repo, "is_in_collection_scope", is_in_collection_scope)
     monkeypatch.setattr(rag_document_repo, "get_by_id", by_id("documents"))
     monkeypatch.setattr(sync_source_repo, "get_by_id", by_id("sources"))
+    monkeypatch.setattr(sync_source_repo, "lock", by_id("sources"))
     monkeypatch.setattr(sync_log_repo, "get_by_id", by_id("logs"))
     # A stand-in session whose only job is to carry the advisory-lock execute the
     # claim path takes (#1355); every repository call the tests exercise is patched.

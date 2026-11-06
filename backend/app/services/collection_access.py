@@ -42,9 +42,11 @@ from app.db.vector_tables import validate_collection_name
 from app.repositories import (
     collection_teardown_repo,
     knowledge_base_repo,
+    organization_repo,
     rag_document_repo,
     sync_log_repo,
     sync_source_repo,
+    user_repo,
 )
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
@@ -397,8 +399,29 @@ class CollectionAccessService:
             )
         return doc
 
+    async def _hold_source(self, ctx: AuthContext, source: SyncSource) -> SyncSource | None:
+        """The source as committed, locked until this transaction ends, or `None` if gone.
+
+        Which base a source feeds is its `collection_name`, so an answer about
+        that base is only good while the name cannot change: a move committing
+        between an unlocked read and the write it authorized left a caller
+        changing a source that now feeds a base they cannot write (#2745). Decide
+        on the row this returns and hold it through the change.
+
+        One order, so a wait here closes no cycle: a collection name a move
+        targets (:meth:`source_target`) before this, as a base's deletion takes
+        the name and then its sources; then the organization and the caller, as
+        their foreign keys would take them, before the row, as a purge or an
+        account deletion locks them and then deletes the source (#2682). The
+        source's organization rather than the caller's: a platform admin reaches
+        another organization's.
+        """
+        await organization_repo.hold_key_share(self.db, source.organization_id)
+        await user_repo.hold_key_share(self.db, [] if ctx.user_id is None else [ctx.user_id])
+        return await sync_source_repo.lock(self.db, source.id)
+
     async def kb_sync_source(
-        self, ctx: AuthContext, kb: KnowledgeBase, source_id: str
+        self, ctx: AuthContext, kb: KnowledgeBase, source_id: str, *, for_update: bool = False
     ) -> SyncSource:
         """A sync source loaded by id, if it feeds this knowledge base, or 404.
 
@@ -408,9 +431,15 @@ class CollectionAccessService:
         organization, since such a base is readable by all. On the base alone it
         still did, for every organization with no base of the name, which is why
         the source must also be the caller's (:func:`_reaches_source`, #2745).
+
+        `for_update` is for a route that goes on to change or run the source: the
+        answer then holds until that lands (:meth:`_hold_source`). A read leaves
+        it off, and does not wait behind a change.
         """
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
+        if for_update and source is not None and _reaches_source(ctx, source):
+            source = await self._hold_source(ctx, source)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
@@ -533,8 +562,14 @@ class CollectionAccessService:
         feeds no base - an unassigned template, or a name no base holds - has only
         its organization to decide it. The refusal is the absent source's, so it
         does not confirm that the id exists.
+
+        The decision is made on the locked row and holds until this transaction
+        ends (:meth:`_hold_source`), so a route moving the source calls
+        :meth:`source_target` first.
         """
-        source = await self.sync_source(ctx, source_id)
+        source = await self._hold_source(ctx, await self.sync_source(ctx, source_id))
+        if source is None:
+            raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         if source.collection_name is None:
             return source
         candidates = await knowledge_base_repo.list_by_collection_name(
