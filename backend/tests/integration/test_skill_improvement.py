@@ -1034,6 +1034,7 @@ class TestEdges:
 
         assert (run.status, run.stage, run.stop_reason) == ("stopped", "proposing", "budget")
 
+    @pytest.mark.security
     async def test_a_last_attempt_stopped_for_its_budget_resumes_the_same_attempt(
         self, db, evidence
     ):
