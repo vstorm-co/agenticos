@@ -155,17 +155,60 @@ describe("ConnectServerDialog", () => {
   });
 
   describe("OAuth", () => {
-    it("says so when the desktop app cannot open the browser", async () => {
+    it("runs the consent in the window when the app cannot hand it to the browser", async () => {
+      // An app older than the console has no open_consent, and the shell refuses
+      // an allowlisted plain-HTTP provider: neither may block the connection.
       shell.desktop = true;
-      shell.openConsent.mockRejectedValue(new Error("no opener"));
-      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      shell.openConsent.mockRejectedValue(new Error("unavailable: open_consent"));
+      const assign = vi.fn();
+      Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "http://mcp.internal/a" });
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(assign).toHaveBeenCalledWith("http://mcp.internal/a"));
+        expect(toast.error).not.toHaveBeenCalled();
+      } finally {
+        shell.desktop = false;
+      }
+    });
+
+    it("says so when the consent cannot start in the desktop app", async () => {
+      shell.desktop = true;
+      vi.mocked(startMcpOAuth).mockRejectedValue(new Error("down"));
       try {
         open(OAUTH_ENTRY);
         await submit();
         await waitFor(() => expect(toast.error).toHaveBeenCalled());
-        expect(toast.info).not.toHaveBeenCalledWith(expect.stringContaining("browser"));
+        expect(shell.openConsent).not.toHaveBeenCalled();
       } finally {
         shell.desktop = false;
+      }
+    });
+
+    it("refetches the connections on every return while the consent may still finish", async () => {
+      shell.desktop = true;
+      shell.openConsent.mockResolvedValue(undefined);
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      const spy = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      const timer = vi.spyOn(window, "setTimeout");
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(shell.openConsent).toHaveBeenCalled());
+        spy.mockClear();
+        window.dispatchEvent(new Event("focus"));
+        window.dispatchEvent(new Event("focus"));
+        expect(spy).toHaveBeenCalledTimes(6);
+        // Fifteen minutes on, a return refetches nothing any more.
+        const expire = timer.mock.calls.find(([, ms]) => ms === 15 * 60 * 1000)?.[0];
+        (expire as () => void)();
+        window.dispatchEvent(new Event("focus"));
+        expect(spy).toHaveBeenCalledTimes(6);
+      } finally {
+        shell.desktop = false;
+        spy.mockRestore();
+        timer.mockRestore();
       }
     });
 
@@ -309,9 +352,6 @@ describe("ConnectServerDialog", () => {
       const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
       const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
       vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
-      // An earlier test's consent left its own one-shot listener waiting.
-      window.dispatchEvent(new Event("focus"));
-      invalidate.mockClear();
 
       open(OAUTH_ENTRY);
       await submit();
@@ -322,9 +362,11 @@ describe("ConnectServerDialog", () => {
       );
       expect(invalidate).not.toHaveBeenCalled();
       window.dispatchEvent(new Event("focus"));
-      window.dispatchEvent(new Event("focus"));
-      // Once, on the first return: the listener goes with it.
+      // On every return while the consent may still finish; an earlier
+      // consent's listener was replaced by this one.
       expect(invalidate).toHaveBeenCalledTimes(3);
+      window.dispatchEvent(new Event("focus"));
+      expect(invalidate).toHaveBeenCalledTimes(6);
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-connections"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "list"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "entry"] });

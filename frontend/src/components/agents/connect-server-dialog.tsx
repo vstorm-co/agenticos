@@ -266,20 +266,34 @@ interface ConsentOptions {
   keepThisTab?: boolean;
 }
 
+/** How long a consent elsewhere may take before returning stops refetching. */
+const CONSENT_WINDOW_MS = 15 * 60 * 1000;
+
 /**
  * Back in this window, the connection made elsewhere is fetched: focus refetches
  * nothing by default here, so "it appears here once it is authorised" stayed
- * untrue until a reload.
+ * untrue until a reload. Every return refetches, not only the first: somebody
+ * who comes back mid-consent - to copy a code - would otherwise spend it while
+ * the connection is still pending.
  */
 function refreshOnReturn(queryClient: ReturnType<typeof useQueryClient>): void {
-  const refresh = () => {
-    window.removeEventListener("focus", refresh);
-    void queryClient.invalidateQueries({ queryKey: qk.mcpConnections.all() });
-    void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
-    void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
-  };
-  window.addEventListener("focus", refresh);
+  // The latest consent is the one being finished; an earlier listener goes.
+  pendingConsent?.abort();
+  const pending = new AbortController();
+  pendingConsent = pending;
+  window.addEventListener(
+    "focus",
+    () => {
+      void queryClient.invalidateQueries({ queryKey: qk.mcpConnections.all() });
+      void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
+      void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
+    },
+    { signal: pending.signal },
+  );
+  window.setTimeout(() => pending.abort(), CONSENT_WINDOW_MS);
 }
+
+let pendingConsent: AbortController | null = null;
 
 /**
  * Start a provider's consent for a new connection; true once it is under way.
@@ -304,10 +318,21 @@ function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
   const desktop = isDesktopShell(useShell());
   return async (input: Parameters<typeof startMcpOAuth>[0]): Promise<boolean> => {
     if (desktop) {
+      const back =
+        returnTo ?? (input.catalog_key ? `/mcp-servers?server=${input.catalog_key}` : undefined);
       try {
         const { authorization_url } = await startMcpOAuth(input, scope);
         refreshOnReturn(queryClient);
-        await openConsent(authorization_url);
+        try {
+          await openConsent(authorization_url);
+        } catch {
+          // An app older than this console has no such command, and the shell
+          // refuses a page it will not hand out (an allowlisted plain-HTTP
+          // provider): the consent then runs in this window, as it did before.
+          if (back !== undefined) rememberMcpOAuthReturn(back);
+          window.location.assign(authorization_url);
+          return true;
+        }
         toast.info(t("finishConsentInBrowser"));
         return true;
       } catch (caught) {
