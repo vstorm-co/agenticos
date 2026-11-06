@@ -1,5 +1,5 @@
 ---
-source_sha: "46f379e3c504"
+source_sha: "1304682681d5"
 ---
 
 # Governance { #governance }
@@ -540,6 +540,10 @@ prośby każdej osoby w dni i o godzinie, które wybrała organizacja - w strefi
 czasowej każdej osoby albo godzinę przed godzinami pracy podanymi w jej profilu -
 i proponuje rutynę dla prośby, którą powtarza, profil albo pierwsze wiadomości,
 które oferuje jej pusty czat ([Konsola](console.md#chat)).
+
+Prompt, który [guardrail](reference/capabilities.md#guardrails) odrzucił, nie
+jest jedną z tych próśb: przegląd nigdy go nie czyta, więc później nie trafia do
+żadnego modelu.
 
 Każde to jedno
 wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie ma

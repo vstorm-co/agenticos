@@ -505,6 +505,9 @@ time zone, or an hour before the working hours their profile states - and
 proposes a routine for a request they keep repeating, a profile, or the first
 messages their empty chat offers ([Console](console.md#chat)).
 
+A prompt a [guardrail](reference/capabilities.md#guardrails) refused is not one
+of those requests: the look never reads it, so it reaches no model later.
+
 Each is one model
 call, on the model the organization chose when it turned this on (there is no
 default: `proactive_model_profile_id` is required), recorded in run history as a

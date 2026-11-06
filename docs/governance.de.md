@@ -1,5 +1,5 @@
 ---
-source_sha: "46f379e3c504"
+source_sha: "1304682681d5"
 ---
 
 # Governance { #governance }
@@ -583,6 +583,10 @@ Organisation gewählt hat - in der Zeitzone jeder Person oder eine Stunde vor de
 Arbeitszeit, die ihr Profil angibt - und schlägt eine Routine für eine Anfrage
 vor, die sie immer wiederholt, ein Profil oder die ersten Nachrichten, die ihr
 leerer Chat anbietet ([Konsole](console.md#chat)).
+
+Ein Prompt, den ein [Guardrail](reference/capabilities.md#guardrails) abgelehnt
+hat, gehört nicht zu diesen Anfragen: der Job liest ihn nie, also erreicht er
+auch später kein Modell.
 
 Jeder ist ein Modellaufruf,
 auf dem Modell, das die Organisation beim Einschalten gewählt hat (es gibt keinen

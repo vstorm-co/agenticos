@@ -1,5 +1,5 @@
 ---
-source_sha: "46f379e3c504"
+source_sha: "1304682681d5"
 ---
 
 # Governance { #governance }
@@ -543,6 +543,10 @@ organización - en la zona horaria de cada persona, o una hora antes del horario
 laboral que indica su perfil - y propone una rutina para una petición que repite,
 un perfil o los primeros mensajes que ofrece su chat vacío
 ([Consola](console.md#chat)).
+
+Un prompt que un [guardrail](reference/capabilities.md#guardrails) rechazó no es
+una de esas peticiones: la tarea nunca lo lee, así que tampoco llega después a
+ningún modelo.
 
 Cada uno es una llamada al modelo, con el modelo
 que la organización eligió al activarla (no hay uno por defecto:
