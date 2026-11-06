@@ -196,6 +196,22 @@ async def _finish_request(db: AsyncSession, run: SkillImprovementRun, status: st
     await db.flush()
 
 
+def _unknown(fake: Any, *, name: str, hidden: bool) -> None:
+    """The check's one agent that could not be checked, named or one the reader cannot see."""
+    if hidden:
+        fake.hidden_unknown = 1
+        return
+    fake.agents = [
+        SkillCheckAgentRead(
+            agent=AgentRef(id=uuid.uuid4(), name=name),
+            state=AgentState.UNKNOWN,
+            stages=[],
+            expected_usd=Decimal(0),
+            at_most_usd=Decimal(0),
+        )
+    ]
+
+
 class TestStarting:
     async def test_a_catch_up_runs_on_the_fork_and_a_move_to_main_on_main(
         self, db, call_price, monkeypatch
@@ -455,8 +471,9 @@ class TestACatchUp:
                 ctx, skill.id, run.id, SkillImprovementApply(confirmed=True)
             )
 
+    @pytest.mark.parametrize("hidden", [False, True])
     async def test_agents_it_could_not_check_are_acknowledged_first(
-        self, db, call_price, monkeypatch
+        self, db, call_price, monkeypatch, hidden
     ):
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
@@ -464,15 +481,7 @@ class TestACatchUp:
         await _check_now(db, ctx, run)
         await db.refresh(run)
         await _settle(db, run, "passed", "passed")
-        fake.agents = [
-            SkillCheckAgentRead(
-                agent=AgentRef(id=uuid.uuid4(), name="Desk"),
-                state=AgentState.UNKNOWN,
-                stages=[],
-                expected_usd=Decimal(0),
-                at_most_usd=Decimal(0),
-            )
-        ]
+        _unknown(fake, name="Desk", hidden=hidden)
         service = SkillImprovementService(db)
 
         with pytest.raises(BadRequestError):
@@ -511,8 +520,9 @@ class TestACatchUp:
         assert [item.agent.name for item in returned.returned.agents] == ["Desk"]
         assert len([call for call in fake.calls if call[0] == "discard"]) == 2
 
+    @pytest.mark.parametrize("hidden", [False, True])
     async def test_agents_main_alone_could_not_check_are_acknowledged_before_returning(
-        self, db, call_price, monkeypatch
+        self, db, call_price, monkeypatch, hidden
     ):
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
@@ -524,15 +534,7 @@ class TestACatchUp:
         await _check_now(db, ctx, run)
         await db.refresh(run)
         await _settle(db, run, "passed", "needs_ack")
-        fake.agents = [
-            SkillCheckAgentRead(
-                agent=AgentRef(id=uuid.uuid4(), name="Shop"),
-                state=AgentState.UNKNOWN,
-                stages=[],
-                expected_usd=Decimal(0),
-                at_most_usd=Decimal(0),
-            )
-        ]
+        _unknown(fake, name="Shop", hidden=hidden)
         service = SkillImprovementService(db)
 
         with pytest.raises(BadRequestError) as refused:

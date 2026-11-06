@@ -1030,6 +1030,7 @@ class FakeChecks:
         self.conflict = False
         self.base_version_id = uuid.uuid4()
         self.agents: list[SkillCheckAgentRead] = []
+        self.hidden_unknown = 0
         self.files: list[Any] = []
         self.merged_from: list[uuid.UUID | None] = []
         self.drift: Exception | None = None
@@ -1041,7 +1042,8 @@ class FakeChecks:
             mode=data.mode,
             description_changed=False,
             agents=self.agents,
-            hidden=0,
+            hidden=self.hidden_unknown,
+            hidden_unknown=self.hidden_unknown,
             expected_usd=self.price / 3,
             at_most_usd=self.price,
             org_remaining_usd=None,
