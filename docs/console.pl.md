@@ -1,5 +1,5 @@
 ---
-source_sha: "3ba0402b9f0d"
+source_sha: "4b054de1e394"
 ---
 
 # Konsola { #the-console }
@@ -359,8 +359,10 @@ go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta o
 
 Rozmowy, które ktoś ci udostępnił, są w sekcji **Udostępnione Tobie**, pod
 ulubionymi. Zmiana nazwy, udostępnianie, archiwizacja i usuwanie należą do ich
-właściciela, więc ich wiersze nie mają menu. Gdy ktoś udostępni ci rozmowę,
-dostajesz powiadomienie, które ją otwiera.
+właściciela; ich menu ma tylko **Usuń z moich czatów**, co kończy twój dostęp i
+zostawia rozmowę bez zmian dla pozostałych. Rozmowa udostępniona ci do odczytu
+nie ma pola wiadomości. Gdy ktoś udostępni ci rozmowę, dostajesz powiadomienie,
+które ją otwiera.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 

@@ -2321,7 +2321,11 @@
     "forkedToast": "Conversation forked",
     "failedForkConversation": "Failed to fork conversation",
     "forkedFrom": "Forked from <link>{title}</link>",
-    "untitledFork": "Untitled conversation"
+    "untitledFork": "Untitled conversation",
+    "leaveShared": "Remove from my chats",
+    "leftShared": "Removed from your chats",
+    "failedLeaveShared": "Failed to remove the conversation",
+    "conversationViewOnly": "Shared with you as read-only"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

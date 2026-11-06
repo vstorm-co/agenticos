@@ -2321,7 +2321,11 @@
     "forkedToast": "Unterhaltung abgezweigt",
     "failedForkConversation": "Unterhaltung konnte nicht abgezweigt werden",
     "forkedFrom": "Abgezweigt aus <link>{title}</link>",
-    "untitledFork": "Unbenannte Unterhaltung"
+    "untitledFork": "Unbenannte Unterhaltung",
+    "leaveShared": "Aus meinen Chats entfernen",
+    "leftShared": "Aus Ihren Chats entfernt",
+    "failedLeaveShared": "Unterhaltung konnte nicht entfernt werden",
+    "conversationViewOnly": "Schreibgeschützt mit Ihnen geteilt"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

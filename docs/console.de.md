@@ -1,5 +1,5 @@
 ---
-source_sha: "3ba0402b9f0d"
+source_sha: "4b054de1e394"
 ---
 
 # Die Konsole { #the-console }
@@ -389,8 +389,11 @@ einen geteilten Thread liest jeder seiner Leser für sich.
 
 Unterhaltungen, die andere mit Ihnen geteilt haben, stehen unter **Mit Ihnen
 geteilt**, unter Ihren Favoriten. Umbenennen, Teilen, Archivieren und Löschen
-liegen bei ihren Besitzern, deshalb haben diese Zeilen kein Menü. Teilt jemand
-eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung, die sie öffnet.
+liegen bei ihren Besitzern; ihr Menü enthält nur **Aus meinen Chats entfernen**,
+das Ihren Zugriff beendet und die Unterhaltung für alle anderen unverändert
+lässt. Eine zum Lesen mit Ihnen geteilte Unterhaltung hat kein Eingabefeld.
+Teilt jemand eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung,
+die sie öffnet.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 

@@ -62,6 +62,8 @@ export interface Conversation {
    * who owns both, so a fork shared with somebody else does not name its source.
    */
   forked_from?: ConversationForkOrigin | null;
+  /** On the shared-with-me listing: whether the caller may only read it, or write in it too. */
+  share_permission?: "view" | "edit" | null;
 }
 
 /** Where a fork came from: the source conversation and the answer it was forked at. */

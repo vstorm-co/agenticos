@@ -1,5 +1,5 @@
 ---
-source_sha: "3ba0402b9f0d"
+source_sha: "4b054de1e394"
 ---
 
 # La consola { #the-console }
@@ -371,8 +371,10 @@ compartido lo lee por separado.
 
 Las conversaciones que otras personas compartieron contigo están en **Compartidas
 contigo**, debajo de tus favoritas. Renombrarlas, compartirlas, archivarlas o
-borrarlas corresponde a sus propietarios, así que sus filas no tienen menú. Cuando
-alguien comparte una conversación contigo, recibes una notificación que la abre.
+borrarlas corresponde a sus propietarios; su menú solo tiene **Quitar de mis
+chats**, que termina tu acceso y deja la conversación igual para los demás. Una
+compartida contigo para leer no tiene cuadro de mensaje. Cuando alguien comparte
+una conversación contigo, recibes una notificación que la abre.
 
 Tres cosas del compositor que conviene saber.
 

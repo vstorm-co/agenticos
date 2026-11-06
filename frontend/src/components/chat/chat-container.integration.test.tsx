@@ -1558,3 +1558,47 @@ describe("the chat container - forking a conversation (#2762)", () => {
     expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
   });
 });
+
+describe("the chat container - a conversation shared with the reader", () => {
+  function openShared(permission: "view" | "edit") {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations/shared-with-me")
+        ? Promise.resolve({
+            items: [{ id: "c-theirs", title: "Their plan", share_permission: permission }],
+            total: 1,
+          })
+        : url.startsWith("/conversations?")
+          ? Promise.resolve({ items: [], total: 0 })
+          : base(url),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-theirs");
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        conversation_id: "c-theirs",
+        role: "assistant",
+        content: "Here is the plan.",
+        created_at: "2026-11-06T10:00:00Z",
+      },
+    ] as never);
+  }
+
+  it("offers no message box to somebody it was shared with to read", async () => {
+    openShared("view");
+    mount();
+
+    expect(
+      await screen.findByText("Shared with you as read-only", undefined, SETTLE),
+    ).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("keeps the message box for somebody it was shared with to edit", async () => {
+    openShared("edit");
+    mount();
+
+    expect(await screen.findByRole("textbox", undefined, SETTLE)).toBeInTheDocument();
+    expect(screen.queryByText("Shared with you as read-only")).toBeNull();
+  });
+});

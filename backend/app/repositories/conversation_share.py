@@ -1,5 +1,6 @@
 """ConversationShare repository (PostgreSQL async)."""
 
+from collections.abc import Collection
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -94,6 +95,21 @@ async def get_conversations_shared_with_user(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def share_permissions(
+    db: AsyncSession, *, user_id: UUID, conversation_ids: Collection[UUID]
+) -> dict[UUID, str]:
+    """What each of these conversations' shares with `user_id` allows, by conversation."""
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(ConversationShare.conversation_id, ConversationShare.permission).where(
+            ConversationShare.shared_with == user_id,
+            ConversationShare.conversation_id.in_(list(conversation_ids)),
+        )
+    )
+    return dict(result.tuples().all())
 
 
 async def count_conversations_shared_with_user(db: AsyncSession, user_id: UUID) -> int:

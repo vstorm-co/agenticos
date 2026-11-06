@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -33,6 +34,32 @@ export function useSharedConversations(enabled: boolean): Conversation[] {
     enabled,
   });
   return enabled ? (data?.items ?? []) : [];
+}
+
+/**
+ * Take a conversation somebody shared with the caller out of their chats.
+ *
+ * Ends the caller's own share; the conversation and everybody else's access to
+ * it stay. Answers whether it went.
+ */
+export function useLeaveSharedConversation(): (conversationId: string) => Promise<boolean> {
+  const t = useTranslations("chat");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (conversationId: string) => {
+      try {
+        await apiClient.delete(`/conversations/${conversationId}/shared-with-me`);
+        await queryClient.invalidateQueries({ queryKey: qk.conversationShares.all() });
+        toast.success(t("leftShared"));
+        return true;
+      } catch (err) {
+        toast.error(getErrorMessage(err, tErrors, t("failedLeaveShared")));
+        return false;
+      }
+    },
+    [queryClient, t, tErrors],
+  );
 }
 
 export function useConversationShares() {

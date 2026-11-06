@@ -184,12 +184,16 @@ async def test_a_thread_shared_with_you_says_whether_you_starred_it(
             return_value=[MagicMock(id=mine), MagicMock(id=theirs)]
         )
         share_repo.count_conversations_shared_with_user = AsyncMock(return_value=2)
+        share_repo.share_permissions = AsyncMock(return_value={mine: "view", theirs: "edit"})
         conv_repo.favourite_ids = AsyncMock(return_value={mine})
 
         items, total = await service.list_shared_with_me(reader)
 
         assert total == 2
         assert [item.is_favourite for item in items] == [True, False]
+        # What the console reads to offer, or withhold, the message box.
+        assert [item.share_permission for item in items] == ["view", "edit"]
+        assert share_repo.share_permissions.await_args.kwargs["user_id"] == reader
         assert conv_repo.favourite_ids.await_args.kwargs["user_id"] == reader
 
 
@@ -450,3 +454,41 @@ async def test_the_notice_names_the_sharer_and_opens_the_conversation(title, nam
     assert kwargs["occurrence_id"] == f"conversation:{conversation_id}:{recipient}"
     assert kwargs["summary"] == f"Kacper shared {named} with you."
     assert kwargs["context_url"] == f"/chat?id={conversation_id}&org={organization_id}"
+
+
+@pytest.mark.anyio
+async def test_leaving_ends_only_the_readers_own_share(service: ConversationShareService):
+    reader, conversation_id = uuid.uuid4(), uuid.uuid4()
+    share = MagicMock()
+    share.id = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+    ):
+        share_repo.get_share = AsyncMock(return_value=share)
+        share_repo.delete = AsyncMock(return_value=True)
+        conv_repo.set_favourite = AsyncMock()
+
+        await service.leave(conversation_id, reader)
+
+    share_repo.get_share.assert_awaited_once_with(service.db, conversation_id, reader)
+    share_repo.delete.assert_awaited_once_with(service.db, share.id)
+    assert conv_repo.set_favourite.await_args.kwargs == {
+        "user_id": reader,
+        "conversation_id": conversation_id,
+        "favourite": False,
+    }
+
+
+@pytest.mark.anyio
+async def test_leaving_a_conversation_never_shared_with_you_is_refused(
+    service: ConversationShareService,
+):
+    with patch(f"{MODULE}.conversation_share_repo") as share_repo:
+        share_repo.get_share = AsyncMock(return_value=None)
+        share_repo.delete = AsyncMock()
+
+        with pytest.raises(NotFoundError):
+            await service.leave(uuid.uuid4(), uuid.uuid4())
+
+    share_repo.delete.assert_not_awaited()

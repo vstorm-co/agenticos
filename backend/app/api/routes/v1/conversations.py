@@ -592,6 +592,24 @@ async def revoke_share(
     await share_service.revoke_share(share_id, current_user.id)
 
 
+@router.delete(
+    "/{conversation_id}/shared-with-me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def leave_shared_conversation(
+    conversation_id: UUID,
+    share_service: ConversationShareSvc,
+    current_user: CurrentUser,
+) -> None:
+    """Remove a conversation somebody shared with you from your chats.
+
+    Ends your own share of it; the conversation and everybody else's access to
+    it stay. `404` when it was not shared with you.
+    """
+    await share_service.leave(conversation_id, current_user.id)
+
+
 @router.get("/{conversation_id}/workspace", response_model=WorkspaceListing)
 async def list_workspace_files(
     conversation_id: UUID,

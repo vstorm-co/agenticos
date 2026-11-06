@@ -1465,7 +1465,11 @@
     "forkedToast": "Rozmowa rozgałęziona",
     "failedForkConversation": "Nie udało się rozgałęzić rozmowy",
     "forkedFrom": "Rozgałęzienie rozmowy <link>{title}</link>",
-    "untitledFork": "Rozmowa bez tytułu"
+    "untitledFork": "Rozmowa bez tytułu",
+    "leaveShared": "Usuń z moich czatów",
+    "leftShared": "Usunięto z twoich czatów",
+    "failedLeaveShared": "Nie udało się usunąć rozmowy",
+    "conversationViewOnly": "Udostępniona Tobie tylko do odczytu"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

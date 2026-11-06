@@ -31,8 +31,12 @@ Two things are versioned separately from this file and worth knowing about:
   API. See [the console guide](docs/console.md#forking).
 - **Conversations shared with you, in the chat sidebar.** They sit under
   **Shared with you**, below your favourites; until now a conversation shared
-  with you could only be opened by its link. Their rows have no menu, since
-  renaming, sharing, archiving and deleting are the owner's.
+  with you could only be opened by its link. Renaming, sharing, archiving and
+  deleting stay the owner's; their menu holds **Remove from my chats**, which
+  ends your own access (`DELETE /conversations/{id}/shared-with-me`).
+- **A conversation shared with you to read has no message box.** It used to
+  offer one, and the message failed with "Conversation not found".
+  `GET /conversations/shared-with-me` now says each share's `share_permission`.
 - **A notification when a conversation is shared with you.** It opens the
   conversation, and follows your preference for "Shared with you or your
   group" (in the inbox, by email or by push), which the "Shared with your

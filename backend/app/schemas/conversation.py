@@ -582,6 +582,13 @@ class ConversationRead(ConversationBase, TimestampSchema):
         default_factory=list,
         description="Coding harnesses used in this conversation, most recently first, from saved task reports",
     )
+    share_permission: Literal["view", "edit"] | None = Field(
+        default=None,
+        description=(
+            "On `GET /conversations/shared-with-me`: what the share lets the caller do - "
+            "`view` to read, `edit` to write in it too. Null everywhere else."
+        ),
+    )
     forked_from: ConversationForkOrigin | None = Field(
         default=None,
         description=(

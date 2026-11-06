@@ -9655,7 +9655,11 @@
     "forkedToast": "Konuşma dallandırıldı",
     "failedForkConversation": "Konuşma dallandırılamadı",
     "forkedFrom": "<link>{title}</link> konuşmasından dallandırıldı",
-    "untitledFork": "Başlıksız konuşma"
+    "untitledFork": "Başlıksız konuşma",
+    "leaveShared": "Sohbetlerimden kaldır",
+    "leftShared": "Sohbetlerinizden kaldırıldı",
+    "failedLeaveShared": "Konuşma kaldırılamadı",
+    "conversationViewOnly": "Sizinle salt okunur olarak paylaşıldı"
   },
   "admin": {
     "actions": "Eylemler",

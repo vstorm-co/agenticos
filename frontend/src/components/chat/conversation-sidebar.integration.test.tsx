@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
@@ -387,19 +388,58 @@ describe("what the sidebar says about the list", () => {
     expect(headings.slice(0, 3)).toEqual(["QQ3 launch", "AA project", "Today"]);
   });
 
-  it("lists the threads shared with the reader under their own heading, without owner actions", async () => {
+  it("lists the threads shared with the reader under their own heading, leaving out the owner's actions", async () => {
     shared = [{ ...conversation("c-shared", "Their pricing plan"), user_id: "someone-else" }];
     mount();
     await screen.findAllByText("Their pricing plan");
 
     const band = within(list()).getByRole("button", { name: /Shared with you/ });
     expect(band).toHaveAttribute("aria-expanded", "true");
-    // Rename, share, archive and delete are the owner's; the row offers none of them.
+    // Rename, share, archive and delete are the owner's; leaving is the reader's own.
     const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
-    expect(within(row).queryByRole("button", { name: "Conversation actions" })).toBeNull();
-    // The reader's own thread still has them.
-    const own = within(list()).getByText("Quarterly numbers").closest(".group") as HTMLElement;
-    expect(within(own).getByRole("button", { name: "Conversation actions" })).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    expect(within(row).getByRole("button", { name: "Remove from my chats" })).toBeInTheDocument();
+    // Above the next row's agent faces, which stack up to z-30.
+    expect(row).toHaveClass("z-40");
+    expect(within(row).queryByRole("button", { name: "Rename" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+
+  it("takes a shared thread out of the reader's chats, and closes it if it was open", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+    vi.mocked(apiClient.delete).mockImplementation(async () => {
+      shared = [];
+      return undefined;
+    });
+    useConversationStore.getState().setCurrentConversationId("c-shared");
+    mount();
+    await screen.findAllByText("Their pricing plan");
+
+    const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(within(row).getByRole("button", { name: "Remove from my chats" }));
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-shared/shared-with-me");
+    await waitFor(() => expect(within(list()).queryByText("Their pricing plan")).toBeNull());
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(toast.success).toHaveBeenCalledWith("Removed from your chats");
+  });
+
+  it("says so when a shared thread could not be removed, and keeps it", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+    vi.mocked(apiClient.delete).mockRejectedValue("boom");
+    useConversationStore.getState().setCurrentConversationId("c-shared");
+    mount();
+    await screen.findAllByText("Their pricing plan");
+
+    const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(within(row).getByRole("button", { name: "Remove from my chats" }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Failed to remove the conversation"),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-shared");
   });
 
   it("leaves the shared heading out of the archive and out of an agent filter", async () => {

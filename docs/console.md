@@ -342,8 +342,10 @@ dot, which opening it clears - for you only, since a shared thread is read by ea
 of its readers separately.
 
 Conversations other people shared with you sit under **Shared with you**, below
-your favourites. They are theirs to rename, share, archive or delete, so their
-rows have no menu. When somebody shares a conversation with you, you get a
+your favourites. They are theirs to rename, share, archive or delete; their menu
+holds only **Remove from my chats**, which ends your access and leaves the
+conversation as it is for everybody else. One shared with you to read has no
+message box. When somebody shares a conversation with you, you get a
 notification that opens it.
 
 Three things in the composer worth knowing.

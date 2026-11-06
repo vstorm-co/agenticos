@@ -228,6 +228,27 @@ class ConversationShareService:
 
         await conversation_share_repo.delete(self.db, share_id)
 
+    async def leave(self, conversation_id: UUID, user_id: UUID) -> None:
+        """Take a conversation somebody shared with this reader out of their chats.
+
+        The reader's own share ends; the conversation, and everybody else's
+        access to it, stays. Their star on it goes too, so it does not come back
+        to their favourites if it is shared with them again.
+
+        Raises:
+            NotFoundError: If the conversation was not shared with this reader.
+        """
+        share = await conversation_share_repo.get_share(self.db, conversation_id, user_id)
+        if share is None:
+            raise NotFoundError(
+                message="Conversation not shared with you",
+                details={"conversation_id": conversation_id},
+            )
+        await conversation_share_repo.delete(self.db, share.id)
+        await conversation_repo.set_favourite(
+            self.db, user_id=user_id, conversation_id=conversation_id, favourite=False
+        )
+
     async def list_shared_with_me(
         self, user_id: UUID, *, skip: int = 0, limit: int = 50
     ) -> tuple[list, int]:
@@ -245,8 +266,12 @@ class ConversationShareService:
         starred = await conversation_repo.favourite_ids(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]
         )
+        permissions = await conversation_share_repo.share_permissions(
+            self.db, user_id=user_id, conversation_ids=[item.id for item in items]
+        )
         for item in items:
             item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
+            item.share_permission = permissions.get(item.id)  # ty: ignore[unresolved-attribute]
         return items, total
 
     async def get_by_token(self, token: str) -> SharedConversationRead:
