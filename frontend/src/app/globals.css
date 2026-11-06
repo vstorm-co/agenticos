@@ -2979,15 +2979,16 @@ body .tour-spotlight {
     order: 0;
     width: 100%;
   }
-  .chat-home-column:has(.chat-input-form[data-editing]) {
+  /* A programmatic focus does not mean the person has started writing. */
+  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) {
     justify-content: flex-end;
   }
-  .chat-home-column:has(.chat-input-form[data-editing]) [data-transcript] {
+  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) [data-transcript] {
     padding-block: 0;
   }
-  .chat-surface:has(.chat-input-form[data-editing]) .chat-empty-state,
-  .chat-surface:has(.chat-input-form[data-editing]) .chat-composer-suggestions,
-  .chat-surface:has(.chat-input-form[data-editing]) .chat-home-hints {
+  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-empty-state,
+  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-composer-suggestions,
+  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-home-hints {
     display: none;
   }
 }

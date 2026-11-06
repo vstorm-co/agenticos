@@ -8,7 +8,7 @@ in a MINOR release. Read a minor release's notes before upgrading.
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **13**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **14**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -20,6 +20,8 @@ Two things are versioned separately from this file and worth knowing about:
 ## [Unreleased]
 
 ### Fixed
+
+- Keep the mobile chat welcome visible when an empty composer receives focus; collapse it only after writing starts.
 
 - Revoke unattended routine and telephone consent when a member leaves; stop personal coding tasks when their source conversation becomes editable by collaborators, and serialize descendant memory sharing with personal erasure.
 

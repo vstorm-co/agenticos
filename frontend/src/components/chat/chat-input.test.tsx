@@ -1052,3 +1052,16 @@ describe("chat entry focus", () => {
     expect(screen.getByRole("textbox", { name: "Another field" })).toHaveFocus();
   });
 });
+
+it("distinguishes an empty focus from writing so mobile welcome stays visible", async () => {
+  render(<ChatInput onSend={vi.fn()} />);
+  const editor = screen.getByRole("textbox");
+  const form = editor.closest("form");
+  await userEvent.click(editor);
+  expect(form).toHaveAttribute("data-editing", "true");
+  expect(form).not.toHaveAttribute("data-drafting");
+  await userEvent.type(editor, "Draft");
+  expect(form).toHaveAttribute("data-drafting", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+  expect(form).not.toHaveAttribute("data-drafting");
+});

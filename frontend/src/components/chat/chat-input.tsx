@@ -888,6 +888,7 @@ export function ChatInput({
       }}
       className="chat-input-form relative"
       data-editing={editing || undefined}
+      data-drafting={drafting || undefined}
       onFocusCapture={(event) => {
         if (
           event.target instanceof HTMLElement &&
