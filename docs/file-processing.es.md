@@ -1,5 +1,5 @@
 ---
-source_sha: "cae20320e3d0"
+source_sha: "254bdfba44b8"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -894,12 +894,20 @@ darlo por bueno por ser aleatorio.
 **Tampoco lo está un nombre con contenido que ninguna base posee.** `rag-ingest`
 escribe filas de seguimiento y una tabla `rag_<name>` sin base de conocimiento y sin
 organización, y el desmontaje de la última base del nombre elimina su tabla. Por eso
-`claim` rechaza un nombre que tenga filas sin base que describan chunks de cualquier
-tenant salvo la organización del llamante, o, cuando ninguna base tiene el nombre,
-una tabla vectorial con esos chunks. Si no, un miembro con `collections:edit` podría
-crear una base sobre la colección de un operador y borrarla, eliminando con ella los
-chunks del operador ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Un administrador de la aplicación sí puede adoptar ese
-nombre; una fila fallida sin id de vector no describe ningún chunk y no lo retiene.
+`claim` rechaza un nombre que ninguna base tiene mientras tenga filas sin base que
+describan chunks de cualquier tenant salvo la organización del llamante, o una tabla
+vectorial con esos chunks. Si no, un miembro con `collections:edit` podría crear una
+base sobre la colección de un operador y borrarla, eliminando con ella los chunks del
+operador ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Un nombre que una base tiene no se consulta: el llamante puede escribir
+en todas esas bases y podría borrarlas igualmente. Un administrador de la aplicación
+sí puede adoptar ese nombre; una fila fallida sin id de vector no describe ningún
+chunk y no lo retiene. Un `rag-ingest` interrumpido a mitad de un archivo deja una
+fila `processing` que retiene el nombre hasta que un administrador de la aplicación
+lo adopte o ejecute `rag-drop <name>`.
+
+El contenido que llega *después* de que una base reclame el nombre no está cubierto:
+un `rag-ingest` del operador en un nombre ya tomado sigue desapareciendo con la tabla
+cuando se borra la última base.
 
 **Y un nombre a medio desmontar tampoco está libre.** Borrar una colección elimina
 sus filas de base de conocimiento dentro de la petición, pero elimina la tabla

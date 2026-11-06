@@ -28,7 +28,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
-from app.repositories import collection_teardown_repo
+from app.repositories import collection_teardown_repo, rag_document_repo
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
@@ -524,8 +524,6 @@ class TestClaimingACollectionName:
         """`rag-ingest` files its rows under no base and no organization. A member
         claiming the name could delete their base and drop the operator's table
         with it, so the name is not theirs to take (#2747)."""
-        from app.repositories import rag_document_repo
-
         rows.collections = []
         unfiled = AsyncMock(return_value=True)
         monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", unfiled)
@@ -541,8 +539,6 @@ class TestClaimingACollectionName:
     ) -> None:
         """Chunks with no tracking row - written before rows existed - are as unowned
         as the rows are, and go with the table just the same."""
-        from app.repositories import rag_document_repo
-
         rows.collections = []
         chunks = AsyncMock(return_value=True)
         monkeypatch.setattr(rag_document_repo, "table_holds_chunks_outside", chunks)
@@ -552,27 +548,26 @@ class TestClaimingACollectionName:
 
         chunks.assert_awaited_once_with(service.db, collection_name="manuals", tenant=HOME_ORG)
 
-    async def test_a_held_names_table_is_not_scanned(
+    async def test_a_name_the_caller_holds_is_not_refused_for_unowned_content(
         self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A base the caller may write holds the name, so its chunks are owned: the
-        table is that base's, and scanning it for unowned chunks answers nothing."""
-        from app.repositories import rag_document_repo
-
+        """The caller may write every base holding the name, so may delete them all
+        and drop the table anyway: refusing a repeat claim protects nothing, and
+        `POST /rag/collections/{name}` is idempotent."""
         rows.collections = [_kb("handbook")]
-        chunks = AsyncMock(return_value=True)
-        monkeypatch.setattr(rag_document_repo, "table_holds_chunks_outside", chunks)
+        monkeypatch.setattr(
+            rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=True)
+        )
+        monkeypatch.setattr(
+            rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=True)
+        )
 
         await service.claim(_ctx(), "handbook")
-
-        chunks.assert_not_awaited()
 
     async def test_an_app_admin_may_adopt_unowned_content(
         self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """They administer the deployment and can already drop any collection."""
-        from app.repositories import rag_document_repo
-
         rows.collections = []
         monkeypatch.setattr(
             rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=True)

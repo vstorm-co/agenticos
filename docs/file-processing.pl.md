@@ -1,5 +1,5 @@
 ---
-source_sha: "cae20320e3d0"
+source_sha: "254bdfba44b8"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -876,12 +876,18 @@ uznawana za bezpieczną dlatego, że jest losowa.
 **Nie jest też wolna nazwa z treścią, której nie posiada żadna baza.** `rag-ingest`
 zapisuje wiersze śledzące i tabelę `rag_<name>` bez bazy wiedzy i bez organizacji,
 a rozbiórka ostatniej bazy na tej nazwie usuwa jej tabelę. Dlatego `claim` odrzuca
-nazwę, która ma niezaklasyfikowane do żadnej bazy wiersze opisujące chunki
-dowolnego tenanta poza organizacją wywołującego, albo — gdy nazwy nie trzyma żadna
-baza — tabelę wektorową z takimi chunkami. Inaczej członek z `collections:edit`
-mógłby utworzyć bazę na kolekcji operatora i ją usunąć, a razem z nią chunki
-operatora ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Taką nazwę może przejąć administrator aplikacji; nieudany wiersz bez
-id wektorowego nie opisuje żadnego chunka i nazwy nie blokuje.
+nazwę, której nie trzyma żadna baza, dopóki ma ona wiersze bez bazy opisujące chunki
+dowolnego tenanta poza organizacją wywołującego albo tabelę wektorową z takimi
+chunkami. Inaczej członek z `collections:edit` mógłby utworzyć bazę na kolekcji
+operatora i ją usunąć, a razem z nią chunki operatora ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Nazwy trzymanej przez bazę
+to nie dotyczy: wywołujący może zapisywać każdą z tych baz i i tak mógłby je usunąć.
+Taką nazwę może przejąć administrator aplikacji; nieudany wiersz bez id wektorowego
+nie opisuje żadnego chunka i nazwy nie blokuje. `rag-ingest` przerwany w trakcie
+pliku zostawia wiersz `processing`, który blokuje nazwę, dopóki administrator
+aplikacji jej nie przejmie albo nie uruchomi `rag-drop <name>`.
+
+Treść, która trafia pod nazwę *po* zajęciu jej przez bazę, nie jest objęta: `rag-ingest`
+operatora do zajętej nazwy nadal znika z tabelą, gdy usunięta zostanie ostatnia baza.
 
 **I nazwa w trakcie rozbiórki też nie jest wolna.** Usunięcie kolekcji kasuje jej
 wiersze bazy wiedzy w ramach requestu, ale fizyczną tabelę wektorów `rag_<name>`

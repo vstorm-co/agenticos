@@ -1,5 +1,5 @@
 ---
-source_sha: "cae20320e3d0"
+source_sha: "254bdfba44b8"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -932,13 +932,21 @@ wegen seiner Zufälligkeit zu vertrauen.
 **Auch ein Name mit Inhalt, den keine Basis besitzt, ist nicht frei.** `rag-ingest`
 schreibt Tracking-Zeilen und eine `rag_<name>`-Tabelle ohne Wissensbasis und ohne
 Organisation, und der Abbau der letzten Basis auf dem Namen verwirft dessen Tabelle.
-Deshalb lehnt `claim` einen Namen ab, der keiner Basis zugeordnete Zeilen mit Chunks
-eines anderen Tenants als der Organisation des Aufrufers hält, oder - wenn keine
-Basis den Namen hält - eine Vektortabelle mit solchen Chunks. Sonst könnte ein
-Mitglied mit `collections:edit` eine Basis auf der Collection eines Operators anlegen
-und löschen und damit dessen Chunks verwerfen ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Ein App-Admin darf einen solchen
-Namen übernehmen; eine fehlgeschlagene Zeile ohne Vektor-Id beschreibt keinen Chunk
-und hält den Namen nicht.
+Deshalb lehnt `claim` einen Namen, den keine Basis hält, ab, solange er keiner Basis
+zugeordnete Zeilen mit Chunks eines anderen Tenants als der Organisation des
+Aufrufers hält, oder eine Vektortabelle mit solchen Chunks. Sonst könnte ein Mitglied
+mit `collections:edit` eine Basis auf der Collection eines Operators anlegen und
+löschen und damit dessen Chunks verwerfen ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Ein Name, den eine Basis hält, wird
+nicht geprüft: Der Aufrufer darf jede dieser Basen schreiben und könnte sie ohnehin
+alle löschen. Ein App-Admin darf einen solchen Namen übernehmen; eine
+fehlgeschlagene Zeile ohne Vektor-Id beschreibt keinen Chunk und hält den Namen
+nicht. Ein mitten in einer Datei abgebrochenes `rag-ingest` hinterlässt eine
+`processing`-Zeile, die den Namen hält, bis ein App-Admin ihn übernimmt oder
+`rag-drop <name>` ausführt.
+
+Inhalt, der *nach* dem Beanspruchen durch eine Basis unter den Namen kommt, ist nicht
+abgedeckt: Ein `rag-ingest` des Operators in einen gehaltenen Namen geht weiterhin mit
+der Tabelle verloren, wenn die letzte Basis gelöscht wird.
 
 **Und ein Name mitten im Abbau ist auch nicht frei.** Eine Collection zu löschen
 entfernt ihre Wissensdatenbank-Zeilen in der Anfrage, lässt die physische

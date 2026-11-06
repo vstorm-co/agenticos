@@ -149,12 +149,11 @@ class TestASyncRetiresOnlyItsOwnFailedRows:
         kb_a = await _kb(db, "docs", org_a.id)
         kb_b = await _kb(db, "docs", org_b.id)
         theirs = await _row(db, "docs", organization_id=org_b.id, knowledge_base_id=kb_b.id)
-        mine = await _row(db, "docs", organization_id=org_a.id, knowledge_base_id=kb_a.id)
+        await _row(db, "docs", organization_id=org_a.id, knowledge_base_id=kb_a.id)
 
         opened = await _open(db, "docs", organization_id=org_a.id, knowledge_base_id=kb_a.id)
 
         assert await _ids(db, "docs") == {theirs.id, opened.id}
-        assert mine.id not in await _ids(db, "docs")
 
     @pytest.mark.security
     async def test_another_organizations_unfiled_failed_row_stays(self, db: AsyncSession) -> None:
@@ -164,13 +163,13 @@ class TestASyncRetiresOnlyItsOwnFailedRows:
         org_b, _ = await _org(db, "Beta")
         theirs = await _row(db, "docs", organization_id=org_b.id, knowledge_base_id=None)
         untagged = await _row(db, "docs", organization_id=None, knowledge_base_id=None)
-        mine = await _row(db, "docs", organization_id=org_a.id, knowledge_base_id=None)
+        await _row(db, "docs", organization_id=org_a.id, knowledge_base_id=None)
 
         opened = await _open(db, "docs", organization_id=org_a.id, knowledge_base_id=None)
 
         assert await _ids(db, "docs") == {theirs.id, untagged.id, opened.id}
-        assert mine.id not in await _ids(db, "docs")
 
+    @pytest.mark.security
     async def test_an_untagged_unfiled_ingest_retires_only_untagged_rows(
         self, db: AsyncSession
     ) -> None:
@@ -178,13 +177,13 @@ class TestASyncRetiresOnlyItsOwnFailedRows:
         organization's unfiled row at the same path is not its to retire."""
         org_a, _ = await _org(db, "Alpha")
         theirs = await _row(db, "docs", organization_id=org_a.id, knowledge_base_id=None)
-        mine = await _row(db, "docs", organization_id=None, knowledge_base_id=None)
+        await _row(db, "docs", organization_id=None, knowledge_base_id=None)
 
         opened = await _open(db, "docs", organization_id=None, knowledge_base_id=None)
 
         assert await _ids(db, "docs") == {theirs.id, opened.id}
-        assert mine.id not in await _ids(db, "docs")
 
+    @pytest.mark.security
     async def test_another_base_of_the_same_organization_keeps_its_failed_row(
         self, db: AsyncSession
     ) -> None:
@@ -204,12 +203,11 @@ class TestASyncRetiresOnlyItsOwnFailedRows:
         rather than listing a stale failure beside the new attempt."""
         org, _ = await _org(db, "Alpha")
         kb = await _kb(db, "docs", org.id)
-        left = await _row(db, "docs", organization_id=org.id, knowledge_base_id=None)
+        await _row(db, "docs", organization_id=org.id, knowledge_base_id=None)
 
         opened = await _open(db, "docs", organization_id=org.id, knowledge_base_id=kb.id)
 
         assert await _ids(db, "docs") == {opened.id}
-        assert left.id not in await _ids(db, "docs")
 
 
 async def _vector_table(db: AsyncSession, collection_name: str, tenant: uuid.UUID | None) -> None:
@@ -319,11 +317,20 @@ class TestAClaimDoesNotAdoptUnownedContent:
 
         await CollectionAccessService(db).claim(_ctx(org.id, admin.id, app_admin=True), "manuals")
 
-    async def test_a_held_names_table_is_the_holders(self, db: AsyncSession) -> None:
-        """A base the caller writes holds the name, so its table's chunks are owned:
-        another chunk tag there is not a reason to refuse a second base."""
+    async def test_a_name_the_caller_holds_stays_claimable(self, db: AsyncSession) -> None:
+        """A base the caller writes holds the name, so it may delete that base and
+        drop the table anyway: a repeat claim on it is not refused for an
+        operator's rows and chunks under the name."""
         org, member = await _org(db, "Alpha")
         await _kb(db, "manuals", org.id)
+        await _row(
+            db,
+            "manuals",
+            organization_id=None,
+            knowledge_base_id=None,
+            status=DocumentStatus.DONE,
+            vector_document_id="vec-1",
+        )
         await _vector_table(db, "manuals", None)
 
         await CollectionAccessService(db).claim(_ctx(org.id, member.id), "manuals")

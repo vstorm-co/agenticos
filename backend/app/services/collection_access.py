@@ -299,18 +299,21 @@ class CollectionAccessService:
         tagged with no organization - and the last holder's teardown drops the
         name's table. A claim adopting such a name let a member with ordinary
         `collections:edit` create a base on it and delete that base, dropping the
-        operator's chunks with it. So a name is refused while it holds unfiled
-        rows describing chunks of any tenant but the caller's organization, or,
-        when no base holds it, a vector table with such chunks. Only an app admin
-        passes: they administer the deployment and can already drop any
-        collection with `rag-drop`. The refusal is the same "already exists",
-        saying nothing about whose content it is.
+        operator's chunks with it. So a name no base holds is refused while it
+        holds unfiled rows describing chunks of any tenant but the caller's
+        organization, or a vector table with such chunks. A name a base holds is
+        not asked: the caller passed `writable_kb` on every holder, and may
+        delete them all anyway. Only an app admin passes: they administer the
+        deployment and can already drop any collection with `rag-drop`. The
+        refusal is the same "already exists", saying nothing about whose content
+        it is; that the name holds content at all is the global namespace's
+        price, as for a held name.
 
         Raises:
             BadRequestError: If the name could not safely become an identifier.
             AlreadyExistsError: If a knowledge base outside the caller's reach
-                already owns the name, or it holds content no base of the
-                caller's organization owns and the caller is not an app admin.
+                already owns the name, or no base holds it, it holds content of
+                another tenant and the caller is not an app admin.
         """
         validate_collection_name(name, metadata=Base.metadata)
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
@@ -326,13 +329,15 @@ class CollectionAccessService:
         for kb in holders:
             if not await writable_kb(self.db, ctx, kb):
                 raise _taken(name)
-        if ctx.is_app_admin:
+        # A caller who may write every holder may already delete them all and drop
+        # the table with them, so a held name has nothing more to refuse.
+        if ctx.is_app_admin or holders:
             return
         if await rag_document_repo.holds_unfiled_outside(
             self.db, collection_name=name, tenant=ctx.organization_id
         ):
             raise _taken(name)
-        if not holders and await rag_document_repo.table_holds_chunks_outside(
+        if await rag_document_repo.table_holds_chunks_outside(
             self.db, collection_name=name, tenant=ctx.organization_id
         ):
             raise _taken(name)

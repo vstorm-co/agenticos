@@ -848,6 +848,9 @@ async def table_holds_chunks_outside(
         return False
     metadata = column("metadata", JSONB)
     runtime = table(name, metadata, schema="public")
+    # No index serves `IS DISTINCT FROM` (the tag's is a hash index), so a table
+    # holding only the caller's chunks is scanned to the end. Asked only when a name
+    # no base holds is claimed, which is rare.
     result = await db.execute(
         select(
             exists()
