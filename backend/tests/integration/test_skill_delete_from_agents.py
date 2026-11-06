@@ -18,9 +18,11 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
-from app.repositories import agent_repo, skill_repo
+from app.repositories import agent_repo, promotion_gate_repo, skill_repo
+from app.services.eval_suite import EvalSuiteService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published
+from tests.integration.test_eval_suites import _dataset, _suite_data
 from tests.integration.test_skill_bindings import (
     _runnable,
     _serving,
@@ -196,6 +198,26 @@ class TestRefusingTheWholeDelete:
         assert "only a promotion moves" in refused.message
         await db.refresh(agent)
         assert agent.draft_spec == _spec(skill)
+
+    async def test_a_following_environment_held_by_its_guards_refuses_it(self, db):
+        """A publish does not move a follower its guard suites hold, so it waits like one
+        that waits for promotion, and the refusal says so."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _following(db, ctx, "Clerk", _spec(skill))
+        suite = await EvalSuiteService(db).create(
+            ctx, agent.id, _suite_data(await _dataset(db, ctx))
+        )
+        await promotion_gate_repo.replace_guards(
+            db, (await _environment(db, agent)).id, [suite.id], organization_id=ctx.organization_id
+        )
+
+        refused = await _delete(db, ctx, skill)
+
+        assert refused.details["waiting"] == [
+            {"id": agent.id, "name": "Clerk", "environments": ["production"]}
+        ]
+        assert "only a promotion moves" in refused.message
 
     @pytest.mark.parametrize("unreadable", ["draft", "served", "newest"])
     async def test_a_spec_that_no_longer_reads_refuses_it(self, db, unreadable):

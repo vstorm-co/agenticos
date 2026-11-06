@@ -34,6 +34,7 @@ from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
+    promotion_gate_repo,
     skill_check_repo,
     skill_version_repo,
 )
@@ -661,8 +662,16 @@ class SkillAgentService:
                 serving.append(environment)
             elif str(skill.id) in json.dumps(served) and _parsed(served) is None:
                 return None
+        # A follower its guard suites hold is not moved by a publish: it waits for them as
+        # one that waits for promotion does.
+        guarded = await promotion_gate_repo.guards_for(
+            self.db,
+            [environment.id for environment in serving],
+            organization_id=ctx.organization_id,
+        )
+        moving = [env for env in serving if env.tracks_latest and env.id not in guarded]
         publish_from: AgentSpec | None = None
-        if any(environment.tracks_latest for environment in serving):
+        if moving:
             newest = await agent_repo.newest_version(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
             )
@@ -674,7 +683,7 @@ class SkillAgentService:
             agent=agent,
             draft=without_skill(draft, skill.id),
             publish_from=publish_from,
-            waiting=[env.name for env in serving if not env.tracks_latest],
+            waiting=[env.name for env in serving if env not in moving],
         )
 
 
@@ -688,7 +697,8 @@ class _Removal:
     """The newest published spec, published again without the skill; `None` when no
     environment that follows publishes serves a version using it."""
     waiting: list[str]
-    """Environments that wait for promotion and serve a version using the skill."""
+    """Environments serving a version using the skill that a publish does not move: they
+    wait for promotion, or for their guard suites."""
 
 
 def _parsed(spec: dict[str, Any]) -> AgentSpec | None:
