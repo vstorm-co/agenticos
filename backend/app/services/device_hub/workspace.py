@@ -62,6 +62,7 @@ class DeviceWorkspace:
         target: LocalTarget,
         *,
         conversation_id: UUID | None = None,
+        agent_id: UUID | None = None,
         routine_scope: RoutineLocalScope | None = None,
     ) -> None:
         if target.folder is None:
@@ -83,6 +84,7 @@ class DeviceWorkspace:
                 "Routine folder authority does not match this device session"
             )
         self._conversation_id = conversation_id
+        self._agent_id = agent_id
         self._root = target.folder
         self._session_id = session_id
         self._user_id = user_id
@@ -123,6 +125,10 @@ class DeviceWorkspace:
         if self._target.computer_grant is not None:
             payload["computer_grant"] = str(self._target.computer_grant)
             payload["conversation_id"] = str(self._conversation_id)
+            # The app holds whole-computer consent for one conversation, or for
+            # one agent across conversations; it checks whichever it granted.
+            if self._agent_id is not None:
+                payload["agent_id"] = str(self._agent_id)
         try:
             try:
                 return await _hub.call(self._session_id, op, payload, timeout=timeout)

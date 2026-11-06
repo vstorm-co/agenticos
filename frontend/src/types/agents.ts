@@ -557,6 +557,11 @@ export interface Agent {
    * null when it runs none there; the composer names it. Listing only.
    */
   local_coding_agent?: LocalCodingAgent | null;
+  /**
+   * Whether the published version's workspace is the person's own computer, so a
+   * desktop chat must choose a folder or the whole computer first. Listing only.
+   */
+  local_workspace?: boolean;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   starter_icons?: StarterIcons;

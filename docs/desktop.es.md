@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "afc28abbddcd"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -372,7 +372,8 @@ la app compara con ellos: una carpeta que nunca elegiste, un modo más amplio qu
 el permitido o una ruta que sale de la carpeta se rechazan en el ordenador, pida
 lo que pida el servidor. La elección se recuerda por conversación. Los chats nuevos heredan la última
 carpeta y las herramientas de esta cuenta y organización; los ajustes del proyecto
-tienen prioridad. El consentimiento para todo el ordenador nunca se hereda.
+tienen prioridad. El consentimiento para todo el ordenador dado en un chat nunca se
+hereda; el dado a un agente vale para ese agente (ver **Todo el equipo**).
 
 **Solo tus propios runs.** Un chat llega a tu ordenador solo cuando es tuyo -
 nunca una clave de API, un visitante del widget o el chat de otra persona - y un
@@ -390,19 +391,24 @@ El servidor comprueba la sesión antes de reenviar cada operación local. Las se
 
 En el Builder, **Sandbox → Computer** guarda `backend: local` sin rutas ni
 consentimiento nativo. Cada persona autoriza su propio destino en el chat de
-escritorio. Sin selección, la ejecución la solicita en lugar de abrir una sandbox
-en la nube. Al crear un proyecto, **Project sandbox → Computer · your files** abre
+escritorio. Ese agente no tiene espacio en la nube, así que **Work on** no le
+ofrece la nube. Su primer mensaje pregunta una vez dónde puede trabajar - **Todo el
+equipo** o una carpeta - y la respuesta se recuerda para ese agente en este equipo,
+de modo que sus chats posteriores empiezan allí sin preguntar. Al crear un proyecto, **Project sandbox → Computer · your files** abre
 el selector de carpeta personal; los demás miembros conservan el espacio compartido.
 
 **Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin
-selector de carpetas. Una advertencia nativa autoriza el acceso para esta conversación:
+selector de carpetas. Una advertencia nativa autoriza el acceso: para un agente con
+espacio **Computer**, la advertencia nombra al agente y el consentimiento vale para
+él en cada conversación; si no, vale para esta conversación.
 las herramientas de archivos pueden usar rutas absolutas accesibles para tu cuenta
 y los comandos se ejecutan como tú, sin confirmaciones nativas individuales. Siguen
 vigentes los permisos del sistema y las reglas de aprobación del agente.
 **Revocar acceso a todo el equipo** o elegir **Nube** bloquea nuevas operaciones;
 los comandos en curso no se interrumpen. El consentimiento sobrevive a reinicios,
-se limita a este servidor y conversación, y un borrador se vincula en su primera
-operación. Un chat nuevo necesita su propio consentimiento. Este modo no recorre el
+se limita a este servidor y al agente o la conversación, y un borrador vincula el
+consentimiento de una conversación en su primera operación. Un chat nuevo con otro
+agente necesita su propio consentimiento. Este modo no recorre el
 directorio personal ni recoge archivos automáticamente como adjuntos.
 
 Las herramientas locales de navegador y archivos están disponibles en el chat de
@@ -526,7 +532,8 @@ recuerda para ese agente, carpeta, versión del adaptador y conexión. Eliminar 
 volver a seleccionar la carpeta borra la autorización y detiene sus agentes;
 cambiar de cuenta o servidor también borra las autorizaciones. El adaptador se
 ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo,
-no una sandbox del sistema. El acceso a todo el equipo no inicia un coding agent.
+no una sandbox del sistema. El acceso a todo el equipo también inicia un coding
+agent, en tu carpeta personal o una carpeta dentro de ella.
 Siguen vigentes las aprobaciones de tareas y los permisos del sistema.
 
 La aprobación de la capability se aplica una vez por tarea. `edit` permite las operaciones solicitadas y `read_only` rechaza cambios. Claude desactiva la omisión de permisos en modo lectura y ofrece solo herramientas de lectura. Codex selecciona su sandbox nativa de solo lectura. Los agentes locales usan su propia configuración de modelo. El uso de suscripción no tiene precio registrado; el coste mostrado del run es un mínimo.

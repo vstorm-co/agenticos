@@ -347,7 +347,8 @@ the app checks against them: a folder you never picked, a mode wider than you
 allowed, or a path that climbs out of the folder is refused on the computer,
 whatever the server asked. The choice is remembered per conversation. New chats inherit the last folder
 and tool preferences for this account and organization; project settings take
-precedence. Whole-computer consent is never inherited.
+precedence. Whole-computer consent given in a chat is never inherited; consent
+given to an agent holds for that agent (see **Whole computer**).
 
 **Only your own runs.** A chat reaches your computer only when it is your own -
 never an API key, a widget visitor or someone else's chat - and a
@@ -363,19 +364,25 @@ operation is in flight, the tray says an agent is working on this computer.
 The server checks the sign-in before forwarding each local operation. Revoked or expired sessions refuse new work; the heartbeat also closes idle connections. Operations already in progress are cancelled when the desktop socket closes.
 
 In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
-native consent. Each person approves their own target in desktop chat. Without a
-selection, the run asks for it instead of opening a cloud sandbox. When creating a
+native consent. Each person approves their own target in desktop chat. Such an
+agent has no cloud workspace, so **Work on** offers no Cloud for it. Its first
+message asks once where it may work - **Whole computer** or a folder - and the
+answer is remembered for that agent on this computer, so its later chats start
+there without asking. When creating a
 project, **Project sandbox → Computer · your files** opens the personal folder
 selector; other members keep the project’s shared workspace.
 
 **Whole computer.** Desktop chat also offers **Whole computer** without a folder
-picker. One native warning grants access for this conversation: file tools can reach
+picker. One native warning grants access: for an agent whose workspace is
+**Computer**, the warning names the agent and the consent holds for it in every
+conversation; otherwise it is for this conversation. File tools can reach
 absolute paths anywhere your account can access and commands run as you, without
 individual native prompts. Operating system permissions and the agent's approval
 rules still apply. **Revoke whole-computer access** or choosing **Cloud** blocks new
 operations; commands already running are not interrupted. Consent survives app
-restarts, is scoped to this server and conversation, and a draft binds on its first
-operation. A new chat needs its own consent. This mode does not crawl the home
+restarts and is scoped to this server and to the agent or conversation; a draft binds
+a conversation's consent on its first operation. A new chat with another agent needs
+its own consent. This mode does not crawl the home
 directory or automatically collect files as attachments.
 
 Local browser and file tools are available in desktop chat even when the agent has
@@ -492,7 +499,7 @@ this agent, folder, adapter version and connection. Removing or reselecting the
 folder clears its approval and stops its running agents; account and server
 changes clear approvals too. The adapter runs as your operating-system account:
 the folder selects its working directory, not an OS sandbox. Whole-computer
-access cannot start a coding agent. Task approval and OS permissions still apply.
+access starts a coding agent too, in your home folder or a folder inside it. Task approval and OS permissions still apply.
 
 The capability's approval applies once per task. Inside it, `edit` allows requested operations and `read_only` refuses changes. Claude read-only disables bypass permissions and exposes only reading tools. Codex read-only selects its native read-only sandbox mode. Local agents use their own model settings; subscription usage is unpriced, so the run's reported cost is a floor.
 

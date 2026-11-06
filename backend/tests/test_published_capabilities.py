@@ -7,7 +7,11 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.agent import published_capabilities, published_local_coding_agents
+from app.repositories.agent import (
+    published_capabilities,
+    published_local_coding_agents,
+    published_local_workspaces,
+)
 from app.schemas.agent import LocalCodingAgent
 
 pytestmark = pytest.mark.anyio
@@ -86,3 +90,18 @@ async def test_no_versions_does_not_ask_which_run_a_coding_agent_locally() -> No
     db = AsyncMock(spec=AsyncSession)
     assert await published_local_coding_agents(db, version_ids=[]) == {}
     db.execute.assert_not_awaited()
+
+
+async def test_only_a_published_sandbox_on_the_persons_computer_is_a_local_workspace() -> None:
+    local, service, off, none = (uuid4() for _ in range(4))
+    db = AsyncMock(spec=AsyncSession)
+    result = MagicMock()
+    result.all.return_value = [
+        (local, [{"id": "sandbox", "config": {"backend": "local"}}]),
+        (service, [{"id": "sandbox", "config": {"backend": "service"}}]),
+        (off, [{"id": "sandbox", "enabled": False, "config": {"backend": "local"}}]),
+        (none, None),
+    ]
+    db.execute.return_value = result
+    assert await published_local_workspaces(db, version_ids=[local, service, off, none]) == {local}
+    assert await published_local_workspaces(db, version_ids=[]) == set()

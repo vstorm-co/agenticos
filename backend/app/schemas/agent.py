@@ -249,6 +249,15 @@ class AgentRead(BaseSchema):
             "folder before the person sends."
         ),
     )
+    local_workspace: bool = Field(
+        default=False,
+        description=(
+            "Whether the published version's workspace is the person's own computer "
+            "(a sandbox binding on the local backend). Such an agent has no cloud "
+            "workspace, so the desktop chat asks for a folder or the whole computer "
+            "before its first run. Filled by the listing."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(

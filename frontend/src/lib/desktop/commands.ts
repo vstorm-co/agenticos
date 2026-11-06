@@ -413,11 +413,21 @@ export async function pickLocalFolder(mode: LocalMode): Promise<LocalGrant | nul
   return picked === null ? null : parseLocalGrant(picked);
 }
 
-/** Explicit native consent, saved for one conversation; null when cancelled. */
+/**
+ * Ask the person, natively, to let agents use the whole computer.
+ *
+ * With an agent, the consent holds for that agent in every conversation, so the
+ * person is asked once per agent; without one it belongs to this conversation.
+ */
 export async function allowWholeComputer(
   conversationId: string | null,
+  agent?: { id: string; name: string },
 ): Promise<LocalTarget | null> {
-  const result = await invokeShell("local_allow_computer", { conversationId });
+  const result = await invokeShell("local_allow_computer", {
+    conversationId,
+    agentId: agent?.id ?? null,
+    agentName: agent?.name ?? null,
+  });
   if (result === null) return null;
   const grant = record(result, "whole-computer consent");
   return {

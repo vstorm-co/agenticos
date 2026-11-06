@@ -4230,6 +4230,7 @@ class AgentRunnerService:
                 folder=local.folder,
                 computer_grant=local.computer_grant,
                 conversation_id=conversation_id,
+                agent_id=agent.id,
             )
             spec_toolsets.append(skills_context.toolset)
             spec = spec.model_copy(

@@ -3,8 +3,8 @@ import { act, fireEvent, render as renderView, screen, within } from "@testing-l
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
-import { useConversationStore } from "@/stores";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands";
 import { WorkOn } from "./work-on";
@@ -37,6 +37,11 @@ vi.mock("@/lib/desktop/commands", async (original) => ({
   revokeWholeComputer: computer.revoke,
 }));
 const modeState = vi.hoisted(() => ({ ready: true }));
+// The agents the chat can pick; one may work on this computer, with no cloud.
+const agentState = vi.hoisted(() => ({
+  agents: [] as { id: string; name: string; local_workspace?: boolean }[],
+}));
+vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: agentState.agents }) }));
 const deviceState = vi.hoisted(() => ({
   linked: true,
   connected: true,
@@ -100,7 +105,9 @@ beforeEach(() => {
   link.mockReset();
   Object.assign(deviceState, { linked: true, connected: true, pending: false, ready: true });
   modeState.ready = true;
+  agentState.agents = [];
   useConversationStore.setState({ currentConversationId: "chat" });
+  useWorkOnStore.setState({ agentTargets: {} });
   useWorkOnStore.setState({
     codingByConversation: {},
     draftCoding: null,
@@ -324,7 +331,7 @@ it("requires native consent for whole-computer access without picking a folder a
   render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const before = useWorkOnStore.getState().targetFor("chat");
   await user.click(screen.getByRole("button", { name: "Whole computer" }));
-  expect(computer.allow).toHaveBeenCalledWith("chat");
+  expect(computer.allow).toHaveBeenCalledWith("chat", undefined);
   expect(useWorkOnStore.getState().targetFor("chat")).toEqual(before);
   await user.click(screen.getByRole("button", { name: "Whole computer" }));
   expect(
@@ -444,4 +451,38 @@ it("offers only existing full-access grants while a coding harness is selected",
   await userEvent.click(screen.getByRole("radio", { name: /coding/ }));
   expect(useWorkOnStore.getState().targetFor("chat")?.mode).toBe("full_access");
   expect(useWorkOnStore.getState().codingFor("chat")).toBe("codex");
+});
+
+describe("an agent that works on this computer", () => {
+  beforeEach(() => {
+    agentState.agents = [{ id: "agent-1", name: "AgenticOS", local_workspace: true }];
+    useAgentSelectionStore.setState({ selectedAgentId: "agent-1" });
+    useWorkOnStore.setState({ byConversation: { chat: null } });
+  });
+
+  it("offers no cloud, and says it asks on the first message", () => {
+    render(<WorkOn agentCapabilities={["sandbox"]} />);
+    expect(screen.getByText("Asks on first message")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Cloud" })).toBeDisabled();
+    expect(
+      screen.getByText(/This agent works on your computer, so it has no cloud workspace/),
+    ).toBeInTheDocument();
+  });
+
+  it("asks for whole-computer consent for the agent and remembers it for the agent", async () => {
+    const grant = { folder: "/Users/person", mode: "full_access", computer_grant: "agent-consent" };
+    computer.allow.mockResolvedValueOnce(grant);
+    computer.revoke.mockResolvedValue(undefined);
+    render(<WorkOn agentCapabilities={["sandbox"]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Whole computer" }));
+    expect(computer.allow).toHaveBeenCalledWith("chat", { id: "agent-1", name: "AgenticOS" });
+    expect(
+      await screen.findByText(/Allowed for AgenticOS in every conversation/),
+    ).toBeInTheDocument();
+    expect(useWorkOnStore.getState().agentTargetFor("agent-1")).toMatchObject(grant);
+
+    await userEvent.click(screen.getByRole("button", { name: "Revoke whole-computer access" }));
+    expect(computer.revoke).toHaveBeenCalledWith("agent-consent");
+    expect(useWorkOnStore.getState().agentTargetFor("agent-1")).toBeNull();
+  });
 });

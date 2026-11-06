@@ -975,8 +975,8 @@
     "addSeparateModel": "Add separate model",
     "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
     "backendComputerLabel": "Computer",
-    "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
-    "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
+    "backendComputerDetail": "Use the person’s computer, approved once per agent in the desktop app.",
+    "backendComputerConsent": "Each person chooses a folder or Whole computer the first time they message this agent in the desktop app; the choice is remembered for the agent. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
     "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
     "unavailableTitle": "Agent unavailable",
     "unavailableDescription": "Check the selected organization. This agent may belong to another organization, have been removed, or no longer be shared with you.",
@@ -1276,7 +1276,10 @@
           "unavailableOption": "{value} (unavailable)",
           "effortUnsupported": "Not offered by this model"
         },
-        "off": "Off"
+        "off": "Off",
+        "asksFirst": "Asks on first message",
+        "noCloud": "This agent works on your computer, so it has no cloud workspace. Choose a folder or the whole computer.",
+        "agentComputerConsent": "Allowed for {agent} in every conversation on this computer. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply."
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -2367,7 +2370,17 @@
     "approvalRememberedEmpty": "No remembered approvals.",
     "approvalRememberForget": "Ask again",
     "approvalRememberFailed": "Could not forget this approval. Try again.",
-    "approvalRememberRetry": "Retry"
+    "approvalRememberRetry": "Retry",
+    "localAccess": {
+      "title": "Where may {agent} work?",
+      "description": "{agent} works on your computer. You are asked once for this agent; change or revoke it later under Chat controls → Work on.",
+      "computer": "Whole computer",
+      "computerHint": "It may read and change files anywhere your account can, and run commands as you. Your computer asks you to confirm.",
+      "folder": "Choose a folder",
+      "folderHint": "It works only inside the folder you pick.",
+      "cancel": "Not now",
+      "failed": "Could not set up access on this computer"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "afc28abbddcd"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -359,7 +359,8 @@ nimi porównuje: folder, którego nie wybrałeś, tryb szerszy niż dozwolony al
 ścieżka wychodząca poza folder są odrzucane na komputerze, cokolwiek serwer
 poprosił. Wybór jest zapamiętywany dla każdej rozmowy. Nowe czaty dziedziczą ostatni folder
 i narzędzia dla konta i organizacji; ustawienia projektu mają pierwszeństwo.
-Zgoda na cały komputer nigdy nie przechodzi do innej rozmowy.
+Zgoda na cały komputer udzielona w czacie nigdy nie przechodzi do innej rozmowy;
+zgoda udzielona agentowi obowiązuje dla tego agenta (zob. **Cały komputer**).
 
 **Tylko twoje runy.** Czat sięga twojego komputera tylko wtedy, gdy jest twój -
 nigdy klucz API, gość widżetu czy czat kogoś innego - a
@@ -377,18 +378,24 @@ Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana l
 
 W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
 natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
-Bez wyboru uruchomienie prosi o niego zamiast otwierać sandbox w chmurze. Przy
+Taki agent nie ma przestrzeni w chmurze, więc **Work on** nie oferuje dla niego
+chmury. Pierwsza wiadomość pyta raz, gdzie może pracować - **Cały komputer** albo
+folder - a odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego
+kolejne czaty startują tam bez pytania. Przy
 tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
 prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 
 **Cały komputer.** Czat desktopowy oferuje też **Cały komputer**, bez wyboru
-folderu. Jedno natywne ostrzeżenie zatwierdza dostęp dla tej rozmowy: narzędzia
+folderu. Jedno natywne ostrzeżenie zatwierdza dostęp: dla agenta z obszarem
+**Komputer** ostrzeżenie wymienia agenta, a zgoda obowiązuje dla niego w każdej
+rozmowie; w pozostałych przypadkach dotyczy tej rozmowy. Narzędzia
 plików mogą korzystać ze ścieżek bezwzględnych wszędzie, gdzie sięga twoje konto,
 a polecenia działają jako ty, bez osobnych natywnych potwierdzeń. Uprawnienia systemu
 i reguły zatwierdzania agenta nadal obowiązują. **Cofnij dostęp do całego komputera**
 lub wybór **Chmura** blokuje nowe operacje; działające polecenia nie są przerywane.
-Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz rozmowy; nowy szkic
-wiąże ją przy pierwszej operacji. Nowy czat wymaga własnej zgody. Ten tryb nie
+Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz agenta lub rozmowy;
+nowy szkic wiąże zgodę rozmowy przy pierwszej operacji. Nowy czat z innym agentem
+wymaga własnej zgody. Ten tryb nie
 przeszukuje katalogu domowego ani nie zbiera automatycznie załączników.
 
 Lokalna przeglądarka i narzędzia plików są dostępne w czacie desktopowym także bez
@@ -503,8 +510,8 @@ Ustaw capability **Coding agent** na **On this computer**, wybierz folder w
 agenta, folderu, wersji adaptera i połączenia. Usunięcie lub ponowne wybranie
 folderu usuwa zgodę i zatrzymuje działających w nim agentów; zmiana konta lub
 serwera też usuwa zgody. Adapter działa jako Twoje konto systemowe: folder
-wyznacza katalog roboczy, a nie sandbox systemu. Dostęp do całego komputera nie
-uruchamia coding agenta. Zgody na zadania i uprawnienia systemowe nadal obowiązują.
+wyznacza katalog roboczy, a nie sandbox systemu. Dostęp do całego komputera
+uruchamia też coding agenta, w katalogu domowym albo folderze wewnątrz niego. Zgody na zadania i uprawnienia systemowe nadal obowiązują.
 
 Zgoda capability obowiązuje raz na zadanie. W jego trakcie `edit` zezwala na żądane operacje, a `read_only` odmawia zmian. Claude w trybie odczytu wyłącza bypass uprawnień i udostępnia tylko narzędzia do czytania. Codex wybiera swój natywny sandbox tylko do odczytu. Lokalny agent używa własnych ustawień modelu; użycie subskrypcji nie jest wyceniane, więc koszt runu stanowi dolną granicę.
 

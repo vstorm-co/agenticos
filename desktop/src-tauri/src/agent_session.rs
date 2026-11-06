@@ -14,7 +14,7 @@
 //! the server shows as approvals in the chat.
 
 use std::collections::{HashMap, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -354,6 +354,16 @@ fn path_with(program: &Path) -> Option<String> {
         .and_then(|joined| joined.into_string().ok())
 }
 
+/// The folder a coding agent may start in: one granted full access, or any folder
+/// whole-computer consent covers - the conversation's, or the agent's own.
+fn authorized_root(app: &AppHandle, args: &Map<String, Value>, root: &str) -> Result<PathBuf, Refusal> {
+    if args.contains_key("computer_grant") {
+        crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
+        return Ok(PathBuf::from(root));
+    }
+    local_work::granted_folder(app, root, Mode::FullAccess)
+}
+
 async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Result<Map<String, Value>, Refusal> {
     let OpenArgs {
         agent,
@@ -361,8 +371,9 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         resume_key,
         fresh_session,
     } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
-    // The adapter runs as the person, so only a folder granted full access may host it.
-    let root = local_work::granted_folder(app, &root, Mode::FullAccess)?;
+    // The adapter runs as the person, so only a folder granted full access, or
+    // whole-computer consent, may host it.
+    let root = authorized_root(app, args, &root)?;
     let sessions = app.state::<Sessions>();
     let slot = sessions.reserve().await?;
     let confirmation = CONFIRMING.lock().await;
@@ -372,7 +383,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         if !confirm(app, agent, &root).await {
             return Err(Refusal::new("denied", "You did not allow the agent to start."));
         }
-        local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
+        authorized_root(app, args, &root.to_string_lossy())?;
         crate::settings::update(app, |settings| {
             if settings.connection_revision != consent.connection {
                 return false;
@@ -415,7 +426,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         return Err(Refusal::new("denied", "The connection changed. Start the agent again."));
     }
     // The person can revoke or narrow the grant while the launch dialog is open.
-    local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
+    authorized_root(app, args, &root.to_string_lossy())?;
     let mut session = spawn(
         &runtime.node,
         &[runtime.adapter(agent).to_string_lossy().into_owned()],

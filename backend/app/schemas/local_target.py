@@ -54,7 +54,7 @@ class LocalTarget(BaseModel):
     """How far the run may reach: read only, write in the folder, or full access."""
 
     computer_grant: UUID | None = None
-    """Native whole-computer consent, bound by the app to this conversation."""
+    """Native whole-computer consent, bound by the app to this conversation or to this agent."""
 
     device_id: UUID | None = None
     """Which computer, when the person has several; empty takes the one most recently connected."""
@@ -118,10 +118,10 @@ class LocalTarget(BaseModel):
             raise ValueError(
                 "Choose a local coding agent before changing its model or reasoning level"
             )
-        if self.coding_agent is not None and (
-            self.folder is None or self.mode != "full_access" or self.computer_grant is not None
-        ):
-            raise ValueError("Choose a folder with full access to use a local coding agent")
+        if self.coding_agent is not None and (self.folder is None or self.mode != "full_access"):
+            raise ValueError(
+                "Choose a folder with full access, or the whole computer, to use a local coding agent"
+            )
         if self.computer_grant is not None and (self.folder is None or self.mode != "full_access"):
             raise ValueError("Whole-computer access requires its home folder and full access")
         if self.folder is None and (

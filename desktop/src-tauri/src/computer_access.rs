@@ -1,7 +1,9 @@
-//! Native consent for one conversation to use the whole computer.
+//! Native consent to use the whole computer, for one conversation or one agent.
 //!
-//! The random grant is bound to the first conversation that uses it (a draft
-//! has no server id yet). Each operation rechecks the saved grant and server.
+//! A conversation's random grant is bound to the first conversation that uses
+//! it (a draft has no server id yet). An agent's grant names the agent and holds
+//! for every conversation with it, so the person is asked once per agent rather
+//! than in every new chat. Each operation rechecks the saved grant and server.
 
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -23,6 +25,9 @@ pub struct Consent {
     pub root: String,
     pub origin: String,
     pub conversation_id: Option<String>,
+    /// Set for consent given to one agent; it then binds no conversation.
+    #[serde(default)]
+    pub agent_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -74,9 +79,17 @@ fn origin(app: &AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn local_allow_computer(app: AppHandle, conversation_id: Option<String>) -> Result<Option<Granted>, String> {
+pub async fn local_allow_computer(
+    app: AppHandle,
+    conversation_id: Option<String>,
+    agent_id: Option<String>,
+    agent_name: Option<String>,
+) -> Result<Option<Granted>, String> {
     if let Some(id) = &conversation_id {
         uuid::Uuid::parse_str(id).map_err(|_| "Invalid conversation id.")?;
+    }
+    if let Some(id) = &agent_id {
+        uuid::Uuid::parse_str(id).map_err(|_| "Invalid agent id.")?;
     }
     let server = origin(&app)?;
     let root = app
@@ -86,12 +99,20 @@ pub async fn local_allow_computer(app: AppHandle, conversation_id: Option<String
         .to_string_lossy()
         .into_owned();
     let (send, answer) = tokio::sync::oneshot::channel();
-    app.dialog().message(format!(
-        "Allow the agent in this conversation on {server} to read and change files anywhere your account can access, and run commands as you?\n\nCommands will run without individual native prompts. This is not a sandbox. Access is saved for this conversation until you revoke it in chat settings. macOS permissions still apply."
-    )).title("Allow whole-computer access?")
+    let (message, allow) = consent_text(
+        &server,
+        agent_id
+            .as_deref()
+            .map(|_| agent_name.as_deref().unwrap_or("this agent")),
+    );
+    app.dialog()
+        .message(message)
+        .title("Allow whole-computer access?")
         .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom("Allow for this conversation".into(), "Cancel".into()))
-        .show(move |allowed| { let _ = send.send(allowed); });
+        .buttons(MessageDialogButtons::OkCancelCustom(allow.into(), "Cancel".into()))
+        .show(move |allowed| {
+            let _ = send.send(allowed);
+        });
     if !answer.await.unwrap_or(false) {
         return Ok(None);
     }
@@ -107,10 +128,31 @@ pub async fn local_allow_computer(app: AppHandle, conversation_id: Option<String
         id: id.clone(),
         root: root.clone(),
         origin: server,
-        conversation_id,
+        // An agent's consent spans its conversations, so it never binds one.
+        conversation_id: if agent_id.is_some() { None } else { conversation_id },
+        agent_id,
     });
     save(&path, &grants)?;
     Ok(Some(Granted { id, path: root }))
+}
+
+/// What the native dialog says, and its allow button: for this conversation, or
+/// for every conversation with one named agent.
+fn consent_text(server: &str, agent: Option<&str>) -> (String, &'static str) {
+    match agent {
+        Some(name) => (
+            format!(
+                "Allow {name} on {server} to read and change files anywhere your account can access, and run commands as you?\n\nCommands will run without individual native prompts. This is not a sandbox. Access is saved for {name} on this computer, in every conversation with it, until you revoke it in chat settings. macOS permissions still apply."
+            ),
+            "Allow for this agent",
+        ),
+        None => (
+            format!(
+                "Allow the agent in this conversation on {server} to read and change files anywhere your account can access, and run commands as you?\n\nCommands will run without individual native prompts. This is not a sandbox. Access is saved for this conversation until you revoke it in chat settings. macOS permissions still apply."
+            ),
+            "Allow for this conversation",
+        ),
+    }
 }
 
 /// Connection changes cannot carry another account's conversation consents.
@@ -131,10 +173,25 @@ pub fn local_revoke_computer(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
-fn authorize(grant: &mut Consent, server: &str, root: &str, conversation: &str) -> Result<(), String> {
+fn authorize(
+    grant: &mut Consent,
+    server: &str,
+    root: &str,
+    conversation: &str,
+    agent: Option<&str>,
+) -> Result<(), String> {
     uuid::Uuid::parse_str(conversation).map_err(|_| "Invalid conversation id.")?;
-    if grant.origin != server || grant.root != root {
+    // The working directory is the home folder or a folder inside it: a coding
+    // session may work in one project while the consent covers the computer.
+    if grant.origin != server || !Path::new(root).starts_with(&grant.root) {
         return Err("This consent belongs to another server or working directory.".into());
+    }
+    if let Some(bound) = &grant.agent_id {
+        return if agent == Some(bound.as_str()) {
+            Ok(())
+        } else {
+            Err("This consent belongs to another agent.".into())
+        };
     }
     if let Some(bound) = &grant.conversation_id {
         if bound != conversation {
@@ -167,8 +224,9 @@ pub fn check(app: &AppHandle, args: &Map<String, Value>) -> Result<(), String> {
         .iter_mut()
         .find(|grant| grant.id == id)
         .ok_or_else(|| "Whole-computer access was not granted or has been revoked.".to_string())?;
-    let unbound = grant.conversation_id.is_none();
-    authorize(grant, &server, root, conversation)?;
+    let agent = args.get("agent_id").and_then(Value::as_str);
+    let unbound = grant.conversation_id.is_none() && grant.agent_id.is_none();
+    authorize(grant, &server, root, conversation, agent)?;
     if unbound {
         save(&path, &saved)?;
     }
@@ -189,6 +247,7 @@ mod tests {
             root: "/home/me".into(),
             origin: "https://console.test".into(),
             conversation_id: Some(uuid::Uuid::new_v4().to_string()),
+            agent_id: None,
         };
         save(&path, &[grant]).unwrap();
         let mut restored = load(&path).unwrap();
@@ -208,21 +267,65 @@ mod tests {
             root: "/home/me".into(),
             origin: "https://console.test".into(),
             conversation_id: None,
+            agent_id: None,
         };
         let chat = uuid::Uuid::new_v4().to_string();
-        assert!(authorize(&mut grant, "https://other.test", "/home/me", &chat).is_err());
-        assert!(authorize(&mut grant, "https://console.test", "/", &chat).is_err());
-        assert!(authorize(&mut grant, "https://console.test", "/home/me", "invalid").is_err());
+        assert!(authorize(&mut grant, "https://other.test", "/home/me", &chat, None).is_err());
+        assert!(authorize(&mut grant, "https://console.test", "/", &chat, None).is_err());
+        assert!(authorize(&mut grant, "https://console.test", "/home/me", "invalid", None).is_err());
         assert!(grant.conversation_id.is_none());
-        authorize(&mut grant, "https://console.test", "/home/me", &chat).unwrap();
+        authorize(&mut grant, "https://console.test", "/home/me", &chat, None).unwrap();
         let mut restored: Consent = serde_json::from_str(&serde_json::to_string(&grant).unwrap()).unwrap();
-        authorize(&mut restored, "https://console.test", "/home/me", &chat).unwrap();
+        authorize(&mut restored, "https://console.test", "/home/me", &chat, None).unwrap();
         assert!(authorize(
             &mut restored,
             "https://console.test",
             "/home/me",
-            &uuid::Uuid::new_v4().to_string()
+            &uuid::Uuid::new_v4().to_string(),
+            None
         )
         .is_err());
+    }
+
+    #[test]
+    fn agent_consent_holds_in_every_conversation_with_that_agent_only() {
+        let agent = uuid::Uuid::new_v4().to_string();
+        let mut grant = Consent {
+            id: "agent".into(),
+            root: "/home/me".into(),
+            origin: "https://console.test".into(),
+            conversation_id: None,
+            agent_id: Some(agent.clone()),
+        };
+        for _ in 0..2 {
+            let chat = uuid::Uuid::new_v4().to_string();
+            authorize(&mut grant, "https://console.test", "/home/me", &chat, Some(&agent)).unwrap();
+        }
+        // It never binds the first conversation it was used in.
+        assert!(grant.conversation_id.is_none());
+        // A coding session may work in one project inside the home folder.
+        let chat = uuid::Uuid::new_v4().to_string();
+        authorize(&mut grant, "https://console.test", "/home/me/app", &chat, Some(&agent)).unwrap();
+        let other = uuid::Uuid::new_v4().to_string();
+        assert!(authorize(&mut grant, "https://console.test", "/home/me", &chat, Some(&other)).is_err());
+        assert!(authorize(&mut grant, "https://console.test", "/home/me", &chat, None).is_err());
+        assert!(authorize(&mut grant, "https://console.test", "/home/mean", &chat, Some(&agent)).is_err());
+    }
+
+    #[test]
+    fn a_consent_saved_before_agents_existed_still_reads_as_a_conversations() {
+        let saved = r#"{"id":"old","root":"/home/me","origin":"https://console.test","conversation_id":null}"#;
+        let consent: Consent = serde_json::from_str(saved).unwrap();
+        assert!(consent.agent_id.is_none());
+    }
+
+    #[test]
+    fn the_dialog_names_the_agent_it_asks_for() {
+        let (message, allow) = consent_text("https://console.test", Some("AgenticOS"));
+        assert!(message.contains("Allow AgenticOS on https://console.test"));
+        assert!(message.contains("every conversation with it"));
+        assert_eq!(allow, "Allow for this agent");
+        let (_, allow) = consent_text("https://console.test", None);
+        assert_eq!(allow, "Allow for this conversation");
     }
 }

@@ -271,7 +271,11 @@ describe("paired device and folder grants", () => {
 it("validates whole-computer native consent and keeps cancellation explicit", async () => {
   invoke.mockResolvedValue(null);
   await expect(commands.allowWholeComputer(null)).resolves.toBeNull();
-  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", { conversationId: null });
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", {
+    conversationId: null,
+    agentId: null,
+    agentName: null,
+  });
   invoke.mockResolvedValue({ path: "/home/person", id: "consent" });
   await expect(commands.allowWholeComputer("chat")).resolves.toEqual({
     folder: "/home/person",
@@ -280,6 +284,13 @@ it("validates whole-computer native consent and keeps cancellation explicit", as
   });
   await commands.revokeWholeComputer("consent");
   expect(invoke).toHaveBeenLastCalledWith("local_revoke_computer", { id: "consent" });
+  // For one agent, the consent names it, so the app holds it across its chats.
+  await commands.allowWholeComputer("chat", { id: "agent-1", name: "AgenticOS" });
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", {
+    conversationId: "chat",
+    agentId: "agent-1",
+    agentName: "AgenticOS",
+  });
   invoke.mockResolvedValue({ path: "/home/person" });
   await expect(commands.allowWholeComputer("chat")).rejects.toThrow("malformed");
 });

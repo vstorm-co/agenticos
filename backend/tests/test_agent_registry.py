@@ -517,6 +517,10 @@ class TestList:
                 f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
                 new=AsyncMock(return_value={}),
             ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_local_workspaces",
+                new=AsyncMock(return_value=set()),
+            ),
         ):
             yield
 
@@ -577,11 +581,17 @@ class TestList:
                     return_value={version_id: LocalCodingAgent(harness="codex", access="edit")}
                 ),
             ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_local_workspaces",
+                new=AsyncMock(return_value={version_id}),
+            ),
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert rows[0].local_coding_agent == LocalCodingAgent(harness="codex", access="edit")
         assert rows[1].local_coding_agent is None
+        assert rows[0].local_workspace is True
+        assert rows[1].local_workspace is False
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
         assert rows[1].starters == []

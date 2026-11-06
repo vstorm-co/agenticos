@@ -728,7 +728,11 @@ class SandboxWorkspaceService:
             return None
         if local is not None and local.folder is not None:
             return await self._open_local(
-                ctx, local, conversation_id=identity.conversation_id, on_wait=on_wait
+                ctx,
+                local,
+                conversation_id=identity.conversation_id,
+                agent_id=identity.agent_id,
+                on_wait=on_wait,
             )
         if config.backend == "local":
             raise BadRequestError(
@@ -756,6 +760,7 @@ class SandboxWorkspaceService:
         local: LocalTarget,
         *,
         conversation_id: UUID | None = None,
+        agent_id: UUID | None = None,
         on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace:
         """A workspace on one of the caller's own computers.
@@ -805,6 +810,7 @@ class SandboxWorkspaceService:
                     ctx.user_id,
                     local,
                     conversation_id=conversation_id,
+                    agent_id=agent_id,
                     routine_scope=routine_scope,
                 )
             ),
@@ -823,7 +829,7 @@ class SandboxWorkspaceService:
                         "there; anything outside it is read only."
                     ),
                     "full_access": (
-                        "The person approved whole-computer access for this conversation. "
+                        "The person approved whole-computer access for you. "
                         "You may use absolute paths outside the working directory. Commands "
                         "run without individual native prompts until access is revoked. "
                         "Files are not automatically collected from this computer."

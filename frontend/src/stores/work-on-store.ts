@@ -60,6 +60,14 @@ interface WorkOnState {
   draftSkills: SkillSource[];
   skillsFor: (conversationId: string | null) => SkillSource[];
   setSkills: (conversationId: string | null, sources: SkillSource[]) => void;
+  /**
+   * Where each agent that works on this computer was last allowed to work, so a new
+   * chat with it starts there instead of asking again. Its whole-computer consent
+   * is the agent's own in the app, not one conversation's.
+   */
+  agentTargets: Record<string, LocalTarget>;
+  agentTargetFor: (agentId: string) => LocalTarget | null;
+  rememberForAgent: (agentId: string, target: LocalTarget | null) => void;
   byConversation: Record<string, LocalTarget | null>;
   draft: LocalTarget | null;
   draftProjectKey: string | null;
@@ -176,6 +184,13 @@ export const useWorkOnStore = create<WorkOnState>()(
             },
           });
       },
+      agentTargets: {},
+      agentTargetFor: (agentId) => get().agentTargets[browserKey(`agent:${agentId}`)] ?? null,
+      rememberForAgent: (agentId, target) => {
+        const key = browserKey(`agent:${agentId}`);
+        const { [key]: _previous, ...rest } = get().agentTargets;
+        set({ agentTargets: target === null ? rest : { ...rest, [key]: target } });
+      },
       byConversation: {},
       draft: null,
       draftProjectKey: null,
@@ -247,6 +262,7 @@ export const useWorkOnStore = create<WorkOnState>()(
       name: "work-on",
       version: 1,
       partialize: ({
+        agentTargets,
         fileRoots,
         byConversation,
         browserByConversation,
@@ -255,6 +271,7 @@ export const useWorkOnStore = create<WorkOnState>()(
         codingByConversation,
         codingPreferencesByConversation,
       }) => ({
+        agentTargets,
         fileRoots,
         skillsByConversation,
         codingByConversation,

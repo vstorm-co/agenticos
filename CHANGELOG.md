@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- An agent whose workspace is **Computer** no longer fails a new desktop chat with "This agent uses your computer". The first message asks once where it may work - the whole computer or a folder - and the answer is remembered for that agent, so its later chats start there. **Work on** offers no Cloud for such an agent. Whole-computer consent given this way belongs to the agent in the desktop app rather than to one conversation; consent given in a chat's **Work on** still belongs to that chat. A local coding agent can now work under whole-computer consent, in the home folder or a folder inside it. Device operations under whole-computer consent carry the run's agent, and the agent listing gains `local_workspace`. The desktop app must be updated for agent consent; an older app keeps asking per conversation.
+
 ## [1.50.2] - 2026-11-06
 
 ### Security
