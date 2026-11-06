@@ -54,7 +54,9 @@ async def get(
     if skill_id is not None:
         statement = statement.where(SkillCheck.skill_id == skill_id)
     if lock:
-        statement = statement.with_for_update()
+        # Read afresh once the lock is held: a decision committed while it waited must
+        # be seen, not the copy an earlier unlocked read left in the session.
+        statement = statement.with_for_update().execution_options(populate_existing=True)
     return (await db.execute(statement)).scalar_one_or_none()
 
 
