@@ -149,7 +149,7 @@ async def _syncing(
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
         patch.object(
             rag_tasks,
-            "_knowledge_base_for",
+            "_source_knowledge_base",
             new=AsyncMock(
                 return_value=MagicMock(
                     id=KB_ID, ingestion_config={}, embedding_model=EMBEDDING_MODEL
@@ -183,76 +183,67 @@ async def _sync(
 
 
 class TestWhichKnowledgeBaseOwnsTheCollection:
-    """`_knowledge_base_for` decides two things at once: which parser settings a
+    """`_source_knowledge_base` decides two things at once: which parser settings a
     sync reads documents with, and which knowledge base its documents are filed
-    under. Getting it wrong is invisible both times."""
+    under. Getting it wrong is invisible both times - so it is the base the source
+    records, never one resolved again from its name (#2551)."""
 
     @staticmethod
-    def _kbs(*rows: MagicMock) -> Any:
+    def _source(*, knowledge_base_id: uuid.UUID | None, collection_name: str | None = "docs"):
+        return MagicMock(knowledge_base_id=knowledge_base_id, collection_name=collection_name)
+
+    @staticmethod
+    def _by_id(kb: MagicMock | None) -> Any:
         return patch.object(
-            rag_tasks.knowledge_base_repo,
-            "list_by_collection_name",
-            new=AsyncMock(return_value=list(rows)),
+            rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=kb)
         )
 
-    @staticmethod
-    def _kb(*, organization_id: uuid.UUID | None, scope: str | None = None) -> MagicMock:
-        return MagicMock(
-            id=uuid.uuid4(),
-            organization_id=organization_id,
-            scope=scope or ("app" if organization_id is None else "org"),
-            ingestion_config={},
-        )
+    async def test_the_base_the_source_records_is_found(self):
+        kb = MagicMock(id=uuid.uuid4(), collection_name="docs")
 
-    async def test_the_callers_own_collection_is_found(self):
-        org = uuid.uuid4()
-        mine = self._kb(organization_id=org)
+        with (
+            self._by_id(kb) as get,
+            patch.object(
+                rag_tasks.knowledge_base_repo, "list_by_collection_name", new=AsyncMock()
+            ) as by_name,
+        ):
+            found = await rag_tasks._source_knowledge_base(
+                MagicMock(), self._source(knowledge_base_id=kb.id)
+            )
 
-        with self._kbs(self._kb(organization_id=uuid.uuid4()), mine):
-            assert await rag_tasks._knowledge_base_for(MagicMock(), "docs", org) is mine
-
-    async def test_an_app_scoped_collection_belongs_to_no_organization(self):
-        """It has `organization_id=None`, so the equality test skipped it - and a
-        source pointed at one was parsed with the deployment defaults instead of
-        that collection's own settings, then filed under no knowledge base at
-        all."""
-        shared = self._kb(organization_id=None)
-
-        with self._kbs(shared):
-            found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
-
-        assert found is shared
-
-    async def test_the_organizations_own_row_wins_over_a_deployment_wide_one(self):
-        """Two passes rather than one condition, because `collection_name` is not
-        unique and the caller's own collection is the one they meant."""
-        org = uuid.uuid4()
-        mine = self._kb(organization_id=org)
-
-        with self._kbs(self._kb(organization_id=None), mine):
-            assert await rag_tasks._knowledge_base_for(MagicMock(), "docs", org) is mine
+        assert found is kb
+        assert get.await_args.args[1] == kb.id
+        by_name.assert_not_awaited()
 
     @pytest.mark.security
-    async def test_another_tenants_collection_is_not_borrowed(self):
-        with self._kbs(self._kb(organization_id=uuid.uuid4())):
-            found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
+    async def test_a_source_with_no_base_gets_none_whoever_holds_its_name(self):
+        """A source detached from a deleted base, or one the upgrade could not
+        attribute: no base by its name inherits it."""
+        with self._by_id(MagicMock()) as get:
+            found = await rag_tasks._source_knowledge_base(
+                MagicMock(), self._source(knowledge_base_id=None)
+            )
 
         assert found is None
-
-    @pytest.mark.security
-    async def test_a_personal_base_outside_any_organization_is_not_borrowed(self):
-        """It has no organization either, but it is one person's: a sync for an
-        organization without its own base must not write into it (#2537)."""
-        personal = self._kb(organization_id=None, scope="personal")
-        shared = self._kb(organization_id=None)
-
-        with self._kbs(personal, shared):
-            found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
-
-        assert found is shared
+        get.assert_not_awaited()
 
     async def test_a_source_with_no_collection_asks_nothing(self):
-        assert await rag_tasks._knowledge_base_for(MagicMock(), None, uuid.uuid4()) is None
+        with self._by_id(MagicMock()) as get:
+            found = await rag_tasks._source_knowledge_base(
+                MagicMock(), self._source(knowledge_base_id=uuid.uuid4(), collection_name=None)
+            )
+
+        assert found is None
+        get.assert_not_awaited()
+
+    @pytest.mark.parametrize("kb", [None, MagicMock(collection_name="elsewhere")])
+    async def test_a_base_gone_or_on_another_collection_is_none(self, kb: MagicMock | None):
+        with self._by_id(kb):
+            found = await rag_tasks._source_knowledge_base(
+                MagicMock(), self._source(knowledge_base_id=uuid.uuid4())
+            )
+
+        assert found is None
 
 
 class TestAnIngestAlwaysReplaces:
@@ -643,7 +634,7 @@ class TestAListingTheStoreCannotAnswer:
             patch.object(rag_tasks, "SyncSourceService", return_value=sources),
             patch.object(
                 rag_tasks,
-                "_knowledge_base_for",
+                "_source_knowledge_base",
                 new=AsyncMock(return_value=MagicMock(id=KB_ID, ingestion_config={})),
             ),
             patch.object(rag_tasks, "IngestionConfigService") as config_service,
@@ -943,9 +934,9 @@ class TestASyncLogPassedInIsNotLeftRunning:
             # whole-attempt notification write the same branch also makes
             # (#1598) - covered separately in `tests/test_notifications.py`
             # and `tests/test_coverage_edges.py`. Left real, `sync_failed`
-            # would resolve `_knowledge_base_for` and an audience against this
+            # would resolve `_source_knowledge_base` and an audience against this
             # fixture's plain `MagicMock` database.
-            patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+            patch.object(rag_tasks, "_source_knowledge_base", new=AsyncMock(return_value=None)),
             patch.object(rag_tasks, "NotificationService", return_value=AsyncMock()),
         ):
             yield sources, sync_svc
@@ -972,6 +963,25 @@ class TestASyncLogPassedInIsNotLeftRunning:
         sync_svc.complete_sync.assert_awaited_once()
         assert sync_svc.complete_sync.await_args.args[0] == log_id
         assert sync_svc.complete_sync.await_args.kwargs["status"] == "error"
+
+    @pytest.mark.security
+    async def test_a_source_with_no_knowledge_base_writes_nothing(self):
+        """Its base was deleted, or the upgrade could not attribute it: it keeps a
+        collection name, and syncing by that name would write into whichever base
+        holds it, or unfiled (#2551)."""
+        log_id = str(uuid.uuid4())
+        source = self._source()
+        with patch.object(rag_tasks, "_ingestion_service") as ingestion:
+            async with self._refusing(source=source) as (sources, sync_svc):
+                answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=log_id)
+
+        assert answer == {
+            "status": "error",
+            "message": "Source has no knowledge base. Assign it to one before syncing it again.",
+        }
+        assert sync_svc.complete_sync.await_args.args[0] == log_id
+        sources.update_after_sync.assert_awaited_once()
+        ingestion.assert_not_called()
 
     async def test_a_scheduler_dispatch_with_no_log_yet_tries_to_complete_none(self):
         """No `sync_log_id` means no log was ever created for this attempt - the

@@ -95,9 +95,12 @@ async def create_org_integration(
     to write the base its sync writes into, as on every other route that points
     a source at a collection (`CollectionAccessService.source_target`, #2537).
     """
-    if data.collection_name is not None:
-        await access.source_target(ctx, data.collection_name)
-    return await sync_source_svc.create_source(data, ctx=ctx)
+    target = (
+        None
+        if data.collection_name is None
+        else await access.source_target(ctx, data.collection_name)
+    )
+    return await sync_source_svc.create_source(data, ctx=ctx, knowledge_base=target)
 
 
 @router.delete(

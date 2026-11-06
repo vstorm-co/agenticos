@@ -603,7 +603,9 @@ uv run agenticos cmd rag-sources
 # Add a new sync source. `--org` is required and the collection has to be one
 # that organization already holds: a sync *writes into* the collection it names,
 # so a source pointing at a name nobody owns fails later in a worker, and one
-# pointing at another tenant's is an injection rather than a read.
+# pointing at another tenant's is an injection rather than a read. The source
+# records that organization base; when several of its bases hold the name, name
+# one with `--knowledge-base <id>`.
 uv run agenticos cmd rag-source-add \
     --name "My Drive" \
     --type gdrive \

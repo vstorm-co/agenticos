@@ -317,26 +317,6 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
     return list(result.scalars().all())
 
 
-async def list_by_collection_names(
-    db: AsyncSession, collection_names: Sequence[str]
-) -> dict[str, list[KnowledgeBase]]:
-    """:func:`list_by_collection_name` for several names in one query, keyed by name.
-
-    A name no base claims is absent from the map.
-    """
-    if not collection_names:
-        return {}
-    result = await db.execute(
-        select(KnowledgeBase)
-        .where(KnowledgeBase.collection_name.in_(collection_names))
-        .order_by(KnowledgeBase.created_at)
-    )
-    by_name: dict[str, list[KnowledgeBase]] = {}
-    for kb in result.scalars():
-        by_name.setdefault(kb.collection_name, []).append(kb)
-    return by_name
-
-
 async def get_for_collection(
     db: AsyncSession, collection_name: str, organization_id: UUID | None
 ) -> KnowledgeBase | None:

@@ -350,7 +350,7 @@ async def list_org_integrations_for_kb(
     """
     kb = await service.get(kb_id, ctx=ctx)
     all_org = await sync_source_svc.list_sources(organization_id=ctx.organization_id)
-    others = [s for s in all_org.items if s.collection_name != kb.collection_name]
+    others = [s for s in all_org.items if s.knowledge_base_id != str(kb.id)]
     return SyncSourceList(items=others, total=len(others))
 
 
@@ -376,21 +376,18 @@ async def create_kb_sync_source(
     data: SyncSourceCreate,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
     """Wire up a sync source (Google Drive, S3, …) feeding this KB.
 
     The `collection_name` field on the request body is overridden with the
-    KB's own collection - clients should not need to know that detail. A KB
-    that shares its collection name with an older base of the organization is
-    refused with 400: a source names a collection, not a KB, so its sync would
-    write into that other base.
+    KB's own collection - clients should not need to know that detail. The
+    source records this KB, so it syncs into this one even when another base
+    shares its collection name (#2551).
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.new_source_feeds(ctx, kb)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.create_source(payload, ctx=ctx)
+    return await sync_source_svc.create_source(payload, ctx=ctx, knowledge_base=kb)
 
 
 @router.post(
@@ -418,10 +415,11 @@ async def clone_kb_sync_source(
     another tenant's Google Drive at their own collection and sync it.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.new_source_feeds(ctx, kb)
     source = await access.sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.clone_source(str(source.id), clone_data, ctx=ctx)
+    return await sync_source_svc.clone_source(
+        str(source.id), clone_data, ctx=ctx, knowledge_base=kb
+    )
 
 
 @router.post(
@@ -502,7 +500,7 @@ async def update_kb_sync_source(
         raise refused_field(
             "collection_name", "A source cannot be moved to another knowledge base from here"
         )
-    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx)
+    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx, knowledge_base=kb)
 
 
 @router.delete(

@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "e026fdc8417b"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -7,10 +7,12 @@ source_sha: "92cb2595f5d1"
 Ten dokument opisuje, jak traktowane są pliki w dwóch kontekstach: uploady
 plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
-Usunięcie bazy odłącza i dezaktywuje źródła synchronizacji, których celem była ta baza.
-Zachowują konfigurację konektora, ale przed kolejną synchronizacją wymagają jawnego
-przypisania; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy
-zachowuje jej źródła, bo wiersz celu pozostaje. Ingest z CLI odrzuca nazwę zarezerwowaną
+Usunięcie bazy odłącza i dezaktywuje dokładnie te źródła synchronizacji, które ją
+zapisują, niezależnie od tego, kto jeszcze ma tę nazwę. Zachowują konfigurację
+konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania i ponownej
+aktywacji; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy też
+odłącza i dezaktywuje jej źródła: jej wiersz zostaje, ale źródło pozostawione na niej
+zsynchronizowałoby usuniętą treść z powrotem. Ingest z CLI odrzuca nazwę zarezerwowaną
 przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
 
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
@@ -695,15 +697,26 @@ Rozwiązaniem zapasowym jest wyłącznie baza o zasięgu app: baza osobista poza
 jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
-więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie - najstarszej
-bazy organizacji o tej nazwie - i tylko ta baza je wyświetla i uruchamia. Każdy
-route API, który kieruje źródło do kolekcji, sprawdza prawo zapisu do tej bazy, a
-dodanie źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400.
+Źródło synchronizacji zapisuje bazę wiedzy, do której synchronizuje
+(`knowledge_base_id`), a nie tylko nazwę kolekcji, i tylko ta baza je wyświetla,
+uruchamia i pokazuje jego historię. Źródło dodane z zakładki **Sync** bazy zapisuje
+tę bazę, więc dwie bazy o tej samej nazwie zachowują własne źródła. Route, który
+kieruje źródło do kolekcji po nazwie, zapisuje bazę, do której ta nazwa rozwiązuje
+się dla organizacji wywołującego (rozwiązywanie opisane wyżej), i sprawdza prawo
+zapisu do tej bazy.
 
-Gdy osobista baza członka jest starsza niż baza organizacji o tej samej nazwie,
-synchronizacje organizacji o tej nazwie trafiają więc do bazy osobistej, a baza
-organizacji nie przyjmuje źródła: utwórz ją pod własną nazwą.
+`rag-source-add` zapisuje sprawdzoną bazę organizacji, a
+`--knowledge-base` wskazuje jedną, gdy nazwę ma kilka baz organizacji
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Źródło bez bazy wiedzy nie synchronizuje. Aktualizacja, która dodała kolumnę, dała
+każdemu istniejącemu źródłu bazę, do której wcześniej pisała jego synchronizacja, a
+źródło, którego kolekcji nie ma żadna baza jego organizacji ani wdrożenia,
+dezaktywowała i zapisała jego id w logu: wskaż mu bazę wiedzy i ustaw z powrotem
+`is_active` na true, aby znowu synchronizowało.
+Zapisała w logu także każde źródło pozostawione w osobistej bazie członka, gdy
+organizacja ma bazę organizacji o tej samej nazwie - tam to źródło synchronizowało
+wcześniej: przenieś je, jeśli należy do bazy organizacji.
 
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 

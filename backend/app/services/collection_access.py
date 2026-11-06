@@ -20,7 +20,6 @@ while `/rag/collections/{name}/info` did not - that let one tenant read
 another's collection while the listing looked perfectly scoped.
 """
 
-from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # happens to reach the models first: on an empty metadata the collision check
 # answers "nothing collides" with no error to say so.
 import app.db.models  # noqa: F401
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
 from app.db.locks import LockScope, hold_name
@@ -104,22 +103,16 @@ def _as_uuid(value: str) -> UUID | None:
         return None
 
 
-def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[KnowledgeBase]) -> bool:
+def _feeds(source: SyncSource, kb: KnowledgeBase) -> bool:
     """Whether a sync source feeds this knowledge base - the one rule for sources.
 
-    A source has an organization and a collection name but no base of its own,
-    so it feeds the base its sync writes under: its organization's base by that
-    name, else an app-scoped one (`knowledge_base_repo.choose_for_collection`,
-    the choice the sync itself makes). `candidates` are the bases claiming the
-    name, oldest first. Only that base: bases of one organization used to share
-    their sources because they shared their rows, and they no longer share rows
-    (#2537) - a second base of the name would list and run a source whose
-    documents it never holds.
+    A source feeds the base it records, the one it was created on or pointed at,
+    and the one its sync writes into. It used to record only a collection name
+    and be resolved to a base again by that name, which is not unique: an
+    organization's base lost its sources to an older personal base of the same
+    name, and a deleted base's sources passed to whichever base kept it (#2551).
     """
-    if source.collection_name != kb.collection_name:
-        return False
-    target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
-    return target is not None and target.id == kb.id
+    return source.knowledge_base_id is not None and source.knowledge_base_id == kb.id
 
 
 def _no_collection(name: str) -> NotFoundError:
@@ -229,16 +222,10 @@ class CollectionAccessService:
         """
         kbs = await self._readable_kbs_for(ctx, name)
         names = list(dict.fromkeys(kb.collection_name for kb in kbs))
-        candidates = await knowledge_base_repo.list_by_collection_names(self.db, names)
-        sources = await sync_source_repo.list_for_collections(self.db, names)
-        return SyncLogScope(
-            collections=names,
-            sync_source_ids=[
-                source.id
-                for source in sources
-                if any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
-            ],
+        sources = await sync_source_repo.list_for_knowledge_bases(
+            self.db, list(dict.fromkeys(kb.id for kb in kbs))
         )
+        return SyncLogScope(collections=names, sync_source_ids=[source.id for source in sources])
 
     async def _readable_kbs_for(self, ctx: AuthContext, name: str | None) -> list[KnowledgeBase]:
         """Every base claiming `name` that this caller reads, or all of theirs; 404 for none."""
@@ -367,8 +354,7 @@ class CollectionAccessService:
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
-        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
-        if not _feeds(source, kb, candidates):
+        if not _feeds(source, kb):
             raise NotFoundError(
                 message="Sync source not found in this knowledge base",
                 details={"kb_id": kb.id, "source_id": source_id},
@@ -376,31 +362,42 @@ class CollectionAccessService:
         return source
 
     async def detach_sources_targeting(self, kb: KnowledgeBase) -> None:
-        """Detach sources before deleting their resolved target, under the name lock.
+        """Detach and deactivate exactly this base's sync sources, before it is deleted or cleared.
 
-        Keeping only the name would silently grant the source a different base
-        after deletion. Preserve its configuration for an explicit reassignment.
+        `KnowledgeBaseService._tear_down` (`DELETE /kb/{id}`, `DELETE
+        /rag/collections/{name}` and `rag-drop`, a cleared default base included,
+        whose row stays) and a member's personal purge call this, whoever else
+        holds the name: a source left pointing at the name would sync into the
+        base that keeps it, or unfiled into none, and one left on a cleared
+        default would refill it (#2551). An organization's purge does not: its
+        sources go with it. The configuration is kept for an explicit
+        reassignment.
+
+        Under the name's teardown lock, which a queued sync takes and then
+        re-reads its source under, so a run cannot start on a base being deleted.
         """
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name)
-        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
-        sources = await sync_source_repo.get_all(
-            self.db, collection_name=kb.collection_name, for_update=True
-        )
+        sources = await sync_source_repo.get_all(self.db, knowledge_base_id=kb.id, for_update=True)
         for source in sources:
-            if _feeds(source, kb, candidates) or len(candidates) == 1:
-                await sync_source_repo.update(
-                    self.db, source.id, collection_name=None, is_active=False
-                )
+            await sync_source_repo.update(
+                self.db,
+                source.id,
+                collection_name=None,
+                knowledge_base_id=None,
+                is_active=False,
+            )
 
     async def source_target(self, ctx: AuthContext, name: str) -> KnowledgeBase:
-        """The base a sync source naming this collection writes into, if writable, or 404.
+        """The base a source pointed at this collection by name syncs into, if writable, or 404.
 
-        For the routes that point a source at a collection by name. A source
-        records an organization and a name, not a base, so its sync writes into
-        the base :func:`_feeds` resolves - the caller organization's oldest base
-        by the name, else an app-scoped one. Authorizing any writable base of the
-        name instead let a member who owns a newer same-named personal base point
-        a source at the organization's base they cannot edit (#2537).
+        For the routes that point a source at a collection by name rather than
+        from a base. The name is resolved the way a collection name is for the
+        caller's organization (`knowledge_base_repo.choose_for_collection`: its
+        oldest base by the name, else an app-scoped one), and the source records
+        the base answered here. Authorizing any writable base of the name instead
+        let a member who owns a newer same-named personal base point a source at
+        the organization's base they cannot edit (#2537). To attach a source to
+        one particular base of a shared name, add it from that base.
         """
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, name)
@@ -409,45 +406,39 @@ class CollectionAccessService:
             raise _no_collection(name)
         return target
 
-    async def new_source_feeds(self, ctx: AuthContext, kb: KnowledgeBase) -> None:
-        """Refuse a sync source on a base its sync would not write into.
+    async def repoint_target(
+        self, ctx: AuthContext, source: SyncSource, name: str | None
+    ) -> KnowledgeBase | None:
+        """The base a source patched by name moves to, or `None` when it does not move.
 
-        A source records an organization and a collection name, not a base, so
-        its sync writes into the base :func:`_feeds` resolves - the caller
-        organization's oldest base by the name, else an app-scoped one. A source
-        added to another same-named base would sync into that one, and would not
-        be listed under the base it was added to (#2537).
-
-        Raises:
-            BadRequestError: The sync would write into a different base.
+        A new name is resolved and authorized as :meth:`source_target` does one.
+        `None` for a detach (`name` is `None`), and for the name the source
+        already has while it records a base: resolving that again would move the
+        source to whichever base of the name the caller's organization resolves
+        to first, away from the one it was added to - or refuse a caller who may
+        not write that other base (#2551). A source with the name but no base -
+        detached, or one the upgrade could not attribute - is resolved, which is
+        how it is pointed at a base again.
         """
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name)
-        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
-        target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
-        if target is None or target.id != kb.id:
-            raise BadRequestError(
-                message=(
-                    "A sync source here would sync into another knowledge base named "
-                    f"'{kb.collection_name}', so it cannot be added to this one. "
-                    "Use a knowledge base with a name of its own."
-                ),
-                details={"kb_id": str(kb.id), "collection": kb.collection_name},
-            )
+        if name is None or (
+            name == source.collection_name and source.knowledge_base_id is not None
+        ):
+            return None
+        return await self.source_target(ctx, name)
 
     async def kb_sync_sources(self, ctx: AuthContext, kb: KnowledgeBase) -> list[SyncSource]:
         """The caller organization's sync sources feeding this knowledge base, newest first.
 
-        For a route that has already authorized the base. By :func:`_feeds`, as
-        :meth:`kb_sync_source` decides one: on the collection name and the
-        caller's organization alone, a member who reads only an app-scoped base
-        listed the sources - configuration, credential id, last error - of a
-        private base of their organization sharing its name (#2486).
+        For a route that has already authorized the base. The sources recording
+        this base (:func:`_feeds`, asked in the query), as :meth:`kb_sync_source`
+        decides one. Deciding by the collection name and the caller's
+        organization alone let a member who reads only an app-scoped base list
+        the sources - configuration, credential id, last error - of a private
+        base of their organization sharing its name (#2486).
         """
-        sources = await sync_source_repo.get_all(
-            self.db, organization_id=ctx.organization_id, collection_name=kb.collection_name
+        return await sync_source_repo.get_all(
+            self.db, organization_id=ctx.organization_id, knowledge_base_id=kb.id
         )
-        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
-        return [source for source in sources if _feeds(source, kb, candidates)]
 
     async def _holds(self, kb: KnowledgeBase, doc: RAGDocument) -> bool:
         """Whether a document is in this knowledge base's scope.
@@ -497,8 +488,6 @@ class CollectionAccessService:
             else await sync_source_repo.get_by_id(self.db, log.sync_source_id)
         )
         for kb in candidates:
-            if (source is None or _feeds(source, kb, candidates)) and await writable_kb(
-                self.db, ctx, kb
-            ):
+            if (source is None or _feeds(source, kb)) and await writable_kb(self.db, ctx, kb):
                 return True
         return False

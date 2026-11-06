@@ -287,7 +287,8 @@ class KnowledgeBaseService:
         documents deleted with it, the stale-searchable-chunks bug a kept table
         left behind (#1361, #1364). A search reads an absent table as empty and
         the next upload recreates it (`_ensure_collection`); a non-default KB's
-        row goes too.
+        row goes too. Either way the sync sources recording the base are
+        detached and deactivated (#2551).
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
@@ -305,7 +306,9 @@ class KnowledgeBaseService:
         /rag/collections/{name}` (`delete_for_rag_collection`) and `rag-drop`
         (`drop_collection_by_name`, through the latter) all run, so each rule
         below exists once; the two copies had drifted (#2568). The caller has
-        resolved access, and refused or allowed a default.
+        resolved access, and refused or allowed a default. Every path detaches
+        and deactivates exactly the sync sources recording this base, a kept
+        default's included (`detach_sources_targeting`, #2551).
 
         The name is not tenant-unique (#913), so what goes depends on whether a
         base *other than this one* still holds it. If one does, the table backs
@@ -381,8 +384,10 @@ class KnowledgeBaseService:
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
+        # Unconditional: a default's row stays, so its sources would otherwise stay
+        # due and sync the purged documents back into it.
+        await CollectionAccessService(self.db).detach_sources_targeting(kb)
         if not kb.is_default:
-            await CollectionAccessService(self.db).detach_sources_targeting(kb)
             await knowledge_base_repo.delete(self.db, kb.id)
         # Always a job: a kept table has the base's chunks to purge, and an
         # unreferenced one is dropped.

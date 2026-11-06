@@ -205,22 +205,22 @@ async def _record_embedding_spend(
             )
 
 
-async def _knowledge_base_for(
-    db: AsyncSession, collection_name: str | None, organization_id: UUID | None
-) -> KnowledgeBase | None:
-    """The knowledge base behind a collection name, or `None` if none claims it.
+async def _source_knowledge_base(db: AsyncSession, source: SyncSource) -> KnowledgeBase | None:
+    """The knowledge base a sync source records, if it still holds the source's collection.
 
-    The org-scoped resolution itself is `knowledge_base_repo.get_for_collection`,
-    shared with per-collection embedding resolution so the tenant-narrowing rule
-    the non-unique `collection_name` needs lives in one place (#913, #992). Two
-    callers still reach `None` before it: a local-directory sync, which names a
-    path on the server rather than a collection somebody configured, and a sync
-    source with no collection at all - an org-level integration template that
-    exists to be cloned and should never have been run.
+    By the id the source records, never by its collection name: the name is not
+    unique, and resolving it again filed one base's syncs under another of the
+    same name, or under none (#2551). `None` for a source with no base - an
+    org-level integration template, a source whose base was deleted, one the
+    upgrade could not attribute - and for a base no longer on the source's
+    collection; a sync refuses all of them rather than writing anywhere.
     """
-    if collection_name is None:
+    if source.knowledge_base_id is None or source.collection_name is None:
         return None
-    return await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
+    kb = await knowledge_base_repo.get_by_id(db, source.knowledge_base_id)
+    if kb is None or kb.collection_name != source.collection_name:
+        return None
+    return kb
 
 
 async def _still_ingestable(document_id: str, collection_name: str) -> bool:
@@ -1073,7 +1073,7 @@ async def _notify_sync_start_failure(
         if log is not None:
             initiator_user_id = log.triggered_by_user_id
             occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
-    kb = await _knowledge_base_for(db, source.collection_name, source.organization_id)
+    kb = await _source_knowledge_base(db, source)
     await NotificationService(db).sync_failed(
         organization_id=source.organization_id,
         initiator_user_id=initiator_user_id,
@@ -1358,17 +1358,25 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             return {"status": "error", "message": message}
 
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
-        if source.collection_name is None or source.collection_name != assigned_collection:
-            # Both callers guarantee this before dispatching: `trigger_sync`
-            # refuses a source with no collection, and the scheduler's own
-            # query only selects sources that have one. Guarded again here
-            # because a source can be edited between `trigger_sync`'s check and
-            # this job actually running, the same stuck-log risk as above applies.
-            message = (
-                "Source has no assigned collection."
-                if source.collection_name is None
-                else "Source collection changed before this sync started. Run it again."
-            )
+        # Both callers guarantee a collection and a base before dispatching:
+        # `trigger_sync` refuses a source without them, and the scheduler's own
+        # query only selects sources that have them. Guarded again here because a
+        # source can be edited or its base deleted between `trigger_sync`'s check
+        # and this job actually running, the same stuck-log risk as above
+        # applies. The base is the one the source records, read after the lock
+        # and the refresh above: a source with none writes nothing, because
+        # syncing it by its name is what filed one base's documents under
+        # another, or unfiled (#2551).
+        knowledge_base: KnowledgeBase | None = None
+        collection_name = source.collection_name
+        if collection_name is None:
+            message = "Source has no assigned collection."
+        elif collection_name != assigned_collection:
+            message = "Source collection changed before this sync started. Run it again."
+        else:
+            knowledge_base = await _source_knowledge_base(db, source)
+            message = "Source has no knowledge base. Assign it to one before syncing it again."
+        if knowledge_base is None or collection_name is None:
             await _notify_sync_start_failure(
                 db,
                 source=source,
@@ -1378,7 +1386,6 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             )
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
-        collection_name = source.collection_name
         sync_mode = source.sync_mode
         organization_id = source.organization_id
         stored_state = source.sync_state
@@ -1423,40 +1430,34 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                     # `update_after_sync` above: both report the same outcome,
                     # and hooking both would double-fire the notification
                     # (#1598, Decision 1).
-                    kb = await _knowledge_base_for(db, collection_name, organization_id)
                     await NotificationService(db).sync_failed(
                         organization_id=organization_id,
                         initiator_user_id=log.triggered_by_user_id,
                         occurrence_id=f"{log.id}:{log.started_at.isoformat()}",
                         collection_name=collection_name,
-                        collection_id=kb.id if kb else None,
+                        collection_id=knowledge_base.id,
                         error=reason,
                     )
                 return {"status": "error", "message": reason}
 
-        # One lookup for both answers, in the session that is already open: the
-        # collection's parser settings, and the knowledge base id every document
-        # this sync creates has to carry. Without the second, a synced document
-        # was absent from the knowledge base's Documents tab, from delete and
-        # from a collection's own stats, while search over it worked (#992).
-        knowledge_base = await _knowledge_base_for(db, collection_name, organization_id)
-        ingestion_config = (
-            deployment_defaults()
-            if knowledge_base is None
-            else IngestionConfig.model_validate(knowledge_base.ingestion_config)
-        )
-        knowledge_base_id = None if knowledge_base is None else knowledge_base.id
+        # The source's base answers both, in the session that is already open:
+        # the collection's parser settings, and the knowledge base id every
+        # document this sync creates has to carry. Without the second, a synced
+        # document was absent from the knowledge base's Documents tab, from
+        # delete and from a collection's own stats, while search over it worked
+        # (#992).
+        ingestion_config = IngestionConfig.model_validate(knowledge_base.ingestion_config)
+        knowledge_base_id = knowledge_base.id
         # The collection's scope, read off the base while its row is loaded (the
         # property only touches already-loaded columns): the base and its tenant -
-        # its organization for an org base, None for an app-scoped one or a
-        # collection no base claims. What this sync's rows are stamped and scoped
-        # by (#1684, #2537).
-        scope = VectorScope(tenant=None) if knowledge_base is None else knowledge_base.vector_scope
+        # its organization for an org base, None for an app-scoped one. What this
+        # sync's rows are stamped and scoped by (#1684, #2537).
+        scope = knowledge_base.vector_scope
         # Both models, resolved once for the collection rather than per file, and
         # recorded on every row this sync writes - the provenance the documents
         # page reads. An upload has carried them since it started tracking; a
         # sync reported neither.
-        embedding_model = None if knowledge_base is None else knowledge_base.embedding_model
+        embedding_model = knowledge_base.embedding_model
         image_description_model = await IngestionConfigService(db).resolved_image_model(
             organization_id, ingestion_config
         )
@@ -1761,7 +1762,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 # connector, a collection that lost its rows) must not be
                 # reported as a failure to record the sync's own outcome.
                 try:
-                    kb = await _knowledge_base_for(db, collection_name, organization_id)
+                    # Read again: a base deleted while the sync ran is no
+                    # collection to point the notification at.
+                    kb = await knowledge_base_repo.get_by_id(db, knowledge_base_id)
                     notifications = NotificationService(db)
                     occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
                     if status == "done":

@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_log import SyncLog
@@ -79,6 +80,20 @@ def tenant() -> Iterator[_Tenant]:
         yield library
 
 
+def _base(organization_id: uuid.UUID) -> KnowledgeBase:
+    """The organization base the source syncs into - a source records one (#2551)."""
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name=COLLECTION,
+        scope=KBScope.ORG.value,
+        collection_name=COLLECTION,
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        organization_id=organization_id,
+        visibility="org",
+    )
+
+
 async def _source(engine: AsyncEngine) -> str:
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
         user = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", full_name="Ada")
@@ -89,6 +104,9 @@ async def _source(engine: AsyncEngine) -> str:
         )
         db.add(organization)
         await db.flush()
+        base = _base(organization.id)
+        db.add(base)
+        await db.flush()
         source = await sync_source_repo.create(
             db,
             name="Handbook",
@@ -96,6 +114,7 @@ async def _source(engine: AsyncEngine) -> str:
             config={"site_url": SITE},
             organization_id=organization.id,
             collection_name=COLLECTION,
+            knowledge_base_id=base.id,
         )
         await db.commit()
         return str(source.id)

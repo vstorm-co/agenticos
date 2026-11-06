@@ -56,6 +56,7 @@ def _row(**overrides) -> SimpleNamespace:
         "name": "Legal docs",
         "connector_type": "gdrive",
         "collection_name": "legal",
+        "knowledge_base_id": None,
         "config": dict(_CONFIG),
         "secret_id": _SECRET,
         "organizational_unit": None,
@@ -93,6 +94,7 @@ def _service(monkeypatch: pytest.MonkeyPatch, *, stored=None, updated=None) -> A
                 organization_id=kwargs["organization_id"],
                 name=kwargs["name"],
                 collection_name=kwargs["collection_name"],
+                knowledge_base_id=kwargs["knowledge_base_id"],
                 config=kwargs["config"],
                 secret_id=kwargs["secret_id"],
             )
@@ -105,9 +107,21 @@ def _service(monkeypatch: pytest.MonkeyPatch, *, stored=None, updated=None) -> A
         sync_source_module.sync_source_repo, "update", AsyncMock(return_value=updated)
     )
     monkeypatch.setattr(sync_source_module.sync_source_repo, "delete", AsyncMock())
+    # The base a source records is held and read again (`SyncSourceService._target`).
+    monkeypatch.setattr(sync_source_module, "hold_name", AsyncMock())
+    monkeypatch.setattr(
+        sync_source_module.knowledge_base_repo, "hold_key_share", AsyncMock(return_value=True)
+    )
     audit = AsyncMock()
     monkeypatch.setattr(sync_source_module, "record_audit", audit)
     return audit
+
+
+def _base(collection_name: str) -> MagicMock:
+    """The knowledge base the caller resolved a collection name to (#2551)."""
+    return MagicMock(
+        id=uuid.uuid4(), collection_name=collection_name, scope="org", organization_id=_ORG
+    )
 
 
 def _create(**overrides) -> SyncSourceCreate:
@@ -132,10 +146,15 @@ class TestEveryWritePathLeavesAnEntry:
     ):
         audit = _service(monkeypatch)
 
-        await SyncSourceService(MagicMock()).create_source(_create(), ctx=_ctx())
+        base = _base("legal")
+
+        await SyncSourceService(MagicMock()).create_source(
+            _create(), ctx=_ctx(), knowledge_base=base
+        )
 
         entry = _entry(audit)
         assert entry["action"] == "sync_source.created"
+        assert entry["details"]["knowledge_base_id"] == str(base.id)
         assert entry["actor_user_id"] == _CALLER
         assert entry["organization_id"] == _ORG
         assert entry["target_type"] == "sync_source"
@@ -152,7 +171,10 @@ class TestEveryWritePathLeavesAnEntry:
         audit = _service(monkeypatch, stored=stored)
 
         await SyncSourceService(MagicMock()).clone_source(
-            str(stored.id), SyncSourceClone(collection_name="everyone"), ctx=_ctx()
+            str(stored.id),
+            SyncSourceClone(collection_name="everyone"),
+            ctx=_ctx(),
+            knowledge_base=_base("everyone"),
         )
 
         entry = _entry(audit)
@@ -185,7 +207,10 @@ class TestEveryWritePathLeavesAnEntry:
         )
 
         await SyncSourceService(MagicMock()).update_source(
-            str(stored.id), SyncSourceUpdate(collection_name="everyone"), ctx=_ctx()
+            str(stored.id),
+            SyncSourceUpdate(collection_name="everyone"),
+            ctx=_ctx(),
+            knowledge_base=_base("everyone"),
         )
 
         entry = _entry(audit)
@@ -244,10 +269,13 @@ class TestWhatMayNotReachTheTrail:
         service = SyncSourceService(MagicMock())
 
         if act == "create":
-            await service.create_source(_create(), ctx=_ctx())
+            await service.create_source(_create(), ctx=_ctx(), knowledge_base=_base("legal"))
         elif act == "clone":
             await service.clone_source(
-                str(stored.id), SyncSourceClone(collection_name="everyone"), ctx=_ctx()
+                str(stored.id),
+                SyncSourceClone(collection_name="everyone"),
+                ctx=_ctx(),
+                knowledge_base=_base("everyone"),
             )
         elif act == "update":
             await service.update_source(

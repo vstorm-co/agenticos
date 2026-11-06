@@ -1,5 +1,5 @@
 ---
-source_sha: "92cb2595f5d1"
+source_sha: "e026fdc8417b"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -7,10 +7,14 @@ source_sha: "92cb2595f5d1"
 Dieses Dokument beschreibt, wie Dateien in zwei Zusammenhängen behandelt werden:
 Datei-Uploads im Chat, die der Person gehören, die sie gemacht hat, und die
 Ingestion von RAG-Dokumenten, die zu einer Collection gehört und daran gebunden
-Beim Löschen einer Basis werden die Sync-Quellen getrennt und deaktiviert, deren Ziel diese
-Basis war. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync ist eine
-ausdrückliche Neuzuordnung nötig. Eine gleichnamige Basis übernimmt sie nicht. Beim Leeren
-der Standardbasis bleiben die Quellen erhalten, weil die Zielzeile bestehen bleibt.
+Beim Löschen einer Basis werden genau die Sync-Quellen getrennt und deaktiviert, die diese
+Basis festhalten, gleich wer den Namen sonst noch trägt. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync sind eine
+ausdrückliche Neuzuordnung und Reaktivierung nötig. Eine gleichnamige Basis übernimmt sie
+nicht.
+
+Auch beim Leeren der Standardbasis werden ihre Quellen getrennt und deaktiviert:
+Ihre Zeile bleibt, aber eine dort belassene Quelle würde den gelöschten Inhalt zurück
+synchronisieren.
 Der CLI-Import verweigert Namen, die bis zur Bereinigung für einen ausstehenden Drop reserviert sind.
 
 ist, [wer sie erreichen darf](#who-may-reach-a-collection).
@@ -735,17 +739,28 @@ Der Rückfall ist ausschließlich eine app-weite Basis: Eine persönliche Basis
 außerhalb jeder Organisation hat ebenfalls keine Organisation, gehört aber einer
 einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Eine Sync-Quelle hält eine Organisation und einen Collection-Namen fest, keine
-Wissensbasis, also schreibt ihr Sync in die Basis, die diese Auflösung wählt - die
-älteste Basis der Organisation mit diesem Namen -, und nur diese Basis listet und
-startet sie. Jede API-Route, die eine Quelle auf eine Collection richtet, prüft
-Schreibrechte auf diese Basis, und eine Quelle einer anderen Basis desselben
-Namens hinzuzufügen, wird mit 400 abgelehnt.
+Eine Sync-Quelle hält die Wissensbasis fest, in die sie synchronisiert
+(`knowledge_base_id`), nicht nur einen Collection-Namen, und nur diese Basis listet
+sie, startet sie und zeigt ihren Verlauf. Eine Quelle, die im **Sync**-Tab einer
+Basis angelegt wird, hält diese Basis fest, sodass zwei Basen mit demselben Namen
+jeweils ihre eigenen Quellen behalten. Eine Route, die eine Quelle über den Namen auf
+eine Collection richtet, hält die Basis fest, zu der der Name für die Organisation
+des Aufrufers aufgelöst wird (die Auflösung oben), und prüft Schreibrechte auf diese
+Basis.
 
-Ist die persönliche Basis eines Mitglieds älter als die gleichnamige Basis der
-Organisation, landen die Syncs der Organisation unter diesem Namen deshalb in der
-persönlichen Basis, und die Basis der Organisation nimmt keine Quelle an: Lege sie
-unter einem eigenen Namen an.
+`rag-source-add` hält die geprüfte Basis der Organisation fest, und
+`--knowledge-base` wählt eine aus, wenn mehrere Basen der Organisation den Namen
+tragen ([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Eine Quelle ohne Wissensbasis synchronisiert nicht. Das Upgrade, das die Spalte
+hinzufügte, gab jeder bestehenden Quelle die Basis, in die ihr Sync bisher schrieb,
+und deaktivierte eine Quelle, deren Collection keine Basis ihrer Organisation oder
+des Deployments trägt, und protokollierte ihre ID: Richte sie auf eine Wissensbasis
+und setze `is_active` wieder auf true, damit sie wieder synchronisiert.
+Es protokollierte auch jede Quelle, die es in der persönlichen Basis eines Mitglieds
+beließ, während die Organisation eine Organisationsbasis desselben Namens hat - dort
+synchronisierte die Quelle bisher: Verschiebe sie, wenn sie zur Basis der
+Organisation gehört.
 
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 

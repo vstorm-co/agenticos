@@ -50,7 +50,7 @@ interface SyncSourceWizardProps {
   collections: { name: string; scope: KBScope }[];
   /** Which of {@link collections} the picker starts on, and what clone mode fills. */
   defaultCollection?: string;
-  /** Existing org integrations (without this KB's collection_name) for "pick existing" flow. */
+  /** Existing org integrations (not already recorded on this KB) for "pick existing" flow. */
   orgIntegrations?: SyncSourceRead[];
   /** The connector list request failed; an empty list is not a fact yet. */
   connectorsFailed?: boolean;

@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.db.locks import LockScope, try_hold_subject_on_connection
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
@@ -142,6 +143,20 @@ def _site() -> Iterator[_Site]:
         yield site
 
 
+def _base(organization_id: uuid.UUID) -> KnowledgeBase:
+    """The organization base the source syncs into - a source records one (#2551)."""
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name=COLLECTION,
+        scope=KBScope.ORG.value,
+        collection_name=COLLECTION,
+        embedding_model="text-embedding-3-small",
+        embedding_dim=settings.rag.embeddings_config.dim,
+        organization_id=organization_id,
+        visibility="org",
+    )
+
+
 async def _source(
     engine: AsyncEngine, *, beside: str | None = None, sync_mode: str = "new_only"
 ) -> str:
@@ -157,10 +172,15 @@ async def _source(
             db.add(organization)
             await db.flush()
             organization_id = organization.id
+            base = _base(organization_id)
+            db.add(base)
+            await db.flush()
+            knowledge_base_id = base.id
         else:
             neighbour = await sync_source_repo.get_by_id(db, uuid.UUID(beside))
-            assert neighbour is not None
+            assert neighbour is not None and neighbour.knowledge_base_id is not None
             organization_id = neighbour.organization_id
+            knowledge_base_id = neighbour.knowledge_base_id
         source = await sync_source_repo.create(
             db,
             name="Docs site",
@@ -168,6 +188,7 @@ async def _source(
             config={"root_url": "https://docs.example.com/"},
             organization_id=organization_id,
             collection_name=COLLECTION,
+            knowledge_base_id=knowledge_base_id,
             sync_mode=sync_mode,
         )
         await db.commit()

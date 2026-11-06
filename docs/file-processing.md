@@ -657,15 +657,25 @@ The fallback is an app-scoped base only: a personal base outside any
 organization has no organization either, but it is one person's
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-A sync source records an organization and a collection name, not a knowledge
-base, so its sync writes into the base that resolution picks - the organization's
-oldest base by the name - and only that base lists and runs it. Every API route
-that points a source at a collection checks write access to that base, and adding
-one to another base of the same name is refused with 400.
+A sync source records the knowledge base it syncs into (`knowledge_base_id`), not
+only a collection name, and only that base lists, runs and shows the history of it.
+A source added from a base's **Sync** tab records that base, so two bases sharing a
+name each keep their own sources. A route that points a source at a collection by
+name records the base the name resolves to for the caller's organization, the
+resolution above, and checks write access to that base.
 
-When a member's personal base is older than the organization's base of the same
-name, the organization's syncs by that name therefore land in the personal base, and
-the organization's base takes no source: create it under a name of its own.
+`rag-source-add` records the organization base it checked, and `--knowledge-base`
+names one when several of the organization's bases hold the name
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+A source with no knowledge base does not sync. The upgrade that added the column
+gave each existing source the base its sync wrote into before, and deactivated a
+source whose collection no base of its organization or of the deployment holds,
+logging its id: point it at a knowledge base and set `is_active` back to true to
+sync it again. It also logged each
+source it left on a member's personal base while the organization has an org base
+of the same name, which is where such a source synced before: move it if it
+belongs to the organization's base.
 
 !!! warning "One collection name is one embedding space"
 
@@ -875,11 +885,12 @@ can be ingested into it — delete it and create one under another name. Nothing
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
 
-Deleting a base detaches and deactivates the sync sources whose resolved target was that base.
-They keep their connector configuration, but require an explicit reassignment before syncing
-again; another base with the same name does not inherit them. Clearing a default base keeps
-its sources because its target row remains. CLI ingestion refuses a name reserved for a
-queued drop until cleanup releases it.
+Deleting a base detaches and deactivates exactly the sync sources that record it, whoever
+else holds the name. They keep their connector configuration, but require an explicit
+reassignment and reactivation before syncing again; another base with the same name does
+not inherit them. Clearing a default base detaches and deactivates its sources too: its
+row stays, but a source left on it would sync the dropped content back. CLI ingestion
+refuses a name reserved for a queued drop until cleanup releases it.
 
 ### Who may reach a collection
 
