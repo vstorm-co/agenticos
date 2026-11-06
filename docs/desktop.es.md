@@ -1,5 +1,5 @@
 ---
-source_sha: "63656025a4ad"
+source_sha: "700737c6ce4e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -179,6 +179,12 @@ La pantalla local muestra las instancias guardadas, sus direcciones y estado.
 interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
 sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
 iniciado externamente no lo convierte en una instancia administrada.
+
+Una instancia local ejecuta la API, el worker, la consola, la base de datos y
+Redis, sin servicio de sandbox, servicio de navegador ni almacén de objetos. Los
+agentes reciben el espacio de trabajo solo de archivos. En **Chat controls → Tools & files**,
+elige **Work on → This computer** para carpetas y **Browser → Local browser**
+para navegar. **Computer use** concede pantalla, ratón y teclado por separado.
 
 Los metadatos están en `local-instances.json` en el directorio de configuración;
 los archivos nuevos en `local-stacks/<id>/` en el directorio de datos. Las
@@ -524,7 +530,7 @@ y la preparación correctos actualizan el estado automáticamente.
 
 En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
 
-La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. Sus pestañas son **Model**, **Herramientas y archivos** (Coding agent, Work on, Browser, Computer use y skills) y **Preferencias** (aprobaciones y notificaciones).
 
 Configura la capability **Coding agent** como **On this computer**, elige una
 carpeta en **Work on** y concédele acceso completo. La autorización nativa se
@@ -702,3 +708,9 @@ Si el ordenador concreto autorizado está desconectado antes de ejecutar, una ac
 Pausar, cambiar la tarea o el permiso local, eliminar la rutina o alcanzar su fin cancela el trabajo pendiente anterior en lugar de redirigirlo a otra carpeta. Una sesión de dispositivo revocada requiere revisión. Tres trabajos muertos o perdidos antes de la admisión detienen la rutina y crean un incidente para su propietario. El contexto del evento fallido sigue disponible en su exportación de datos. Los contextos iniciados y cancelados se borran de inmediato. Los metadatos terminados y contextos fallidos siguen la retención del historial de ejecuciones de la organización; el trabajo desconectado activo permanece hasta su admisión, cancelación o eliminación.
 
 Actualiza API, workers y escritorio juntos y drena los workers antiguos antes de habilitar el contrato. Las aplicaciones antiguas no confirman permisos de rutinas; las rutinas locales existentes requieren revisión explícita. La migración `0272_routine_device_waits.py` añade esperas sin cambiar la identidad de la rutina. Antes de revertirla, pausa las rutinas locales y drena sus trabajos: la reversión elimina el contexto pendiente y no lo ejecuta. Las ejecuciones locales antiguas suspendidas sin instantánea del destino necesitan una ejecución nueva.
+
+La elección de acceso local pertenece al agente seleccionado, no a un valor global heredado por otros agentes. Revocar una carpeta también elimina las elecciones guardadas y los consentimientos de programación de sus subcarpetas. Las aplicaciones de escritorio antiguas conservan el consentimiento para todo el equipo solo en una conversación; actualiza la aplicación para reutilizarlo en las conversaciones del mismo agente.
+
+La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
+
+ Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.

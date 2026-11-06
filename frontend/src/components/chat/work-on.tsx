@@ -189,8 +189,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
     onSuccess: (grant, choice) => {
       if (grant) {
         const target = { ...choice.target, ...grant };
-        setTarget(choice.conversationId, target);
-        if (localAgent) rememberForAgent(localAgent.id, target);
+        setTarget(choice.conversationId, target, localAgent === null);
+        if (localAgent && (!target.computer_grant || target.computer_grant_agent === localAgent.id))
+          rememberForAgent(localAgent.id, target);
       }
     },
     onError: fail,
@@ -245,8 +246,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
         mode: grant.mode,
         computer_grant: undefined,
       };
-      setTarget(choice.conversationId, target);
-      if (localAgent) rememberForAgent(localAgent.id, target);
+      setTarget(choice.conversationId, target, localAgent === null);
+      if (localAgent && (!target.computer_grant || target.computer_grant_agent === localAgent.id))
+        rememberForAgent(localAgent.id, target);
     },
   });
   const chooseFolder = (mode: LocalMode) =>
@@ -361,7 +363,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
         </Button>
         {wholeComputer && (
           <p role="status" className="text-muted-foreground mt-2 text-xs leading-relaxed">
-            {localAgent
+            {localAgent && target.computer_grant_agent === localAgent.id
               ? t("agentComputerConsent", { agent: localAgent.name })
               : t("computerConsent")}
           </p>
@@ -414,6 +416,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                         aria-label={t("revoke", { folder: folderName(grant.path) })}
                         onClick={() => {
                           if (active) setTarget(conversationId, null);
+                          useWorkOnStore.getState().forgetFolder(grant.path);
                           revoke.mutate(grant.path);
                         }}
                         className="text-muted-foreground hover:text-foreground rounded p-1"

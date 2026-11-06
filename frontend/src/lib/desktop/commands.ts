@@ -368,6 +368,8 @@ export interface LocalTarget {
   skills?: SkillSource[];
   mode: LocalMode;
   computer_grant?: string;
+  /** Native consent owner; absent on older desktop apps. Never inferred from the request. */
+  computer_grant_agent?: string;
   browser?: boolean;
   computer?: boolean;
   coding_agent?: "claude_code" | "codex";
@@ -387,6 +389,7 @@ export interface LocalGrant {
 export interface LocalState {
   grants: LocalGrant[];
   modes: LocalMode[];
+  computer_grants?: string[];
 }
 
 function parseLocalGrant(value: unknown): LocalGrant {
@@ -400,7 +403,13 @@ export function parseLocalState(value: unknown): LocalState {
     throw new ShellError("malformed", "the granted folders");
   const grants = fields.grants;
   const modes = fields.modes;
-  return { grants: grants.map(parseLocalGrant), modes: modes.filter(isLocalMode) };
+  return {
+    grants: grants.map(parseLocalGrant),
+    modes: modes.filter(isLocalMode),
+    ...(Array.isArray(fields.computer_grants) && fields.computer_grants.every(isString)
+      ? { computer_grants: fields.computer_grants }
+      : {}),
+  };
 }
 
 export async function getLocalState(): Promise<LocalState> {
@@ -434,6 +443,7 @@ export async function allowWholeComputer(
     folder: field(grant, "path", isString),
     mode: "full_access",
     computer_grant: field(grant, "id", isString),
+    ...(typeof grant.agent_id === "string" ? { computer_grant_agent: grant.agent_id } : {}),
   };
 }
 

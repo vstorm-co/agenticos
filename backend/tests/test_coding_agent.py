@@ -18,6 +18,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import anyio
+import anyio.lowlevel
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -1878,3 +1879,32 @@ async def test_private_isolated_subscription_uses_its_explicit_person_without_bo
     )["run_coding_agent"].function(ctx, task="Review")
     assert store.asked_for == [person]
     assert "own" in answer and store.saved == []
+
+
+async def test_parallel_named_sandbox_calls_do_not_overlap_change_capture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second coding task cannot enter the first one's whole-workspace snapshot."""
+    active = 0
+    maximum = 0
+
+    async def run(*_args: object, **_kwargs: object) -> _task.Outcome:
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        await anyio.lowlevel.checkpoint()
+        active -= 1
+        return _task.Outcome(events=[], stderr="", exit_code=0)
+
+    monkeypatch.setattr(_toolset, "run_detached", run)
+    shell = _Shell()
+    call = _tools()["run_coding_agent"].function
+    ctx = _ctx(shell)
+
+    async def task(session: str) -> None:
+        await call(ctx, task="Review", session=session)
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(task, "api")
+        group.start_soon(task, "web")
+    assert maximum == 1

@@ -127,11 +127,13 @@ pub fn menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
         Vec::new()
     });
     for grant in grants {
-        let name = grant
-            .conversation_id
-            .as_deref()
-            .map(|id| format!("Whole computer · {}", id.chars().take(8).collect::<String>()))
-            .unwrap_or_else(|| "Whole computer · new chat".into());
+        let name = if let Some(agent) = &grant.agent_id {
+            format!("Whole computer · {}", label(grant.agent_name.as_deref().unwrap_or(agent)))
+        } else {
+            grant.conversation_id.as_deref()
+                .map(|id| format!("Whole computer · {}", id.chars().take(8).collect::<String>()))
+                .unwrap_or_else(|| "Whole computer · new chat".into())
+        };
         let revoke = MenuItem::with_id(
             app,
             format!("activity:revoke:{}", grant.id),

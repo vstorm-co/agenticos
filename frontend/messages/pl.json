@@ -1527,6 +1527,7 @@
       "folder": "Wybierz folder",
       "folderHint": "Pracuje tylko w wybranym folderze.",
       "cancel": "Nie teraz",
+      "agentUnavailable": "Nie udało się wczytać wybranego agenta. Spróbuj ponownie.",
       "failed": "Nie udało się ustawić dostępu na tym komputerze"
     }
   },
@@ -13211,7 +13212,8 @@
     "disconnectHelp": "Odłączenie usuwa kopię poświadczeń z AgenticOS i zatrzymuje zadania. Grant ChatGPT unieważnisz też w ustawieniach ChatGPT. Zadania harmonogramów i kanałów nie korzystają z tych kont.",
     "personalAccount": "Konto osobiste: {label}",
     "baseRevision": "Snapshot workspace: {revision}",
-    "chatHelp": "Podłącz tutaj swoje konto do prywatnych zadań coding w chmurze. Tool Coding agent musi używać trybu Private cloud task with my account. Lokalny coding na desktopie korzysta z osobnego logowania."
+    "chatTitle": "Twoje konto {name}",
+    "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać."
   },
   "mirage": {
     "folders": "Foldery",

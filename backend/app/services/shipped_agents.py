@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, SubagentRef
+from app.agents.spec import AgentSpec
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentStatus
@@ -16,7 +16,6 @@ from app.services.agent_defaults import (
     FIELDS,
     STARTER,
     baseline,
-    digest,
     fingerprint,
     legacy_defaults,
     merge_defaults,
@@ -82,14 +81,6 @@ class ShippedAgentService:
                 capabilities=agent_templates.for_this_deployment(template.capabilities),
             ).model_dump_json(include={"capabilities"}),
         )
-        if key == STARTER:
-            pin = await self._architect_pin(ctx)
-            release = digest(
-                {
-                    "template": release,
-                    "architect": None if pin is None else pin.model_dump(mode="json"),
-                }
-            )
         if agent.shipped_template is not None and agent.shipped_template.get("release") == release:
             return agent
         agent = await self.registry.get(ctx, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
@@ -168,9 +159,7 @@ class ShippedAgentService:
             capabilities.append(
                 {"id": "sandbox", "config": {"backend": "service", "include_execute": True}}
             )
-        pin = await self._architect_pin(ctx) if template.key == STARTER else None
         return AgentSpec(
-            subagents=[] if pin is None else [pin],
             name=template.name,
             instructions=template.instructions,
             capabilities=capabilities,
@@ -178,21 +167,6 @@ class ShippedAgentService:
             skill_ids=[skill.id for skill in skills],
             starters=list(template.starters),
         )
-
-    async def _architect_pin(self, ctx: AuthContext) -> SubagentRef | None:
-        assistant = await organization_assistant_repo.get(self.db, ctx.organization_id)
-        if assistant is None:
-            return None
-        architect = await agent_repo.get(
-            self.db, assistant.agent_id, organization_id=ctx.organization_id
-        )
-        if (
-            architect is None
-            or architect.status != AgentStatus.PUBLISHED.value
-            or architect.current_version_id is None
-        ):
-            return None
-        return SubagentRef(agent_id=architect.id, agent_version_id=architect.current_version_id)
 
     async def _legacy_baseline(
         self,

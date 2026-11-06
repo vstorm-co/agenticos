@@ -48,7 +48,17 @@ function LocalAccessChoice({
   const t = useTranslations("chat.localAccess");
   const { data: device } = useDeviceStatus();
   const { link } = useDeviceLink();
-  const { pick } = useLocalFolders();
+  const { state, pick } = useLocalFolders();
+  const modes = state.data?.modes ?? [];
+  const folderMode = agent.coding
+    ? modes.includes("full_access")
+      ? "full_access"
+      : null
+    : modes.includes("workspace_write")
+      ? "workspace_write"
+      : modes.includes("read_only")
+        ? "read_only"
+        : null;
   const choose = useMutation({
     mutationFn: async (choice: "computer" | "folder"): Promise<LocalTarget | null> => {
       if (device?.linked !== true && !(await link.mutateAsync()).linked) return null;
@@ -58,7 +68,8 @@ function LocalAccessChoice({
           name: agent.name,
         });
       // A coding agent runs as the person, so its folder needs full access.
-      const grant = await pick.mutateAsync(agent.coding ? "full_access" : "workspace_write");
+      if (folderMode === null) return null;
+      const grant = await pick.mutateAsync(folderMode);
       return grant === null ? null : { folder: grant.path, mode: grant.mode };
     },
     onSuccess: (target) => {
@@ -95,7 +106,7 @@ function LocalAccessChoice({
           type="button"
           variant="outline"
           className="h-auto justify-start py-3 text-left"
-          disabled={choose.isPending || device === undefined}
+          disabled={choose.isPending || device === undefined || folderMode === null}
           onClick={() => choose.mutate("folder")}
         >
           <FolderOpen aria-hidden />

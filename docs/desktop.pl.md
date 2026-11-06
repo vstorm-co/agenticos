@@ -1,5 +1,5 @@
 ---
-source_sha: "63656025a4ad"
+source_sha: "700737c6ce4e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -172,6 +172,12 @@ connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną ins
 z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
 zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
 nie przekazuje aplikacji zarządzania nim.
+
+Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
+usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
+workspace przechowujący same pliki. W **Chat controls → Tools & files** wybierz
+**Work on → This computer** dla dostępu do folderów oraz **Browser → Local browser**
+dla przeglądania. **Computer use** oddzielnie udostępnia ekran, mysz i klawiaturę.
 
 Metadane znajdują się w `local-instances.json` w katalogu konfiguracji; pliki nowych
 instancji w `local-stacks/<id>/` w katalogu danych aplikacji. Istniejące instalacje
@@ -503,7 +509,7 @@ magazynu poświadczeń; udane logowanie i przygotowanie automatycznie odświeża
 
 W aplikacji desktopowej wybierz **Ustawienia czatu → Narzędzia i pliki → Agent programistyczny**, a następnie **Claude Code** lub **Codex**, również gdy opublikowana capability jest wyłączona lub nieobecna. Aplikacja przygotowuje lokalne narzędzia plikowe i otwiera natywny wybór folderu, chyba że bieżący folder ma już grant pełnego dostępu. Anulowanie pozostawia poprzednie ustawienia. **Użyj ustawienia agenta** przywraca opublikowaną konfigurację.
 
-Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Model jest na górze, a pod nim Narzędzia i pliki. Rozwiń **Work on**, aby zarządzać dostępem do folderu, lub **Preferencje**, aby zmienić zatwierdzanie i powiadomienia.
+Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Ma karty **Model**, **Narzędzia i pliki** (Coding agent, Work on, Browser, Computer use i skille) oraz **Preferencje** (zatwierdzanie i powiadomienia).
 
 Ustaw capability **Coding agent** na **On this computer**, wybierz folder w
 **Work on** i przyznaj mu pełny dostęp. Natywna zgoda jest zapamiętywana dla tego
@@ -676,3 +682,9 @@ Gdy konkretny zatwierdzony komputer jest offline przed wykonaniem, trwała aktyw
 Wstrzymanie, zmiana zadania lub zgody lokalnej, usunięcie rutyny albo osiągnięcie jej końca anuluje stare oczekiwanie zamiast przenosić je do innego folderu. Cofnięta sesja urządzenia wymaga ponownego przeglądu. Trzy martwe lub utracone zadania przed dopuszczeniem zatrzymują rutynę i tworzą incydent właściciela; kontekst nieudanego zdarzenia pozostaje dostępny w eksporcie jego danych. Kontekst po rozpoczęciu lub anulowaniu jest od razu usuwany. Zakończone metadane i nieudany kontekst podlegają retencji historii przebiegów organizacji; aktywne oczekiwanie trwa do dopuszczenia, anulowania lub usunięcia.
 
 Wdrażaj API, workery i aplikację komputerową razem; przed włączeniem kontraktu opróżnij stare workery. Starsze aplikacje nie potwierdzają zgód rutyn; istniejące rutyny lokalne wymagają jawnego przeglądu. Migracja `0272_routine_device_waits.py` dodaje oczekiwanie bez zmiany tożsamości rutyny. Przed cofnięciem migracji wstrzymaj rutyny lokalne i opróżnij ich zadania: cofnięcie usuwa oczekujący kontekst i go nie wykonuje. Stare zaparkowane przebiegi bez migawki celu lokalnego wymagają nowego uruchomienia.
+
+Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
+
+Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
+
+ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.

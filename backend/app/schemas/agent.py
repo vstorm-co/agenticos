@@ -114,6 +114,18 @@ class LocalCodingAgent(BaseSchema):
     access: Literal["edit", "read_only"]
 
 
+class PublishedCodingAgent(BaseSchema):
+    """A published version's coding agent binding: which harness, where, how far.
+
+    Defaults mirror the capability's own, so a binding that left a field out reads
+    as it runs.
+    """
+
+    harness: Literal["claude_code", "codex"] = "claude_code"
+    runs_on: Literal["sandbox", "personal_sandbox", "this_computer"] = "sandbox"
+    access: Literal["edit", "read_only"] = "edit"
+
+
 class PublishedModel(BaseSchema):
     """The model an agent's published version runs on.
 
@@ -247,6 +259,15 @@ class AgentRead(BaseSchema):
             "computer, or null when it runs none there. Read off the frozen spec, filled by "
             "the listing, so the chat's composer can say which agent will work in which "
             "folder before the person sends."
+        ),
+    )
+    personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs as a private cloud task "
+            "on the initiating person's own account, or null when it runs none that way. "
+            "Filled by the listing, so the chat can offer to connect that account where "
+            "the agent needs it."
         ),
     )
     local_workspace: bool = Field(

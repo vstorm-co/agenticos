@@ -123,9 +123,16 @@ class DeviceWorkspace:
         paths = posixpath if self._root.startswith("/") else ntpath
         root = paths.normpath(self._root)
         folder = paths.normpath(paths.join(root, path))
-        if folder != root and not folder.startswith(root.rstrip(paths.sep) + paths.sep):
+        if paths.normcase(folder) != paths.normcase(root) and not paths.normcase(folder).startswith(
+            paths.normcase(root).rstrip(paths.sep) + paths.sep
+        ):
             raise WorkspaceUnavailableError(f"{path} is outside the folder this chat works in")
         return folder
+
+    def is_root(self, path: str) -> bool:
+        """Whether a normalized session folder is the workspace root, including Windows casing."""
+        paths = posixpath if self._root.startswith("/") else ntpath
+        return paths.normcase(paths.normpath(path)) == paths.normcase(paths.normpath(self._root))
 
     async def _call(
         self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None

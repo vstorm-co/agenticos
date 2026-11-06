@@ -239,8 +239,10 @@ async def test_subfolder_instruction_absence_and_refusal_are_explicit(
     assert "Outside the approved folder" in await tool("../private")
 
 
+@pytest.mark.parametrize("agent_bound", [False, True])
 async def test_whole_computer_instructions_carry_conversation_consent_on_every_read(
     monkeypatch: pytest.MonkeyPatch,
+    agent_bound: bool,
 ) -> None:
     call = computer(instructions={"folder": "Use the home project rules."})
     monkeypatch.setattr(local_context._hub, "call", call)
@@ -251,14 +253,15 @@ async def test_whole_computer_instructions_carry_conversation_consent_on_every_r
         folder="/home/person",
         computer_grant=grant,
         conversation_id=conversation,
-        agent_id=agent,
+        agent_id=agent if agent_bound else None,
     )
     access = {
         "computer_grant": str(grant),
         "conversation_id": str(conversation),
         "mode": "full_access",
-        "agent_id": str(agent),
     }
+    if agent_bound:
+        access["agent_id"] = str(agent)
     assert operations(call)[1] == (
         "local.instructions",
         {"sources": ["claude"], "root": "/home/person", **access},

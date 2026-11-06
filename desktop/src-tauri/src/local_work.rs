@@ -100,14 +100,16 @@ fn validate_mode(mode: Mode) -> Result<(), String> {
 pub struct LocalState {
     grants: Vec<Grant>,
     modes: Vec<&'static str>,
+    computer_grants: Vec<String>,
 }
 
 #[tauri::command]
-pub fn local_grants(app: AppHandle) -> LocalState {
-    LocalState {
+pub fn local_grants(app: AppHandle) -> Result<LocalState, String> {
+    Ok(LocalState {
         grants: settings::current(&app).local_grants,
         modes: modes(),
-    }
+        computer_grants: crate::computer_access::active(&app)?.into_iter().map(|grant| grant.id).collect(),
+    })
 }
 
 /// Pick a folder in the native picker and allow agents to work there, up to `mode`.
@@ -274,6 +276,7 @@ pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> 
     Ok(LocalState {
         grants: settings.local_grants,
         modes: modes(),
+        computer_grants: crate::computer_access::active(&app)?.into_iter().map(|grant| grant.id).collect(),
     })
 }
 

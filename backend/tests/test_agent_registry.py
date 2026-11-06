@@ -42,7 +42,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.schemas.agent import AgentCreate, LocalCodingAgent
+from app.schemas.agent import AgentCreate, LocalCodingAgent, PublishedCodingAgent
 from app.schemas.deployment_settings import DeploymentLimits
 from app.services import agent_templates
 from app.services.agent_registry import (
@@ -514,7 +514,7 @@ class TestList:
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
+                f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
                 new=AsyncMock(return_value={}),
             ),
             patch(
@@ -576,9 +576,11 @@ class TestList:
                 new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
+                f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
                 new=AsyncMock(
-                    return_value={version_id: LocalCodingAgent(harness="codex", access="edit")}
+                    return_value={
+                        version_id: PublishedCodingAgent(harness="codex", runs_on="this_computer")
+                    }
                 ),
             ),
             patch(
@@ -592,6 +594,7 @@ class TestList:
         assert rows[1].local_coding_agent is None
         assert rows[0].local_workspace is True
         assert rows[1].local_workspace is False
+        assert rows[0].personal_coding_harness is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
         assert rows[1].starters == []
@@ -5695,3 +5698,21 @@ async def test_workflow_guidance_does_not_depend_on_unrelated_project_tools():
     assert "# Choose the smallest reliable automation" in actual.instructions
     assert "# Ongoing work belongs in Projects" not in actual.instructions
     assert actual.mcp_servers == spec.mcp_servers
+
+
+def test_where_a_coding_agent_runs_decides_which_listing_field_names_it() -> None:
+    """The person's folder fills one field, a private cloud task on their account the other."""
+    from app.services.agent_registry import _local_coding_agent, _personal_coding_harness
+
+    local = PublishedCodingAgent(harness="codex", runs_on="this_computer", access="read_only")
+    personal = PublishedCodingAgent(harness="codex", runs_on="personal_sandbox")
+    shared = PublishedCodingAgent(runs_on="sandbox")
+
+    assert _local_coding_agent(local) == LocalCodingAgent(harness="codex", access="read_only")
+    assert _personal_coding_harness(local) is None
+    assert _local_coding_agent(personal) is None
+    assert _personal_coding_harness(personal) == "codex"
+    assert _local_coding_agent(shared) is None
+    assert _personal_coding_harness(shared) is None
+    assert _local_coding_agent(None) is None
+    assert _personal_coding_harness(None) is None

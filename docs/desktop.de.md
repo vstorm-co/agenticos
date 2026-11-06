@@ -1,5 +1,5 @@
 ---
-source_sha: "63656025a4ad"
+source_sha: "700737c6ce4e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -179,6 +179,12 @@ Die lokale Ansicht zeigt gespeicherte Instanzen, Adressen und ihren Laufstatus.
 unterbrochene Installation mit ihren vorhandenen Dateien und Schlüsseln. Start,
 Stop und Update im Menü betreffen die verbundene verwaltete Instanz. Die Verbindung
 zu einem extern gestarteten Entwicklungsstack macht diesen nicht appverwaltet.
+
+Eine lokale Instanz betreibt API, Worker, Konsole, Datenbank und Redis, aber
+keinen Sandbox-Dienst, keinen Browser-Dienst und keinen Objektspeicher. Agenten
+erhalten den reinen Datei-Workspace. Wählen Sie unter **Chat controls → Tools & files**
+**Work on → This computer** für Ordnerzugriff und **Browser → Local browser**
+zum Browsen. **Computer use** gibt Bildschirm, Maus und Tastatur separat frei.
 
 Metadaten liegen in `local-instances.json` im Konfigurationsverzeichnis; neue
 Instanzdateien unter `local-stacks/<id>/` im Datenverzeichnis. Bestehende
@@ -535,7 +541,7 @@ Einrichtung aktualisieren den Status automatisch.
 
 Wählen Sie in der Desktop-App unter **Chat-Steuerung → Werkzeuge und Dateien → Programmieragent** entweder **Claude Code** oder **Codex**, auch wenn die veröffentlichte Fähigkeit deaktiviert ist oder fehlt. Die App richtet lokale Dateiwerkzeuge ein und öffnet die native Ordnerauswahl, sofern der aktuelle Ordner noch keinen Vollzugriff hat. Abbrechen behält die bisherigen Einstellungen bei. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her.
 
-Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Oben steht das Modell, darunter Tools und Dateien. Klappen Sie **Work on** für den Ordnerzugriff und **Einstellungen** für Freigaben und Benachrichtigungen auf.
+Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Ihre Tabs sind **Modell**, **Werkzeuge und Dateien** (Programmieragent, Work on, Browser, Computer use und Skills) und **Einstellungen** (Freigaben und Benachrichtigungen).
 
 Wähle für die Capability **Coding agent** die Option **On this computer**, einen
 Ordner unter **Work on** und vollständigen Zugriff. Die native Zustimmung wird für
@@ -712,3 +718,9 @@ Ist genau der bestätigte Computer vor der Ausführung offline, wartet eine daue
 Pause, geänderte Aufgabe oder lokale Berechtigung, Löschung und Ablauf der Routine stornieren alte wartende Arbeit statt sie auf einen anderen Ordner umzulenken. Eine widerrufene Gerätesitzung benötigt Prüfung. Drei tote oder verlorene Aufträge vor der Zulassung stoppen die Routine und erzeugen einen Vorfall für die besitzende Person. Der fehlgeschlagene Ereigniskontext bleibt in deren Datenexport verfügbar. Gestartete und stornierte Kontexte werden sofort gelöscht. Abgeschlossene Metadaten und fehlgeschlagene Kontexte folgen der Laufaufbewahrung der Organisation; aktive Offline-Arbeit bleibt bis Zulassung, Stornierung oder Löschung erhalten.
 
 API, Worker und Desktop gemeinsam aktualisieren und alte Worker vor Aktivierung des Vertrags leeren. Ältere Desktops bestätigen keine Routine-Freigaben; bestehende lokale Routinen benötigen ausdrückliche Prüfung. Migration `0272_routine_device_waits.py` ergänzt Wartezustände ohne neue Routine-Identität. Vor einem Downgrade lokale Routinen pausieren und deren Aufträge leeren: der Downgrade löscht wartenden Kontext und führt ihn nicht aus. Ältere geparkte lokale Läufe ohne Ziel-Snapshot benötigen einen neuen Lauf.
+
+Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
+
+Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
+
+ Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.

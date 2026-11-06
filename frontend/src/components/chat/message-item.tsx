@@ -1,5 +1,7 @@
 "use client";
 
+import type { Delegation } from "@/types";
+
 import { memo, useId, useState } from "react";
 
 import { MentionChip } from "./mention-chip";
@@ -60,6 +62,7 @@ import { TurnFiles } from "./turn-files";
 import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
+  delegations?: Delegation[];
   message: ChatMessage;
   /**
    * Open this turn's last tool step on mount.
@@ -113,6 +116,7 @@ interface MessageItemProps {
 
 export const MessageItem = memo(function MessageItem({
   message,
+  delegations,
   agent,
   groupPosition,
   continuesTurn = false,
@@ -405,7 +409,12 @@ export const MessageItem = memo(function MessageItem({
         )}
 
         {!isUser && !message.isStreaming && (
-          <TurnDelegations toolCalls={toolCallsOf(message)} parent={agent} agents={agents} />
+          <TurnDelegations
+            toolCalls={toolCallsOf(message)}
+            delegations={delegations}
+            parent={agent}
+            agents={agents}
+          />
         )}
 
         {hasSources && !isUser && (

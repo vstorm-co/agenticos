@@ -28,12 +28,15 @@ pub struct Consent {
     /// Set for consent given to one agent; it then binds no conversation.
     #[serde(default)]
     pub agent_id: Option<String>,
+    #[serde(default)]
+    pub agent_name: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct Granted {
     id: String,
     path: String,
+    agent_id: Option<String>,
 }
 
 fn store(app: &AppHandle) -> Result<PathBuf, String> {
@@ -130,10 +133,11 @@ pub async fn local_allow_computer(
         origin: server,
         // An agent's consent spans its conversations, so it never binds one.
         conversation_id: if agent_id.is_some() { None } else { conversation_id },
-        agent_id,
+        agent_id: agent_id.clone(),
+        agent_name,
     });
     save(&path, &grants)?;
-    Ok(Some(Granted { id, path: root }))
+    Ok(Some(Granted { id, path: root, agent_id }))
 }
 
 /// What the native dialog says, and its allow button: for this conversation, or
@@ -248,6 +252,7 @@ mod tests {
             origin: "https://console.test".into(),
             conversation_id: Some(uuid::Uuid::new_v4().to_string()),
             agent_id: None,
+            agent_name: None,
         };
         save(&path, &[grant]).unwrap();
         let mut restored = load(&path).unwrap();
@@ -268,6 +273,7 @@ mod tests {
             origin: "https://console.test".into(),
             conversation_id: None,
             agent_id: None,
+            agent_name: None,
         };
         let chat = uuid::Uuid::new_v4().to_string();
         assert!(authorize(&mut grant, "https://other.test", "/home/me", &chat, None).is_err());
@@ -296,6 +302,7 @@ mod tests {
             origin: "https://console.test".into(),
             conversation_id: None,
             agent_id: Some(agent.clone()),
+            agent_name: None,
         };
         for _ in 0..2 {
             let chat = uuid::Uuid::new_v4().to_string();

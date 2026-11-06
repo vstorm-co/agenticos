@@ -470,7 +470,12 @@ describe("an agent that works on this computer", () => {
   });
 
   it("asks for whole-computer consent for the agent and remembers it for the agent", async () => {
-    const grant = { folder: "/Users/person", mode: "full_access", computer_grant: "agent-consent" };
+    const grant = {
+      folder: "/Users/person",
+      mode: "full_access",
+      computer_grant: "agent-consent",
+      computer_grant_agent: "agent-1",
+    };
     computer.allow.mockResolvedValueOnce(grant);
     computer.revoke.mockResolvedValue(undefined);
     render(<WorkOn agentCapabilities={["sandbox"]} />);

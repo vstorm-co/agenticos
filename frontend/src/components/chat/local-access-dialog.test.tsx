@@ -13,6 +13,7 @@ const desktop = vi.hoisted(() => ({
   allow: vi.fn(),
   pick: vi.fn(),
   linked: true,
+  modes: ["workspace_write", "read_only", "full_access"],
 }));
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
@@ -21,7 +22,10 @@ vi.mock("@/lib/desktop/commands", async (original) => ({
 vi.mock("@/hooks/use-desktop", () => ({
   useDeviceStatus: () => ({ data: { linked: desktop.linked, connected: true } }),
   useDeviceLink: () => ({ link: { mutateAsync: vi.fn().mockResolvedValue({ linked: true }) } }),
-  useLocalFolders: () => ({ pick: { mutateAsync: desktop.pick } }),
+  useLocalFolders: () => ({
+    state: { data: { modes: desktop.modes } },
+    pick: { mutateAsync: desktop.pick },
+  }),
 }));
 
 function ask(coding = false): Promise<LocalTarget | null> {
@@ -42,6 +46,7 @@ function mount() {
 }
 
 beforeEach(() => {
+  desktop.modes = ["workspace_write", "read_only", "full_access"];
   desktop.allow.mockReset();
   desktop.pick.mockReset();
   useConversationStore.setState({ currentConversationId: "chat" });
@@ -87,4 +92,14 @@ it("stays open when the native question is cancelled, and declines on Not now", 
   expect(screen.getByRole("dialog")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Not now" }));
   await expect(answer).resolves.toBeNull();
+});
+
+it("uses a supported read-only mode on devices without workspace isolation", async () => {
+  desktop.modes = ["read_only", "full_access"];
+  desktop.pick.mockResolvedValue({ path: "/work", mode: "read_only" });
+  mount();
+  const answer = ask();
+  await userEvent.click(await screen.findByRole("button", { name: /Choose a folder/ }));
+  await expect(answer).resolves.toEqual({ folder: "/work", mode: "read_only" });
+  expect(desktop.pick).toHaveBeenCalledWith("read_only");
 });

@@ -48,6 +48,7 @@ import { isDesktopShell, listenShell, reportShellFailure } from "@/lib/desktop/s
 import { createPairingCode } from "@/lib/pairing-api";
 import { qk } from "@/lib/query-keys";
 import { useShell } from "@/hooks/use-shell";
+import { useWorkOnStore } from "@/stores/work-on-store";
 
 /** Open the trusted server picker without depending on blobby or the tray. */
 export function useChangeServer() {
@@ -225,7 +226,10 @@ export function useLocalFolders() {
   });
   const revoke = useMutation({
     mutationFn: revokeLocalFolder,
-    onSuccess: (next) => queryClient.setQueryData(qk.desktop.local(), next),
+    onSuccess: (next, path) => {
+      useWorkOnStore.getState().forgetFolder(path);
+      queryClient.setQueryData(qk.desktop.local(), next);
+    },
     onError: (error) => reportShellFailure("revoking a folder", error),
   });
   return { state, pick, revoke };

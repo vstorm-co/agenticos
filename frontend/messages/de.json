@@ -2379,6 +2379,7 @@
       "folder": "Ordner wählen",
       "folderHint": "Arbeitet nur in dem Ordner, den du auswählst.",
       "cancel": "Nicht jetzt",
+      "agentUnavailable": "Der ausgewählte Agent konnte nicht geladen werden. Versuche es erneut.",
       "failed": "Zugriff auf diesem Computer konnte nicht eingerichtet werden"
     }
   },
@@ -13108,7 +13109,8 @@
     "disconnectHelp": "Trennen entfernt die Kopie von AgenticOS und beendet ihre Aufgaben. Widerrufe eine ChatGPT-Freigabe in den ChatGPT-Einstellungen bei OpenAI. Zeitpläne und Kanalaufgaben nutzen diese Konten nicht.",
     "personalAccount": "Persönliches Konto: {label}",
     "baseRevision": "Arbeitsbereich-Snapshot: {revision}",
-    "chatHelp": "Verbinde hier dein Konto für private Coding-Aufgaben in der Cloud. Das Coding-agent-Tool muss Private cloud task with my account verwenden. Lokales Coding in der Desktop-App nutzt eine eigene Anmeldung."
+    "chatTitle": "Dein {name}-Konto",
+    "chatHelp": "Dieser Agent führt Coding-Aufgaben als private Cloud-Aufgabe mit deinem eigenen Konto aus. Andere Mitglieder können es nicht nutzen."
   },
   "mirage": {
     "folders": "Ordner",

@@ -1,5 +1,9 @@
 "use client";
 
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui";
@@ -29,6 +33,9 @@ export interface SheetDelegation {
   brief: string | null;
   answer: string;
   thinking?: string;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  runId?: string | null;
   costUsd?: number | null;
   /** What the delegate did, where it is known - live, from its frames. */
   steps?: DelegationStep[];
@@ -53,11 +60,13 @@ export function DelegationSheet({
   onOpen: (key: string) => void;
   onClose: () => void;
 }) {
+  const { can } = usePermissions();
   const chat = useTranslations("chat");
   const t = useTranslations("chat.delegation");
   const tTools = useTranslations("chat.tools");
-  // `opened` is always one of `items`: every caller opens the sheet from one.
-  const item = items.find((each) => each.key === opened)!;
+  // Live task frames can be replaced by saved tool calls while the sheet is
+  // open. Their keys differ; keep the sheet usable when that transition lands.
+  const item = items.find((each) => each.key === opened) ?? items[0]!;
 
   return (
     <Sheet open onOpenChange={onClose}>
@@ -104,6 +113,16 @@ export function DelegationSheet({
         </div>
 
         <div className="min-h-0 flex-1 scrollbar-thin space-y-5 overflow-y-auto px-5 py-5">
+          {(item.inputTokens != null || item.outputTokens != null) && (
+            <p className="text-muted-foreground text-xs">
+              {t("tokens", { input: item.inputTokens ?? 0, output: item.outputTokens ?? 0 })}
+            </p>
+          )}
+          {item.runId && can(Perm.runsView) && (
+            <Link className="text-sm underline" href={`${ROUTES.RUNS}?run=${item.runId}`}>
+              {t("openInRunHistory")}
+            </Link>
+          )}
           {item.thinking && (
             <details className="text-muted-foreground text-[13px]">
               <summary className="hover:text-foreground cursor-pointer">

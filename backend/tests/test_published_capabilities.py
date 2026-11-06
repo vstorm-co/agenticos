@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.agent import (
     published_capabilities,
-    published_local_coding_agents,
+    published_coding_agents,
     published_local_workspaces,
 )
-from app.schemas.agent import LocalCodingAgent
+from app.schemas.agent import PublishedCodingAgent
 
 pytestmark = pytest.mark.anyio
 
@@ -54,7 +54,7 @@ async def test_invalid_frozen_metadata_is_not_disguised_as_disabled_tools() -> N
         await published_capabilities(db, version_ids=[uuid4()])
 
 
-async def test_only_a_coding_agent_that_runs_on_the_persons_computer_is_reported() -> None:
+async def test_each_enabled_coding_agent_is_reported_with_where_it_runs() -> None:
     local, sandbox, off, none, default = (uuid4() for _ in range(5))
     db = AsyncMock(spec=AsyncSession)
     result = MagicMock()
@@ -78,17 +78,16 @@ async def test_only_a_coding_agent_that_runs_on_the_persons_computer_is_reported
         (default, [{"id": "coding_agent", "config": {"runs_on": "this_computer"}}]),
     ]
     db.execute.return_value = result
-    assert await published_local_coding_agents(
-        db, version_ids=[local, sandbox, off, none, default]
-    ) == {
-        local: LocalCodingAgent(harness="codex", access="edit"),
-        default: LocalCodingAgent(harness="claude_code", access="edit"),
+    assert await published_coding_agents(db, version_ids=[local, sandbox, off, none, default]) == {
+        local: PublishedCodingAgent(harness="codex", runs_on="this_computer", access="edit"),
+        sandbox: PublishedCodingAgent(harness="codex"),
+        default: PublishedCodingAgent(runs_on="this_computer"),
     }
 
 
-async def test_no_versions_does_not_ask_which_run_a_coding_agent_locally() -> None:
+async def test_no_versions_does_not_ask_which_run_a_coding_agent() -> None:
     db = AsyncMock(spec=AsyncSession)
-    assert await published_local_coding_agents(db, version_ids=[]) == {}
+    assert await published_coding_agents(db, version_ids=[]) == {}
     db.execute.assert_not_awaited()
 
 

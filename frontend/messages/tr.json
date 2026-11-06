@@ -9710,6 +9710,7 @@
       "folder": "Klasör seç",
       "folderHint": "Yalnızca seçtiğin klasörde çalışır.",
       "cancel": "Şimdi değil",
+      "agentUnavailable": "Seçilen ajan yüklenemedi. Tekrar deneyin.",
       "failed": "Bu bilgisayarda erişim ayarlanamadı"
     }
   },
@@ -12830,6 +12831,7 @@
     "disconnectHelp": "Bağlantıyı kesmek AgenticOS kopyasını kaldırır ve görevlerini durdurur. ChatGPT yetkisini OpenAI ChatGPT Ayarlarından iptal et. Zamanlanmış ve kanal görevleri bu hesapları kullanmaz.",
     "personalAccount": "Kişisel hesap: {label}",
     "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
-    "chatHelp": "Özel bulut kodlama görevleri için hesabını buradan bağla. Agent’ın Coding agent aracı Private cloud task with my account modunu kullanmalıdır. Yerel masaüstü kodlaması kendi oturumunu kullanır."
+    "chatTitle": "{name} hesabın",
+    "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
   }
 }

@@ -18,6 +18,7 @@ import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from dataclasses import replace
 from typing import Any, Literal
 from uuid import UUID
@@ -100,7 +101,14 @@ LOCAL_DOC = """Hand a software task to the coding agent, which works on it on th
             task: The task in full: the goal, the files or area it concerns, constraints, and
                 how to check the result. Later tasks in this conversation resume this
                 agent's session for the same folder and access policy.
-            fresh_session: Start over instead of resuming this conversation's earlier session.
+            session: A lower-case session name, 1-40 letters, digits, hyphens or
+                underscores, starting with a letter or digit. Use distinct names
+                for independent parallel tasks; the same name resumes earlier work.
+            fresh_session: Start this named session over instead of resuming it.
+            harness: `claude_code` or `codex`; empty uses the configured harness.
+                The selected harness must be installed and signed in on this computer.
+            folder: Relative or absolute folder inside the chat's approved folder.
+                Empty or `.` uses the chat's folder. This never grants new access.
 
         Returns:
             JSON with `outcome` (`completed`, `failed` or `timed_out`), `answer` - what it
@@ -178,6 +186,10 @@ def build_coding_toolset(
     label = LABELS[harness]
     # The tool's own `harness` argument shadows this one inside it.
     configured = harness
+    # Snapshot diffs cover the entire sandbox. Keep this toolset's tasks sequential
+    # there, including reads that may execute commands; local ACP sessions have
+    # no shared snapshot and remain parallel.
+    sandbox_tasks = anyio.Lock()
 
     def mismatch() -> str | None:
         """A credential this harness cannot sign in with, said before anything runs."""
@@ -216,8 +228,8 @@ def build_coding_toolset(
                 tasks in the same session.
             session: Which session to work in, by a short lower-case name such as
                 `main`, `api` or `review`. The same name continues that session's
-                earlier work; a new name opens another. Sessions run side by side,
-                so call this tool several times at once for independent work.
+                earlier work; a new name opens another. Local sessions run side by side; sandbox tasks queue to keep
+                their workspace snapshots separate. Use distinct names for independent work.
             fresh_session: Start this session over instead of continuing it. Leave
                 it off unless its earlier work is unrelated or it went wrong.
             harness: `claude_code` or `codex`, to choose the coding agent for this
@@ -352,7 +364,8 @@ def build_coding_toolset(
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, configured)
         await narration.started(task)
         try:
-            report = await signed_in(ctx, task, session, fresh_session, narration)
+            async with sandbox_tasks:
+                report = await signed_in(ctx, task, session, fresh_session, narration)
         except BaseException:
             # Stopped, or a bug: either way the panel must not keep spinning, and
             # a cancellation would otherwise cancel the frame that closes it.
@@ -411,7 +424,7 @@ def build_coding_toolset(
             chosen,
             access,
             # The unnamed session keeps the key every conversation used before names.
-            *(() if session == MAIN_SESSION and folder is None else (session, root)),
+            *(() if session == MAIN_SESSION and workspace.is_root(root) else (session, root)),
         )
         resume_key = (
             hashlib.sha256(json.dumps(scope).encode()).hexdigest()
@@ -428,21 +441,26 @@ def build_coding_toolset(
         try:
             await pipe.open()
             try:
-                report = await run_task(
-                    pipe,
-                    harness=chosen,
-                    access=access,
-                    root=root,
-                    task=task,
-                    timeout_seconds=timeout_seconds,
-                    shown=narration.shown,
-                    # A model or reasoning level belongs to the configured harness.
-                    model=model if chosen == configured else None,
-                    effort=effort if chosen == configured else None,
-                    previous_session=pipe.session_id,
-                    remember=pipe.remember,
-                    steering=ctx.deps.steering,
-                )
+                with (
+                    ctx.deps.steering.listen(session)
+                    if ctx.deps.steering is not None
+                    else nullcontext(None) as steering
+                ):
+                    report = await run_task(
+                        pipe,
+                        harness=chosen,
+                        access=access,
+                        root=root,
+                        task=task,
+                        timeout_seconds=timeout_seconds,
+                        shown=narration.shown,
+                        # A model or reasoning level belongs to the configured harness.
+                        model=model if chosen == configured else None,
+                        effort=effort if chosen == configured else None,
+                        previous_session=pipe.session_id,
+                        remember=pipe.remember,
+                        steering=steering,
+                    )
             finally:
                 # Failed and cancelled tasks may have spent subscription tokens too.
                 _book(Usage())

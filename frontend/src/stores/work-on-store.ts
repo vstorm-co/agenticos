@@ -76,7 +76,13 @@ interface WorkOnState {
   resetDraft: () => void;
   /** The target for a conversation, or the draft for one not filed yet. */
   targetFor: (conversationId: string | null) => LocalTarget | null;
-  set: (conversationId: string | null, target: LocalTarget | null) => void;
+  explicitTargetFor: (conversationId: string | null) => LocalTarget | null;
+  forgetFolder: (folder: string) => void;
+  set: (
+    conversationId: string | null,
+    target: LocalTarget | null,
+    rememberDefault?: boolean,
+  ) => void;
   /** File the draft under the id the server just gave the new chat. */
   adopt: (conversationId: string) => void;
 }
@@ -216,9 +222,30 @@ export const useWorkOnStore = create<WorkOnState>()(
           ? (get().byConversation[conversationId] ?? null)
           : readChatControlPreferences().localTarget;
       },
-      set: (conversationId, target) => {
+      explicitTargetFor: (conversationId) =>
+        conversationId === null ? get().draft : (get().byConversation[conversationId] ?? null),
+      forgetFolder: (folder) => {
+        const matches = (target: LocalTarget | null) =>
+          target?.folder === folder && !target.computer_grant;
+        set({
+          agentTargets: Object.fromEntries(
+            Object.entries(get().agentTargets).filter(([, target]) => !matches(target)),
+          ),
+          byConversation: Object.fromEntries(
+            Object.entries(get().byConversation).map(([id, target]) => [
+              id,
+              matches(target) ? null : target,
+            ]),
+          ),
+          draft: matches(get().draft) ? null : get().draft,
+        });
+        if (matches(readChatControlPreferences().localTarget))
+          saveChatControlPreferences({ localTarget: null });
+      },
+      set: (conversationId, target, rememberDefault = true) => {
         // Whole-computer consent belongs to one conversation and is never inherited.
-        saveChatControlPreferences({ localTarget: target?.computer_grant ? null : target });
+        if (rememberDefault)
+          saveChatControlPreferences({ localTarget: target?.computer_grant ? null : target });
         if (conversationId === null) {
           set({ draft: target });
           return;

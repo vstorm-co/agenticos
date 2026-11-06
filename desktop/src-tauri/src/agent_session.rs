@@ -313,7 +313,7 @@ impl Consent {
         }
     }
     pub fn is_for_folder(&self, root: &str) -> bool {
-        self.root == root
+        Path::new(&self.root).starts_with(Path::new(root))
     }
 }
 
@@ -804,6 +804,9 @@ mod tests {
             assert_ne!(consent, other);
         }
         assert!(consent.is_for_folder("/work"));
+        let child = Consent::new(Path::new("/work/app"), "https://console.test", AgentId::Codex);
+        assert!(child.is_for_folder("/work"));
+        assert!(!child.is_for_folder("/worker"));
         assert!(!consent.is_for_folder("/other"));
     }
 

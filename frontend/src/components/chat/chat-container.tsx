@@ -220,7 +220,7 @@ export function ChatContainer({
   // is a share of *its* window rather than of the agent's default.
   const { modelProfileId } = useSavedChatControls();
   const contextWindow = useContextWindow(modelProfileId);
-  const { agents } = useAgents({ includeArchived: true });
+  const { agents, isLoading: agentsLoading } = useAgents({ includeArchived: true });
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
   const agentModel = selectedAgent?.published_model ?? null;
@@ -487,7 +487,11 @@ export function ChatContainer({
   });
   // An agent that works on this computer is sent to once it knows where: the
   // chat's folder, the one remembered for it, or the person's answer, asked once.
-  const sendMessage = useLocalAccessGate(sendChatMessage, selectedAgent);
+  const sendMessage = useLocalAccessGate(sendChatMessage, selectedAgent, {
+    selectedAgentId,
+    metadataPending: agentsLoading,
+    projectId: openConversation?.project_id,
+  });
 
   // A message addressed to a workflow goes to it instead of the agent: the
   // picker's choice, read from the same cached list the picker shows.
@@ -1444,7 +1448,12 @@ function ChatUI({
                         {t("loadEarlierMessages")}
                       </button>
                     )}
-                    <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                    <MessageList
+                      messages={messages}
+                      delegations={delegations}
+                      onRegenerate={onRegenerate}
+                      pins={pins}
+                    />
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}

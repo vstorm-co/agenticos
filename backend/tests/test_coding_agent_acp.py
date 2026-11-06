@@ -1247,7 +1247,7 @@ async def test_named_sessions_run_apart_and_main_keeps_the_key_it_always_had(
     call = _local_tools()
     ctx = _ctx(_local_workspace(), [])
     await call(ctx, task="Before names")
-    await call(ctx, task="Main by name", session="main")
+    await call(ctx, task="Main by name", session="main", folder=".")
     await call(ctx, task="The API", session="api")
     await call(ctx, task="The API again", session="api")
     await call(ctx, task="Review it", session="review", harness="codex")
@@ -1338,3 +1338,53 @@ def test_a_windows_folder_is_resolved_the_windows_way() -> None:
     assert device.subfolder("app") == "C:\\work\\app"
     with pytest.raises(WorkspaceUnavailableError):
         device.subfolder("..\\other")
+
+
+def test_windows_folder_containment_ignores_drive_and_path_casing() -> None:
+    device = workspace_module.DeviceWorkspace(
+        uuid4(), uuid4(), LocalTarget(folder="C:\\Work", mode="full_access")
+    )
+    assert device.subfolder("c:\\work\\app") == "c:\\work\\app"
+    assert device.is_root("c:\\work\\.")
+    assert not device.is_root("c:\\work\\app")
+
+
+async def test_parallel_local_tools_use_independent_targeted_steering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.steering import SteeringInbox
+
+    inbox = SteeringInbox()
+    ready = anyio.Event()
+    started = 0
+    corrections: list[list[str]] = []
+
+    async def run(
+        *_args: object, steering: SteeringInbox | None, **_kwargs: object
+    ) -> CodingReport:
+        nonlocal started
+        assert steering is not None and steering is not inbox
+        started += 1
+        if started == 2:
+            inbox.add("[session:api] Change the API")
+            inbox.add("[session:web] Change the web app")
+            ready.set()
+        await ready.wait()
+        corrections.append([item.text for item in steering.take()])
+        return CodingReport(harness="claude_code", access="edit", outcome="completed", answer="ok")
+
+    monkeypatch.setattr("app.agents.capabilities.coding_agent._toolset.run_task", run)
+    computer = Computer(ScriptedAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    ctx = _ctx(_local_workspace(), [])
+    ctx.deps.steering = inbox
+    call = _local_tools()
+
+    async def task(session: str) -> None:
+        await call(ctx, task="Fix", session=session)
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(task, "api")
+        group.start_soon(task, "web")
+    assert sorted(corrections) == [["Change the API"], ["Change the web app"]]
+    assert len(inbox.unapplied()) == 2
