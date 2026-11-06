@@ -295,6 +295,9 @@ export function useImprovementEvidence(
         { params: !sessionId && datasetId ? { dataset_id: datasetId } : {} },
       ),
     refetchInterval: live ? IMPROVEMENT_FALLBACK_MS : false,
+    // A skill's session answers `/evidence` with its problems, which `useSkillProblems`
+    // reads; it has no agent evidence for the shared steps to show.
+    enabled: typeof subject === "string",
   });
   return {
     evidence: query.data,
