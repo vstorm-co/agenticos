@@ -1140,7 +1140,16 @@ async def person_requests_since(
     by the run and by `link_message_to_run`): the input edge kept it from every
     model, and the nightly job hands what this returns to one with no guardrails
     of its own (#2746). A chat prompt routed to a workflow is not marked yet.
+
+    Nor a prompt whose run is still going: the row is committed before the input
+    edge screens it and marked only when the run ends, so its verdict is not in.
+    The window is a week, so a later look reads it once it is.
     """
+    undecided = (
+        select(AgentRun.id)
+        .where(AgentRun.id == Message.run_id, AgentRun.status == RunStatus.RUNNING)
+        .exists()
+    )
     result = await db.execute(
         select(Message)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -1148,6 +1157,7 @@ async def person_requests_since(
             Conversation.organization_id == organization_id,
             Message.role == "user",
             Message.guardrail_refused.is_(False),
+            ~undecided,
             Message.created_at >= since,
             or_(
                 Message.author_user_id == user_id,

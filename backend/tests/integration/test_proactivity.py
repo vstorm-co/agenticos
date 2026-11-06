@@ -312,6 +312,54 @@ class TestAPersonsRequests:
 
         assert [message.content for message in found] == ["Plan my week"]
 
+    @pytest.mark.security
+    async def test_a_prompt_whose_run_is_still_going_waits_for_its_verdict(self, db) -> None:
+        """The row is written before the input edge screens it and marked only when
+        the run ends, so while it runs nobody knows yet whether it was refused."""
+        person = await _person(db)
+        org = await _organization(db, person)
+        agent = await _agent(db, org)
+        chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+        db.add(chat)
+        run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            user_id=person.id,
+            status=RunStatus.RUNNING.value,
+            surface=RunSurface.WEB.value,
+            started_at=_NOW,
+        )
+        db.add(run)
+        await db.flush()
+        db.add(
+            Message(
+                id=uuid.uuid4(),
+                conversation_id=chat.id,
+                role="user",
+                content="Being screened",
+                run_id=run.id,
+            )
+        )
+        await db.flush()
+
+        async def requests() -> list[str]:
+            found = await conversation_repo.person_requests_since(
+                db,
+                organization_id=org.id,
+                user_id=person.id,
+                since=_NOW - timedelta(days=1),
+                limit=10,
+            )
+            return [message.content for message in found]
+
+        assert await requests() == []
+
+        run.status = RunStatus.COMPLETED.value
+        await db.flush()
+
+        assert await requests() == ["Being screened"]
+
 
 @pytest.mark.security
 class TestWhatTheNightlyLookSends:
