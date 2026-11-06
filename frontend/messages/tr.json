@@ -3444,7 +3444,7 @@
       "avatarColourHint": "Fotoğraf yükleyene kadar avatarınız olarak gösterilir.",
       "prefArtifactVersionPublished": "Uygulama güncellendi",
       "prefArtifactVersionPublishedTrigger": "Takip ettiğiniz uygulama yeni bir sürüm aldı; agentı yeniden yayımladı veya bir kullanıcı eski sürümü geri yükledi.",
-      "prefResourceShared": "Grubunuzla paylaşıldı",
+      "prefResourceShared": "Sizinle veya grubunuzla paylaşıldı",
       "prefResourceSharedTrigger": "Bir şey (agent, skill, bilgi veya uygulama) üyesi olduğunuz grupla paylaşıldı.",
       "prefBudgetWarning": "Bölüm budgetı %80 seviyesinde",
       "prefBudgetWarningTrigger": "Yönettiğiniz bir bölüm aylık budgetının %80’ini kullandı. Yöneticilere tüm bölümler için bildirim gönderilir.",
@@ -8879,7 +8879,8 @@
       "title": "Chat'ler",
       "unread": "Yeni yanıt",
       "unreadHeading": "Okunmamış",
-      "unnamedProject": "Bir project"
+      "unnamedProject": "Bir project",
+      "sharedHeading": "Sizinle paylaşılanlar"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",
@@ -9649,7 +9650,19 @@
         "ultra": "Ultra",
         "xhigh": "Çok yüksek"
       }
-    }
+    },
+    "fork": "Yeni konuşmaya dallandır",
+    "forkedToast": "Konuşma dallandırıldı",
+    "failedForkConversation": "Konuşma dallandırılamadı",
+    "forkedFrom": "<link>{title}</link> konuşmasından dallandırıldı",
+    "untitledFork": "Başlıksız konuşma",
+    "leaveShared": "Sohbetlerimden kaldır",
+    "leftShared": "Sohbetlerinizden kaldırıldı",
+    "failedLeaveShared": "Konuşma kaldırılamadı",
+    "conversationViewOnly": "Sizinle salt okunur olarak paylaşıldı",
+    "accessChanged": "Erişim değiştirildi",
+    "failedToChangeAccess": "Erişim değiştirilemedi",
+    "accessLevelFor": "{name} için erişim düzeyi"
   },
   "admin": {
     "actions": "Eylemler",

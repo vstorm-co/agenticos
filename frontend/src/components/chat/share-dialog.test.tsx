@@ -8,6 +8,7 @@ import type { OrganizationMember } from "@/types";
 const shareConversation = vi.fn();
 const fetchShares = vi.fn();
 const revokeShare = vi.fn();
+const changePermission = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
 const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
 const membersError = vi.fn<() => string | null>(() => null);
@@ -21,6 +22,7 @@ vi.mock("@/hooks", () => ({
     shareConversation,
     fetchShares,
     revokeShare,
+    changePermission,
   }),
   useMembers: () => ({
     members: listedMembers(),
@@ -72,6 +74,7 @@ beforeEach(() => {
   membersError.mockReturnValue(null);
   shareConversation.mockResolvedValue({ id: "s-1" });
   revokeShare.mockResolvedValue(undefined);
+  changePermission.mockResolvedValue({});
 });
 
 async function openPicker() {
@@ -464,6 +467,40 @@ describe("who it is shared with", () => {
     await userEvent.click(screen.getByRole("button", { name: "Revoke access" }));
 
     expect(revokeShare).toHaveBeenCalledWith("c1", "s-link");
+  });
+
+  it("turns a person's view into edit in place", async () => {
+    const { toast } = await import("sonner");
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level for Sam Fisher" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(changePermission).toHaveBeenCalledWith("c1", "s-1", "edit");
+    expect(toast.success).toHaveBeenCalledWith("Access changed");
+  });
+
+  it("asks nothing when the level picked is the one it has", async () => {
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level for Sam Fisher" }));
+    await userEvent.click(screen.getByRole("option", { name: "View" }));
+
+    expect(changePermission).not.toHaveBeenCalled();
+  });
+
+  it("says why a change was refused", async () => {
+    const { toast } = await import("sonner");
+    changePermission.mockRejectedValue(new Error("Only the conversation owner can change a share"));
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level for Sam Fisher" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Only the conversation owner can change a share");
   });
 
   it("says why a revoke was refused", async () => {

@@ -14,6 +14,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_share import ConversationShare
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
 from app.schemas.conversation_share import (
     SharedConversationBody,
@@ -24,6 +25,8 @@ from app.schemas.conversation_share import (
     SharedVisual,
 )
 from app.services import visual as visuals
+from app.services.conversation import ConversationService
+from app.services.notifications import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +195,16 @@ class ConversationShareService:
             shared_with=shared_with,
             permission=permission,
         )
+        # A share nobody hears of is one the recipient finds only by its link.
+        sharer = await user_repo.get_by_id(self.db, shared_by)
+        await NotificationService(self.db).conversation_shared(
+            recipient=shared_with,
+            organization_id=conv.organization_id,
+            conversation_id=conversation_id,
+            title=conv.title,
+            sharer=(sharer.full_name or sharer.email) if sharer is not None else "Someone",
+            actor_user_id=shared_by,
+        )
         return {"share": share}
 
     async def list_shares(self, conversation_id: UUID, user_id: UUID) -> list:
@@ -206,6 +219,37 @@ class ConversationShareService:
             self.db, conversation_id, organization_id=conv.organization_id
         )
 
+    async def change_permission(
+        self, conversation_id: UUID, share_id: UUID, user_id: UUID, *, permission: str
+    ) -> ConversationShare:
+        """Change what a share with a person allows. Owner only.
+
+        A person's own share is not theirs to widen, so only the conversation's
+        owner may change it. A link stays view-only: a token reaches only the
+        read route, so an `edit` link would promise what nothing grants.
+
+        Raises:
+            NotFoundError: If the share is not one of this conversation's.
+            AuthorizationError: If the caller does not own the conversation.
+            BadRequestError: If the share is a link.
+        """
+        conv = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        share = await conversation_share_repo.get_by_id(self.db, share_id)
+        if conv is None or share is None or share.conversation_id != conversation_id:
+            raise NotFoundError(
+                message="Share not found",
+                details={"conversation_id": conversation_id, "share_id": share_id},
+            )
+        if conv.user_id != user_id:
+            raise AuthorizationError(message="Only the conversation owner can change a share")
+        if share.share_token is not None:
+            raise BadRequestError(
+                message="A share link is view-only", details={"share_id": share_id}
+            )
+        return await conversation_share_repo.set_permission(
+            self.db, share=share, permission=permission
+        )
+
     async def revoke_share(self, share_id: UUID, user_id: UUID) -> None:
         """Revoke a share. Owner of conversation or the shared_with user can revoke."""
         share = await conversation_share_repo.get_by_id(self.db, share_id)
@@ -217,25 +261,62 @@ class ConversationShareService:
 
         await conversation_share_repo.delete(self.db, share_id)
 
-    async def list_shared_with_me(
-        self, user_id: UUID, *, skip: int = 0, limit: int = 50
-    ) -> tuple[list, int]:
-        """List conversations shared with the current user.
+    async def leave(self, conversation_id: UUID, user_id: UUID, *, organization_id: UUID) -> None:
+        """Take a conversation somebody shared with this reader out of their chats.
 
-        The star is stamped here too. A thread somebody was *shared* is exactly
+        The reader's own share ends; the conversation, and everybody else's
+        access to it, stays. Their star on it goes too, so it does not come back
+        to their favourites if it is shared with them again. Only in the active
+        organization, as the list it was picked from is.
+
+        Raises:
+            NotFoundError: If the conversation was not shared with this reader
+                in this organization.
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        share = await conversation_share_repo.get_share(self.db, conversation_id, user_id)
+        if share is None or conversation is None or conversation.organization_id != organization_id:
+            raise NotFoundError(
+                message="Conversation not shared with you",
+                details={"conversation_id": conversation_id},
+            )
+        await conversation_share_repo.delete(self.db, share.id)
+        await conversation_repo.set_favourite(
+            self.db, user_id=user_id, conversation_id=conversation_id, favourite=False
+        )
+
+    async def list_shared_with_me(
+        self, user_id: UUID, *, organization_id: UUID, skip: int = 0, limit: int = 50
+    ) -> tuple[list, int]:
+        """List the conversations shared with the current user in one organization.
+
+        One organization, the active one: a share from another would open under
+        the wrong organization and fail, and its title has no business on this
+        one's screen.
+
+        Each row carries what the reader's own list does - who it is with,
+        whether a run is at work in it, whether it holds an answer they have
+        not seen - and what the share lets them do. The star is stamped here too. A thread somebody was *shared* is exactly
         the kind they favourite - a shared conversation may be starred by anyone
         who can read it - so a list that answered `false` for every row was
         wrong on the surface where it matters most (#1254).
         """
         items = await conversation_share_repo.get_conversations_shared_with_user(
-            self.db, user_id, skip=skip, limit=limit
+            self.db, user_id, organization_id=organization_id, skip=skip, limit=limit
         )
-        total = await conversation_share_repo.count_conversations_shared_with_user(self.db, user_id)
+        total = await conversation_share_repo.count_conversations_shared_with_user(
+            self.db, user_id, organization_id=organization_id
+        )
         starred = await conversation_repo.favourite_ids(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]
         )
+        permissions = await conversation_share_repo.share_permissions(
+            self.db, user_id=user_id, conversation_ids=[item.id for item in items]
+        )
+        await ConversationService(self.db).attach_listing_state(items, user_id=user_id)
         for item in items:
             item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
+            item.share_permission = permissions.get(item.id)  # ty: ignore[unresolved-attribute]
         return items, total
 
     async def get_by_token(self, token: str) -> SharedConversationRead:

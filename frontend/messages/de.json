@@ -1540,7 +1540,8 @@
       "title": "Chats",
       "unread": "Neue Antwort",
       "unreadHeading": "Ungelesen",
-      "unnamedProject": "Ein Projekt"
+      "unnamedProject": "Ein Projekt",
+      "sharedHeading": "Mit Ihnen geteilt"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -2315,7 +2316,19 @@
         "interrupted": "Unterbrochen; nicht neu gestartet"
       },
       "emptyTitle": "Delegiere Arbeit und sprich weiter"
-    }
+    },
+    "fork": "In neue Unterhaltung abzweigen",
+    "forkedToast": "Unterhaltung abgezweigt",
+    "failedForkConversation": "Unterhaltung konnte nicht abgezweigt werden",
+    "forkedFrom": "Abgezweigt aus <link>{title}</link>",
+    "untitledFork": "Unbenannte Unterhaltung",
+    "leaveShared": "Aus meinen Chats entfernen",
+    "leftShared": "Aus Ihren Chats entfernt",
+    "failedLeaveShared": "Unterhaltung konnte nicht entfernt werden",
+    "conversationViewOnly": "Schreibgeschützt mit Ihnen geteilt",
+    "accessChanged": "Zugriff geändert",
+    "failedToChangeAccess": "Zugriff konnte nicht geändert werden",
+    "accessLevelFor": "Zugriffsstufe für {name}"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -6209,7 +6222,7 @@
       "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen.",
       "prefArtifactVersionPublished": "App aktualisiert",
       "prefArtifactVersionPublishedTrigger": "Eine App, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt.",
-      "prefResourceShared": "Mit Ihrer Gruppe geteilt",
+      "prefResourceShared": "Mit Ihnen oder Ihrer Gruppe geteilt",
       "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind.",
       "prefBudgetWarning": "Abteilungsbudget bei 80 %",
       "prefBudgetWarningTrigger": "Eine Abteilung, die Sie leiten, hat 80 % ihres monatlichen Budgets verbraucht. Administratoren werden über jede Abteilung informiert.",

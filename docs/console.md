@@ -341,6 +341,17 @@ going; one with an answer you have not seen since you last had it open carries a
 dot, which opening it clears - for you only, since a shared thread is read by each
 of its readers separately.
 
+Conversations other people shared with you sit under **Shared with you**, below
+your favourites. They are theirs to rename, share, archive or delete; their menu
+holds only **Remove from my chats**, which ends your access and leaves the
+conversation as it is for everybody else. One shared with you to read has no
+message box. When somebody shares a conversation with you, you get a
+notification that opens it.
+
+In **Share**, each person the conversation is shared with has a **View** or
+**Edit** picker beside their name, to change what they may do without revoking
+and sharing again. A share link stays view-only.
+
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to
@@ -691,6 +702,14 @@ In **Activity**, a call is one row with a microphone badge, and the kind filter
 one row, with every connection's time and cost summed. The **Voice minutes**
 dashboard card, in the Usage band for a holder of `runs:view`, shows the
 period's call minutes and calls and the top three agents.
+
+### Forking a conversation { #forking }
+
+To try another approach, or to take a side question somewhere it will not crowd the main thread, choose **Fork into a new conversation** under one of the agent's answers. You get a new conversation of your own, in the same project, holding everything up to and including that answer. The next message continues from there with the same history; the original is not changed.
+
+Only the conversation's owner can fork it: somebody it is shared with, for viewing or editing, does not get the action. A fork copies the messages and the tool calls, not the attachments' files, the files the agent wrote in its workspace, the images agents generated, the cost or the run records. The agent still has the text of an attachment, but the fork shows no card for it; an image an agent generated is the original's, and stops loading once the original is deleted. While a run in the history is still writing, or waits on an approval or a question, the conversation cannot be forked.
+
+The top of a fork says **Forked from** the original, with a link to it. Only you see that line: if you share the fork, the person you share it with sees an ordinary conversation.
 
 ### Background topics { #background-topics }
 

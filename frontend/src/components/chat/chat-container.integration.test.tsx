@@ -1506,3 +1506,167 @@ it("keeps the draft focused when tapping dock buttons while leaving keyboard foc
   expect(send).toHaveFocus();
   expect(messageOf(editor)).toBe("An unsent phone draft");
 });
+
+describe("the chat container - forking a conversation (#2762)", () => {
+  function listOwnedBy(owner: string, forkedFrom: unknown = null) {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({
+            items: [{ id: "c-mine", title: "Pricing", user_id: owner, forked_from: forkedFrom }],
+            total: 1,
+          })
+        : base(url),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-mine");
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-answer",
+        conversation_id: "c-mine",
+        role: "assistant",
+        content: "Start at 10.",
+        created_at: "2026-11-06T10:00:00Z",
+      },
+    ] as never);
+  }
+
+  it("lets the owner fork at an answer, and opens the fork", async () => {
+    listOwnedBy(SIGNED_IN.id);
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "c-fork", title: "Pricing" });
+    mount();
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
+    );
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-mine/fork", {
+        message_id: "m-answer",
+      }),
+    );
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentConversationId).toBe("c-fork"),
+    );
+  });
+
+  it("names where the owner's fork came from, and opens it", async () => {
+    listOwnedBy(SIGNED_IN.id, { conversation_id: "c-source", message_id: "m-1", title: "Plans" });
+    mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Plans" }, SETTLE));
+
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentConversationId).toBe("c-source"),
+    );
+  });
+
+  it("starts one fork however often it is clicked while that one is being made", async () => {
+    listOwnedBy(SIGNED_IN.id);
+    let finish: (value: unknown) => void = () => undefined;
+    vi.mocked(apiClient.post).mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    mount();
+    const fork = await screen.findByRole(
+      "button",
+      { name: "Fork into a new conversation" },
+      SETTLE,
+    );
+
+    await userEvent.click(fork);
+    await userEvent.click(fork);
+    finish({ id: "c-fork", title: "Pricing" });
+
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentConversationId).toBe("c-fork"),
+    );
+    expect(
+      vi.mocked(apiClient.post).mock.calls.filter(([path]) => String(path).endsWith("/fork")),
+    ).toHaveLength(1);
+  });
+
+  it("offers no fork in somebody else's thread", async () => {
+    listOwnedBy("someone-else");
+    mount();
+
+    await screen.findByText("Start at 10.", undefined, SETTLE);
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+});
+
+describe("the chat container - a conversation shared with the reader", () => {
+  /** Open a conversation the reader's own listing does not hold, as its metadata describes it. */
+  function openShared(metadata: Record<string, unknown> | Promise<never>) {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-theirs/metadata"
+        ? metadata instanceof Promise
+          ? metadata
+          : Promise.resolve({ id: "c-theirs", title: "Their plan", ...metadata })
+        : url.startsWith("/conversations?")
+          ? Promise.resolve({ items: [], total: 0 })
+          : base(url),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-theirs");
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        conversation_id: "c-theirs",
+        role: "assistant",
+        content: "Here is the plan.",
+        created_at: "2026-11-06T10:00:00Z",
+      },
+    ] as never);
+  }
+
+  it("offers no message box to somebody it was shared with to read", async () => {
+    openShared({ share_permission: "view", is_archived: false });
+    mount();
+
+    expect(
+      await screen.findByText("Shared with you as read-only", undefined, SETTLE),
+    ).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("keeps the message box for somebody it was shared with to edit", async () => {
+    openShared({ share_permission: "edit", is_archived: false });
+    mount();
+
+    await waitFor(
+      () => expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-disabled", "true"),
+      SETTLE,
+    );
+    expect(screen.queryByText("Shared with you as read-only")).toBeNull();
+  });
+
+  it("says an archived shared thread is archived, even to somebody who may edit it", async () => {
+    openShared({ share_permission: "edit", is_archived: true });
+    mount();
+
+    expect(
+      await screen.findByText("This conversation is archived", undefined, SETTLE),
+    ).toBeVisible();
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("lets nothing be written before it knows what the reader may do", async () => {
+    openShared(new Promise<never>(() => {}));
+    mount();
+
+    expect(await screen.findByRole("textbox", undefined, SETTLE)).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    // Not archived, and not said to be: it is only not known yet.
+    expect(screen.queryByText("This conversation is archived")).toBeNull();
+  });
+
+  it("restricts nothing when the reader's access cannot be read", async () => {
+    openShared(Promise.reject(new Error("offline")) as Promise<never>);
+    mount();
+
+    await waitFor(
+      () => expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-disabled", "true"),
+      SETTLE,
+    );
+  });
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "659aee690fb0"
+source_sha: "11009e11d759"
 ---
 
 # Die Konsole { #the-console }
@@ -386,6 +386,19 @@ sich zuletzt bewegt hat. Einer, dessen Run noch arbeitet, zeigt einen Spinner un
 wie lange er schon läuft; einer mit einer Antwort, die Sie seit dem letzten Öffnen
 nicht gesehen haben, trägt einen Punkt, den das Öffnen löscht - nur für Sie, denn
 einen geteilten Thread liest jeder seiner Leser für sich.
+
+Unterhaltungen, die andere mit Ihnen geteilt haben, stehen unter **Mit Ihnen
+geteilt**, unter Ihren Favoriten. Umbenennen, Teilen, Archivieren und Löschen
+liegen bei ihren Besitzern; ihr Menü enthält nur **Aus meinen Chats entfernen**,
+das Ihren Zugriff beendet und die Unterhaltung für alle anderen unverändert
+lässt. Eine zum Lesen mit Ihnen geteilte Unterhaltung hat kein Eingabefeld.
+Teilt jemand eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung,
+die sie öffnet.
+
+Unter **Teilen** hat jede Person, mit der die Unterhaltung geteilt ist, neben
+ihrem Namen eine Auswahl **Ansehen** oder **Bearbeiten**, um zu ändern, was sie
+darf, ohne den Zugriff zu entziehen und neu zu teilen. Ein Freigabelink bleibt
+schreibgeschützt.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 
@@ -786,6 +799,14 @@ Anruf, der sich neu verbunden hat, ist weiterhin eine Zeile, mit Zeit und Kosten
 aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
+
+### Ein Gespräch abzweigen { #forking }
+
+Um einen anderen Ansatz zu probieren oder eine Nebenfrage dort zu klären, wo sie den Hauptfaden nicht überfrachtet, wählen Sie unter einer Antwort des Agenten **In neue Unterhaltung abzweigen**. Sie erhalten ein neues, eigenes Gespräch im selben Projekt, mit allem bis einschließlich dieser Antwort. Die nächste Nachricht macht dort mit demselben Verlauf weiter; das Original bleibt unverändert.
+
+Abzweigen kann nur, wem das Gespräch gehört: Wer es zum Ansehen oder Bearbeiten freigegeben bekommen hat, sieht die Aktion nicht. Eine Abzweigung kopiert die Nachrichten und die Tool-Aufrufe, nicht die Dateien der Anhänge, die Dateien, die der Agent in seinen Workspace geschrieben hat, die von Agenten erzeugten Bilder, die Kosten oder die Run-Datensätze. Der Agent kennt den Text eines Anhangs weiterhin, aber die Abzweigung zeigt keine Karte dafür; ein von einem Agenten erzeugtes Bild gehört dem Original und lädt nicht mehr, sobald das Original gelöscht ist. Solange ein Run in diesem Verlauf noch schreibt oder auf eine Freigabe oder eine Frage wartet, lässt sich das Gespräch nicht abzweigen.
+
+Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. Diese Zeile sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
 
 ### Hintergrundthemen { #background-topics }
 

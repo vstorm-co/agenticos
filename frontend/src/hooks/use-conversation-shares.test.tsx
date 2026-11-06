@@ -7,7 +7,7 @@ import { useConversationShares } from "./use-conversation-shares";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -158,6 +158,27 @@ describe("the shares of one conversation", () => {
 
     expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/shares/s-2");
     await waitFor(() => expect(result.current.shares.map((row) => row.id)).toEqual(["s-1"]));
+  });
+
+  it("shows a changed level at once", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [share("s-1")], total: 1 });
+    const { result } = renderHook(() => useConversationShares(), { wrapper });
+    await act(async () => {
+      await result.current.fetchShares("c-1");
+    });
+    await waitFor(() => expect(result.current.shares).toHaveLength(1));
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...share("s-1"), permission: "edit" });
+    // No refetch answers, so the list on screen is the write itself.
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+    await act(async () => {
+      await result.current.changePermission("c-1", "s-1", "edit");
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1/shares/s-1", {
+      permission: "edit",
+    });
+    await waitFor(() => expect(result.current.shares[0]?.permission).toBe("edit"));
   });
 
   it("says what the server refused on a revoke, and raises it too", async () => {

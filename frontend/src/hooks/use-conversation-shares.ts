@@ -1,17 +1,110 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores/org-store";
 import type {
   Conversation,
   ConversationListResponse,
   ConversationShare,
   ConversationShareListResponse,
 } from "@/types";
+
+/** How many shared conversations the chat sidebar lists: one page, the newest first. */
+const SHARED_IN_SIDEBAR = 50;
+
+/**
+ * The conversations other people shared with the caller, for the chat sidebar.
+ *
+ * Shared threads are not in the caller's own listing - that holds what they
+ * started, joined or reach through a project - so without this a share was
+ * reachable only by its link.
+ */
+export function useSharedConversations(enabled: boolean): Conversation[] {
+  // The active organization's shares: the request carries its header, and the
+  // key has to change with it or a switch shows the last organization's list.
+  const orgId = useOrgStore((state) => state.activeOrgId);
+  const { data } = useQuery({
+    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId),
+    queryFn: () =>
+      apiClient.get<ConversationListResponse>(
+        `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}`,
+      ),
+    enabled,
+  });
+  // An archived thread is its owner's to bring back; it is no conversation to
+  // continue, so it is not offered beside the active ones.
+  return useMemo(
+    () => (enabled ? (data?.items ?? []).filter((conversation) => !conversation.is_archived) : []),
+    [enabled, data],
+  );
+}
+
+/** What the reader may do in an open conversation, once it is known. */
+export interface ConversationAccess {
+  /** Whether the answer has arrived; until it has, nothing should be written. */
+  known: boolean;
+  archived: boolean;
+  /** Shared with the reader to view only. */
+  viewOnly: boolean;
+}
+
+/**
+ * Whether the reader may write in a conversation their own listing does not hold.
+ *
+ * Opened by link or from a notice, or past the first page of shares, a thread
+ * has no row to read this from - and a composer offered on a guess is a message
+ * the server then refuses. Asked of the conversation itself, only when needed.
+ * A read that fails restricts nothing: the server still refuses what it must.
+ */
+export function useConversationAccess(
+  conversationId: string | null,
+  enabled: boolean,
+): ConversationAccess {
+  const orgId = useOrgStore((state) => state.activeOrgId);
+  const { data, isError } = useQuery({
+    queryKey: qk.conversationShares.access(conversationId ?? "", orgId),
+    queryFn: () => apiClient.get<Conversation>(`/conversations/${conversationId}/metadata`),
+    enabled: enabled && conversationId !== null,
+    retry: false,
+  });
+  return {
+    known: !enabled || data !== undefined || isError,
+    archived: data?.is_archived === true,
+    viewOnly: data?.share_permission === "view",
+  };
+}
+
+/**
+ * Take a conversation somebody shared with the caller out of their chats.
+ *
+ * Ends the caller's own share; the conversation and everybody else's access to
+ * it stay. Answers whether it went.
+ */
+export function useLeaveSharedConversation(): (conversationId: string) => Promise<boolean> {
+  const t = useTranslations("chat");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (conversationId: string) => {
+      try {
+        await apiClient.delete(`/conversations/${conversationId}/shared-with-me`);
+        await queryClient.invalidateQueries({ queryKey: qk.conversationShares.all() });
+        toast.success(t("leftShared"));
+        return true;
+      } catch (err) {
+        toast.error(getErrorMessage(err, tErrors, t("failedLeaveShared")));
+        return false;
+      }
+    },
+    [queryClient, t, tErrors],
+  );
+}
 
 export function useConversationShares() {
   const tErrors = useTranslations("errors");
@@ -110,6 +203,24 @@ export function useConversationShares() {
     [queryClient],
   );
 
+  const changePermission = useCallback(
+    async (conversationId: string, shareId: string, permission: "view" | "edit") => {
+      const share = await apiClient.patch<ConversationShare>(
+        `/conversations/${conversationId}/shares/${shareId}`,
+        { permission },
+      );
+      queryClient.setQueryData<ConversationShare[]>(
+        qk.conversationShares.list(conversationId),
+        (prev = []) => prev.map((s) => (s.id === shareId ? share : s)),
+      );
+      // Then read back, as a revoke does: a read already in flight answered
+      // with the old level and would otherwise stand.
+      queryClient.invalidateQueries({ queryKey: qk.conversationShares.list(conversationId) });
+      return share;
+    },
+    [queryClient],
+  );
+
   const revokeShare = useCallback(
     async (conversationId: string, shareId: string) => {
       setError(null);
@@ -153,6 +264,7 @@ export function useConversationShares() {
     shareConversation,
     fetchShares,
     revokeShare,
+    changePermission,
     fetchSharedWithMe,
   };
 }

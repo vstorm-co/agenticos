@@ -584,7 +584,8 @@
       "title": "Czaty",
       "unread": "Nowa odpowiedź",
       "unreadHeading": "Nieprzeczytane",
-      "unnamedProject": "Projekt"
+      "unnamedProject": "Projekt",
+      "sharedHeading": "Udostępnione Tobie"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -1459,7 +1460,19 @@
         "interrupted": "Przerwane; bez ponownego uruchomienia"
       },
       "emptyTitle": "Deleguj pracę i kontynuuj rozmowę"
-    }
+    },
+    "fork": "Rozgałęź do nowej rozmowy",
+    "forkedToast": "Rozmowa rozgałęziona",
+    "failedForkConversation": "Nie udało się rozgałęzić rozmowy",
+    "forkedFrom": "Rozgałęzienie rozmowy <link>{title}</link>",
+    "untitledFork": "Rozmowa bez tytułu",
+    "leaveShared": "Usuń z moich czatów",
+    "leftShared": "Usunięto z twoich czatów",
+    "failedLeaveShared": "Nie udało się usunąć rozmowy",
+    "conversationViewOnly": "Udostępniona Tobie tylko do odczytu",
+    "accessChanged": "Zmieniono dostęp",
+    "failedToChangeAccess": "Nie udało się zmienić dostępu",
+    "accessLevelFor": "Poziom dostępu dla {name}"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -3034,7 +3047,7 @@
       "avatarColourHint": "Pokazywany jako Twój awatar, dopóki nie wgrasz zdjęcia.",
       "prefArtifactVersionPublished": "Aplikacja zaktualizowana",
       "prefArtifactVersionPublishedTrigger": "Aplikacja, którą obserwujesz, dostaje nową wersję - opublikowaną ponownie przez agenta albo przywróconą przez człowieka.",
-      "prefResourceShared": "Udostępnione Twojej grupie",
+      "prefResourceShared": "Udostępnione Tobie lub Twojej grupie",
       "prefResourceSharedTrigger": "Coś - agent, skill, wiedza, aplikacja - zostaje udostępnione grupie, w której jesteś.",
       "prefBudgetWarning": "Budget działu na 80%",
       "prefBudgetWarningTrigger": "Dział, którym kierujesz, wykorzystał 80% miesięcznego budgetu. Administratorzy dostają informację o każdym dziale.",

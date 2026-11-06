@@ -15,6 +15,7 @@ from app.api.deps import (
     ProjectSvc,
     VisualSvc,
     WorkspaceSvc,
+    limit_fork,
     require,
 )
 from app.api.responses import content_disposition
@@ -24,6 +25,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.conversation import (
     ConversationCreate,
+    ConversationForkCreate,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -36,6 +38,7 @@ from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
     ConversationShareRead,
+    ConversationShareUpdate,
     SharedConversationRead,
 )
 from app.schemas.conversation_task import ConversationTaskRead
@@ -72,11 +75,14 @@ async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx:
 async def list_shared_with_me(
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """List conversations shared with the current user."""
-    items, total = await share_service.list_shared_with_me(current_user.id, skip=skip, limit=limit)
+    """List conversations shared with the current user in the active organization."""
+    items, total = await share_service.list_shared_with_me(
+        current_user.id, organization_id=active_org.id, skip=skip, limit=limit
+    )
     return ConversationList(items=items, total=total)
 
 
@@ -201,6 +207,42 @@ async def get_conversation(
     )
 
     return conversation if include_messages else ConversationRead.model_validate(conversation)
+
+
+@router.post(
+    "/{conversation_id}/fork",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_fork)],
+)
+async def fork_conversation(
+    conversation_id: UUID,
+    data: ConversationForkCreate,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Fork one of your conversations at an answer into a new chat (#2762).
+
+    The new conversation is yours, in the same project, and holds a copy of the
+    messages up to and including `message_id`, with their tool calls; the next
+    turn continues from there. The source is unchanged. Attachments, cost and
+    run records are not copied.
+
+    Only the conversation's owner may fork it; anybody else gets 404. `400`
+    when a run in the copied history is still running or parked on an
+    approval or a question. `forked_from` on the response names the source, and is only ever
+    set for the person who owns both. `429` past ten forks a minute per member
+    and organization.
+    """
+    return await conversation_service.fork(
+        conversation_id,
+        message_id=data.message_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
 
 
 @router.get("/{conversation_id}/metadata", response_model=ConversationRead)
@@ -544,6 +586,24 @@ async def list_shares(
     return ConversationShareList(items=shares, total=len(shares))
 
 
+@router.patch("/{conversation_id}/shares/{share_id}", response_model=ConversationShareRead)
+async def change_share_permission(
+    conversation_id: UUID,
+    share_id: UUID,
+    data: ConversationShareUpdate,
+    share_service: ConversationShareSvc,
+    current_user: CurrentUser,
+) -> Any:
+    """Change what a share with a person lets them do: `view` or `edit`.
+
+    The conversation's owner only (`403` otherwise). `400` for a share link,
+    which stays view-only; `404` when the share is not this conversation's.
+    """
+    return await share_service.change_permission(
+        conversation_id, share_id, current_user.id, permission=data.permission
+    )
+
+
 @router.delete(
     "/{conversation_id}/shares/{share_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -557,6 +617,25 @@ async def revoke_share(
 ) -> None:
     """Revoke a conversation share."""
     await share_service.revoke_share(share_id, current_user.id)
+
+
+@router.delete(
+    "/{conversation_id}/shared-with-me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def leave_shared_conversation(
+    conversation_id: UUID,
+    share_service: ConversationShareSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> None:
+    """Remove a conversation somebody shared with you from your chats.
+
+    Ends your own share of it; the conversation and everybody else's access to
+    it stay. `404` when it was not shared with you in the active organization.
+    """
+    await share_service.leave(conversation_id, current_user.id, organization_id=active_org.id)
 
 
 @router.get("/{conversation_id}/workspace", response_model=WorkspaceListing)

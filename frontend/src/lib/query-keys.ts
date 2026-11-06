@@ -506,8 +506,11 @@ export const qk = {
   conversationShares: {
     all: () => ["conversation-shares"] as const,
     list: (conversationId: string) => ["conversation-shares", conversationId] as const,
-    sharedWithMe: (skip: number, limit: number) =>
-      ["conversation-shares", "shared-with-me", skip, limit] as const,
+    sharedWithMe: (skip: number, limit: number, orgId: string | null = null) =>
+      ["conversation-shares", "shared-with-me", skip, limit, orgId] as const,
+    /** What the reader may do in one conversation their own listing does not hold. */
+    access: (conversationId: string, orgId: string | null) =>
+      ["conversation-shares", "access", conversationId, orgId] as const,
   },
   kb: {
     all: () => ["kb"] as const,

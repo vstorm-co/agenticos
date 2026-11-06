@@ -587,6 +587,30 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [invalidateLists, setError, t, tErrors],
   );
 
+  /**
+   * Fork one of the caller's conversations at an answer, and open the fork (#2762).
+   *
+   * The server copies the history up to and including `messageId` into a new
+   * conversation of the caller's own; the original is left as it was.
+   */
+  const forkConversation = useCallback(
+    async (conversationId: string, messageId: string): Promise<Conversation | null> => {
+      try {
+        const fork = await apiClient.post<Conversation>(`/conversations/${conversationId}/fork`, {
+          message_id: messageId,
+        });
+        await invalidateLists();
+        await selectConversation(fork.id);
+        toast.success(t("forkedToast"));
+        return fork;
+      } catch (err) {
+        toast.error(getErrorMessage(err, tErrors, t("failedForkConversation")));
+        return null;
+      }
+    },
+    [invalidateLists, selectConversation, t, tErrors],
+  );
+
   const unarchiveConversation = useCallback(
     async (id: string) => {
       try {
@@ -885,6 +909,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     loadEarlierMessages,
     archiveConversation,
     unarchiveConversation,
+    forkConversation,
     setFavourite,
     markRead,
     deleteConversation,

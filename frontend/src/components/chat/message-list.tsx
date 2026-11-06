@@ -14,6 +14,8 @@ import { MessageItem } from "./message-item";
 interface MessageListProps {
   messages: ChatMessage[];
   onRegenerate?: (messageId: string) => void;
+  /** Fork the conversation at this answer; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
 }
@@ -137,7 +139,7 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
   });
 }
 
-export function MessageList({ messages, onRegenerate, pins }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, onFork, pins }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
   // turns. The query is the one the agent picker already made, so this costs a
@@ -197,6 +199,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
             pins={pins}
             agents={agents}
             request={pins ? undefined : row.request}
+            onFork={onFork}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? regenerateLast
