@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Compass } from "lucide-react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { stripLocale } from "@/lib/active-route";
 import { pageHasSteps } from "@/lib/onboarding/tour";
@@ -16,7 +17,13 @@ export function PageHelp({ description }: { description?: ReactNode }) {
   const hasTour = pageHasSteps(stripLocale(pathname ?? "/"));
   if (!description && !hasTour) return null;
   return (
-    <ContextHelp action={hasTour ? { label: t("pageHelp"), onClick: openPage } : undefined}>
+    <ContextHelp
+      action={
+        hasTour
+          ? { label: t("pageHelp"), icon: <Compass aria-hidden />, onClick: openPage }
+          : undefined
+      }
+    >
       {description}
     </ContextHelp>
   );

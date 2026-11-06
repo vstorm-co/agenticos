@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Button } from "./button";
 
 /** Explanatory copy on demand; errors and field requirements stay beside their controls. */
 export function ContextHelp({
@@ -11,7 +12,7 @@ export function ContextHelp({
   action,
 }: {
   children?: ReactNode;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; icon: ReactNode; onClick: () => void };
 }) {
   const [open, setOpen] = useState(false);
   const t = useTranslations("common");
@@ -29,16 +30,18 @@ export function ContextHelp({
       <PopoverContent align="start" className="w-80 text-sm leading-relaxed">
         {children}
         {action && (
-          <button
+          <Button
             type="button"
-            className="text-foreground hover:bg-accent focus-visible:ring-ring bg-muted mt-3 flex min-h-11 w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-medium outline-none first:mt-0 focus-visible:ring-2"
+            variant="secondary"
+            className="mt-3 min-h-11 w-full first:mt-0"
             onClick={() => {
               setOpen(false);
               action.onClick();
             }}
           >
+            {action.icon}
             {action.label}
-          </button>
+          </Button>
         )}
       </PopoverContent>
     </Popover>
