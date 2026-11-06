@@ -9,7 +9,7 @@ here and answered by settling its request, so each move is the session's own.
 import threading
 import uuid
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -56,7 +56,7 @@ from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_authoring import _improver, _owner
-from tests.integration.test_skill_bindings import _fork, _serving, _spec
+from tests.integration.test_skill_bindings import _fork, _serving, _spec, _with_specialist
 from tests.integration.test_skill_improvement import _checked
 
 pytestmark = pytest.mark.anyio
@@ -544,6 +544,33 @@ class TestACatchUp:
         assert [item.agent.name for item in returned.returned.agents] == ["Desk"]
         assert len([call for call in fake.calls if call[0] == "discard"]) == 2
 
+    async def test_a_return_that_moves_nobody_leaves_the_session_and_its_checks(
+        self, db, call_price, monkeypatch
+    ):
+        """A fork read only through a specialist is changed in the Builder: nothing moved."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx)
+        await _serving(
+            db, ctx, "Desk", _with_specialist({"name": "Desk"}, skill, fork_id=str(fork.id))
+        )
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        await _advance(db, run)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, "passed", "no_better")
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).return_to_main(
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
+            )
+
+        assert [item["name"] for item in refused.value.details["agents"]] == ["Desk"]
+        assert not [call for call in fake.calls if call[0] == "discard"]
+        read = await SkillImprovementService(db).read(ctx, skill.id, run.id)
+        assert (read.status, read.outcome) == ("ready", None)
+
     @pytest.mark.parametrize("hidden", [False, True])
     async def test_agents_main_alone_could_not_check_are_acknowledged_before_returning(
         self, db, call_price, monkeypatch, hidden
@@ -589,6 +616,33 @@ class TestACatchUp:
 
         assert (retried.status, retried.stage) == ("running", "evaluating")
         assert len(fake.files) == 3 and await _alone_id(db, run) == kept
+
+    async def test_a_kept_check_of_main_alone_is_paid_for_once(self, db, call_price, monkeypatch):
+        """Its cost went into the attempt when the failed check was judged."""
+        _checked(db, monkeypatch)
+
+        async def cost(*_args: object, **_kwargs: object) -> Decimal:
+            return Decimal("0.10")
+
+        monkeypatch.setattr(skill_improvement_repo, "check_cost", cost)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, None, "passed")
+        kept = await db.get(SkillCheck, await _alone_id(db, run))
+        assert kept is not None
+        # The retry runs in a later transaction than the checks it keeps.
+        kept.created_at -= timedelta(minutes=1)
+        await db.flush()
+        await SkillImprovementService(db).retry(ctx, skill.id, run.id)
+
+        await _settle(db, run, "passed", "passed")
+
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+        )
+        assert iteration is not None and iteration.cost_usd == Decimal("0.30")
 
     async def test_a_retry_checks_main_alone_again_when_it_failed_too(
         self, db, call_price, monkeypatch

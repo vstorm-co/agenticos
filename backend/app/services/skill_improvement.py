@@ -179,6 +179,13 @@ class SkillStanding:
         return self.edits_skill and self.views_runs and self.ai_assistance
 
 
+_RESUMABLE = (StopReason.BUDGET.value, StopReason.PERMISSION.value)
+"""Stops a person can lift - a higher limit, regained access - and take the same step again."""
+
+_BEFORE_A_PROPOSAL = (Stage.ANALYZING.value, Stage.CLASSIFYING.value, Stage.PROPOSING.value)
+"""Steps of an attempt that has not written its edits yet."""
+
+
 @dataclass(frozen=True)
 class SessionLine:
     """One line of a skill, as a session improves it."""
@@ -638,10 +645,16 @@ class SkillImprovementService:
             limit=limit,
         )
         people = await self.versions.people(ctx, [row.created_by_user_id for row in rows])
-        return [
-            await self._read(ctx, row, await self._line_of(skill, row), people=people)
-            for row in rows
-        ]
+        # A page holds a handful of lines at most: each is read, and its agents counted, once.
+        lines: dict[UUID | None, tuple[SessionLine, tuple[int, int]]] = {}
+        reads: list[SkillImprovementRead] = []
+        for row in rows:
+            if row.fork_id not in lines:
+                line = await self._line_of(skill, row)
+                lines[row.fork_id] = (line, await self._line_agents(ctx, line))
+            line, counted = lines[row.fork_id]
+            reads.append(await self._read(ctx, row, line, people=people, line_agents=counted))
+        return reads
 
     async def read(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         self._require_runs_view(ctx)
@@ -841,7 +854,8 @@ class SkillImprovementService:
             return await self._merge_continuation(
                 ctx, line, run, mode=data.mode, main_alone=data.main_alone
             )
-        return await self._continuation(ctx, line, run, mode=data.mode)
+        quote, _ = await self._continuation(ctx, line, run, mode=data.mode)
+        return quote
 
     async def continue_run(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
@@ -863,7 +877,7 @@ class SkillImprovementService:
         if run.purpose != Purpose.IMPROVE.value:
             await self._continue_merge(ctx, line, run, consent)
             return await self._read(ctx, run, line)
-        quote = await self._continuation(ctx, line, run, mode=consent.mode)
+        quote, covered = await self._continuation(ctx, line, run, mode=consent.mode)
         moved = line.latest != run.base_version_id
         if consent.candidate_hash != quote.candidate_hash and moved:
             self._refuse_moved(run, line)
@@ -881,12 +895,18 @@ class SkillImprovementService:
                 message="The spending limit does not cover this step",
                 details={"estimate_usd": str(quote.total_usd), "budget_usd": str(budget)},
             )
+        if not covered:
+            raise PaymentRequiredError(
+                message="The organization's budget, or the helper's, does not cover this step",
+                details={"estimate_usd": str(quote.total_usd)},
+            )
         values: dict[str, object] = {
             "budget_usd": budget,
             "actor_user_id": ctx.user_id,
             "actor_api_key_id": ctx.api_key_id,
         }
         if quote.mode == "next_round":
+            await self._set_aside_checks(run)
             number = run.iteration + 1
             await skill_improvement_repo.create_iteration(
                 self.db,
@@ -908,8 +928,9 @@ class SkillImprovementService:
                 await self._remeasure(ctx, run, await self._iteration(run))
             await self._start_check(ctx, run, line, consent.mode, base=base)
         else:
+            stage = Stage(run.stage) if quote.mode == "resume" else Stage.PROPOSING
             await self._move(
-                run, rules.Transition(Status.RUNNING, Stage.PROPOSING), actor_user_id=ctx.subject_id
+                run, rules.Transition(Status.RUNNING, stage), actor_user_id=ctx.subject_id
             )
         return await self._read(ctx, run, line)
 
@@ -975,7 +996,8 @@ class SkillImprovementService:
         Raises:
             BadRequestError: The session is not a catch-up, main alone was not checked or
                 made an agent worse, or it could not check some agents and that was not
-                acknowledged.
+                acknowledged; or no agent the fork still has could be moved, which leaves
+                the session and its checks as they were.
             ConcurrentChangeError: The session has no result to decide on.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
@@ -1008,6 +1030,20 @@ class SkillImprovementService:
                 "the fork's agents to main",
             )
         returned = await self.merges.return_to_main(ctx, run.skill_id, run.fork_id, ReturnToMain())
+        if returned.remaining and all(item.refused for item in returned.agents):
+            raise BadRequestError(
+                message=(
+                    "No agent could be moved back to main, so the session stays open with its "
+                    "checks"
+                ),
+                details={
+                    "agents": [
+                        {"id": item.agent.id, "name": item.agent.name, "refused": item.refused}
+                        for item in returned.agents
+                    ],
+                    "hidden": returned.hidden,
+                },
+            )
         await self._discard_checks(ctx, run)
         await self._decide(ctx, run, SkillImprovementOutcome.RETURNED_TO_MAIN, None)
         return SkillImprovementReturned(session=await self._read(ctx, run, line), returned=returned)
@@ -1231,8 +1267,16 @@ class SkillImprovementService:
 
     async def cancel(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         """Stop the session where it is: its unfinished analysis or proposal stops, its check
-        is stopped or set aside, and what it already checked stays readable."""
+        is stopped or set aside, and what it already checked stays readable.
+
+        Like discarding, only for its creator or an organization admin: stopping sets
+        aside a check somebody paid for.
+        """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        if not self._may_discard(ctx, run):
+            raise AuthorizationError(
+                message="Only whoever started the session, or an organization admin, stops it"
+            )
         stage = None if run.stage is None else Stage(run.stage)
         await self._move(
             run, rules.Transition(Status.CANCELLED, stage), actor_user_id=ctx.subject_id
@@ -1396,7 +1440,10 @@ class SkillImprovementService:
                 run = await skill_improvement_repo.get_run(
                     self.db, run_id, organization_id=organization_id, lock=True
                 )
-                if run is not None and await self._end_if_left(run, now=now):
+                # Listed resting, but a decision may have taken it while the lock waited.
+                if run is None or not Status(run.status).open or Status(run.status).active:
+                    continue
+                if await self._end_if_left(run, now=now):
                     count += 1
             after = rows[-1][0]
         return count
@@ -1415,6 +1462,7 @@ class SkillImprovementService:
         stage = None if run.stage is None else Stage(run.stage)
         if rules.expired(run.stage_started_at or run.created_at, now=now):
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.EXPIRED))
+            await self._set_aside_checks(run)
             return True
         if run.purpose != Purpose.IMPROVE.value:
             skill = await skill_repo.get(self.db, run.skill_id, organization_id=run.organization_id)
@@ -1422,6 +1470,7 @@ class SkillImprovementService:
             if await self._merge_moved(run, skill) is None:
                 return False
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
+            await self._set_aside_checks(run)
             return True
         waiting_at_understand = run.status == Status.WAITING and run.stage != Stage.FILTERING
         if not waiting_at_understand and run.status not in (Status.STOPPED, Status.FAILED):
@@ -1432,6 +1481,7 @@ class SkillImprovementService:
         if line.latest == run.base_version_id and not line.archived:
             return False
         await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
+        await self._set_aside_checks(run)
         return True
 
     async def advance(self, run_id: UUID, organization_id: UUID) -> None:
@@ -1808,12 +1858,15 @@ class SkillImprovementService:
             None if alone is None else alone.status,
         ):
             return
-        cost = Decimal(0)
-        for measured in (check, alone):
-            if measured is not None:
-                cost += await skill_improvement_repo.check_cost(
-                    self.db, measured.id, organization_id=run.organization_id
-                )
+        cost = await skill_improvement_repo.check_cost(
+            self.db, check.id, organization_id=run.organization_id
+        )
+        # A check of main alone kept through a retry was started before the merge's new
+        # check, and its cost was counted when the failed attempt was judged.
+        if alone is not None and alone.created_at >= check.created_at:
+            cost += await skill_improvement_repo.check_cost(
+                self.db, alone.id, organization_id=run.organization_id
+            )
         if check.verdict is None:
             await skill_improvement_repo.update_iteration(
                 self.db,
@@ -1871,6 +1924,13 @@ class SkillImprovementService:
         for check in (await self._check(run), await self._main_alone_check(run)):
             if check is not None and check.status == CheckStatus.DONE.value:
                 await self.checks.discard(ctx, run.skill_id, check.id, from_session=True)
+
+    async def _set_aside_checks(self, run: SkillImprovementRun) -> None:
+        """Set aside the attempt's finished checks once the session can no longer decide
+        them, so none waits forever for a decision only the session could make."""
+        for check in (await self._check(run), await self._main_alone_check(run)):
+            if check is not None and check.status == CheckStatus.DONE.value:
+                await self.checks.set_aside_for_session(check)
 
     async def _mode_of(self, run: SkillImprovementRun) -> CheckMode | None:
         """How the attempt's last check measured: a check again measures the same way."""
@@ -2133,7 +2193,13 @@ class SkillImprovementService:
         run: SkillImprovementRun,
         *,
         mode: CheckMode | None,
-    ) -> SkillContinuationEstimate:
+    ) -> tuple[SkillContinuationEstimate, bool]:
+        """The next step's quote, and whether the organization's and the helper's budgets
+        cover it - the session's own limit may be raised with consent, those may not.
+
+        Raises:
+            BadRequestError: A proposal would have nothing on the line to learn from.
+        """
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
@@ -2168,11 +2234,19 @@ class SkillImprovementService:
                     start.candidate.description, start.candidate.content, check
                 ),
                 check_estimate=check,
-            )
+            ), check.affordable
         self._refuse_moved(run, line)
-        step: Literal["next_step", "next_round"]
+        step: Literal["next_step", "next_round", "resume"]
         if run.status == Status.WAITING and run.stage == Stage.CLASSIFYING:
             step, number = "next_step", run.iteration
+        elif (
+            run.status == Status.STOPPED
+            and run.stop_reason in _RESUMABLE
+            and run.stage in _BEFORE_A_PROPOSAL
+        ):
+            # Stopped before the attempt wrote anything: the same step again, not a new
+            # attempt, so a raised limit or regained access loses nothing paid for.
+            step, number = "resume", run.iteration
         elif run.status in (Status.READY, Status.STOPPED) and run.stage not in (
             None,
             Stage.ANALYZING,
@@ -2190,18 +2264,28 @@ class SkillImprovementService:
                 details={"status": run.status, "stage": run.stage},
             )
         pack = await self._evidence(ctx, line, run.window_days)
-        price = (
-            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
-        ).estimate_usd
+        priced = await self.authoring.estimate_pack(
+            ctx, pack, improver_agent_id=run.improver_agent_id
+        )
+        if priced.reason is not None:
+            raise BadRequestError(
+                message=(
+                    "Nothing to learn from on this line now: no answer in the session's window "
+                    "that loaded it was rated down or failed"
+                ),
+                details={"reason": priced.reason},
+            )
+        price = priced.estimate_usd
         return SkillContinuationEstimate(
             mode=step,
             number=number,
             total_usd=price,
             expected_usd=price,
             budget_usd=run.budget_usd,
-            affordable=rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd),
+            affordable=priced.affordable
+            and rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd),
             candidate_hash=hashlib.sha256(f"{run.base_version_id}:{number}".encode()).hexdigest(),
-        )
+        ), priced.affordable
 
     async def _read(
         self,
@@ -2210,16 +2294,18 @@ class SkillImprovementService:
         line: SessionLine,
         *,
         people: Mapping[UUID, PersonRef] | None = None,
+        line_agents: tuple[int, int] | None = None,
     ) -> SkillImprovementRead:
-        """One session as the console reads it. `people` names who started it, read once
-        for a whole page by the caller listing many; a single read looks its starter up."""
+        """One session as the console reads it. `people` names who started it, and
+        `line_agents` counts its line's agents, each read once for a whole page by the
+        caller listing many; a single read looks both up."""
         iterations = await skill_improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
         base = await skill_version_repo.get_version(
             self.db, run.base_version_id, organization_id=ctx.organization_id, skill_id=run.skill_id
         )
-        visible, hidden = await self._line_agents(ctx, line)
+        visible, hidden = line_agents or await self._line_agents(ctx, line)
         result = SkillImprovementRead.model_validate(run)
         result.line_name = line.name
         result.base_version = (

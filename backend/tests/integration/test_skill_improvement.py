@@ -80,6 +80,7 @@ from app.services.authoring_evidence import EvidencePack, PackedRun
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.personal_data import PersonalDataService
+from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
@@ -792,6 +793,25 @@ class TestStops:
         assert (await _row(db, SkillImprovementRead.model_validate(fresh))).status == "waiting"
         assert (await _row(db, working)).status == "queued"
 
+    async def test_a_session_decided_while_the_sweep_waited_is_left_alone(
+        self, db, evidence, monkeypatch
+    ):
+        """Listed while it rested, accepted before its lock came: nothing to end, no crash."""
+        ctx = await _owner(db)
+        run = await _at_understand(db, ctx, await _skill_on_main(db, ctx))
+        run.stage_started_at = datetime.now(UTC) - timedelta(days=8)
+        run.status = "accepted"
+        await db.flush()
+        listed = iter([[(run.id, ctx.organization_id)], []])
+
+        async def resting(*_args: object, **_kwargs: object) -> list[tuple[uuid.UUID, uuid.UUID]]:
+            return next(listed)
+
+        monkeypatch.setattr(skill_improvement_repo, "list_resting", resting)
+
+        assert await SkillImprovementService(db).sweep() == 0
+        assert (await _row(db, SkillImprovementRead.model_validate(run))).status == "accepted"
+
 
 class TestEnding:
     async def test_cancel_and_discard_end_the_session_and_free_the_line(self, db, evidence):
@@ -823,8 +843,47 @@ class TestEnding:
                 builder, skill.id, run.id, ImprovementDiscard(confirmed=True)
             )
 
+    @pytest.mark.security
+    async def test_only_the_creator_or_an_admin_stops_it(self, db, evidence):
+        """Stopping sets aside the session's check, which its creator paid for."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        builder = await _member(db, ctx, OrgRoleName.BUILDER)
+
+        with pytest.raises(AuthorizationError):
+            await SkillImprovementService(db).cancel(builder, skill.id, run.id)
+        stopped = await SkillImprovementService(db).cancel(ctx, skill.id, run.id)
+
+        assert stopped.status == "cancelled"
+
 
 class TestListing:
+    async def test_a_page_reads_each_lines_agents_once(self, db, evidence, monkeypatch):
+        """Every session on a line counts the same agents, so a page asks once per line."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+        for _ in range(2):
+            read = await service.start(ctx, skill.id, _start())
+            await service.cancel(ctx, skill.id, read.id)
+        await service.start(ctx, skill.id, _start())
+        asked: list[uuid.UUID | None] = []
+        original = SkillAgentService.line_agents
+
+        async def counted(self, skill, fork_id):
+            asked.append(fork_id)
+            return await original(self, skill, fork_id)
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", counted)
+
+        listed = await service.list_for_skill(
+            ctx, skill.id, fork_id=None, main_only=True, skip=0, limit=50
+        )
+
+        assert len(listed) == 3 and asked == [None]
+        assert {(read.agents, read.hidden_agents) for read in listed} == {(1, 0)}
+
     async def test_sessions_list_by_line_and_waiting_ones_reach_waiting_for_you(self, db, evidence):
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)
@@ -975,6 +1034,68 @@ class TestEdges:
 
         assert (run.status, run.stage, run.stop_reason) == ("stopped", "proposing", "budget")
 
+    async def test_a_last_attempt_stopped_for_its_budget_resumes_the_same_attempt(
+        self, db, evidence
+    ):
+        """Nothing was written yet, so a raised limit takes the same step, not a new attempt."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        run.max_iterations = 1
+        await db.flush()
+        await _continue(db, ctx, run)
+        evidence["price"] = Decimal("5")
+        service = SkillImprovementService(db)
+        await service.advance(run.id, ctx.organization_id)
+
+        quote = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
+        read = await service.continue_run(
+            ctx,
+            skill.id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=Decimal("10"),
+            ),
+        )
+
+        assert (quote.mode, quote.number) == ("resume", 1)
+        assert (read.status, read.stage, read.iteration) == ("running", "proposing", 1)
+
+    @pytest.mark.security
+    async def test_a_proposal_the_organization_cannot_afford_is_refused_not_queued(
+        self, db, evidence
+    ):
+        """The session's own limit can be raised with consent; the organization's cannot."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        evidence["affordable"] = False
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
+        with pytest.raises(PaymentRequiredError):
+            await _continue(db, ctx, run)
+
+        assert quote.affordable is False
+        read = await service.read(ctx, skill.id, run.id)
+        assert (read.status, read.stage) == ("waiting", "classifying")
+
+    async def test_a_proposal_with_nothing_left_to_learn_from_is_refused(self, db, evidence):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        evidence["runs"] = []
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).estimate_continuation(
+                ctx, skill.id, run.id, SkillContinue()
+            )
+
+        assert refused.value.details == {"reason": "no_evidence"}
+
 
 class TestTheLinesEvidence:
     async def test_main_reads_its_versions_and_a_fork_without_its_own_reads_its_base(
@@ -1030,6 +1151,14 @@ async def _continue(db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun
             budget_usd=run.budget_usd,
         ),
     )
+
+
+async def _check_id(db: AsyncSession, run: SkillImprovementRun) -> uuid.UUID | None:
+    iteration = await skill_improvement_repo.get_iteration(
+        db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+    )
+    assert iteration is not None
+    return iteration.skill_check_id
 
 
 class FakeChecks:
@@ -1146,6 +1275,11 @@ class FakeChecks:
     async def stop_for_session(self, check):
         self.calls.append(("cancel", check.id))
         check.status = CheckStatus.CANCELLED.value
+        await self.db.flush()
+
+    async def set_aside_for_session(self, check):
+        self.calls.append(("set_aside", check.id))
+        check.status = CheckStatus.DISCARDED.value
         await self.db.flush()
 
     async def discard(self, ctx, skill_id, check_id, *, from_session=False):
@@ -1469,11 +1603,13 @@ class TestOutcomes:
         ]
 
     async def test_try_again_after_a_result_starts_a_new_attempt(self, db, evidence, monkeypatch):
-        _checked(db, monkeypatch)
+        """The last attempt's check is set aside: only the session could decide it."""
+        fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
         run = await _at_changes(db, ctx)
         await _check_now(db, ctx, run)
         run = await _settle(db, run, status="done", verdict="blocked")
+        checked = await _check_id(db, run)
         service = SkillImprovementService(db)
 
         quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
@@ -1492,6 +1628,24 @@ class TestOutcomes:
 
         assert (quote.mode, read.iteration, read.stage) == ("next_round", 2, "proposing")
         assert read.check is None
+        assert ("set_aside", checked) in fake.calls
+
+    async def test_a_result_nobody_decided_for_a_week_sets_its_check_aside(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        checked = await _check_id(db, run)
+        run.stage_started_at = datetime.now(UTC) - timedelta(days=8)
+        await db.flush()
+
+        await SkillImprovementService(db).sweep()
+
+        assert (await _row(db, SkillImprovementRead.model_validate(run))).status == "stale"
+        assert ("set_aside", checked) in fake.calls
 
 
 class TestHandedOver:

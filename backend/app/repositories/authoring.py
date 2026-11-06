@@ -112,9 +112,16 @@ async def list_requests(
     skill_id: UUID | None = None,
     context_id: UUID | None = None,
     limit: int = 10,
+    sessions: bool = True,
 ) -> list[AuthoringRequest]:
-    """The latest requests on one agent, skill or context file, newest first."""
+    """The latest requests on one agent, skill or context file, newest first.
+
+    `sessions=False` leaves out the steps of a skill's Improve sessions, which are
+    read through the session.
+    """
     statement = select(AuthoringRequest).where(AuthoringRequest.organization_id == organization_id)
+    if not sessions:
+        statement = statement.where(AuthoringRequest.skill_improvement_run_id.is_(None))
     if agent_id is not None:
         statement = statement.where(AuthoringRequest.agent_id == agent_id)
     if skill_id is not None:

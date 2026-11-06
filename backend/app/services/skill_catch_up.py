@@ -194,8 +194,9 @@ class SkillCatchUpService:
 
         Each agent moves as Change version moves it - published with `agents:publish`,
         otherwise in its draft - and one that cannot be moved stays on the fork with the
-        reason: an agent the caller may not change, one that reads the fork only through
-        a specialist, or one whose new version does not publish. The fork is archived
+        reason: an agent the caller may not change (a system agent or the Architect
+        without `org:settings` among them), one that reads the fork only through a
+        specialist, or one whose new version does not publish. The fork is archived
         only for a caller who may edit the skill.
 
         Raises:
@@ -221,7 +222,7 @@ class SkillCatchUpService:
                 moved = await self.agents.change_binding(
                     ctx, skill.id, agent.id, SkillBindingChange(state="main")
                 )
-            except (NotFoundError, BadRequestError) as refusal:
+            except (NotFoundError, BadRequestError, AuthorizationError) as refusal:
                 returned.append(
                     ReturnedAgent(agent=_usage(agent), published=False, refused=refusal.message)
                 )

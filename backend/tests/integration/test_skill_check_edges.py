@@ -24,7 +24,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import OrgRoleName, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun
 from app.db.models.background_job import BackgroundJob
 from app.db.models.dataset import Dataset, DatasetCase
@@ -89,6 +89,7 @@ from tests.integration.test_skill_checks import (
     _lab,
     _run_to_end,
     _start,
+    _statuses,
 )
 
 pytestmark = pytest.mark.anyio
@@ -665,11 +666,14 @@ class TestDecidingRefusals:
         evals.install(monkeypatch)
         service = SkillCheckService(db)
         check = await service.start(lab.ctx, lab.skill.id, _start())
-        next(iter(evals.runs.values())).status = EvalRunStatus.COMPLETED.value
+        settled = await db.get(EvalRun, next(iter(evals.runs)))
+        assert settled is not None
+        settled.status = EvalRunStatus.COMPLETED.value
+        await db.flush()
 
         await service.cancel(lab.ctx, lab.skill.id, check.id)
 
-        assert [run.status for run in evals.runs.values()].count("completed") == 1
+        assert (await _statuses(db, evals)).count("completed") == 1
         with pytest.raises(AlreadyExistsError):
             await service.cancel(lab.ctx, lab.skill.id, check.id)
 
@@ -1617,6 +1621,32 @@ class TestSampleAndTestSet:
         )
 
         assert created.case_count == 0
+
+
+@pytest.mark.security
+async def test_a_caller_who_may_not_create_datasets_gets_no_test_questions(db):
+    """A key for skills alone edits the skill, but the test set is a dataset."""
+    lab = await _lab(db)
+    test_set = await dataset_repo.for_skill(
+        db, lab.skill.id, organization_id=lab.ctx.organization_id
+    )
+    assert test_set is not None
+    test_set.skill_id = None
+    await db.flush()
+    key = AuthContext(
+        user_id=lab.ctx.user_id,
+        organization_id=lab.ctx.organization_id,
+        role=OrgRoleName.OWNER,
+        key_scopes=frozenset({Perm.SKILLS_VIEW, Perm.SKILLS_EDIT}),
+    )
+
+    with pytest.raises(AuthorizationError):
+        await SkillCheckService(db).create_test_set(key, lab.skill.id, SkillTestSetStart())
+
+    assert (
+        await dataset_repo.for_skill(db, lab.skill.id, organization_id=lab.ctx.organization_id)
+        is None
+    )
 
 
 def test_rows_say_what_they_are() -> None:

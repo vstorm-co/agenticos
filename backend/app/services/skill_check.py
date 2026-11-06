@@ -1125,6 +1125,20 @@ class SkillCheckService:
             values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
         )
 
+    async def set_aside_for_session(self, check: SkillCheck) -> None:
+        """Set aside a finished check its session can no longer decide: it moved to its next
+        attempt, or ended without a decision. Like `stop_for_session`, the session's own
+        access allows it, so it needs nobody's."""
+        await skill_check_repo.update(
+            self.db,
+            row=check,
+            values={
+                "status": CheckStatus.DISCARDED.value,
+                "outcome": CheckOutcome.DISCARD.value,
+                "decided_at": datetime.now(UTC),
+            },
+        )
+
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
         """Queue the check an eval run belonged to, once the run has settled."""
         from app.worker import jobs
@@ -1370,7 +1384,10 @@ class SkillCheckService:
     ) -> SkillCheckRead:
         """Stop a running check; the runs it started are cancelled with it.
 
-        A check a skill session started is stopped through that session only.
+        Edit access to the skill is what allows it, so the platform ends the runs
+        itself, as when a check expires: the runs of an agent the caller may not see
+        or edit stop too, and none is named. A check a skill session started is
+        stopped through that session only.
         """
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         check = await self._check(ctx, skill_id, check_id, lock=True)
@@ -1379,29 +1396,20 @@ class SkillCheckService:
             raise AlreadyExistsError(
                 message="The check is not running", details={"check_id": check.id}
             )
-        await self._stop_runs(
-            ctx,
+        now = datetime.now(UTC)
+        await self._end_runs(
+            check,
             await skill_check_repo.list_agents(
                 self.db, [check.id], organization_id=ctx.organization_id
             ),
+            now=now,
         )
         await skill_check_repo.update(
             self.db,
             row=check,
-            values={"status": CheckStatus.CANCELLED.value, "finished_at": datetime.now(UTC)},
+            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
         )
         return await self.read(ctx, skill_id, check.id)
-
-    async def _stop_runs(self, ctx: AuthContext, rows: Sequence[SkillCheckAgent]) -> None:
-        """Cancel the eval runs of these agents still going, so they stop spending."""
-        for row in rows:
-            for run_id in (row.skill_set_run_id, row.dataset_run_id):
-                if run_id is not None:
-                    run = await eval_run_repo.get(
-                        self.db, run_id, organization_id=ctx.organization_id
-                    )
-                    if run is not None and EvalRunStatus(run.status) not in _SETTLED_RUNS:
-                        await self.evals.cancel(ctx, run_id)
 
     async def stop_for_proposal(self, ctx: AuthContext, skill_id: UUID, proposal_id: UUID) -> None:
         """Stop the running checks of a proposal discarded or withdrawn: nothing they find
@@ -2090,9 +2098,15 @@ class SkillCheckService:
         """Give the skill its test questions, empty or from recent answers that loaded it.
 
         Raises:
+            AuthorizationError: The caller may not create datasets.
             AlreadyExistsError: The skill has its test questions already.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        if not ctx.has(Perm.DATASETS_EDIT):
+            raise AuthorizationError(
+                message="A skill's test questions are a dataset, which needs datasets:edit",
+                details={"permission": Perm.DATASETS_EDIT.value},
+            )
         if await self._test_set(ctx, skill) is not None:
             raise AlreadyExistsError(
                 message="This skill has its test questions already", details={"skill_id": skill.id}
