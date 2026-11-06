@@ -86,7 +86,8 @@ def upgrade_graph(graph: dict[str, Any]) -> dict[str, Any]:
         if loop not in items and definition.get(target) == LOOP_ITEM and owner.get(target) == loop:
             items[loop] = target
 
-    kept = [edge for edge in edges if not any(edge is wire for wire in body_wires)]
+    moving = {id(wire) for wire in body_wires}
+    kept = [edge for edge in edges if id(edge) not in moving]
     wired = {_signature(edge) for edge in kept}
     for wire in body_wires:
         item = items.get(wire["source_node_id"])

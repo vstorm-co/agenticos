@@ -14,6 +14,11 @@ new shape rather than refused:
   item to start from, leaving the step in the body for validation to report;
 - `entry_port` is dropped from the stored scopes, which are re-derived anyway.
 
+A graph past the node or edge ceiling keeps its wires: the conversion would remove
+the very edges `graph_size_problems` counts, and costs work per edge, so an
+oversized import is left for that check to refuse. Only `entry_port` is dropped,
+so the refusal is the size check's rather than a schema error.
+
 Only raw JSON is read here: a graph already built from model instances is in
 the new shape by construction. `alembic/versions/0258_workflow_loop_scope.py`
 holds a frozen copy of this conversion for the rows stored before it.
@@ -22,6 +27,8 @@ holds a frozen copy of this conversion for the rows stored before it.
 from collections import deque
 from collections.abc import Hashable
 from typing import Any
+
+from app.core.config import settings
 
 FOREACH = "control.foreach"
 LOOP_ITEM = "loop.item"
@@ -34,6 +41,11 @@ def adopt_named_loop_bodies(graph: dict[str, Any]) -> dict[str, Any]:
     nodes, edges, scopes = graph.get("nodes"), graph.get("edges"), graph.get("scopes")
     if not isinstance(nodes, list) or not isinstance(edges, list):
         return graph
+    if (
+        len(nodes) > settings.WORKFLOW_GRAPH_MAX_NODES
+        or len(edges) > settings.WORKFLOW_GRAPH_MAX_EDGES
+    ):
+        return _without_entry_ports(graph)
     raw_nodes = [node for node in nodes if isinstance(node, dict)]
     raw_edges = [edge for edge in edges if isinstance(edge, dict)]
     loops = {node.get("id") for node in raw_nodes if node.get("definition_id") == FOREACH}
@@ -56,7 +68,8 @@ def adopt_named_loop_bodies(graph: dict[str, Any]) -> dict[str, Any]:
         if loop not in items and definition.get(target) == LOOP_ITEM and owner.get(target) == loop:
             items[loop] = target
 
-    kept: list[Any] = [edge for edge in edges if not _is_in(edge, body_wires)]
+    moving = {id(wire) for wire in body_wires}
+    kept: list[Any] = [edge for edge in edges if id(edge) not in moving]
     wired = {_signature(edge) for edge in kept if isinstance(edge, dict)}
     for wire in body_wires:
         item = items.get(wire["source_node_id"])
@@ -68,27 +81,33 @@ def adopt_named_loop_bodies(graph: dict[str, Any]) -> dict[str, Any]:
         wired.add(_signature(moved))
         kept.append(moved)
 
+    return _without_entry_ports(
+        {
+            **graph,
+            "nodes": [
+                {**node, "scope_id": owner[node["id"]]}
+                if isinstance(node, dict) and node.get("id") in owner
+                else node
+                for node in nodes
+            ],
+            "edges": kept,
+        }
+    )
+
+
+def _without_entry_ports(graph: dict[str, Any]) -> dict[str, Any]:
+    """`graph` with `entry_port` dropped from each stored scope."""
+    scopes = graph.get("scopes")
+    if not isinstance(scopes, list):
+        return graph
     return {
         **graph,
-        "nodes": [
-            {**node, "scope_id": owner[node["id"]]}
-            if isinstance(node, dict) and node.get("id") in owner
-            else node
-            for node in nodes
+        "scopes": [
+            {key: value for key, value in scope.items() if key != "entry_port"}
+            if isinstance(scope, dict)
+            else scope
+            for scope in scopes
         ],
-        "edges": kept,
-        **(
-            {
-                "scopes": [
-                    {key: value for key, value in scope.items() if key != "entry_port"}
-                    if isinstance(scope, dict)
-                    else scope
-                    for scope in scopes
-                ]
-            }
-            if isinstance(scopes, list)
-            else {}
-        ),
     }
 
 
@@ -122,10 +141,6 @@ def _innermost_owners(
         for step in body:
             owner[step] = loop
     return owner
-
-
-def _is_in(edge: Any, wires: list[dict[str, Any]]) -> bool:
-    return any(edge is wire for wire in wires)
 
 
 def _signature(edge: dict[str, Any]) -> tuple[Any, ...]:

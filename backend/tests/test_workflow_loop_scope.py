@@ -18,6 +18,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.workflows import _registry
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.errors import GraphValidationError
+from app.workflows.graph.legacy import adopt_named_loop_bodies
 from app.workflows.graph.model import (
     Edge,
     NodeInstance,
@@ -28,6 +29,7 @@ from app.workflows.graph.model import (
 from app.workflows.graph.validate import (
     analyze_graph,
     derive_scopes,
+    graph_size_problems,
     node_scope_map,
     validate_graph,
 )
@@ -412,3 +414,35 @@ def test_a_second_body_wire_already_drawn_from_the_loop_item_is_not_drawn_twice(
     graph = WorkflowGraph.model_validate(_legacy(shape, again))
     from_item = [edge for edge in graph.edges if edge.source_node_id == shape.item.id]
     assert [edge.target_node_id for edge in from_item] == [shape.step.id]
+
+
+def test_a_legacy_graph_past_the_size_ceiling_is_left_for_the_size_check_to_refuse(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Converting would remove the very edges the ceiling counts, and costs work on each."""
+    monkeypatch.setattr("app.core.config.settings.WORKFLOW_GRAPH_MAX_EDGES", 4)
+    shape = _Loop()
+    repeated = [
+        {
+            "id": str(uuid.uuid4()),
+            "source_node_id": str(shape.loop.id),
+            "source_port": "body",
+            "target_node_id": str(shape.step.id),
+            "target_port": "in",
+        }
+        for _ in range(3)
+    ]
+    raw = _legacy(shape, *repeated)
+    kept = adopt_named_loop_bodies(raw)
+    assert kept["edges"] is raw["edges"] and kept["nodes"] is raw["nodes"]
+    assert graph_size_problems(WorkflowGraph.model_validate(raw)) == [
+        ("edges", "A graph holds at most 4 edges")
+    ]
+
+
+def test_a_legacy_graph_sent_without_scopes_still_reads_as_members_of_the_loop():
+    shape = _Loop()
+    raw = _legacy(shape)
+    del raw["scopes"]
+    graph = WorkflowGraph.model_validate(raw)
+    assert graph.node_by_id[shape.step.id].scope_id == shape.loop.id
