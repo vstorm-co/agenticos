@@ -61,6 +61,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep batched chat approvals in one full-width scrolling list, with the scrollbar at the card edge and decision buttons outside the scrolling area.
+
 - Give the page-help walkthrough action a distinct neutral fill and a compass icon.
 
 - Preserve shared layouts across console navigation, wait for saved dashboard layouts and permissions before rendering their contents, and reserve asynchronous filter and Inbox metadata slots. Avoid an empty user-list flash and repair Inbox links to working conversations.

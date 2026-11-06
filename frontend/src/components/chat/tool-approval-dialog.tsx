@@ -64,24 +64,32 @@ export function ToolApprovalDialog({
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
   const phrase = useActionPhrase();
+  const batch = actionRequests.length > 1;
 
   const decideAll = (type: "approve" | "reject") =>
     onDecisions(actionRequests.map(() => ({ type })));
 
   return (
-    // The answers sit beside the question rather than under it: under it, a
+    // A batch uses the full card width, with decisions below the scrolling
+    // list: its scrollbar must not look like a divider beside the buttons.
+    // For one call, the answers sit beside the question: under it, a
     // folded Details left a band of empty card between what was asked and the
     // buttons that answer it.
     // Laid out by the card's own width, not the window's: in the Architect's
     // widget the window is wide and the card is not, and buttons beside the
     // question squeezed what was asked into a column a third of the card.
     <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
-      <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-3 shadow-sm @xl:flex-row @xl:items-start">
+      <div
+        className={cn(
+          "border-border bg-card flex flex-col gap-3 rounded-xl border p-3 shadow-sm",
+          !batch && "@xl:flex-row @xl:items-start",
+        )}
+      >
         <ul
           className={cn(
             "min-w-0 flex-1 space-y-4",
-            actionRequests.length > 1 &&
-              "max-h-[min(36dvh,20rem)] scrollbar-thin overflow-y-auto overscroll-contain",
+            batch &&
+              "-mr-1 max-h-[min(36dvh,20rem)] scrollbar-thin [scrollbar-gutter:stable] overflow-y-auto overscroll-contain pr-2",
           )}
         >
           {actionRequests.map((action) => {
@@ -140,7 +148,7 @@ export function ToolApprovalDialog({
         </ul>
 
         {mayDecide ? (
-          <div className="flex shrink-0 justify-end gap-2 @xl:pt-4">
+          <div className={cn("flex shrink-0 justify-end gap-2", !batch && "@xl:pt-4")}>
             <Button
               size="sm"
               variant="ghost"
