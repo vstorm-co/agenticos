@@ -266,6 +266,17 @@ async def _follow_publishes(db: AsyncSession, agent: Agent) -> None:
     await db.flush()
 
 
+async def _statuses(db: AsyncSession, evals: FakeEvals) -> list[str]:
+    """The stored status of every eval run the check started."""
+    statuses = []
+    for run_id in evals.runs:
+        run = await db.get(EvalRun, run_id)
+        assert run is not None
+        await db.refresh(run)
+        statuses.append(run.status)
+    return statuses
+
+
 def _start(**values: Any) -> SkillCheckStart:
     return SkillCheckStart(candidate=NEW, **values)
 
@@ -820,9 +831,28 @@ class TestDeciding:
         cancelled = await service.cancel(lab.ctx, lab.skill.id, check.id)
 
         assert cancelled.status is CheckStatus.CANCELLED
-        assert all(run.status == EvalRunStatus.CANCELLED.value for run in evals.runs.values())
+        assert await _statuses(db, evals) == [EvalRunStatus.CANCELLED.value] * len(evals.runs)
         discarded = await service.discard(lab.ctx, lab.skill.id, check.id)
         assert discarded.status is CheckStatus.DISCARDED
+
+    @pytest.mark.security
+    async def test_anyone_who_edits_the_skill_stops_a_check_whatever_runs_they_see(
+        self, db, monkeypatch
+    ):
+        """Edit access to the skill is the authority: stopping needs no grant on each run."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        check = await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start())
+        # A key that edits the skill and reads runs, but sees none of the check's agents.
+        key = replace(
+            lab.ctx, key_scopes=frozenset({Perm.SKILLS_VIEW, Perm.SKILLS_EDIT, Perm.RUNS_VIEW})
+        )
+
+        cancelled = await SkillCheckService(db).cancel(key, lab.skill.id, check.id)
+
+        assert cancelled.status is CheckStatus.CANCELLED
+        assert await _statuses(db, evals) == [EvalRunStatus.CANCELLED.value] * len(evals.runs)
 
 
 class TestAProposalGoesLiveOnlyThroughItsCheck:

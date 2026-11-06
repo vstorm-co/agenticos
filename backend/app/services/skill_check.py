@@ -1394,7 +1394,10 @@ class SkillCheckService:
     ) -> SkillCheckRead:
         """Stop a running check; the runs it started are cancelled with it.
 
-        A check a skill session started is stopped through that session only.
+        Edit access to the skill is what allows it, so the platform ends the runs
+        itself, as when a check expires: the runs of an agent the caller may not see
+        or edit stop too, and none is named. A check a skill session started is
+        stopped through that session only.
         """
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         check = await self._check(ctx, skill_id, check_id, lock=True)
@@ -1403,29 +1406,20 @@ class SkillCheckService:
             raise AlreadyExistsError(
                 message="The check is not running", details={"check_id": check.id}
             )
-        await self._stop_runs(
-            ctx,
+        now = datetime.now(UTC)
+        await self._end_runs(
+            check,
             await skill_check_repo.list_agents(
                 self.db, [check.id], organization_id=ctx.organization_id
             ),
+            now=now,
         )
         await skill_check_repo.update(
             self.db,
             row=check,
-            values={"status": CheckStatus.CANCELLED.value, "finished_at": datetime.now(UTC)},
+            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
         )
         return await self.read(ctx, skill_id, check.id)
-
-    async def _stop_runs(self, ctx: AuthContext, rows: Sequence[SkillCheckAgent]) -> None:
-        """Cancel the eval runs of these agents still going, so they stop spending."""
-        for row in rows:
-            for run_id in (row.skill_set_run_id, row.dataset_run_id):
-                if run_id is not None:
-                    run = await eval_run_repo.get(
-                        self.db, run_id, organization_id=ctx.organization_id
-                    )
-                    if run is not None and EvalRunStatus(run.status) not in _SETTLED_RUNS:
-                        await self.evals.cancel(ctx, run_id)
 
     async def stop_for_proposal(self, ctx: AuthContext, skill_id: UUID, proposal_id: UUID) -> None:
         """Stop the running checks of a proposal discarded or withdrawn: nothing they find

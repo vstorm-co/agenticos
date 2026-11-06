@@ -87,6 +87,7 @@ from tests.integration.test_skill_checks import (
     _lab,
     _run_to_end,
     _start,
+    _statuses,
 )
 
 pytestmark = pytest.mark.anyio
@@ -663,11 +664,14 @@ class TestDecidingRefusals:
         evals.install(monkeypatch)
         service = SkillCheckService(db)
         check = await service.start(lab.ctx, lab.skill.id, _start())
-        next(iter(evals.runs.values())).status = EvalRunStatus.COMPLETED.value
+        settled = await db.get(EvalRun, next(iter(evals.runs)))
+        assert settled is not None
+        settled.status = EvalRunStatus.COMPLETED.value
+        await db.flush()
 
         await service.cancel(lab.ctx, lab.skill.id, check.id)
 
-        assert [run.status for run in evals.runs.values()].count("completed") == 1
+        assert (await _statuses(db, evals)).count("completed") == 1
         with pytest.raises(AlreadyExistsError):
             await service.cancel(lab.ctx, lab.skill.id, check.id)
 
