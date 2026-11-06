@@ -140,3 +140,47 @@ async def test_routine_terminal_writes_are_effects_even_without_a_mount_approval
     }
     assert {"mirage_write_file", "mirage_edit_file", "mirage_execute"} <= effects
     assert not {"mirage_ls", "mirage_read_file", "mirage_glob", "mirage_grep"} & effects
+
+
+@pytest.mark.parametrize("change", ["secret", "account", "client", "disconnect", "legacy", "label"])
+async def test_terminal_identity_tracks_credentials_without_exposing_them(monkeypatch, change):
+    ctx = AuthContext(user_id=uuid4(), organization_id=SOURCE_ORG, role="owner")
+    secret_id, secret_generation = uuid4(), uuid4()
+    account = _account(authorization_generation=uuid4())
+    account.oauth_payload = _sealed(account, _payload())
+    accounts = AsyncMock(return_value=[account])
+    generations = {secret_id: secret_generation, SOURCE_SECRET: SOURCE_GENERATION}
+
+    async def generation(db, identifier, *, organization_id):
+        assert organization_id == SOURCE_ORG
+        return generations[identifier]
+
+    monkeypatch.setattr(mirage_mounts.mcp_connection_repo, "list_accounts", accounts)
+    monkeypatch.setattr(organization_secret_repo, "authorization_generation", generation)
+    config = MirageConfig.model_validate(
+        {
+            "mounts": [
+                {"path": "/db/", "backend": "postgres", "secrets": {"dsn": str(secret_id)}},
+                {"path": "/drive/", "backend": "gdrive", "account": {"kind": "personal"}},
+            ]
+        }
+    )
+    service = MirageMountService(AsyncMock())
+    original = await service.authority(ctx, config, person_id=ctx.user_id)
+    assert len(original) == 64
+    assert original == await service.authority(ctx, config, person_id=ctx.user_id)
+    if change == "secret":
+        generations[secret_id] = uuid4()
+    elif change == "account":
+        account.authorization_generation = uuid4()
+    elif change == "client":
+        generations[SOURCE_SECRET] = uuid4()
+    elif change == "disconnect":
+        accounts.return_value = []
+    elif change == "legacy":
+        account.oauth_payload = _sealed(account, _payload(account_source_secret_id=None))
+    else:
+        account.label = "A display-only rename"
+    current = await service.authority(ctx, config, person_id=ctx.user_id)
+    assert (current == original) is (change == "label")
+    assert current == await service.authority(ctx, config, person_id=ctx.user_id)

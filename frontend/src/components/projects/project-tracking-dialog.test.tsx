@@ -199,3 +199,20 @@ it("uses the edited tracker name in the reviewed installation", async () => {
     close,
   );
 });
+
+it("can revoke source approval before starting a tracker", async () => {
+  mount();
+  await choose();
+  const consent = screen.getByRole("checkbox", { name: /I approve these sources/ });
+  await userEvent.click(consent);
+  expect(screen.getByRole("button", { name: "Publish and start" })).toBeEnabled();
+  await userEvent.click(consent);
+  expect(screen.getByRole("button", { name: "Publish and start" })).toBeDisabled();
+  expect(save).not.toHaveBeenCalled();
+});
+
+it("closes an unsubmitted tracker with Escape", async () => {
+  mount();
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledOnce();
+});

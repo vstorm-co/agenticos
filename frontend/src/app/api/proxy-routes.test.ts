@@ -26,6 +26,7 @@ import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as phone from "./phone/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
+import * as codingAccounts from "./coding-accounts/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
@@ -149,7 +150,6 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
   ["projects", projects],
-  ["tasks", tasks],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],
@@ -247,4 +247,13 @@ it("the phone proxy exposes only its read and admitted effect verbs", () => {
   expect(typeof phone.POST).toBe("function");
   expect(typeof phone.PUT).toBe("function");
   expect(Object.keys(phone).sort()).toEqual(["GET", "POST", "PUT"]);
+});
+
+it("coding accounts forwards only credential operations and requires a session", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(codingAccounts).sort()).toEqual(["DELETE", "GET", "PATCH", "POST"]);
+  const response = await codingAccounts.GET(
+    new NextRequest("http://localhost:3000/api/coding-accounts"),
+  );
+  expect(response.status).toBe(401);
 });

@@ -238,3 +238,40 @@ async def test_browser_filter_contract_refuses_invalid_input(query: str) -> None
             response = await client.get(f"{ROOT}/claims/mine?{query}")
     assert response.status_code == 422
     listed.assert_not_awaited()
+
+
+async def test_only_the_reviewed_personal_decision_fields_leave_memory():
+    from app.schemas.decision_episode import ImproveDecisionCase
+
+    prepared = AsyncMock(
+        return_value=ImproveDecisionCase(
+            input="A delayed shipment",
+            reference_answer="Ask for a confirmed date",
+            tags=["decision"],
+            note="Reviewed",
+        )
+    )
+    with patch("app.services.memory.MemoryService.improve_case", new=prepared):
+        async with _client() as client:
+            response = await client.post(
+                f"{ROOT}/claims/mine/{_CLAIM_ID}/improve-case",
+                json={
+                    "confirmed": True,
+                    "input": "A delayed shipment",
+                    "reference_answer": "Ask for a confirmed date",
+                },
+            )
+            unconfirmed = await client.post(
+                f"{ROOT}/claims/mine/{_CLAIM_ID}/improve-case",
+                json={
+                    "confirmed": False,
+                    "input": "A delayed shipment",
+                    "reference_answer": "Ask for a confirmed date",
+                },
+            )
+    assert response.status_code == 200
+    assert response.json()["reference_answer"] == "Ask for a confirmed date"
+    assert unconfirmed.status_code == 422
+    assert prepared.await_args.args[0].user_id == PERSON
+    assert prepared.await_args.args[1] == _CLAIM_ID
+    prepared.assert_awaited_once()

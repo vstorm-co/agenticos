@@ -40,3 +40,22 @@ describe("reply mailbox selection", () => {
     expect(screen.getByRole("combobox")).toBeDisabled();
   });
 });
+
+it("shows a disconnected selected mailbox without silently replacing it", async () => {
+  const change = vi.fn();
+  render(<ReplyMailboxPicker value="disconnected" onChange={change} />);
+  await userEvent.click(screen.getByRole("combobox", { name: "Connected mailbox" }));
+  expect(screen.getByRole("option", { name: /unavailable|disconnected/i })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("option", { name: "Gmail" }));
+  expect(change).toHaveBeenCalledWith({ connection_id: "g", provider: "google", mailbox: null });
+});
+
+it("waits for the mailbox catalog without claiming no account is connected", () => {
+  state.isLoading = true;
+  render(<ReplyMailboxPicker value={null} onChange={vi.fn()} />);
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
