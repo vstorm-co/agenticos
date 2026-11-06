@@ -1,5 +1,5 @@
 ---
-source_sha: "fda426cb27d4"
+source_sha: "8bb55388cce6"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1070,10 +1070,17 @@ osobistej poza organizacją żadne.
 Obie ścieżki zachowują potem tabelę, jeśli ma nieprzypisany chunk, którego baza nie
 przejmuje: `rag-ingest` albo synchronizację z CLI operatora do zajętej nazwy albo
 chunk innego tenanta. Claim nie może odrzucić treści, która pojawia się po nim, a
-wywołujący nie ma do niej uprawnień. Czyszczone są tylko chunki bazy, pozostałe
-wiersze pod tą nazwą zostają bez zmian, a nazwa wraca do stanu, jaki zostawia
-`rag-ingest`: nie ma jej żadna baza, `claim` ją odrzuca, a usuwa ją `rag-drop <name>`
+wywołujący nie ma do niej uprawnień. Czyszczone są tylko chunki, które baza przejmuje,
+a pozostałe wiersze pod tą nazwą zostają bez zmian.
+
+Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki zostawia `rag-ingest`: nie ma jej żadna baza,
+usuwa ją `rag-drop <name>`, a `claim` odrzuca ją wszystkim poza administratorem
+aplikacji i organizacją, której chunki są jedynymi, jakie zostały
 ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka. Jej
+historycznego chunka bez bazy i bez organizacji nie da się odróżnić od chunka
+operatora, więc on też zachowuje tabelę i zostaje do `rag-drop <name>`.
 
 W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo

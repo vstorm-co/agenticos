@@ -1011,10 +1011,16 @@ outside an organization.
 Both routes then keep the table if it holds an unfiled chunk the base does not take:
 an operator's `rag-ingest` or CLI sync into the held name, or another tenant's. A
 claim cannot refuse content that arrives after it, and the caller has no authority
-over it. Only the base's chunks are purged, the other rows under the name stay as
-they are, and the name is left as `rag-ingest` leaves it: no base holds it, `claim`
-refuses it, and `rag-drop <name>` removes it
-([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+over it. Only the chunks the base takes are purged, and the other rows under the name
+stay as they are.
+
+Unless the base is a default, which stays on the name, the name is left as `rag-ingest` leaves it: no base holds it, `rag-drop <name>` removes it, and
+`claim` refuses it to everyone but an app admin and an organization whose chunks are
+all that remain ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+A personal base outside an organization takes no unfiled chunk. A legacy chunk of its
+own with no base and no organization cannot be told from an operator's, so it keeps
+the table too and stays until `rag-drop <name>`.
 
 Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
 tenant's unfiled rows under the name stay, with their files, because the caller has no

@@ -592,7 +592,7 @@ un worker borra la tabla de vectores y los archivos guardados después del commi
 comando. Un nombre que tienen varias bases de conocimiento - también en organizaciones
 distintas - se rechaza, con sus ids, hasta que `--knowledge-base` indique una; la tabla
 se queda entonces para las demás. A diferencia del borrado desde la consola, también
-elimina la tabla de la última base aunque tenga chunks que no son de ninguna base.
+elimina la tabla de la última base aunque tenga fragmentos que no son de ninguna base.
 
 #### Sincronización con Google Drive { #google-drive-sync }
 

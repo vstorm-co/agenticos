@@ -1,5 +1,5 @@
 ---
-source_sha: "fda426cb27d4"
+source_sha: "8bb55388cce6"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1145,10 +1145,18 @@ Beide Routen behalten die Tabelle danach, wenn sie einen nicht zugeordneten Chun
 den die Basis nicht übernimmt: ein `rag-ingest` oder eine CLI-Synchronisierung des
 Operators in den gehaltenen Namen oder einen Chunk eines anderen Tenants. Ein Claim
 kann Inhalt, der erst danach kommt, nicht ablehnen, und der Aufrufer hat keine
-Befugnis darüber. Nur die Chunks der Basis werden entfernt, die übrigen Zeilen unter
-dem Namen bleiben unverändert, und der Name ist so, wie `rag-ingest` ihn hinterlässt:
-Keine Basis hält ihn, `claim` lehnt ihn ab, und `rag-drop <name>` entfernt ihn
+Befugnis darüber. Nur die Chunks, die die Basis übernimmt, werden entfernt, und die
+übrigen Zeilen unter dem Namen bleiben unverändert.
+
+Außer bei einer Standardbasis, die auf dem Namen bleibt, ist der Name so, wie `rag-ingest` ihn hinterlässt: Keine Basis
+hält ihn, `rag-drop <name>` entfernt ihn, und `claim` lehnt ihn für alle ab außer einem
+App-Admin und einer Organisation, deren Chunks als einzige übrig sind
 ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
+Chunk. Ein eigener Alt-Chunk ohne Basis und ohne Organisation lässt sich nicht von dem
+eines Operators unterscheiden, deshalb behält auch er die Tabelle und bleibt bis
+`rag-drop <name>`.
 
 Andernfalls, und bei `rag-drop` immer, löscht der Aufräum-Job die Tabelle. Nicht
 zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren Dateien,

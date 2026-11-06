@@ -1,5 +1,5 @@
 ---
-source_sha: "fda426cb27d4"
+source_sha: "8bb55388cce6"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -908,8 +908,8 @@ que retiene el nombre hasta que un administrador de la aplicación lo adopte o e
 
 El contenido que llega *después* de que una base reclame el nombre no se puede rechazar
 aquí, así que lo protege el desmontaje: la tabla de la última base se queda mientras
-tenga un chunk sin asignar que esa base no toma, como se describe más abajo al borrar
-una base.
+tenga un fragmento sin asignar que esa base no toma, como se describe más abajo al
+borrar una base.
 
 **Y un nombre a medio desmontar tampoco está libre.** Borrar una colección elimina
 sus filas de base de conocimiento dentro de la petición, pero elimina la tabla
@@ -1092,13 +1092,20 @@ tenant. Para una base de organización o una base personal son las de su organiz
 para una base app-scoped las que no tienen organización (las que escribe `rag-ingest`),
 y para una base personal fuera de una organización ninguna.
 
-Después, ambas rutas conservan la tabla si tiene un chunk sin asignar que la base no
-toma: un `rag-ingest` o una sincronización por CLI del operador en el nombre ya tomado,
-o un chunk de otro tenant. Un claim no puede rechazar contenido que llega después, y
-quien llama no tiene autoridad sobre él. Solo se purgan los chunks de la base, las
-demás filas bajo el nombre se quedan como están y el nombre queda como lo deja
-`rag-ingest`: ninguna base lo tiene, `claim` lo rechaza y `rag-drop <name>` lo elimina
-([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+Después, ambas rutas conservan la tabla si tiene un fragmento sin asignar que la base
+no toma: un `rag-ingest` o una sincronización por CLI del operador en el nombre ya
+tomado, o un fragmento de otro tenant. Un claim no puede rechazar contenido que llega
+después, y quien llama no tiene autoridad sobre él. Solo se purgan los fragmentos que
+la base toma, y las demás filas bajo el nombre se quedan como están.
+
+Salvo en una base por defecto, que sigue en el nombre, este queda como lo deja `rag-ingest`: ninguna base
+lo tiene, `rag-drop <name>` lo elimina y `claim` lo rechaza a todos menos a un
+administrador de la aplicación y a una organización cuyos fragmentos son los únicos que
+quedan ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Una base personal fuera de una organización no toma ningún fragmento sin asignar. Un
+fragmento antiguo suyo sin base y sin organización no se distingue del de un operador,
+así que también conserva la tabla y se queda hasta `rag-drop <name>`.
 
 En otro caso, y siempre con `rag-drop`, el trabajo de limpieza elimina la tabla. Las
 filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos, porque
