@@ -2652,7 +2652,12 @@ def _catalog_delegate_access(ctx: AuthContext, agent_id: UUID) -> Callable[[], A
                 raise AuthorizationError(message="The delegation's member is no longer active")
             if current.role != ctx.role or current.is_app_admin != ctx.is_app_admin:
                 raise AuthorizationError(message="Delegation authority changed; start a new run")
-            current = replace(current, api_key_id=ctx.api_key_id, key_scopes=ctx.key_scopes)
+            current = replace(
+                current,
+                api_key_id=ctx.api_key_id,
+                key_scopes=ctx.key_scopes,
+                key_internal=ctx.key_internal,
+            )
             agent = await AgentRegistryService(db).get(current, agent_id, perm=Perm.AGENTS_RUN)
             if agent.status != AgentStatus.PUBLISHED.value:
                 raise AuthorizationError(message="The discovered delegate is no longer published")

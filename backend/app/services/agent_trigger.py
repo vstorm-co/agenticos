@@ -345,19 +345,15 @@ def _refuse_past_end(ends_at: datetime | None) -> None:
 def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     """Whether this caller is `person`, in person, and so may let a trigger act as them (#2027).
 
+    A key or MCP token the person issued is them acting, as their session is.
     Not an administrator acting as them through impersonation - the #1438 rule for
-    every identity binding - and not a script holding one of their API keys, which
-    could otherwise turn a leaked key into standing access to their mailbox.
-    A private chat's short-lived internal credential retains the signed-in
-    person's source conversation; it is the same person creating through MCP.
+    every identity binding - and not an agent's run credential outside their
+    private chat, which could be following a prompt nobody vetted.
     """
     return (
         person is not None
         and ctx.user_id == person
-        and not ctx.subject_is_publisher_fallback
-        and ctx.fired_as_creator is None
-        and ctx.routine_id is None
-        and (ctx.api_key_id is None or ctx.source_conversation_id is not None)
+        and ctx.acts_in_person
         and current_impersonator() is None
     )
 

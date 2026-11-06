@@ -19,8 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- The public API lists, opens and renames your conversations (`GET`/`POST /api/v1/conversations`, `PATCH /api/v1/conversations/{id}`), and the platform MCP server gains `list_conversations`, `create_conversation` and `update_proactivity_settings`, so a routine's topic chat and the organization's watch cadence and briefing can be set up without the console.
+
 ### Fixed
 
+- An API key you issued, or an MCP client you authorized, can now create and change your own routines that act as you and your watches, review a routine's sources, and publish an agent without withdrawing your routines' consent. It used to be refused as if it were somebody else; an agent's run credential outside your private chat and an administrator impersonating you are still refused.
 - Connecting an MCP server in the desktop app opens the provider's sign-in in your own browser instead of inside the app window, so saved passwords, passkeys and existing sign-ins work there. Finish signing in and return to the app; the server appears once it is authorised.
 
 ## [1.52.0] - 2026-11-06

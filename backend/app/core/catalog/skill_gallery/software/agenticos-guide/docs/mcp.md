@@ -1145,7 +1145,9 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` on the agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1162,7 +1164,7 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
 | `list_watches`, `delete_watch` | the caller’s own watches |
-| `create_watch`, `update_watch` | private-human consent; `agents:run` when selecting an agent |
+| `create_watch`, `update_watch` | the person themselves - signed in, through a key or MCP token they issued, or in their private chat; `agents:run` when selecting an agent |
 
 Project discovery with `list_projects` returns only project ids and names.
 Read a selected project's instructions and configuration with `get_project`.

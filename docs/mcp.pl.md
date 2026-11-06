@@ -1,5 +1,5 @@
 ---
-source_sha: "7a4618e328b7"
+source_sha: "b580221f3668"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1184,7 +1184,9 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` na agencie |
 | `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1201,7 +1203,7 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
-| `create_watch`, `update_watch` | zgoda człowieka w prywatnej rozmowie; `agents:run` przy wyborze agenta |
+| `create_watch`, `update_watch` | sama osoba - zalogowana, przez wydany przez nią klucz lub token MCP albo w jej prywatnym czacie; `agents:run` przy wyborze agenta |
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów.
 Instrukcje i konfigurację wybranego projektu odczytuje `get_project`.

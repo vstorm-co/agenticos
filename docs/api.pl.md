@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "a3cbc2a2c1f3"
 ---
 
 # API HTTP { #the-http-api }
@@ -60,6 +60,20 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+**Pracę, która działa jako ty, ustawiasz też kluczem, który sam wydałeś.** Klucz,
+który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworzyć i
+zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
+twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
+cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
+podlega jej przejrzanym źródłom i budżetowi. Nie może tego zrobić credential
+uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
+ciebie podszywa.
+
+Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
+klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i
+`PATCH /api/v1/conversations/{id}` otwierają i zmieniają nazwę czatu
+(`agents:run`) - na przykład wątku tematycznego, do którego pisze routine.
 
 Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`

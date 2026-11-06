@@ -4144,10 +4144,11 @@ class TestRunningAsTheCreator:
         assert repo.create.call_args.kwargs["overlap"] == stored
 
     @pytest.mark.security
-    @pytest.mark.parametrize("through", ["api_key", "impersonation"])
-    async def test_nobody_turns_it_on_for_someone_through_a_key_or_their_session(self, through):
-        """A leaked key must not become standing access to the issuer's mailbox, and an
-        administrator acting as somebody binds no identity for them (#1438)."""
+    @pytest.mark.parametrize("through", ["run_credential", "impersonation"])
+    async def test_nobody_turns_it_on_for_someone_through_an_agent_or_their_session(self, through):
+        """An agent's run credential outside the person's private chat may be following
+        text nobody vetted, and an administrator acting as somebody binds no identity
+        for them (#1438)."""
         service = _service()
         ctx = (
             AuthContext(
@@ -4155,8 +4156,9 @@ class TestRunningAsTheCreator:
                 organization_id=_ORG,
                 role=OrgRoleName.OWNER,
                 api_key_id=uuid.uuid4(),
+                key_internal=True,
             )
-            if through == "api_key"
+            if through == "run_credential"
             else _ctx()
         )
         acting_admin = uuid.uuid4() if through == "impersonation" else None
@@ -4170,6 +4172,28 @@ class TestRunningAsTheCreator:
                 ctx, uuid.uuid4(), _interval().model_copy(update={"runs_as_creator": True})
             )
         repo.create.assert_not_called()
+
+    @pytest.mark.security
+    async def test_the_person_turns_it_on_through_a_key_they_issued(self):
+        """A key or MCP token the person issued is the person acting, as their session is."""
+        agent = _agent()
+        service = _service(agent)
+        ctx = AuthContext(
+            user_id=_CALLER,
+            organization_id=_ORG,
+            role=OrgRoleName.OWNER,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.AGENTS_RUN, Perm.AGENTS_VIEW}),
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+            await service.create(
+                ctx, agent.id, _interval().model_copy(update={"runs_as_creator": True})
+            )
+        assert repo.create.await_args.kwargs["runs_as_creator"] is True
 
     @staticmethod
     async def _update(trigger: MagicMock, data: TriggerUpdate, *, as_creator: bool) -> dict:

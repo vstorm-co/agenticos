@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "a3cbc2a2c1f3"
 ---
 
 # La API HTTP { #the-http-api }
@@ -62,6 +62,20 @@ búsqueda en sus conversaciones anteriores, ni los sitios en los que el navegado
 guarda sus inicios de sesión, ni el espacio de trabajo del sandbox ligado al
 usuario. Quien tiene la clave es un script, no esa persona, así que el run
 responde como en un widget público.
+
+**El trabajo que actúa como tú también lo configuras con una clave que emitiste
+tú.** Una clave que creaste, o el token de un cliente MCP que autorizaste, puede
+crear y cambiar tus propias [rutinas](triggers.md) que actúan como tú
+(`runs_as_creator`) y tus [watches](console.md), revisar las fuentes de una rutina
+y publicar un agente sin retirar el consentimiento de las rutinas que actúan como
+tú. La ejecución de esa rutina sigue sujeta a sus fuentes revisadas y su
+presupuesto. No puede hacerlo la credencial de ejecución de un agente fuera de tu
+chat privado, ni un administrador que te suplante.
+
+Las conversaciones también son públicas: `GET /api/v1/conversations` lista los
+chats del emisor (`runs:view`), y `POST /api/v1/conversations` con `title` y
+`PATCH /api/v1/conversations/{id}` abren y renombran uno (`agents:run`), por
+ejemplo un chat temático en el que responde una rutina.
 
 La consulta de conexiones también es pública y de solo lectura:
 `GET /sandbox-connections`, `GET /sandbox-connections/runtimes` y

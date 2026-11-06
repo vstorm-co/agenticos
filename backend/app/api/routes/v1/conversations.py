@@ -18,6 +18,7 @@ from app.api.deps import (
     WorkspaceSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
@@ -102,7 +103,11 @@ async def get_shared_conversation(
     return await share_service.get_by_token(token)
 
 
-@router.get("", response_model=ConversationList)
+@router.get(
+    "",
+    response_model=ConversationList,
+    dependencies=[PUBLIC, Depends(require(Perm.RUNS_VIEW))],
+)
 async def list_conversations(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -160,7 +165,12 @@ async def list_conversations(
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
 
-@router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_RUN))],
+)
 async def create_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -287,7 +297,11 @@ async def get_visual_image(
     return visual_image_response(data, media_type)
 
 
-@router.patch("/{conversation_id}", response_model=ConversationRead)
+@router.patch(
+    "/{conversation_id}",
+    response_model=ConversationRead,
+    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_RUN))],
+)
 async def update_conversation(
     conversation_id: UUID,
     data: ConversationUpdate,
