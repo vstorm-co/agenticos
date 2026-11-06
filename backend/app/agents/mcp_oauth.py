@@ -490,6 +490,16 @@ def authorization_url(
         # token, only after an explicit consent prompt.
         if "offline_access" in server.scope.split():
             params["prompt"] = "consent"
+    endpoint = httpx2.URL(server.authorization_endpoint)
+    if (
+        endpoint.scheme == "https"
+        and endpoint.host == "accounts.google.com"
+        and endpoint.port in (None, 443)
+    ):
+        # Google uses access_type, not the OIDC offline_access scope. Consent
+        # also requests a refresh token when this client was authorized before.
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
     query = httpx2.QueryParams(params)
     sep = "&" if "?" in server.authorization_endpoint else "?"
     return f"{server.authorization_endpoint}{sep}{query}"

@@ -1,5 +1,5 @@
 ---
-source_sha: "219615c706c4"
+source_sha: "16240954ce92"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -770,11 +770,7 @@ und keine Auflistung:
   eine Überschrift geraten zu werden. Der Filter **Sign-in** fragt danach, was ein
   Server verlangt - OAuth, ein Token, nichts -, und für einen gespiegelten Eintrag
   ist das, was die Katalogprüfung herausgefunden hat.
-- **Kein eingebackenes Logo.** Die Konsole bettet ein Favicon je kuratiertem Host
-  ein, damit ein Abzeichen offline rendert; bei 1,9 KB je Stück wären das für den
-  Spiegel 10,5 MB Base64 in einem Modul, das der Browser lädt. Registry-Zeilen
-  fallen auf den Favicon-Dienst zur Laufzeit durch, und genau dafür wurde er
-  geschrieben.
+- **Lokale Symbole.** Kuratierte Dienste verwenden mitgelieferte Markenlogos. Registereinträge ohne bekanntes Logo erhalten Dienst- oder Kategoriesymbole, statt für jeden Server ein Favicon abzurufen. Private, nicht klassifizierte Verbindungen behalten ein Monogramm. Der Katalog funktioniert offline und gibt die betrachteten Serverdomains nicht an einen externen Favicon-Dienst weiter.
 - **Ein Snapshot, kein Proxy.** Eine Installation darf nicht aufhören zu
   funktionieren, weil die Registry von jemand anderem ausgefallen ist, und ein
   Name, der gestern aufgelöst hat und heute ins Leere führt, ist schlimmer als
@@ -891,7 +887,7 @@ Anbieter einen Endpunkt je Konto ausgibt.
 | Airtable | token | `https://mcp.airtable.com/mcp` |
 | Snowflake | token | self-hosted |
 | Databricks | token | self-hosted |
-| Google BigQuery | oauth | self-hosted |
+| Google BigQuery | oauth | `https://bigquery.googleapis.com/mcp` |
 | PostHog | token | `https://mcp.posthog.com/mcp` |
 | Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
 | Google Analytics 4 | token | self-hosted |
@@ -1050,6 +1046,114 @@ bindet, wird bei der nächsten Veröffentlichung abgelehnt: Binden Sie stattdess
 **Microsoft 365 (self-hosted)** oder **Microsoft Work IQ**.
 
 ### Gmail und Google Workspace { #gmail-and-google-workspace }
+
+### Offizielle Remote-Server von Google { #official-google-remote-servers }
+
+Der Katalog enthält Googles gehostete Workspace-Server: Gmail, Calendar, Drive,
+Docs, Sheets, Slides, Chat, People, Classroom und Universal Search. Diese
+Developer-Preview-Dienste sind von der selbst gehosteten Workspace-Integration
+getrennt. Treten Sie Googles Vorschauprogramm bei, aktivieren Sie die Produkt-API
+und den MCP-Dienst und erstellen Sie einen Web-OAuth-Client für einen KI-Agenten.
+Registrieren Sie die genaue Callback-Adresse aus dem Verbindungsdialog und geben
+Sie dort Client-ID und Geheimnis ein. Chat benötigt zusätzlich eine konfigurierte
+Chat-App, Classroom eine Testklasse und einen Testschüler.
+Siehe [Googles Anleitung](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Die Cloud-Einträge umfassen BigQuery, Cloud Storage, Cloud Run, Compute Engine,
+GKE, Firestore, Cloud SQL, Spanner, Logging, Monitoring und weitere Dienste.
+Aktivieren Sie deren APIs und gewähren Sie MCP Tool User sowie die erforderlichen
+produktspezifischen IAM-Rollen. Verfügbarkeit, Kosten und regionale Einschränkungen
+stehen in der verlinkten Anleitung. Secure Source Manager verwendet standardmäßig
+Code-Review in US Central, Gemini Enterprise Agent Platform das generate-Toolset.
+Für andere dokumentierte Regionen oder Toolsets ändern Sie den Endpunkt.
+[Googles Verzeichnis](https://docs.cloud.google.com/mcp/supported-products) enthält
+auch Dienste, deren Endpunkte oder Authentifizierung hier noch nicht angeboten werden.
+
+Google OAuth fordert Offline-Zugriff und erneute Zustimmung an, um ein
+Refresh-Token zu erhalten. Verbinden Sie bestehende Google-Konten ohne solches
+Token erneut. Öffentlicher Handshake und Werkzeuglisten bedeuten keinen anonymen
+Zugriff auf Kontodaten: Der Katalog-Audit prüft auch OAuth-Metadaten. Die Einträge
+erscheinen auf bestehenden Installationen nach Aktualisierung und Neustart.
+Konten werden ausdrücklich verbunden; gespeicherte Verbindungsadressen und
+Zugangsdaten bleiben erhalten.
+
+| Server | Offizieller Endpunkt |
+|---|---|
+| Gmail | `https://gmailmcp.googleapis.com/mcp/v1` |
+| Google Calendar | `https://calendarmcp.googleapis.com/mcp/v1` |
+| Google Chat | `https://chatmcp.googleapis.com/mcp/v1` |
+| Google Classroom | `https://classroommcp.googleapis.com/mcp/v1` |
+| Google Docs | `https://docsmcp.googleapis.com/mcp/v1` |
+| Google Drive | `https://drivemcp.googleapis.com/mcp/v1` |
+| Google People API | `https://people.googleapis.com/mcp/v1` |
+| Google Sheets | `https://sheetsmcp.googleapis.com/mcp/v1` |
+| Google Slides | `https://slidesmcp.googleapis.com/mcp/v1` |
+| Google Workspace Universal Search | `https://workspacemcp.googleapis.com/mcp/v1` |
+| Google API keys | `https://apikeys.googleapis.com/mcp` |
+| Google Agent Registry | `https://agentregistry.googleapis.com/mcp` |
+| Google Agent Search | `https://discoveryengine.googleapis.com/mcp` |
+| Google AlloyDB for PostgreSQL | `https://alloydb.googleapis.com/mcp` |
+| Google Android Management API | `https://androidmanagement.googleapis.com/mcp` |
+| Google Apigee API hub | `https://apihub.googleapis.com/mcp` |
+| Google App Lifecycle Manager | `https://saasservicemgmt.googleapis.com/mcp` |
+| Google App Topology | `https://apptopology.googleapis.com/mcp` |
+| Google Audit Manager | `https://auditmanager.googleapis.com/mcp` |
+| Google Backup and DR Service | `https://backupdr.googleapis.com/mcp` |
+| Google BigQuery Data Transfer Service | `https://bigquerydatatransfer.googleapis.com/mcp` |
+| Google BigQuery Migration Service | `https://bigquerymigration.googleapis.com/mcp` |
+| Google Bigtable | `https://bigtableadmin.googleapis.com/mcp` |
+| Google Capacity Planner | `https://capacityplanner.googleapis.com/mcp` |
+| Google Cloud Asset Inventory | `https://cloudasset.googleapis.com/mcp` |
+| Google Cloud CLI | `https://cloudcli.googleapis.com/mcp` |
+| Google Cloud Location Finder | `https://cloudlocationfinder.googleapis.com/mcp` |
+| Google Cloud Logging | `https://logging.googleapis.com/mcp` |
+| Google Cloud Monitoring | `https://monitoring.googleapis.com/mcp` |
+| Google Cloud NetApp Volumes | `https://netapp.googleapis.com/mcp` |
+| Google Cloud Quotas | `https://cloudquotas.googleapis.com/mcp` |
+| Google Cloud Run | `https://run.googleapis.com/mcp` |
+| Google Cloud SQL | `https://sqladmin.googleapis.com/mcp` |
+| Google Cloud Storage | `https://storage.googleapis.com/storage/mcp` |
+| Google Cloud Support API | `https://cloudsupport.googleapis.com/mcp` |
+| Google Cloud Trace | `https://cloudtrace.googleapis.com/mcp` |
+| Google Compute Engine | `https://compute.googleapis.com/mcp` |
+| Google Database Center | `https://databasecenter.googleapis.com/mcp` |
+| Google Database Migration Service | `https://datamigration.googleapis.com/mcp` |
+| Google Dataform | `https://dataform.googleapis.com/mcp` |
+| Google Datastream | `https://datastream.googleapis.com/mcp` |
+| Google Developer Connect | `https://developerconnect.googleapis.com/mcp` |
+| Google Developer Knowledge API | `https://developerknowledge.googleapis.com/mcp` |
+| Google Error Reporting | `https://clouderrorreporting.googleapis.com/mcp` |
+| Google Filestore | `https://file.googleapis.com/mcp` |
+| Google Firebase SQL Connect | `https://firebasedataconnect.googleapis.com/mcp` |
+| Google Firestore | `https://firestore.googleapis.com/mcp` |
+| Google GKE | `https://container.googleapis.com/mcp` |
+| Google Gemini Cloud Assist | `https://geminicloudassist.googleapis.com/mcp` |
+| Google Gemini Enterprise Agent Platform | `https://aiplatform.googleapis.com/mcp/generate` |
+| Google Home Developer | `https://homedevelopers.googleapis.com/mcp` |
+| Google Identity and Access Management | `https://iam.googleapis.com/mcp` |
+| Google Knowledge Catalog | `https://dataplex.googleapis.com/mcp` |
+| Google Managed Service for Apache Kafka | `https://managedkafka.googleapis.com/mcp` |
+| Google Managed Service for Apache Spark | `https://dataproc.googleapis.com/mcp` |
+| Google Maps Grounding Lite | `https://mapstools.googleapis.com/mcp` |
+| Google Memorystore | `https://redis.googleapis.com/mcp` |
+| Google Network Intelligence Center | `https://networkmanagement.googleapis.com/mcp` |
+| Google Oracle Database@Google Cloud | `https://oracledatabase.googleapis.com/mcp` |
+| Google Organization Policy Service | `https://orgpolicy.googleapis.com/mcp` |
+| Google Pay and Wallet | `https://paydeveloper.googleapis.com/mcp` |
+| Google Personalized Service Health | `https://servicehealth.googleapis.com/mcp` |
+| Google Policy Assist | `https://policyassist.googleapis.com/mcp` |
+| Google Policy Troubleshooter | `https://policytroubleshooter.googleapis.com/mcp` |
+| Google Pub/Sub | `https://pubsub.googleapis.com/mcp` |
+| Google Recommender | `https://recommender.googleapis.com/mcp` |
+| Google Resource Manager | `https://cloudresourcemanager.googleapis.com/mcp` |
+| Google Secure Source Manager | `https://securesourcemanager.us-central1.rep.googleapis.com/mcp/code_review` |
+| Google Security Command Center Management | `https://securitycentermanagement.googleapis.com/mcp/manage-services` |
+| Google Service Metadata API | `https://cloud.googleapis.com/mcp` |
+| Google Spanner | `https://spanner.googleapis.com/mcp` |
+| Google Stitch | `https://stitch.googleapis.com/mcp` |
+| Google Unified Maintenance | `https://maintenance.googleapis.com/mcp` |
+
+Katalogdienste verwenden mitgelieferte Markenlogos, einschließlich eigener Workspace-App-Symbole. Registereinträge ohne Logo erhalten ein Dienst- oder Kategoriesymbol, etwa einen Kalender für CalendarMCP. Private, nicht klassifizierte Verbindungen behalten ein Monogramm. Die Darstellung ruft keine Favicons von Drittanbietern ab.
 
 **Google Workspace (self-hosted)** ist
 [`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),

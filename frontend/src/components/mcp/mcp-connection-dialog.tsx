@@ -385,6 +385,10 @@ function ConnectionForm({
 
         {!known && authField}
 
+        {auth === "oauth" && draft.row.tokenHint && (
+          <p className="text-muted-foreground text-sm">{draft.row.tokenHint}</p>
+        )}
+
         <div className={cn(auth !== "token" && "hidden")}>
           <Label htmlFor="mcp-token">{t("accessToken")}</Label>
           {/* The catalog's own advice for *this* server, which used to sit on

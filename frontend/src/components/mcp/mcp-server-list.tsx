@@ -713,6 +713,7 @@ export function McpServerList({
               key={row.key}
               name={row.name}
               icon={row.entry?.icon ?? null}
+              category={row.category}
               url={row.url}
               // Nobody here checked a registry server: the description is the
               // publisher's and there is no token hint, which is worth knowing

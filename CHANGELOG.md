@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Official Google Workspace and Cloud remote MCP catalog entries, including Calendar, Gmail, Drive, Docs, Sheets, Slides, Chat, People and Universal Search; Google OAuth offline consent and visible connection prerequisites.
+
 - Promote personal coding accounts directly in Chat controls, with shared profile
   connections, inline setup and Claude Code/Codex branding.
 

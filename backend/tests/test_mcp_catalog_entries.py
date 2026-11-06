@@ -46,3 +46,44 @@ def test_every_catalog_entry_has_a_check_and_no_check_names_a_removed_entry() ->
     rows = json.loads((catalog._DIR / mcp_audit.SNAPSHOT).read_text())
     checked = {row["key"] for row in rows if row["source"] == "catalog"}
     assert checked == {entry.key for entry in CATALOG}
+
+
+def test_official_workspace_apps_have_independent_hosted_oauth_connections() -> None:
+    hosts = {
+        "google-gmail": "gmailmcp",
+        "google-drive": "drivemcp",
+        "google-docs": "docsmcp",
+        "google-sheets": "sheetsmcp",
+        "google-slides": "slidesmcp",
+        "google-calendar": "calendarmcp",
+        "google-chat": "chatmcp",
+        "google-people": "people",
+        "google-classroom": "classroommcp",
+        "google-workspace-search": "workspacemcp",
+    }
+    for key, host in hosts.items():
+        entry = BY_KEY[key]
+        assert entry.url == f"https://{host}.googleapis.com/mcp/v1"
+        assert entry.auth == "oauth"
+        assert entry.docs_url.startswith("https://developers.google.com/")
+        assert "Developer Preview" in entry.token_hint
+        assert "OAuth client" in entry.token_hint
+        assert entry.icon
+
+
+def test_google_cloud_uses_verified_remote_addresses_without_region_placeholders() -> None:
+    assert BY_KEY["bigquery"].url == "https://bigquery.googleapis.com/mcp"
+    assert BY_KEY["bigquery"].docs_url
+    official = [
+        entry
+        for entry in CATALOG
+        if entry.url.startswith("https://") and ".googleapis.com/" in entry.url
+    ]
+    assert len(official) >= 70
+    assert len({entry.url for entry in official}) == len(official)
+    for entry in official:
+        assert entry.auth == "oauth"
+        assert "REGION" not in entry.url
+        assert entry.docs_url
+        assert entry.token_hint
+        assert entry.icon

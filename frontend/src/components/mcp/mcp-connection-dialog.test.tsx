@@ -57,6 +57,17 @@ async function typeAddress(url: string) {
   await userEvent.tab();
 }
 
+describe("OAuth setup guidance", () => {
+  it("shows the catalog prerequisites for OAuth instead of hiding them with the token input", () => {
+    const row = rowForEntry(NOTION as unknown as McpCatalogEntry);
+    row.tokenHint = "Enable the Calendar MCP API and register a web OAuth client.";
+    open({ scope: "personal", row, existing: null });
+
+    expect(screen.getByText(row.tokenHint, { selector: "p.text-sm" })).toBeVisible();
+    expect(screen.getByLabelText("Access token").parentElement).toHaveClass("hidden");
+  });
+});
+
 describe("the account choice", () => {
   it("recommends each person's own account for a server people sign in to", () => {
     const entry = NOTION as unknown as McpCatalogEntry;
