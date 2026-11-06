@@ -113,11 +113,13 @@ class ProactiveThinker:
         instructions: str,
         prompt: str,
         toolsets: Sequence[AbstractToolset[object]] = (),
+        started_at: datetime | None = None,
     ) -> OutputT | None:
         """Ask the organization's proactivity model, attributed to its starter agent.
 
         `toolsets` are what it may read before answering - a watch's connection,
-        narrowed to the tools that only read.
+        narrowed to the tools that only read. `started_at` dates the run from
+        earlier than this call, for work that read its material first.
 
         Returns `None` - having spent nothing - without a starter agent or past a
         limit, and `None` with the failure on the run row when the model could
@@ -154,7 +156,7 @@ class ProactiveThinker:
             model_label=request.label,
             provider=request.provider,
             secret_id=request.secret_id,
-            started_at=datetime.now(UTC),
+            started_at=started_at or datetime.now(UTC),
         )
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and

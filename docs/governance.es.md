@@ -1,5 +1,5 @@
 ---
-source_sha: "64942cddba42"
+source_sha: "c74ca93fa3aa"
 ---
 
 # Governance { #governance }
@@ -551,10 +551,23 @@ como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
 
-Cuando un [guardrail](reference/capabilities.md#guardrails) rechaza un prompt
-enviado a un agent, la tarea nocturna deja ese prompt fuera de las peticiones que
-lee, así que el prompt no llega al modelo de proactividad. Un prompt del chat que
-pasa a un workflow aún no se marca como rechazado, así que esto no lo cubre.
+La tarea nocturna solo lee un prompt que pasó el
+[guardrail](reference/capabilities.md#guardrails) de entrada del agent al que se
+envió, porque el modelo de proactividad no tiene guardrails propios:
+
+- Un prompt que un guardrail rechazó queda fuera.
+- Un prompt que ningún run tomó queda fuera: uno enviado a un agent archivado,
+  uno rechazado antes de abrirse su run y un prompt del chat que pasa a un
+  workflow.
+- Un prompt cuyo run sigue en marcha espera. Una revisión posterior lo lee cuando
+  el run termina, aunque no llegue nada más nuevo.
+- Si un run se detuvo antes de su primera petición al modelo, por ejemplo por un
+  presupuesto, la tarea pasa el guardrail de entrada de ese run por el prompt y
+  deja fuera lo que bloquea. Si la versión del agent ya no existe, el prompt queda
+  fuera.
+- Si la retención borró el run, la tarea lee el prompt solo cuando le sigue una
+  respuesta de un modelo. Un prompt anterior a la versión 1.36.0 se lee igual, así
+  que el rechazo de un guardrail de entrada, que no dejó respuesta, queda fuera.
 
 Además, los runs por iniciativa propia de cada persona en un mes natural los
 limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por

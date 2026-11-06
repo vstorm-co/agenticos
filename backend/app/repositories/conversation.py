@@ -26,7 +26,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer, load_only, raiseload, selectinload
+from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -1129,35 +1129,81 @@ async def tool_call_in_conversation(
     return ToolCallArgs(*row) if row is not None else None
 
 
+class PersonRequest(NamedTuple):
+    """A prompt `person_requests_since` found, and the run that took it, if one still exists."""
+
+    message: Message
+    run: AgentRun | None
+
+    @property
+    def decided_at(self) -> datetime:
+        """When its verdict was in: its run's end, or its own writing where that is later.
+
+        A prompt can be written before a look and finish after it. Its age alone
+        then says the look saw it, when the look left it out.
+        """
+        ended = None if self.run is None else self.run.ended_at
+        return self.message.created_at if ended is None else max(self.message.created_at, ended)
+
+
 async def person_requests_since(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
-) -> list[Message]:
+) -> list[PersonRequest]:
     """What one person asked agents here since `since`, newest first (#2301).
 
     Their own messages: written by them in a shared chat, or unattributed in a
     conversation that is theirs - a one-person chat records no author per turn.
-    Never a prompt a guardrail refused on an agent run (`guardrail_refused`, set
-    by the run and by `link_message_to_run`): the input edge kept it from every
-    model, and the nightly job hands what this returns to one with no guardrails
-    of its own (#2746). A chat prompt routed to a workflow is not marked yet.
 
-    Nor a prompt whose run is still going: the row is committed before the input
-    edge screens it and marked only when the run ends, so its verdict is not in.
-    The window is a week, so a later look reads it once it is.
+    Only a prompt that can have reached the input edge, because the nightly job
+    hands what this returns to a model with no guardrails of its own (#2746). The
+    row is committed before that edge reads it, so a row says nothing by being
+    there. Left out:
+
+    - A prompt a guardrail refused (`guardrail_refused`, set by the run and by
+      `link_message_to_run`).
+    - A prompt whose run is still going: marked only when the run ends.
+    - A prompt with no run. It is a turn still being prepared, one refused before
+      its run existed - an archived agent, a build that failed, a file the edge
+      stopped - or one sent to a workflow, whose agent step keeps its own run.
+      The exception is a turn that run retention took the run of: `run_id` is
+      `SET NULL`, on the answer too, and an answer a model wrote is what shows
+      the edge was passed. That also separates a row older than the mark, whose
+      run is gone: the input edge left no answer under what it stopped.
+
+    A run that ended is returned with its row for the caller to judge: one that
+    stopped before its first request - a budget, a failure, a stop, a crash -
+    never reached the edge either, and only the run's spec can say what it would
+    have done.
     """
-    undecided = (
-        select(AgentRun.id)
-        .where(AgentRun.id == Message.run_id, AgentRun.status == RunStatus.RUNNING)
-        .exists()
+    following = aliased(Message)
+    answered_by_a_lost_run = (
+        select(
+            and_(
+                following.role == "assistant",
+                following.model_name.is_not(None),
+                following.run_id.is_(None),
+            )
+        )
+        .where(
+            following.conversation_id == Message.conversation_id,
+            following.ordinal > Message.ordinal,
+        )
+        .order_by(following.ordinal)
+        .limit(1)
+        .scalar_subquery()
     )
     result = await db.execute(
-        select(Message)
+        select(Message, AgentRun)
         .join(Conversation, Conversation.id == Message.conversation_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
         .where(
             Conversation.organization_id == organization_id,
             Message.role == "user",
             Message.guardrail_refused.is_(False),
-            ~undecided,
+            or_(
+                AgentRun.status != RunStatus.RUNNING,
+                and_(Message.run_id.is_(None), answered_by_a_lost_run),
+            ),
             Message.created_at >= since,
             or_(
                 Message.author_user_id == user_id,
@@ -1167,7 +1213,7 @@ async def person_requests_since(
         .order_by(Message.created_at.desc())
         .limit(limit)
     )
-    return list(result.scalars().all())
+    return [PersonRequest(message, run) for message, run in result.tuples().all()]
 
 
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:

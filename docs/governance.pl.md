@@ -1,5 +1,5 @@
 ---
-source_sha: "64942cddba42"
+source_sha: "c74ca93fa3aa"
 ---
 
 # Governance { #governance }
@@ -547,10 +547,23 @@ domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
 
-Gdy [guardrail](reference/capabilities.md#guardrails) odrzuci prompt wysłany do
-agenta, nocne zadanie pomija ten prompt wśród próśb, które czyta, więc prompt nie
-trafia do modelu proaktywności. Prompt z czatu przekazany do workflow nie jest
-jeszcze oznaczany jako odrzucony, więc to go nie obejmuje.
+Nocne zadanie czyta tylko prompt, który przeszedł wejściowy
+[guardrail](reference/capabilities.md#guardrails) agenta, do którego go wysłano,
+bo model proaktywności nie ma własnych guardraili:
+
+- Prompt odrzucony przez guardrail jest pomijany.
+- Prompt, którego nie przyjął żaden run, jest pomijany: wysłany do
+  zarchiwizowanego agenta, odrzucony przed otwarciem runu i prompt z czatu
+  przekazany do workflow.
+- Prompt, którego run jeszcze trwa, czeka. Późniejsze przejrzenie czyta go, gdy
+  run się skończy, nawet jeśli nie pojawi się nic nowszego.
+- Gdy run zatrzymał się przed pierwszym żądaniem do modelu, na przykład na
+  budżecie, zadanie uruchamia na prompcie wejściowy guardrail tego runu i pomija
+  to, co guardrail blokuje. Gdy wersji agenta już nie ma, prompt jest pomijany.
+- Gdy retencja usunęła run, zadanie czyta prompt tylko wtedy, gdy pod nim jest
+  odpowiedź modelu. Prompt sprzed wersji 1.36.0 jest czytany tak samo, więc
+  odmowa wejściowego guardraila, która nie zostawiła odpowiedzi, pozostaje poza
+  odczytem.
 
 Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
 **limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej

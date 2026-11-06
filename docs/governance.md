@@ -511,10 +511,21 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
-When a [guardrail](reference/capabilities.md#guardrails) refuses a prompt sent
-to an agent, the nightly job leaves that prompt out of the requests it reads, so
-the prompt does not reach the proactivity model. A chat prompt passed to a
-workflow is not marked as refused yet, so this does not cover it.
+The nightly job reads only a prompt that passed the input
+[guardrail](reference/capabilities.md#guardrails) of the agent it was sent to,
+because the proactivity model has no guardrails of its own:
+
+- A prompt a guardrail refused is left out.
+- A prompt no run took is left out: one sent to an archived agent, one refused
+  before its run opened, and a chat prompt passed to a workflow.
+- A prompt whose run is still going waits. A later look reads it when the run
+  ends, even if nothing newer arrives.
+- If a run stopped before its first model request, for example on a budget, the
+  job runs that run's input guardrail on the prompt and leaves out what it blocks.
+  If the agent version is gone, the prompt is left out.
+- If run retention deleted the run, the job reads the prompt only when a model's
+  answer follows it. A prompt from before version 1.36.0 is read the same way, so
+  an input guardrail's refusal, which left no answer, stays out.
 
 On top of that, each person's proactive runs in a calendar month are capped by
 the organization's **proactive limit** - $1 by default, set on the same card

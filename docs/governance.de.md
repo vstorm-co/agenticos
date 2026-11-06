@@ -1,5 +1,5 @@
 ---
-source_sha: "64942cddba42"
+source_sha: "c74ca93fa3aa"
 ---
 
 # Governance { #governance }
@@ -591,11 +591,23 @@ der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget d
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
 
-Lehnt ein [Guardrail](reference/capabilities.md#guardrails) einen Prompt an
-einen Agent ab, lässt der nächtliche Job diesen Prompt bei den Anfragen aus, die
-er liest, also erreicht der Prompt das Proaktivitätsmodell nicht. Ein Chat-Prompt,
-der an einen Workflow geht, wird noch nicht als abgelehnt markiert und ist damit
-nicht abgedeckt.
+Der nächtliche Job liest nur einen Prompt, der den Eingabe-
+[Guardrail](reference/capabilities.md#guardrails) des Agents passiert hat, an den
+er ging, denn das Proaktivitätsmodell hat keine eigenen Guardrails:
+
+- Ein Prompt, den ein Guardrail abgelehnt hat, bleibt draußen.
+- Ein Prompt, den kein Run angenommen hat, bleibt draußen: einer an einen
+  archivierten Agent, einer, der abgelehnt wurde, bevor sein Run begann, und ein
+  Chat-Prompt, der an einen Workflow geht.
+- Ein Prompt, dessen Run noch läuft, wartet. Ein späterer Durchlauf liest ihn,
+  wenn der Run endet, auch wenn nichts Neueres kommt.
+- Stoppt ein Run vor seiner ersten Model-Anfrage, zum Beispiel am Budget, lässt
+  der Job den Eingabe-Guardrail dieses Runs über den Prompt laufen und lässt aus,
+  was er blockiert. Gibt es die Agent-Version nicht mehr, bleibt der Prompt draußen.
+- Hat die Aufbewahrung den Run gelöscht, liest der Job den Prompt nur, wenn eine
+  Antwort eines Models auf ihn folgt. Ein Prompt von vor Version 1.36.0 wird
+  genauso gelesen, also bleibt die Ablehnung eines Eingabe-Guardrails draußen,
+  denn sie hat keine Antwort hinterlassen.
 
 Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
 Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,

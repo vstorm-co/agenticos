@@ -31,6 +31,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.suggestion import SuggestionStatus
 from app.db.models.user import User
 from app.repositories import (
+    agent_repo,
     agent_run_repo,
     agent_trigger_repo,
     conversation_repo,
@@ -94,7 +95,12 @@ async def _join(db, org: Organization, user: User) -> None:
 
 
 async def _agent(
-    db, org: Organization, *, slug: str = "agenticos", published: bool = True
+    db,
+    org: Organization,
+    *,
+    slug: str = "agenticos",
+    published: bool = True,
+    spec: dict[str, object] | None = None,
 ) -> Agent:
     agent = Agent(
         id=uuid.uuid4(), organization_id=org.id, slug=slug, name="AgenticOS", draft_spec={}
@@ -103,7 +109,7 @@ async def _agent(
     await db.flush()
     if published:
         version = AgentVersion(
-            id=uuid.uuid4(), organization_id=org.id, agent_id=agent.id, version=1, spec={}
+            id=uuid.uuid4(), organization_id=org.id, agent_id=agent.id, version=1, spec=spec or {}
         )
         db.add(version)
         await db.flush()
@@ -126,6 +132,37 @@ async def _run(db, org, agent, user, *, surface: RunSurface, cost: str, started_
         )
     )
     await db.flush()
+
+
+async def _turn(
+    db,
+    org: Organization,
+    agent: Agent,
+    user: User,
+    *,
+    status: RunStatus = RunStatus.COMPLETED,
+    input_tokens: int = 0,
+    ended_at: datetime | None = _NOW,
+    version: uuid.UUID | None = None,
+    test_spec: dict[str, object] | None = None,
+) -> AgentRun:
+    """A person's run on `agent`, at the agent's current version unless told otherwise."""
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=version,
+        user_id=user.id,
+        status=status.value,
+        surface=RunSurface.WEB.value,
+        started_at=_NOW,
+        ended_at=ended_at,
+        input_tokens=input_tokens,
+        test_spec=test_spec,
+    )
+    db.add(run)
+    await db.flush()
+    return run
 
 
 class TestSuggestions:
@@ -242,10 +279,17 @@ class TestAPersonsRequests:
         shared = Conversation(id=uuid.uuid4(), user_id=colleague.id, organization_id=org.id)
         abroad = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=elsewhere.id)
         db.add_all([mine, shared, abroad])
+        run = await _turn(db, org, await _agent(db, org), person)
         await db.flush()
         db.add_all(
             [
-                Message(id=uuid.uuid4(), conversation_id=mine.id, role="user", content="mine"),
+                Message(
+                    id=uuid.uuid4(),
+                    conversation_id=mine.id,
+                    role="user",
+                    content="mine",
+                    run_id=run.id,
+                ),
                 Message(
                     id=uuid.uuid4(), conversation_id=mine.id, role="assistant", content="answer"
                 ),
@@ -255,14 +299,22 @@ class TestAPersonsRequests:
                     role="user",
                     content="said in a shared chat",
                     author_user_id=person.id,
+                    run_id=run.id,
                 ),
                 Message(
                     id=uuid.uuid4(),
                     conversation_id=shared.id,
                     role="user",
                     content="the colleague's",
+                    run_id=run.id,
                 ),
-                Message(id=uuid.uuid4(), conversation_id=abroad.id, role="user", content="abroad"),
+                Message(
+                    id=uuid.uuid4(),
+                    conversation_id=abroad.id,
+                    role="user",
+                    content="abroad",
+                    run_id=run.id,
+                ),
             ]
         )
         await db.flush()
@@ -275,7 +327,10 @@ class TestAPersonsRequests:
             limit=10,
         )
 
-        assert sorted(message.content for message in found) == ["mine", "said in a shared chat"]
+        assert sorted(found_.message.content for found_ in found) == [
+            "mine",
+            "said in a shared chat",
+        ]
 
     @pytest.mark.security
     async def test_a_prompt_a_guardrail_refused_is_not_one_of_them(self, db) -> None:
@@ -285,6 +340,7 @@ class TestAPersonsRequests:
         org = await _organization(db, person)
         chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
         db.add(chat)
+        run = await _turn(db, org, await _agent(db, org), person)
         await db.flush()
         db.add_all(
             [
@@ -294,9 +350,14 @@ class TestAPersonsRequests:
                     role="user",
                     content="Summarize project falcon's budget",
                     guardrail_refused=True,
+                    run_id=run.id,
                 ),
                 Message(
-                    id=uuid.uuid4(), conversation_id=chat.id, role="user", content="Plan my week"
+                    id=uuid.uuid4(),
+                    conversation_id=chat.id,
+                    role="user",
+                    content="Plan my week",
+                    run_id=run.id,
                 ),
             ]
         )
@@ -310,7 +371,7 @@ class TestAPersonsRequests:
             limit=10,
         )
 
-        assert [message.content for message in found] == ["Plan my week"]
+        assert [request.message.content for request in found] == ["Plan my week"]
 
     @pytest.mark.security
     async def test_a_prompt_whose_run_is_still_going_waits_for_its_verdict(self, db) -> None:
@@ -351,7 +412,7 @@ class TestAPersonsRequests:
                 since=_NOW - timedelta(days=1),
                 limit=10,
             )
-            return [message.content for message in found]
+            return [request.message.content for request in found]
 
         assert await requests() == []
 
@@ -379,12 +440,14 @@ class TestWhatTheNightlyLookSends:
             )
         )
         if not refused_only:
+            run = await _turn(db, org, await _agent(db, org, slug="assistant"), person)
             db.add(
                 Message(
                     id=uuid.uuid4(),
                     conversation_id=chat.id,
                     role="user",
                     content="Draft the Monday sales report",
+                    run_id=run.id,
                 )
             )
         await db.flush()
@@ -431,6 +494,287 @@ class TestWhatTheNightlyLookSends:
 
         assert await look.look(org.id, person.id) == 0
         thinker.think.assert_not_awaited()
+
+
+_GUARDED: dict[str, object] = {
+    "name": "Guarded",
+    "description": "Refuses a keyword",
+    "instructions": "Answer briefly.",
+    "model_profile_id": str(uuid.uuid4()),
+    "capabilities": [
+        {"id": "guardrails", "config": {"blocked_keywords_in": "project falcon"}},
+    ],
+}
+_BLOCKED = "Summarize project falcon's budget"
+_CLEAN = "Draft the Monday sales report"
+
+
+@pytest.mark.security
+class TestOnlyWhatPassedTheInputEdgeIsRead:
+    """The look hands what it reads to a model with no guardrails, so a prompt is
+    read only once it is known to have passed the input edge of its agent (#2746)."""
+
+    async def _scene(self, db) -> tuple[Organization, User, Agent, Conversation]:
+        person = await _person(db)
+        org = await _organization(db, person)
+        agent = await _agent(db, org, slug="guarded", spec=_GUARDED)
+        chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+        db.add(chat)
+        await db.flush()
+        return org, person, agent, chat
+
+    @staticmethod
+    async def _prompt(
+        db, chat: Conversation, content: str, *, run: AgentRun | None = None, **columns: object
+    ) -> Message:
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=chat.id,
+            role="user",
+            content=content,
+            run_id=None if run is None else run.id,
+            **columns,
+        )
+        db.add(message)
+        await db.flush()
+        return message
+
+    @staticmethod
+    async def _read(db, org: Organization, person: User) -> list[str] | None:
+        """What a look hands the model, newest first, or `None` when it asks nothing."""
+        look = NightlyLook(db)
+        look.thinker = thinker = MagicMock(
+            starter_agent=AsyncMock(return_value=await _starter(db, org)),
+            think=AsyncMock(return_value=None),
+        )
+        await look.look(org.id, person.id)
+        if thinker.think.await_args is None:
+            return None
+        return json.loads(thinker.think.await_args.kwargs["prompt"])["requests_this_week"]
+
+    @staticmethod
+    async def _looked_at(db, org: Organization, person: User, at: datetime) -> None:
+        """A look already happened at `at`, and their first messages are written."""
+        member = await member_repo.get_active(db, organization_id=org.id, user_id=person.id)
+        assert member is not None
+        await member_repo.set_personal_starters(db, member, starters=["Plan my day"], at=at)
+        await _run(
+            db,
+            org,
+            await _starter(db, org),
+            person,
+            surface=RunSurface.PROACTIVE,
+            cost="0.01",
+            started_at=at,
+        )
+
+    async def test_a_prompt_with_no_run_yet_is_not_read_and_a_later_look_reads_it(self, db) -> None:
+        """The row is committed before `prepare` opens a run, so a look in that gap
+        reads text the input edge has not seen."""
+        org, person, agent, chat = await self._scene(db)
+        written = _NOW - timedelta(hours=1)
+        prompt = await self._prompt(db, chat, _CLEAN, created_at=written)
+
+        assert await self._read(db, org, person) == []
+
+        await self._looked_at(db, org, person, _NOW - timedelta(minutes=30))
+        run = await _turn(db, org, agent, person, version=agent.current_version_id)
+        prompt.run_id = run.id
+        await db.flush()
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_prompt_no_run_ever_took_is_not_read(self, db) -> None:
+        """An archived agent, a build refusal, a refused attachment: the row stays
+        and nothing screened it."""
+        org, person, _, chat = await self._scene(db)
+        await self._prompt(db, chat, _BLOCKED)
+
+        assert await self._read(db, org, person) == []
+
+    @pytest.mark.parametrize(
+        "status", [RunStatus.BUDGET_EXCEEDED, RunStatus.FAILED, RunStatus.CANCELLED]
+    )
+    async def test_a_run_stopped_before_any_model_is_screened_by_its_own_input_edge(
+        self, db, status: RunStatus
+    ) -> None:
+        """The budget check wraps the guardrail, and a run can fail or be stopped
+        before its first request: nothing marked these rows, and only the edge they
+        never reached can say which one it would have refused."""
+        org, person, agent, chat = await self._scene(db)
+        stopped = await _turn(
+            db, org, agent, person, status=status, version=agent.current_version_id
+        )
+        await self._prompt(db, chat, _BLOCKED, run=stopped)
+        await self._prompt(db, chat, _CLEAN, run=stopped)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_run_that_reached_a_model_needs_no_second_opinion(self, db) -> None:
+        """A budget stop on a later request is an accepted prompt: the first request
+        went through the edge. Read with the version gone, so the tokens decide."""
+        org, person, agent, chat = await self._scene(db)
+        stopped = await _turn(
+            db, org, agent, person, status=RunStatus.BUDGET_EXCEEDED, input_tokens=120
+        )
+        await self._prompt(db, chat, _CLEAN, run=stopped)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_stopped_run_whose_version_is_gone_cannot_be_vouched_for(self, db) -> None:
+        org, person, agent, chat = await self._scene(db)
+        stopped = await _turn(db, org, agent, person, status=RunStatus.FAILED)
+        await self._prompt(db, chat, _CLEAN, run=stopped)
+
+        assert await self._read(db, org, person) == []
+
+    async def test_a_draft_test_run_is_screened_by_the_draft_it_ran(self, db) -> None:
+        org, person, agent, chat = await self._scene(db)
+        stopped = await _turn(
+            db, org, agent, person, status=RunStatus.BUDGET_EXCEEDED, test_spec=_GUARDED
+        )
+        await self._prompt(db, chat, _BLOCKED, run=stopped)
+        await self._prompt(db, chat, _CLEAN, run=stopped)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_an_agent_with_no_input_rules_refuses_nothing(self, db) -> None:
+        person = await _person(db)
+        org = await _organization(db, person)
+        spec = {**_GUARDED, "capabilities": []}
+        agent = await _agent(db, org, slug="plain", spec=spec)
+        chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+        db.add(chat)
+        stopped = await _turn(
+            db, org, agent, person, status=RunStatus.CANCELLED, version=agent.current_version_id
+        )
+        await self._prompt(db, chat, _BLOCKED, run=stopped)
+
+        assert await self._read(db, org, person) == [_BLOCKED]
+
+    async def test_a_prompt_retention_took_the_run_of_is_read_when_a_model_answered(
+        self, db
+    ) -> None:
+        """Run retention can be a day, and `run_id` is `SET NULL` on both rows of a
+        turn. The answer outlives the run, so it is what says a model was reached.
+        A row older than `guardrail_refused` can be told apart the same way: the
+        input edge left no answer under the prompt it stopped."""
+        org, person, _, chat = await self._scene(db)
+        await self._prompt(db, chat, _CLEAN)
+        db.add(
+            Message(
+                id=uuid.uuid4(),
+                conversation_id=chat.id,
+                role="assistant",
+                content="Here it is",
+                model_name="gpt",
+            )
+        )
+        await db.flush()
+        await self._prompt(db, chat, _BLOCKED)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_workflows_reply_says_nothing_about_a_model(self, db) -> None:
+        """A chat prompt routed to a workflow has no run of its own, and the agent
+        step inside may have refused it: the reply is written either way."""
+        org, person, _, chat = await self._scene(db)
+        await self._prompt(db, chat, _BLOCKED)
+        db.add(Message(id=uuid.uuid4(), conversation_id=chat.id, role="assistant", content=""))
+        await db.flush()
+
+        assert await self._read(db, org, person) == []
+
+    async def test_a_reply_to_somebody_elses_turn_vouches_for_nothing(self, db) -> None:
+        """In a shared chat the row under a prompt can be another turn's answer. It
+        still has its run, which a turn that lost its run to retention would not."""
+        org, person, agent, chat = await self._scene(db)
+        other = await _turn(db, org, agent, person)
+        await self._prompt(db, chat, _BLOCKED)
+        db.add(
+            Message(
+                id=uuid.uuid4(),
+                conversation_id=chat.id,
+                role="assistant",
+                content="An answer to a colleague",
+                model_name="gpt",
+                run_id=other.id,
+            )
+        )
+        await db.flush()
+
+        assert await self._read(db, org, person) == []
+
+    async def test_a_prompt_decided_after_the_last_look_is_new(self, db) -> None:
+        """Written before the look, finished after it: nothing newer has to arrive
+        for it to be read."""
+        org, person, agent, chat = await self._scene(db)
+        look_at = _NOW - timedelta(hours=1)
+        await self._looked_at(db, org, person, look_at)
+        run = await _turn(
+            db,
+            org,
+            agent,
+            person,
+            version=agent.current_version_id,
+            ended_at=look_at + timedelta(minutes=5),
+        )
+        await self._prompt(db, chat, _CLEAN, run=run, created_at=look_at - timedelta(minutes=5))
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_prompt_decided_before_the_last_look_is_not_new_again(self, db) -> None:
+        """The last look read it, so it wakes nobody a second time."""
+        org, person, agent, chat = await self._scene(db)
+        look_at = _NOW - timedelta(hours=1)
+        await self._looked_at(db, org, person, look_at)
+        run = await _turn(
+            db,
+            org,
+            agent,
+            person,
+            version=agent.current_version_id,
+            ended_at=look_at - timedelta(minutes=1),
+        )
+        await self._prompt(db, chat, _CLEAN, run=run, created_at=look_at - timedelta(minutes=5))
+
+        assert await self._read(db, org, person) is None
+
+    async def test_a_late_verdict_that_refuses_wakes_nobody(self, db) -> None:
+        org, person, agent, chat = await self._scene(db)
+        look_at = _NOW - timedelta(hours=1)
+        await self._looked_at(db, org, person, look_at)
+        run = await _turn(
+            db,
+            org,
+            agent,
+            person,
+            status=RunStatus.BUDGET_EXCEEDED,
+            version=agent.current_version_id,
+        )
+        await self._prompt(db, chat, _BLOCKED, run=run, created_at=look_at - timedelta(minutes=5))
+
+        assert await self._read(db, org, person) is None
+
+    async def test_the_look_is_dated_from_before_it_read(self, db) -> None:
+        """A run ending between the read and the proactive run's row was not read
+        and must still count as new next time, so the row carries the earlier time."""
+        org, person, _, _ = await self._scene(db)
+        look = NightlyLook(db)
+        look.thinker = thinker = MagicMock(
+            starter_agent=AsyncMock(return_value=await _starter(db, org)),
+            think=AsyncMock(return_value=None),
+        )
+        before = datetime.now(UTC)
+
+        await look.look(org.id, person.id)
+
+        assert before <= thinker.think.await_args.kwargs["started_at"] <= datetime.now(UTC)
+
+
+async def _starter(db, org: Organization) -> Agent:
+    found = await agent_repo.get_by_slug(db, "agenticos", organization_id=org.id)
+    return found if found is not None else await _agent(db, org)
 
 
 class TestWhoTheNightlySweepReaches:
