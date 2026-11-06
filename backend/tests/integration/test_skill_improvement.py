@@ -974,10 +974,13 @@ class TestTheLinesEvidence:
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)
         fork = await _fork(db, ctx, skill)
+        on_fork = await _serving(db, ctx, "Returns", _spec(skill, fork_id=str(fork.id)))
         asked: list[list[uuid.UUID]] = []
+        reading: list[set[uuid.UUID]] = []
 
-        async def for_skill(self, ctx, skill_id, *, window_days, versions=None):
+        async def for_skill(self, ctx, skill_id, *, window_days, versions=None, readers=None):
             asked.append(list(versions or []))
+            reading.append(set(readers or []))
             return EvidencePack()
 
         monkeypatch.setattr(type(AuthoringService(db).evidence), "for_skill", for_skill)
@@ -996,6 +999,8 @@ class TestTheLinesEvidence:
         )
         assert sorted(asked[0]) == sorted(version.id for version in versions)
         assert asked[1] == [fork.base.id]
+        assert on_fork.id not in reading[0]
+        assert reading[0] and reading[1] == {on_fork.id}
         with pytest.raises(NotFoundError):
             await service.line_for_session(
                 ctx, SkillImprovementRun(skill_id=uuid.uuid4(), fork_id=None, window_days=30)

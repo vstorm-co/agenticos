@@ -251,8 +251,9 @@ async def unknown_runs(
     """Per agent, the rated-down or failed runs whose use of the skill nobody recorded.
 
     Runs from before uses were recorded, of an agent whose published version
-    bound the skill, with nothing copied from their transcripts either: they may
-    have used it, and nothing says whether they did.
+    bound the skill - itself or through an inline specialist - with nothing copied
+    from their transcripts either: they may have used it, and nothing says whether
+    they did.
     """
     rated_down = (
         select(Message.id)
@@ -271,7 +272,12 @@ async def unknown_runs(
         .where(*served_runs(organization_id=organization_id, since=since))
         .where(
             AgentRun.skill_uses_recorded.is_not(True),
-            AgentVersion.spec["skill_ids"].contains([str(skill_id)]),
+            or_(
+                AgentVersion.spec["skill_ids"].contains([str(skill_id)]),
+                AgentVersion.spec["capabilities"].contains(
+                    [{"config": {"inline": [{"skill_ids": [str(skill_id)]}]}}]
+                ),
+            ),
             or_(rated_down.exists(), failed),
             ~recorded.exists(),
         )

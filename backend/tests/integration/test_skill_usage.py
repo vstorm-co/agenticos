@@ -539,6 +539,60 @@ class TestEvidence:
         assert [run.run_id for run in pack.runs] == [proven.id]
         assert pack.unknown_runs == 2
 
+    async def test_a_line_reads_only_its_own_agents_uses_of_a_version_it_shares(
+        self, db: AsyncSession
+    ):
+        """A fork with no version of its own serves its base, which main's agents read too."""
+        org, user = await _org(db)
+        on_fork = await _agent(db, org, user, "On fork")
+        on_main = await _agent(db, org, user, "On main")
+        skill = await _skill(db, org)
+        base = await _version(db, skill, 1)
+        mine = await _answered(db, org, on_fork, user)
+        await _used(db, mine, skill, version=base)
+        # Main's agent delegated to the fork's: the use that counts is the fork's.
+        delegated = await _answered(db, org, on_main, user, status="failed")
+        await _used(db, delegated, skill, agent=on_fork, version=base)
+        await _used(db, await _answered(db, org, on_main, user), skill, version=base)
+        main_version = await _binding(db, on_main, skill)
+        await _answered(db, org, on_main, user, version=main_version, recorded=False)
+
+        pack = await EvidenceService(db).for_skill(
+            _builder(org, user), skill.id, window_days=30, versions=[base], readers=[on_fork.id]
+        )
+
+        assert {run.run_id for run in pack.runs} == {mine.id, delegated.id}
+        assert (pack.unknown_runs, pack.hidden_agents) == (0, 0)
+
+    async def test_an_agent_bound_only_through_a_specialist_is_counted_as_unknown(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+        version = AgentVersion(
+            id=uuid.uuid4(),
+            agent_id=desk.id,
+            organization_id=org.id,
+            version=1,
+            spec={
+                "name": desk.name,
+                "capabilities": [
+                    {
+                        "id": "subagents",
+                        "config": {"inline": [{"name": "billing", "skill_ids": [str(skill.id)]}]},
+                    }
+                ],
+            },
+        )
+        db.add(version)
+        await db.flush()
+        await _answered(db, org, desk, user, version=version, recorded=False)
+
+        pack = await EvidenceService(db).for_skill(_builder(org, user), skill.id, window_days=30)
+
+        assert pack.unknown_runs == 1
+
     async def test_agents_the_reader_cannot_see_are_only_counted(self, db: AsyncSession):
         org, user = await _org(db)
         desk = await _agent(db, org, user, "Desk")
