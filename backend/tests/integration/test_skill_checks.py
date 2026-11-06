@@ -627,6 +627,26 @@ class TestTheRule:
         assert started.count(lab.a.id) == 2
         assert read.verdict is CheckVerdict.BLOCKED
 
+    async def test_a_quick_check_stops_at_a_regression_on_a_small_skill_set(self, db, monkeypatch):
+        """A confirmed regression stops a quick check however few held-out questions found
+        it, the rule the agent is judged by, so the agent's own sample is not paid for."""
+        lab = await _lab(db)
+        evals = FakeEvals(held_out=3)
+        evals.install(monkeypatch)
+
+        async def sample(_self, _ctx, _skill, _agent_id, _dataset, _words, _allowed=None, **_):
+            return [uuid.uuid4()]
+
+        monkeypatch.setattr(SkillCheckService, "_sample", sample)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.b.id: Outcome(broken=1), lab.a.id: Outcome(fixed=1)}
+
+        read = await _run_to_end(service, evals, lab, check.id)
+
+        assert [agent for agent, _ in evals.started].count(lab.b.id) == 1
+        assert read.verdict is CheckVerdict.BLOCKED
+
     async def test_unconfirmed_regressions_are_a_warning(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()
