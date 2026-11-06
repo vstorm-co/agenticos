@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Creating a knowledge base or claiming a collection name now waits at most one second for a name held by an unfiled chunk write, then answers 409 with a request to retry. Previously an unbounded wait could occupy the database connection pool and delay or refuse unrelated requests. The timeout rolls back only its savepoint, leaving the caller's transaction usable. Teardown and ingestion locks remain transaction-scoped and keep their existing behavior. (#2781)
+
 ### Added
 
 - A coding agent runs several named sessions at once. `run_coding_agent` takes a `session` name: the same name continues that session, a new one opens another, and `main` keeps the session conversations used before. On the person's computer a session may also choose its `harness` (Claude Code or Codex, on that computer's sign-in) and a `folder` inside the chat's folder, so two projects or both harnesses work side by side. Local sessions run concurrently; sandbox tasks in the same toolset queue to keep their workspace diffs separate. Chat corrections can target a named local session with `[session:name]`; unaddressed corrections stay with the parent when several sessions are active. The desktop app runs up to eight local sessions and lets one start in a folder inside a full-access grant; revoking a folder stops the sessions inside it too.

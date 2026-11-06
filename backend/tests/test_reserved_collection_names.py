@@ -43,6 +43,14 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _not_reserved(monkeypatch: pytest.MonkeyPatch) -> None:
     """A create reaches `claim`, which reads the teardown-reservation repo (#1362);
     mock it at the boundary so a name is free unless a test says otherwise."""

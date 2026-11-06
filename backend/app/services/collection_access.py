@@ -33,7 +33,7 @@ import app.db.models  # noqa: F401
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
-from app.db.locks import LockScope, hold_name
+from app.db.locks import LockScope, hold_name, hold_name_within
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_log import SyncLog
@@ -51,6 +51,14 @@ from app.repositories import (
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
 from app.services.access import COLLECTION, resolve_access, visible_resource_ids
+
+# How long a claim waits for its name, holding a pooled connection (#2747). An unfiled
+# write holds the name through its commit, about 2ms a chunk, so this outlasts a
+# document of a few hundred chunks; a longer hold is answered with a 409 to retry. It
+# stays well under `DB_POOL_TIMEOUT`, five seconds: a pool's worth of claims gives its
+# connections back in one of these, so a request queued behind them is served late
+# and not refused, and it takes five such rounds queued at once to refuse one.
+_CLAIM_WAIT_MS = 1000
 
 
 async def readable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> bool:
@@ -338,6 +346,12 @@ class CollectionAccessService:
         lock is transaction-scoped, so it is held until this request commits the
         row - past `create_collection`, which builds the table this protects.
 
+        The wait for that lock is bounded (`_CLAIM_WAIT_MS`), since a request waiting
+        holds a connection and the holder can be a document's whole insert (#2747).
+        Past it the claim is refused with a "try again", and the session stays usable.
+        Nothing has been read or decided by then, so the refusal cannot weaken what
+        the lock protects: a teardown still waits for whoever holds the name.
+
         Content no base owns is the third refusal (#2747). A name can hold rows
         and chunks with no knowledge base behind them - `rag-ingest` writes both,
         tagged with no organization. A claim adopting such a name let a member with
@@ -357,11 +371,18 @@ class CollectionAccessService:
         Raises:
             BadRequestError: If the name could not safely become an identifier.
             AlreadyExistsError: If a knowledge base outside the caller's reach
-                already owns the name, or no base holds it, it holds content of
-                another tenant and the caller is not an app admin.
+                already owns the name, no base holds it, it holds content of another
+                tenant and the caller is not an app admin, or something else held
+                the name throughout the wait.
         """
         validate_collection_name(name, metadata=Base.metadata)
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
+        if not await hold_name_within(
+            self.db, LockScope.COLLECTION_TEARDOWN, name, wait_ms=_CLAIM_WAIT_MS
+        ):
+            raise AlreadyExistsError(
+                message=f"The collection '{name}' is busy right now; try again shortly",
+                details={"collection": name},
+            )
         if await collection_teardown_repo.is_reserved(self.db, name):
             # The name's last row is gone but its vector table has not been dropped
             # yet, so claiming it now would adopt that lingering, populated table

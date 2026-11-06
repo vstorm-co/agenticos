@@ -72,7 +72,9 @@ def service(monkeypatch: pytest.MonkeyPatch) -> KnowledgeBaseService:
         rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
     )
     monkeypatch.setattr(knowledge_base_repo, "create", AsyncMock(side_effect=_created))
-    monkeypatch.setattr("app.services.collection_access.hold_name", AsyncMock())
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
     # No endpoint is asked what it serves here; the tests that care read this mock.
     monkeypatch.setattr(embedding_providers, "require_served_at", AsyncMock())
     return KnowledgeBaseService(MagicMock())
