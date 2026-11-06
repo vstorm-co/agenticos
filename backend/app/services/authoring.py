@@ -725,14 +725,38 @@ class AuthoringService:
         ]
 
     async def for_skill(self, ctx: AuthContext, skill_id: UUID) -> list[AuthoringRequestRead]:
-        """The newest requests on one skill, for its page."""
+        """The newest requests on one skill, for its page.
+
+        A session's steps are left out: the session shows them to its own readers.
+        A quote is shown only to a reader of runs, and only from an agent they may
+        see; evidence from any other agent's run is dropped, run id and all.
+        """
         skill = await self.skills.get(ctx, skill_id)
-        return [
-            AuthoringRequestRead.model_validate(await self.settled(request))
+        requests = [
+            await self.settled(request)
             for request in await authoring_repo.list_requests(
-                self.db, organization_id=ctx.organization_id, skill_id=skill.id
+                self.db, organization_id=ctx.organization_id, skill_id=skill.id, sessions=False
             )
         ]
+        cited = {
+            UUID(quote["run_id"])
+            for request in requests
+            for key in REPORT_EVIDENCE
+            for item in (request.report or {}).get(key) or []
+            for quote in item.get("evidence", [])
+        }
+        owners = await agent_run_repo.agents_of_runs(
+            self.db, list(cited), organization_id=ctx.organization_id
+        )
+        agents = await agent_repo.get_many(
+            self.db, list(set(owners.values())), organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        shown = {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        quotes = ctx.has(Perm.RUNS_VIEW)
+        return [_skill_request(request, shown, quotes=quotes) for request in requests]
 
     async def for_context(self, ctx: AuthContext, context_id: UUID) -> list[AuthoringRequestRead]:
         """The newest requests on one context file, for its page."""
@@ -1880,3 +1904,29 @@ class AuthoringService:
             values={"check_eval_run_ids": [*batch.check_eval_run_ids, started.id]},
         )
         return started
+
+
+def _skill_request(
+    request: AuthoringRequest, shown: set[UUID], *, quotes: bool
+) -> AuthoringRequestRead:
+    """A skill's request as one reader sees it: evidence from the runs in `shown`, quoted
+    only for a reader of runs."""
+    read = AuthoringRequestRead.model_validate(request)
+    if read.report is None:
+        return read
+    report = dict(read.report) | {
+        key: [
+            {
+                **item,
+                "evidence": [
+                    quote if quotes else {"run_id": quote["run_id"]}
+                    for quote in item.get("evidence", [])
+                    if UUID(quote["run_id"]) in shown
+                ],
+            }
+            for item in items
+        ]
+        for key in REPORT_EVIDENCE
+        if isinstance(items := read.report.get(key), list)
+    }
+    return read.model_copy(update={"report": report})
