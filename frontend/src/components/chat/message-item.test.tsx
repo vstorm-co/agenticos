@@ -1484,6 +1484,36 @@ describe("the work before an answer", () => {
     expect(screen.queryByTestId("tool-tc-before")).toBeNull();
   });
 
+  it("groups the tools following each reasoning heading inside its own process phase", async () => {
+    item({
+      parts: [
+        {
+          id: "phase-a",
+          type: "thinking",
+          content: "**Investigating project details**\nRead the project instructions.",
+        },
+        call("project"),
+        {
+          id: "phase-b",
+          type: "thinking",
+          content: "### Comparing task boards\nLook for blockers.",
+        },
+        call("board"),
+        text("answer", "Here are the priorities."),
+      ],
+    });
+    expect(screen.getByText("Here are the priorities.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /Worked/ }));
+    expect(screen.getByText("Investigating project details")).toBeVisible();
+    expect(screen.getByText("Comparing task boards")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-project")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Investigating project details"));
+    expect(screen.getByText("Read the project instructions.")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-project")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-board")).not.toBeVisible();
+    expect(screen.queryByText("Thought about it")).toBeNull();
+  });
+
   it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {
     const parts = [call("a"), call("b")];
     item({ parts, runDurationMs: 12_400, wasStopped: true });

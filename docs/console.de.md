@@ -1,5 +1,5 @@
 ---
-source_sha: "56bfee8a869f"
+source_sha: "a5ee439d5dab"
 ---
 
 # Die Konsole { #the-console }
@@ -481,6 +481,8 @@ Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude 
 Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
 Überlegungen und Werkzeugaufrufe sind auf allen Bildschirmgrößen standardmäßig eingeklappt, auch nach einer Agentennachricht. Aufeinanderfolgende Aktivität teilt einen aufklappbaren Bereich; Nachrichten trennen die Gruppen. Öffne eine Gruppe, um Schritte, Fehler und optionale Werkzeugdetails zu prüfen. Antworten, Freigabekarten und visuelle Ergebnisse bleiben außerhalb der Gruppen sichtbar. Bereits beantwortete Fragen sind separat eingeklappt; öffne eine Frage, um die Antwort zu lesen. Ausstehende Fragen oder Freigaben zeigen einen Wartestatus statt einer laufenden Zeitanzeige. Verlässt du einen Chat mit einer unbeantworteten Frage, wird sie gespeichert und bei der Rückkehr wieder zur Beantwortung angeboten.
+
+Eigenständige Überschriften in der Begründung bilden benannte Prozessphasen im aufgeklappten Arbeitsverlauf. Jede Phase bündelt ihre Erläuterung und die folgenden Tools bis zur nächsten Überschrift oder Agent-Nachricht. Phasendetails sind zunächst eingeklappt; Begründungen ohne Überschrift behalten ihre bisherige Darstellung.
 
 Chat-Freigaben bleiben eine kompakte Karte neben dem Eingabefeld: Operation, Symbol und Aufgaben- oder Objekttitel, weitere Argumente unter Details. Approve und Reject stehen daneben, auf schmalen Bildschirmen darunter. Abgeschlossene Aktivität erhält ein dezentes Abschlusszeichen, wartende Schritte einen eigenen Status. Laufende Schritte behalten ihr Operationssymbol statt einer animierten Kugel pro Aufruf.
 

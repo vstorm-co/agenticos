@@ -187,6 +187,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Turn reasoning headings into named, collapsible chat phases with their explanations and subsequent tool calls grouped together.
+
 - Show the three most recently active projects in navigation and mark projects with unread chat answers for the current reader.
 
 - Give the conversation sidebar an intermediate surface shade between navigation and chat in every theme.

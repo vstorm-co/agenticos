@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { ChevronRight, Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -26,6 +26,7 @@ import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
+import { reasoningSections, WorkPhase } from "./work-phase";
 import { useTurnElapsed, WorkFold } from "./work-fold";
 
 /**
@@ -96,13 +97,14 @@ export function TurnParts({
       : undefined;
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
-  const render = (run: PartRun, visuals = true, afterWork = false) =>
+  const render = (run: PartRun, visuals = true, afterWork = false, inPhase = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
         {/* The outer activity disclosure owns folding; avoid nested earlier-step groups. */}
         <AgentSteps
           showAll
           done={
+            !inPhase &&
             run.parts.length > 1 &&
             !isStreaming &&
             !stopped &&
@@ -163,6 +165,64 @@ export function TurnParts({
       />
     );
 
+  const renderPhases = (work: PartRun[]) => {
+    const rendered: ReactNode[] = [];
+    let phase:
+      { key: string; title: string; body: string; runs: PartRun[]; isLast: boolean } | undefined;
+    const flush = () => {
+      if (!phase) return;
+      const calls = phase.runs.flatMap((run) => (run.kind === "tools" ? run.parts : []));
+      const waitingOn = calls.some((part) => part.toolCall?.status === "awaiting_answer")
+        ? "awaiting_answer"
+        : calls.some((part) => part.toolCall?.status === "awaiting_approval")
+          ? "awaiting_approval"
+          : undefined;
+      rendered.push(
+        <WorkPhase
+          key={phase.key}
+          title={phase.title}
+          body={phase.body}
+          steps={calls.length}
+          running={
+            isStreaming && !waitingOn && (phase.isLast || phase.runs.some((run) => run.isLast))
+          }
+          waiting={waitingOn}
+          failed={calls.some((part) => part.toolCall?.status === "error")}
+          stopped={stopped && (phase.isLast || phase.runs.some((run) => run.isLast))}
+        >
+          {phase.runs.map((run) => render(run, false, false, true))}
+        </WorkPhase>,
+      );
+      phase = undefined;
+    };
+    for (const run of work) {
+      if (run.kind === "other" && run.part.type === "thinking") {
+        const sections = reasoningSections(run.content);
+        if (!sections.some((section) => section.title)) {
+          flush();
+          rendered.push(render(run, false));
+          continue;
+        }
+        sections.forEach((section, index) => {
+          flush();
+          phase = {
+            key: `${run.part.id}-${index}`,
+            title: section.title ?? tChat("thoughtAboutIt"),
+            body: section.body,
+            runs: [],
+            isLast: run.isLast && index === sections.length - 1,
+          };
+        });
+      } else if (run.kind === "tools" && phase) phase.runs.push(run);
+      else {
+        flush();
+        rendered.push(render(run, false));
+      }
+    }
+    flush();
+    return rendered;
+  };
+
   // Work after narration needs the same disclosure as work before the answer.
   // Keep questions and messages in place; only adjacent activity shares a fold.
   const renderShown = (shown: PartRun[], afterFold = false) => {
@@ -198,7 +258,7 @@ export function TurnParts({
             activity={activity}
             waiting={groupWaiting}
           >
-            {group.map((run) => render(run, false))}
+            {renderPhases(group)}
           </WorkFold>
           <TurnVisuals calls={visualCalls(group)} />
         </div>
@@ -243,7 +303,7 @@ export function TurnParts({
         activity={activity}
         waiting={foldedWaiting}
       >
-        {split.folded.map((run) => render(run, false))}
+        {renderPhases(split.folded)}
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />

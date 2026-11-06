@@ -432,6 +432,8 @@ The Files panel groups files by folder, keeping identical names in different dir
 
 Thinking and tool calls are collapsed by default on every screen size, including steps after an agent message. Adjacent activity shares one disclosure; messages separate activity groups. Open a group to inspect its steps, errors and optional tool details. Answers, actionable approval cards and visual results remain visible outside the groups. Previously answered questions have their own collapsed disclosure; open one to read the answer. A pending question or approval shows a waiting status instead of a running timer. Leaving a chat with an unanswered question saves it for answering when you return.
 
+Standalone reasoning headings become named process phases inside expanded work history. Each phase groups its explanation and subsequent tools until the next heading or agent message. Phase details start collapsed; ordinary reasoning without a heading keeps its existing presentation.
+
 Chat approvals stay in one compact card beside the composer: the operation, its icon and the task or object title, with extra arguments behind Details. Approve and Reject sit beside the request, or below it on narrow screens. Completed activity uses a quiet completion mark, waiting steps keep a distinct status, and running steps retain their operation icon instead of animating a separate orb for every call.
 
 Reopening a chat also restores approvals and questions for delegated tools absent from the parent timeline. A paused delegate is shown as working during its approved HTTP continuation. A finished published delegate keeps its own outcome when the parent stops on another decision.
