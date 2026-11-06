@@ -56,18 +56,24 @@ export function ChatWelcome({
   suggestionsSlot,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
+  // The centered composer must stay put when agent metadata replaces skeletons.
+  // Reserve four two-line suggestions and the same header slots in both states.
   const hints = (
     <>
       <div
         aria-busy={loading}
         className={cn(
-          "grid auto-rows-fr",
-          quiet ? "mt-5 min-h-40 gap-1" : compact ? "mt-4 gap-1.5" : "mt-6 gap-2 sm:grid-cols-2",
+          "grid",
+          quiet
+            ? "mt-5 grid-rows-[repeat(4,3.5rem)] gap-1"
+            : compact
+              ? "mt-4 auto-rows-fr gap-1.5"
+              : "mt-6 auto-rows-fr gap-2 sm:grid-cols-2",
         )}
       >
         {loading
           ? Array.from({ length: 4 }, (_, index) => (
-              <div key={index} className="flex h-9 items-center gap-3" aria-hidden>
+              <div key={index} className="flex h-full min-h-9 items-center gap-3" aria-hidden>
                 <span className="bg-muted size-4 animate-pulse rounded" />
                 <span className="bg-muted h-3 w-48 animate-pulse rounded" />
               </div>
@@ -97,7 +103,12 @@ export function ChatWelcome({
                     <suggestion.icon className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={cn("block text-sm", !quiet && "text-foreground font-medium")}>
+                    <span
+                      className={cn(
+                        "block text-sm",
+                        quiet ? "line-clamp-2" : "text-foreground font-medium",
+                      )}
+                    >
                       {suggestion.title}
                     </span>
                     {suggestion.description !== "" && (
@@ -158,6 +169,7 @@ export function ChatWelcome({
             compact
               ? "mb-3 justify-center"
               : "mb-4 justify-start [@media(max-height:760px)]:hidden",
+            quiet && "min-h-14",
           )}
         >
           {mark}
@@ -165,6 +177,7 @@ export function ChatWelcome({
         <h2
           className={cn(
             "text-foreground min-h-9 font-semibold tracking-tight",
+            quiet && "min-h-[2lh] md:min-h-9",
             compact ? "text-lg" : "text-2xl md:text-3xl",
           )}
         >
@@ -173,6 +186,7 @@ export function ChatWelcome({
         <p
           className={cn(
             "text-muted-foreground line-clamp-2 max-w-xl leading-relaxed",
+            quiet && "min-h-[2lh]",
             compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
           )}
         >
