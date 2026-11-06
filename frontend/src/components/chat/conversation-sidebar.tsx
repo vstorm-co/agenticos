@@ -976,7 +976,12 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
   return (
     <>
-      <aside className={cn("bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col md:flex", className)}>
+      <aside
+        className={cn(
+          "hidden min-h-0 w-64 shrink-0 flex-col bg-[color-mix(in_oklab,var(--color-sidebar),var(--color-background))] md:flex",
+          className,
+        )}
+      >
         <div
           className="flex h-12 shrink-0 items-center gap-1 pr-2 pl-4"
           data-tauri-drag-region="deep"
@@ -1062,7 +1067,12 @@ function CollapsedSidebar({
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
-    <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col md:flex", className)}>
+    <div
+      className={cn(
+        "hidden w-12 shrink-0 flex-col bg-[color-mix(in_oklab,var(--color-sidebar),var(--color-background))] md:flex",
+        className,
+      )}
+    >
       {/* The same 48px header the list has, with its chevron where the list's is. */}
       <div className="flex h-12 shrink-0 items-center justify-center" data-tauri-drag-region="deep">
         <IconButton

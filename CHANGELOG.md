@@ -187,6 +187,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Give the conversation sidebar an intermediate surface shade between navigation and chat in every theme.
+
 - Resolve resumed tool results in their original chat segment and share the persisted run clock between the transcript and conversation sidebar.
 
 - Run read-only AgenticOS MCP tools automatically under `writes`, including project and conversation reads; keep approvals for state changes and the explicit `all` policy.
