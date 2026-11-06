@@ -167,12 +167,15 @@ class TestRecording:
         skill = await _skill(db, org)
         run = await _run(db, org, agent)
 
-        await _used(db, run, skill, loaded=False, resource_reads=1)
-        await _used(db, run, skill, loaded=True, resource_reads=2, workspace_reads=1)
+        first, newer = await _version(db, skill, 1), await _version(db, skill, 2)
+
+        await _used(db, run, skill, loaded=False, resource_reads=1, version=first)
+        await _used(db, run, skill, loaded=True, resource_reads=2, workspace_reads=1, version=newer)
 
         [row] = (await db.execute(select(RunSkillUse))).scalars().all()
         assert (row.loaded, row.resource_reads, row.workspace_reads) == (True, 3, 1)
         assert row.created_at == run.started_at
+        assert row.skill_version_id == first
 
     async def test_a_parent_and_its_delegate_keep_a_row_each(self, db: AsyncSession):
         org, user = await _org(db)

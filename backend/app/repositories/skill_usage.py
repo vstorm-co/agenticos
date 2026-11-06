@@ -55,6 +55,10 @@ async def record_uses(
 
     A run that parked on an approval and resumed is one row finished twice, so a
     second write for the same agent and skill adds its counts rather than failing.
+    The row keeps the version, and whether it was projected, that the first
+    segment was served: there is one row per agent and skill, and a resumed segment
+    served a newer version is credited to the older. The run's `skill_version_ids`
+    names both.
     """
     if not records:
         return
