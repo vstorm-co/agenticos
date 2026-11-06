@@ -23,11 +23,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A delegation the agent waited for no longer stays drawn under its answer once the turn ends. The answer's "Talked it through with…" line already opens that exchange, so it appeared twice. Background delegations, exchanges still at work and specialists that can still be kept stay where they were.
 
+## [1.50.2] - 2026-11-06
+
 ### Security
 
 - A sync, a local-directory sync or `rag-ingest` now clears earlier failed attempts at a file only in the new row's own scope: the knowledge base it is filed under, or, for a row with no base, rows of the same organization. Until now it cleared every failed row at that path under the collection name, so one organization's sync deleted another organization's failed rows (their error and retry) when both used the same collection name and path. The same applied to two knowledge bases of one organization that share a name. (#2747)
 - Creating a knowledge base or collection (`POST /kb`, `POST /rag/collections/{name}`) now refuses a name that no knowledge base holds while it holds content of another tenant, for example a collection written by `rag-ingest`. Until now a member with `collections:edit` could create a base on such a name and then delete it, which dropped the operator's vector table. An app admin can still adopt such a name. A name held only by bases the caller may write is not affected. (#2747)
 - Deleting the last knowledge base on a name (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}`) now keeps the vector table while it holds unfiled chunks the base does not take: an operator's `rag-ingest` or `rag-sync-gdrive`/`rag-sync-s3` into the held name, or another organization's. Only the chunks the base takes are purged, and the other rows under the name stay as they are. Until now the table went with those chunks, so a member with `collections:edit` could destroy content written after their base claimed the name. `rag-drop` still drops the whole table. A chunk write with no base now holds the name until it commits, so the table is asked only after such a write in flight has finished, and one that reaches the name while it is reserved is refused. The cleanup job now drops only a reserved name, so a rerun leaves what was written after its first drop. (#2747)
+- **Sync source settings and run logs stay with their audience (#2745).** The
+  knowledge base wizard's list of existing integrations
+  (`GET /kb/{kb_id}/sync-sources/org-integrations`) and `GET /rag/sync/sources`
+  returned every source of the organization, with its configuration, vault
+  secret id and last error, to anyone who could read one base. The wizard's list
+  now needs `connections:manage`, like `/org/integrations`, and the wizard leaves
+  out the offer without it. `GET /rag/sync/sources` returns the whole list only
+  with `connections:manage`, and otherwise the sources that feed a base the
+  caller reads, so its `collection_name` filter answers 404 for a collection the
+  caller cannot read, where it answered 200. A member of one organization who read an app-scoped base could
+  read the run logs of another organization's source that fed it. A source's run
+  log and `GET /rag/sync/logs` now list only the caller organization's sources,
+  unless the caller is a platform admin. Runs with no source, such as those of a
+  deleted source, are still listed by their collection name. `PATCH`, `DELETE` and `POST .../trigger` on
+  `/rag/sync/sources/{id}` checked the organization and, on a move, the new base.
+  So a member could detach (`collection_name: null`), reconfigure, delete or run
+  the source of a base they cannot write. They now also need write access to the
+  base the source feeds. An unassigned source still needs only the organization.
+  That check and the change it allows now run under a lock on the source, on
+  these routes and on their `/kb/{kb_id}/sync-sources/{id}` counterparts, so a
+  move that commits between them can no longer leave a caller changing, or
+  queueing a run of, a source that feeds a base they cannot write. A run already
+  queued when a move lands still runs into the new base. The wizard also stops
+  offering integrations it already fetched when the member loses
+  `connections:manage`, and leaves clone mode if none remain to pick. A run that
+  finishes while its source is deleted keeps its outcome.
+  See [Configure sync sources](docs/howto/configure-sync-sources.md#api-reference).
 
 ## [1.50.1] - 2026-11-06
 
@@ -20469,7 +20498,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...HEAD
+[1.50.2]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...v1.50.2
 [1.50.1]: https://github.com/vstorm-co/agenticos/compare/v1.50.0...v1.50.1
 [1.50.0]: https://github.com/vstorm-co/agenticos/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/vstorm-co/agenticos/compare/v1.48.1...v1.49.0
