@@ -26,8 +26,9 @@ export function useSystemAgents(enabled: boolean) {
   const update = useMutation({
     mutationFn: ({ role, change }: { role: SystemRole; change: SystemAgentUpdate }) =>
       updateSystemAgent(role, change),
-    onSuccess: (saved) =>
-      queryClient.setQueryData<SystemAgent[]>(key, (roles) =>
+    onMutate: () => key,
+    onSuccess: (saved, _variables, startedKey) =>
+      queryClient.setQueryData<SystemAgent[]>(startedKey ?? key, (roles) =>
         roles?.map((known) => (known.role === saved.role ? saved : known)),
       ),
   });

@@ -288,7 +288,7 @@ async def status_callback(db: AsyncSession, call_id: UUID, params: dict[str, str
 async def hangup(
     db: AsyncSession, ctx: AuthContext, call_id: UUID, *, provider: PhoneProvider | None = None
 ) -> None:
-    row = await PhoneCallService(db).readable(ctx, call_id, lock=True)
+    row = await PhoneCallService(db).controllable(ctx, call_id, lock=True)
     if row.status in repo.TERMINAL:
         return
     previous_status = row.status
@@ -321,7 +321,7 @@ async def transfer(
     row = await repo.call(db, call_id, lock=True)
     assert row is not None
     if ctx is not None:
-        await PhoneCallService(db).readable(ctx, call_id)
+        await PhoneCallService(db).controllable(ctx, call_id)
     elif source_run_id is not None and row.voice_call_id is not None:
         voice = await voice_call_repo.get(
             db, row.voice_call_id, organization_id=row.organization_id
@@ -764,7 +764,7 @@ async def transfer_options(
     if row is None:
         raise NotFoundError(message="Telephone call not found")
     if ctx is not None:
-        await PhoneCallService(db).readable(ctx, call_id)
+        await PhoneCallService(db).controllable(ctx, call_id)
     elif (
         row.voice_call_id is not None
         and source_run_id is not None

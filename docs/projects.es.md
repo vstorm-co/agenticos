@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "3f4038d74bdc"
+source_sha: "e9573cb4bf21"
 ---
 
 # Proyectos { #projects }
@@ -302,3 +302,6 @@ En la página del proyecto, elige **Mantener el proyecto al día**. Selecciona u
 La rutina actúa como tú dentro del proyecto y publica informes en su conversación. Lee las tareas, verifica avances con las fuentes aprobadas, actualiza próximos pasos y señala bloqueos y plazos. Enviar mensajes externos sigue requiriendo la autorización habitual. Las fuentes nuevas, un nuevo consentimiento de cuenta o la sustitución del espacio de trabajo requieren otra revisión de fuentes. Perder acceso al proyecto detiene las herramientas siguientes; las notificaciones pendientes vuelven a comprobar el acceso actual del destinatario. Un intento idéntico reutiliza los recursos existentes. Gestiona la frecuencia y las fuentes en Rutinas y abre la tabla desde el proyecto.
 
 Una conversación programada sin propietario dentro de un proyecto puede ser renombrada, archivada o eliminada por quien tenga permiso para editar ese proyecto. Los chats iniciados por otra persona siguen bajo la gestión de esa persona.
+
+
+Eliminar un proyecto también borra sus entradas de memoria y copias compartidas derivadas e intenta retirar los webhooks registrados antes de eliminar sus rutinas en cascada. Un proveedor no disponible se registra y no bloquea la eliminación.

@@ -1,5 +1,5 @@
 ---
-source_sha: "e5b8b1f59bd8"
+source_sha: "f895c76f1a38"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -3066,7 +3066,7 @@ Un Mac de la empresa con Mensajes y [BlueBubbles](https://docs.bluebubbles.app/s
 
 Asocie el agente publicado, edite el canal y seleccione **Registrar webhook de iMessage** después de guardar los cambios. Cambiar la dirección o la contraseña revoca la credencial anterior del callback; vuelva a registrarlo. AgenticOS registra únicamente `new-message` en `/api/v1/imessage/{bot_id}/webhook`. Genera una credencial independiente para el callback y la registra mediante autenticación HTTP Basic. Configure HTTPS para redes no fiables. Si AgenticOS tiene una dirección privada, el administrador de BlueBubbles debe permitir expresamente que los webhooks de la API accedan a direcciones locales. Al eliminar el webhook solo se eliminan los callbacks de este bot en este despliegue.
 
-Los textos y archivos usan el transporte AppleScript de BlueBubbles. Las confirmaciones opcionales con reacciones necesitan su Private API. Un remitente privado vinculado continúa la misma conversación principal que en la consola; los grupos conservan conversaciones independientes y requieren la mención habitual del agente. Las aprobaciones usan las preguntas numeradas existentes: responda con el número mostrado. Los ecos propios, reacciones y eventos del sistema no inician otro turno. Los adjuntos se descargan únicamente por GUID desde el puente configurado, con el límite de carga establecido.
+Los textos y archivos usan el transporte AppleScript de BlueBubbles. Las confirmaciones opcionales con reacciones necesitan su Private API. Un remitente privado vinculado recibe una conversación independiente del canal. Vincular una identidad no autoriza al bot o puente a leer el historial privado anterior de la consola; los grupos conservan conversaciones independientes y requieren la mención habitual del agente. Las aprobaciones usan las preguntas numeradas existentes: responda con el número mostrado. Los ecos propios, reacciones y eventos del sistema no inician otro turno. Los adjuntos se descargan únicamente por GUID desde el puente configurado, con el límite de carga establecido.
 
 Seleccione la conversación privada vinculada en **Ajustes → Notificaciones** para activar la entrega. Un grupo nunca es un destino privado. La aceptación del puente registra el envío, no la entrega por Apple ni la confirmación del destinatario. Un puente desconectado produce un error visible; los envíos inciertos no se repiten automáticamente.
 
@@ -3077,3 +3077,6 @@ Los formularios del webhook SMS tienen un límite de 64 KiB y diez segundos de l
 
 
 El correo entrante se lee como un flujo limitado a 25 MiB antes de verificar la firma, incluso sin un Content-Length fiable.
+
+
+Antes de aceptar correo de forma duradera, cada organización tiene un máximo de 4096 trabajos de entrega retenidos y 256 MiB de contenido, incluidas entregas completadas y fallidas. La admisión se serializa entre workers; los Message-ID duplicados siguen siendo idempotentes. Al alcanzar la cuota se devuelve HTTP 429 antes de almacenar otro contenido; la limpieza de retención o la eliminación de trabajos libera capacidad.

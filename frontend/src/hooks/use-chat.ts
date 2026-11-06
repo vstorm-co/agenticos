@@ -760,7 +760,7 @@ export function useChat(options: UseChatOptions = {}) {
         case "turn_followed_to_end": {
           declinedRef.current = null;
           if (followingRef.current === null) break;
-          useWorkingStore.getState().finish(followingRef.current);
+          useWorkingStore.getState().finish(followingRef.current, resumedRunIdRef.current);
           followingRef.current = null;
           resumedRunIdRef.current = undefined;
           if (currentMessageIdRef.current) {
@@ -1285,7 +1285,7 @@ export function useChat(options: UseChatOptions = {}) {
               (call) => call.status === "awaiting_approval" || call.status === "awaiting_answer",
             );
             if (finished && completedMessage && !parked)
-              useWorkingStore.getState().finish(finished);
+              useWorkingStore.getState().finish(finished, completedMessage.runId);
             setIsProcessing(false);
           }
           // A turn that ended is waiting on nothing: a card left up would answer
@@ -2070,7 +2070,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (resumed.status !== "awaiting_approval" && resumed.status !== "awaiting_answer") {
         if (resumed.status && resumed.status !== "running") terminalRunIdsRef.current.add(runId);
         const finishedConversation = conversationId || activeConversationId;
-        if (finishedConversation) useWorkingStore.getState().finish(finishedConversation);
+        if (finishedConversation) useWorkingStore.getState().finish(finishedConversation, runId);
       }
 
       // A delegate can settle before its parent reaches a new approval. HTTP
@@ -2114,41 +2114,37 @@ export function useChat(options: UseChatOptions = {}) {
               ? "awaiting_answer"
               : "completed",
         }));
-      // **The answer is shown, not discarded.** `resume_run` runs the agent and
-      // returns what it said, but it returns it *here* - over HTTP, to the caller
-      // - and not over the socket this conversation is streaming. So the reply
-      // used to exist and be thrown away: the panel vanished, a toast said the
-      // run was continuing, and the chat then sat unchanged forever. Reloading
-      // the page showed the finished turn, which is how this looked like an
-      // approval that did nothing.
-      //
-      // One message for the whole continuation, steps then answer, which is the
-      // order they happened in and the order a reloaded conversation replays
-      // them in. Nothing is added for a continuation that neither called
-      // anything nor said anything - a resume into a refusal has both empty.
+      // HTTP and socket delivery can arrive in either order. Reuse only a new
+      // continuation segment: the older parked segment has the same run id but
+      // contains the calls just decided. If no streamed segment exists yet,
+      // retain the HTTP result until the persisted message reconciles it.
       const streamedMessage = streamed
         ? [...chatApi.getState().messages]
             .reverse()
-            .find((message) => message.role === "assistant" && message.runId === runId)
+            .find(
+              (message) =>
+                message.role === "assistant" &&
+                message.runId === runId &&
+                !message.toolCalls?.some((call) => settledIds.has(call.id)),
+            )
         : undefined;
       const continuation = streamedMessage?.id ?? clientId();
-      if (streamed) {
-        if (streamedMessage) {
-          updateMessage(streamedMessage.id, (message) => ({
-            ...message,
-            isStreaming: false,
-            runWaitingFor:
-              parkedAgain.length > 0 ? "approval" : askedAgain.length > 0 ? "answer" : undefined,
-            toolCalls: message.toolCalls?.map((call) => ({
-              ...call,
-              status: parkedAgainIds.has(call.id)
-                ? "awaiting_approval"
-                : askedAgainIds.has(call.id)
-                  ? "awaiting_answer"
-                  : call.status,
-            })),
-          }));
-        }
+      if (streamed && streamedMessage) {
+        updateMessage(streamedMessage.id, (message) => ({
+          ...message,
+          isStreaming: false,
+          runWaitingFor:
+            parkedAgain.length > 0 ? "approval" : askedAgain.length > 0 ? "answer" : undefined,
+          toolCalls: message.toolCalls?.map((call) => ({
+            ...call,
+            status: parkedAgainIds.has(call.id)
+              ? "awaiting_approval"
+              : askedAgainIds.has(call.id)
+                ? "awaiting_answer"
+                : call.status,
+          })),
+        }));
+
         onTurnInterrupted?.();
       } else if (steps.length > 0 || resumed.output) {
         // A finished assistant message, which is also what makes the file panel

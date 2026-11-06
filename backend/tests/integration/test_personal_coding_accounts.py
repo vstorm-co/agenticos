@@ -661,3 +661,50 @@ async def test_factory_refuses_collaborator_sources_before_loading_a_personal_ac
         async with factory.session(run, harness="codex", timeout_seconds=60):
             pytest.fail("Shared source admitted")
     load.assert_not_awaited()
+
+
+@pytest.mark.parametrize("revocation", ["account", "membership"])
+async def test_publication_authority_locks_serialize_concurrent_revocation(
+    engine: AsyncEngine, revocation: str
+) -> None:
+    from app.repositories import member as members
+
+    async with AsyncSession(engine, expire_on_commit=False) as setup_db:
+        owner = await person(setup_db)
+        org = await organization(setup_db, owner)
+        auth = context(owner, org)
+        account = await CodingAccountService(setup_db).create(auth, request(enabled=True))
+        await setup_db.commit()
+    factory = PersonalCodingSessionFactory(
+        auth, AgentSpec(name="Test"), SandboxConfig(backend="service"), uuid4(), redis=MemoryRedis()
+    )
+    started, finished = anyio.Event(), anyio.Event()
+
+    async def revoke() -> None:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            started.set()
+            if revocation == "account":
+                row = await db.get(CodingAccount, account.id)
+                assert row is not None
+                row.enabled = False
+                await db.flush()
+            else:
+                row = await members.get(db, organization_id=org.id, user_id=owner.id)
+                assert row is not None
+                await db.delete(row)
+                await db.flush()
+            await db.commit()
+            finished.set()
+
+    async with anyio.create_task_group() as group:
+        async with AsyncSession(engine, expire_on_commit=False) as publication:
+            assert await factory._active_in(publication, account.id, account.generation, lock=True)
+            group.start_soon(revoke)
+            await started.wait()
+            await anyio.sleep(0.05)
+            assert not finished.is_set()
+            await publication.commit()
+        with anyio.fail_after(5):
+            await finished.wait()
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        assert not await factory._active_in(db, account.id, account.generation, lock=True)

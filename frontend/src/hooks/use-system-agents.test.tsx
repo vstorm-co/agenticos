@@ -10,7 +10,8 @@ vi.mock("@/lib/system-agents-api", () => ({
   listSystemAgents: vi.fn(),
   updateSystemAgent: vi.fn(),
 }));
-vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => "org-1" }));
+const tenant = vi.hoisted(() => ({ id: "org-1" }));
+vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => tenant.id }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -31,6 +32,7 @@ const role = (name: "daily_briefing" | "memory_maintenance", enabled: boolean) =
 
 beforeEach(() => {
   vi.clearAllMocks();
+  tenant.id = "org-1";
   vi.mocked(listSystemAgents).mockResolvedValue([
     role("daily_briefing", true),
     role("memory_maintenance", false),
@@ -60,4 +62,40 @@ describe("useSystemAgents", () => {
     expect(result.current.roles?.[0]?.enabled).toBe(true);
     expect(listSystemAgents).toHaveBeenCalledTimes(1);
   });
+});
+
+it("keeps a late mutation result in its initiating tenant cache", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { qk } = await import("@/lib/query-keys");
+  const original = role("memory_maintenance", false);
+  client.setQueryData(qk.systemAgents.list("org-1"), [original]);
+  client.setQueryData(qk.systemAgents.list("org-2"), [original]);
+  let resolve!: (value: ReturnType<typeof role>) => void;
+  vi.mocked(updateSystemAgent).mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const { result, rerender } = renderHook(() => useSystemAgents(false), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  act(() =>
+    result.current.update.mutate({
+      role: "memory_maintenance",
+      change: { enabled: true, model_profile_id: null, monthly_budget_usd: null },
+    }),
+  );
+  await waitFor(() => expect(updateSystemAgent).toHaveBeenCalled());
+  tenant.id = "org-2";
+  rerender();
+  await act(async () => resolve(role("memory_maintenance", true)));
+  await waitFor(() =>
+    expect(client.getQueryData(qk.systemAgents.list("org-1"))).toEqual([
+      role("memory_maintenance", true),
+    ]),
+  );
+  expect(client.getQueryData(qk.systemAgents.list("org-2"))).toEqual([original]);
 });

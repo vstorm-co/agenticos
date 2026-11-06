@@ -378,3 +378,67 @@ async def test_missing_trigger_is_not_a_successful_installation(db: AsyncSession
     assert "secret-not-in-repr" not in repr(row)
     with pytest.raises(NotFoundError):
         await ProjectTrackingService(db)._read(ctx, row)
+
+
+async def test_tracker_refuses_a_secret_rotated_during_trigger_admission(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.agent_trigger import AgentTriggerService
+
+    ctx, project, agent, version = await seed(db)
+    data = await request(db, ctx, project, agent, version)
+    create = AgentTriggerService.create
+
+    async def rotated(service, *args, **kwargs):
+        trigger = await create(service, *args, **kwargs)
+        policy = read_policy(trigger.approved_sources)
+        changed = policy.model_copy(update={"secret_sources": {uuid4(): uuid4()}})
+        assert changed.secret_sources != policy.secret_sources
+        trigger.approved_sources = changed.model_dump(mode="json")
+        return trigger
+
+    monkeypatch.setattr(AgentTriggerService, "create", rotated)
+    with pytest.raises(ConflictError, match="source changed"):
+        await ProjectTrackingService(db).create(ctx, project, data)
+
+
+async def test_project_deletion_erases_memory_descendants_and_deregisters_its_webhooks(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.core.memory_keys import organization_owner_key, project_owner_key
+    from app.repositories import memory_claim as memory_repo
+    from app.repositories.memory_claim import ClaimScope
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.memory import claims
+
+    ctx, project, agent, version = await seed(db)
+    data = await request(db, ctx, project, agent, version)
+    installed = await ProjectTrackingService(db).create(ctx, project, data)
+    source = (
+        await claims.remember(
+            db,
+            organization_id=ctx.organization_id,
+            scope=ClaimScope(project_owner_key(project), agent),
+            statement="Project-specific secret plan",
+        )
+    ).claim
+    shared = await claims.share(
+        db,
+        claim=source,
+        to=ClaimScope(organization_owner_key(ctx.organization_id), None),
+        author_user_id=ctx.subject_id,
+    )
+    remove = AsyncMock()
+    monkeypatch.setattr(AgentTriggerService, "_deregister_webhook", remove)
+    await ProjectService(db).delete(ctx, project)
+    assert (
+        await memory_repo.get(db, organization_id=ctx.organization_id, claim_id=source.id) is None
+    )
+    assert (
+        await memory_repo.get(db, organization_id=ctx.organization_id, claim_id=shared.id) is None
+    )
+    remove.assert_awaited_once()
+    assert remove.await_args.args[1].id == installed.trigger_id
+    assert await db.get(AgentTrigger, installed.trigger_id, populate_existing=True) is None

@@ -91,6 +91,20 @@ async def list_for_agent(
     return list(result.scalars().all())
 
 
+async def list_for_project(
+    db: AsyncSession, *, project_id: UUID, organization_id: UUID
+) -> list[AgentTrigger]:
+    """Project routines before their foreign-key cascade removes webhook receipts."""
+    result = await db.scalars(
+        select(AgentTrigger)
+        .where(
+            AgentTrigger.project_id == project_id, AgentTrigger.organization_id == organization_id
+        )
+        .order_by(AgentTrigger.created_at, AgentTrigger.id)
+    )
+    return list(result.all())
+
+
 async def list_for_connection(
     db: AsyncSession, *, connection_id: UUID, organization_id: UUID
 ) -> list[AgentTrigger]:

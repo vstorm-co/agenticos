@@ -21,6 +21,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Fence personal coding result publication against account and membership revocation;
+  restrict telephone controls to the call owner and serialize SMS bot deactivation
+  with call admission.
+- Purge project memories and their derived shares and deregister provider webhooks
+  before deleting a project. Revalidate credential generations during tracker setup.
+- Keep channel conversations separate from private console history, and bound retained
+  inbound email bodies and delivery receipts before queue admission.
+- Require fresh approval for gated skill loads, retain answered questions in their
+  original timeline order, and bind system-agent cache mutations to the initiating tenant.
+- Preserve approval continuation segments and overlapping run activity in chat;
+  hide task creation on archived boards and refresh legacy Architect instructions
+  without reattaching optional skills.
+
+### Fixed
+
 - Preserve question-card answers and successful skill loads between conversation turns, without replaying full tool outputs. Join streamed thinking chunks exactly, including chunks split inside words.
 - Return actual question cards from synchronous API and MCP draft tests; answer them through `answer_agent_questions`. Support renaming an agent draft through MCP, clarify table column IDs, private sharing and draft starter fields, and prevent resolved approval cards from reappearing after stream replay.
 

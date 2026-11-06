@@ -7,6 +7,7 @@ export interface WorkingState {
   since: Readonly<Record<string, string>>;
   /** Completed locally: ignore list responses that still contain the previous run. */
   finishedAt: Readonly<Record<string, string>>;
+  finishedRuns: Readonly<Record<string, Readonly<Record<string, true>>>>;
   waiting: Readonly<Record<string, "awaiting_answer" | "awaiting_approval">>;
   setWaiting: (
     conversationId: string,
@@ -18,7 +19,7 @@ export interface WorkingState {
   /** This tab's turn is over. A handed-off thread keeps its mark until `settle`. */
   stop: (conversationId: string) => void;
   /** A terminal socket frame confirmed this turn ended, rather than merely detached. */
-  finish: (conversationId: string) => void;
+  finish: (conversationId: string, runId?: string) => void;
   /**
    * The person opened another thread while this one was answering, and the turn
    * goes on on the server. Its mark stays: the listing may not have seen the run
@@ -45,6 +46,7 @@ export interface WorkingState {
 export const useWorkingStore = create<WorkingState>()((set) => ({
   since: {},
   finishedAt: {},
+  finishedRuns: {},
   waiting: {},
   setWaiting: (conversationId, status) =>
     set((state) => {
@@ -60,7 +62,7 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       const { [conversationId]: _stopped, ...rest } = state.since;
       return { since: rest };
     }),
-  finish: (conversationId) =>
+  finish: (conversationId, runId) =>
     set((state) => {
       const { [conversationId]: _since, ...since } = state.since;
       const { [conversationId]: _handed, ...handedOff } = state.handedOff;
@@ -70,6 +72,12 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
         handedOff,
         waiting,
         finishedAt: { ...state.finishedAt, [conversationId]: new Date().toISOString() },
+        finishedRuns: runId
+          ? {
+              ...state.finishedRuns,
+              [conversationId]: { ...state.finishedRuns[conversationId], [runId]: true },
+            }
+          : state.finishedRuns,
       };
     }),
   handOff: (conversationId) =>
@@ -85,5 +93,5 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       const { [conversationId]: _handed, ...handedOff } = state.handedOff;
       return { since, handedOff };
     }),
-  reset: () => set({ since: {}, finishedAt: {}, waiting: {}, handedOff: {} }),
+  reset: () => set({ since: {}, finishedAt: {}, finishedRuns: {}, waiting: {}, handedOff: {} }),
 }));

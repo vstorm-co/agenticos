@@ -6106,3 +6106,47 @@ it("does not reopen a terminal approval from a late parked-call lookup", async (
   );
   expect(result.current.pendingApproval).toBeNull();
 });
+
+it("uses a new segment when the HTTP resume beats its first streamed model frame", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-resume");
+  let finish!: (value: object) => void;
+  post.mockImplementation((url: string) =>
+    url.endsWith("/resume")
+      ? new Promise((done) => {
+          finish = done;
+        })
+      : Promise.resolve({}),
+  );
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("model_request_start", {});
+  receive("tool_approval_required", {
+    run_id: "resume-run",
+    action_requests: [{ id: "first", tool_call_id: "old-call", tool_name: "change", args: {} }],
+    review_configs: [],
+  });
+  receive("complete", {});
+  const old = result.current.messages.at(-1)?.id;
+  let submission!: Promise<void>;
+  await act(async () => {
+    submission = result.current.sendResumeDecisions([{ type: "approve" }]);
+  });
+  receive("background_task_turn", {
+    conversation_id: "c-resume",
+    agent_id: "a-1",
+    resumed_run_id: "resume-run",
+  });
+  await act(async () => {
+    finish({
+      status: "awaiting_approval",
+      output: "Next step",
+      tool_calls: [{ tool_call_id: "next-call", tool_name: "change", args: {} }],
+      parked: [{ id: "next", tool_call_id: "next-call", tool_name: "change", tool_args: {} }],
+    });
+    await submission;
+  });
+  expect(result.current.messages.filter((message) => message.content === "Next step")).toHaveLength(
+    1,
+  );
+  expect(result.current.pendingApproval?.messageId).not.toBe(old);
+  expect(result.current.pendingApproval?.messageId).toBe(result.current.messages.at(-1)?.id);
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "cfebf1118241"
+source_sha: "ccaa0a8c7180"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -933,3 +933,6 @@ versioniert und bewegt sich nur vorwärts.
   zum Abfragen, ein langer Run hält also keine Verbindung offen.
 - **Die öffentliche API steht in `/api/v1/public/openapi.json`** und ändert
   sich in v1 nur additiv, mit 90 Tagen Deprecation; ein SDK gibt es noch nicht.
+
+
+Skills mit genehmigungspflichtigem Laden benötigen die Genehmigung in jedem Durchgang erneut; frühere Ladevorgänge umgehen diese Prüfung nicht.

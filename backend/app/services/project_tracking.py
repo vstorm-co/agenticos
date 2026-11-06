@@ -227,7 +227,8 @@ class ProjectTrackingService:
         admitted = read_policy(trigger.approved_sources)
         expected = reviewed.sources.policy
         if (
-            admitted.phone_sources != expected.phone_sources
+            admitted.secret_sources != expected.secret_sources
+            or admitted.phone_sources != expected.phone_sources
             or admitted.mcp_sources != expected.mcp_sources
             or admitted.project_id != expected.project_id
             or admitted.external_sources != expected.external_sources

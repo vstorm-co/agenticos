@@ -860,3 +860,6 @@ only moves forward.
   poll, so a long run does not hold a connection open.
 - **The public API is in `/api/v1/public/openapi.json`** and changes only
   additively within v1, with 90 days' deprecation; there is no SDK yet.
+
+
+Skills whose load requires approval must be approved again in each turn; historical loads never bypass that gate.

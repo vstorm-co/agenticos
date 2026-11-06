@@ -75,6 +75,8 @@ MAX_SKEW_SECONDS = 5 * 60
 enough that a captured request cannot be replayed tomorrow."""
 
 MAX_BODY_BYTES = 25 * 1024 * 1024
+MAX_RETAINED_DELIVERY_BYTES = 256 * 1024 * 1024
+MAX_RETAINED_DELIVERIES = 4096
 MAX_ATTACHMENTS = 10
 PLATFORM = "email"
 
@@ -377,6 +379,9 @@ async def queue_delivery(
     incoming: IncomingMessage,
 ) -> bool:
     """Commit the complete signed delivery before acknowledging it; False means cache quota."""
+    from app.db.locks import LockScope, hold_subject
+
+    await hold_subject(db, LockScope.EMAIL_DELIVERY_STORAGE_PER_ORG, organization_id)
     key = (
         f"email:{bot_id}:{hashlib.sha256(incoming.message_id.encode()).hexdigest()}"
         if incoming.message_id
@@ -390,6 +395,11 @@ async def queue_delivery(
         is not None
     ):
         return True
+    count, size = await background_job_repo.retained_payload_usage(
+        db, organization_id=organization_id, kind=PROCESS_EMAIL_DELIVERY.kind
+    )
+    if count >= MAX_RETAINED_DELIVERIES or size + len(body.encode()) > MAX_RETAINED_DELIVERY_BYTES:
+        return False
     thread = await keep_inbound(bot_address, incoming, incoming.raw)
     if thread is None:
         return False

@@ -302,6 +302,11 @@ class TestCreatingAndChanging:
             patch.object(module.resource_grant_repo, "delete_for_resource", AsyncMock()) as grants,
             patch.object(module.project_repo, "delete", AsyncMock()) as deleted,
             patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purged,
+            patch("app.repositories.memory_claim.delete_for_scope", new=AsyncMock()) as memories,
+            patch(
+                "app.services.agent_trigger.AgentTriggerService.deregister_project_webhooks",
+                new=AsyncMock(),
+            ) as webhooks,
             patch.object(module, "record_audit", AsyncMock()),
         ):
             await service.delete(_ctx(), project.id)
@@ -314,6 +319,16 @@ class TestCreatingAndChanging:
         detached.assert_awaited_once()
         assert grants.await_args.kwargs["resource_type"] == "project"
         deleted.assert_awaited_once()
+        from app.core.memory_keys import project_owner_key
+
+        memories.assert_awaited_once_with(
+            service.db,
+            organization_id=_ctx().organization_id,
+            scope_key=project_owner_key(project.id),
+        )
+        webhooks.assert_awaited_once()
+        assert webhooks.await_args.args[1] == project.id
+        assert webhooks.await_args.args[0].organization_id == _ctx().organization_id
 
 
 class TestListing:

@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "3f4038d74bdc"
+source_sha: "e9573cb4bf21"
 ---
 
 # Projekty { #projects }
@@ -284,3 +284,6 @@ Na stronie projektu wybierz **Pilnuj projektu**. Wskaż opublikowanego agenta, k
 Rutyna działa jako Ty wewnątrz projektu i raportuje w jego rozmowie. Czyta stan zadań, sprawdza postępy w zatwierdzonych źródłach, aktualizuje kolejne kroki i wskazuje blokady oraz terminy. Wysłanie zewnętrznego przypomnienia nadal wymaga zwykłej autoryzacji. Nowe źródła, ponowna zgoda konta lub wymiana przestrzeni projektu wymagają ponownego przeglądu źródeł. Utrata dostępu do projektu zatrzymuje kolejne narzędzia; oczekujące powiadomienia ponownie sprawdzają bieżący dostęp odbiorcy. Identyczna ponowiona konfiguracja wykorzystuje istniejące zasoby. Częstotliwość i źródła zmienisz w Rutynach, a tabelę otworzysz ze strony projektu.
 
 Rozmowę harmonogramową w projekcie, która nie ma właściciela, może zmienić, zarchiwizować lub usunąć osoba z prawem edycji tego projektu. Rozmowami rozpoczętymi przez inną osobę nadal zarządza ich właściciel.
+
+
+Usunięcie projektu usuwa również jego wpisy pamięci i pochodne udostępnione kopie oraz próbuje wyrejestrować webhooki u dostawców przed kaskadowym usunięciem rutyn. Niedostępność dostawcy jest logowana i nie blokuje usunięcia.

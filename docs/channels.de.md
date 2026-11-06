@@ -1,5 +1,5 @@
 ---
-source_sha: "e5b8b1f59bd8"
+source_sha: "f895c76f1a38"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3237,7 +3237,7 @@ Ein Firmen-Mac mit Nachrichten und [BlueBubbles](https://docs.bluebubbles.app/se
 
 Binden Sie den veröffentlichten Agenten, öffnen Sie die Kanalbearbeitung und wählen Sie nach dem Speichern **iMessage-Webhook registrieren**. Ein Wechsel von Adresse oder Passwort widerruft das bisherige Callback-Geheimnis; registrieren Sie den Webhook erneut. AgenticOS registriert ausschließlich `new-message` unter `/api/v1/imessage/{bot_id}/webhook`. Ein separat erzeugtes Callback-Geheimnis authentifiziert den Aufruf per HTTP Basic. Verwenden Sie HTTPS über nicht vertrauenswürdige Netze. Für private AgenticOS-Adressen muss der BlueBubbles-Administrator API-Webhooks zu lokalen Adressen ausdrücklich erlauben. Das Entfernen betrifft nur Callbacks dieses Bots auf dieser Bereitstellung.
 
-Text und Dateien verwenden BlueBubbles' AppleScript-Transport. Optionale Tapback-Bestätigungen benötigen die Private API. Verknüpfte private Absender setzen dieselbe Hauptunterhaltung wie in der Konsole fort; Gruppen behalten eigene Unterhaltungen und benötigen die übliche Agentenerwähnung. Genehmigungen verwenden vorhandene nummerierte Fragen: Antworten Sie mit der angezeigten Zahl. Eigene Echos, Tapbacks und Systemereignisse starten keinen neuen Durchlauf. Anhänge werden nur anhand ihrer GUID von der konfigurierten Bridge abgerufen und unterliegen dem Uploadlimit.
+Text und Dateien verwenden BlueBubbles' AppleScript-Transport. Optionale Tapback-Bestätigungen benötigen die Private API. Verknüpfte private Absender erhalten eine eigene Kanalunterhaltung. Die Verknüpfung gewährt dem Bot oder der Bridge keinen Zugriff auf frühere private Konsolenverläufe; Gruppen behalten eigene Unterhaltungen und benötigen die übliche Agentenerwähnung. Genehmigungen verwenden vorhandene nummerierte Fragen: Antworten Sie mit der angezeigten Zahl. Eigene Echos, Tapbacks und Systemereignisse starten keinen neuen Durchlauf. Anhänge werden nur anhand ihrer GUID von der konfigurierten Bridge abgerufen und unterliegen dem Uploadlimit.
 
 Wählen Sie die verknüpfte private Unterhaltung unter **Einstellungen → Benachrichtigungen**. Gruppen sind keine privaten Benachrichtigungsziele. Die Annahme durch die Bridge bestätigt die Übergabe, nicht Apples Zustellung oder die Bestätigung des Empfängers. Eine unerreichbare Bridge erzeugt einen sichtbaren Fehler; ungewisse Übertragungen werden nicht automatisch wiederholt.
 
@@ -3248,3 +3248,6 @@ SMS-Webhookformulare haben vor der Signaturprüfung ein Limit von 64 KiB und zeh
 
 
 Eingehende E-Mails werden vor der Signaturprüfung als begrenzter Stream mit höchstens 25 MiB gelesen, auch ohne verlässlichen Content-Length.
+
+
+Vor der dauerhaften E-Mail-Annahme gelten je Organisation höchstens 4.096 aufbewahrte Zustellaufträge und 256 MiB Nachrichtentext, einschließlich abgeschlossener und fehlgeschlagener Zustellungen. Die Annahme ist workerübergreifend serialisiert; doppelte Message-IDs bleiben idempotent. Bei voller Quote folgt HTTP 429, bevor weiterer Inhalt gespeichert wird. Aufbewahrungsbereinigung oder Löschen gespeicherter Aufträge gibt Kapazität frei.

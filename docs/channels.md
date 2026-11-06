@@ -2913,7 +2913,7 @@ A company-owned Mac running Messages and [BlueBubbles](https://docs.bluebubbles.
 
 Bind the published agent, then edit the channel and choose **Register iMessage webhook** after saving any changes. Replacing the endpoint or password revokes the previous callback credential; register again. AgenticOS registers only `new-message` at `/api/v1/imessage/{bot_id}/webhook`. It generates a separate callback credential and registers it as HTTP Basic authentication. Configure HTTPS for traffic crossing an untrusted network. If AgenticOS has a private address, the BlueBubbles administrator must explicitly allow API webhooks to reach local addresses. Removing the webhook removes only callbacks naming this bot on this deployment.
 
-Text and files use BlueBubbles' AppleScript transport. Optional tapback acknowledgements need its Private API. A linked private sender continues the same primary conversation as the console; groups retain their separate conversation and require the usual agent mention. Approvals use the existing numbered prompts: answer with the displayed number. Self echoes, tapbacks and system events do not start another turn. Incoming attachments are fetched only by GUID from the configured bridge and remain subject to the upload limit.
+Text and files use BlueBubbles' AppleScript transport. Optional tapback acknowledgements need its Private API. Linked private senders get a separate channel conversation; linking an identity does not grant a bot or bridge access to existing private console history; groups retain their separate conversation and require the usual agent mention. Approvals use the existing numbered prompts: answer with the displayed number. Self echoes, tapbacks and system events do not start another turn. Incoming attachments are fetched only by GUID from the configured bridge and remain subject to the upload limit.
 
 Select the linked private conversation in **Settings → Notifications** to opt in. A group is never a private notification destination. Bridge acceptance records submission, not Apple's delivery or the recipient's acknowledgement. An offline bridge produces a visible failure; an uncertain submission is not retried automatically.
 
@@ -2924,3 +2924,6 @@ SMS webhook forms are capped at 64 KiB and a ten-second read deadline before sig
 
 
 Inbound email is read as a bounded stream (25 MiB maximum) before signature verification, including requests without an honest Content-Length.
+
+
+Before durable email admission, each organization is limited to 4,096 retained delivery jobs and 256 MiB of retained bodies, including completed and failed deliveries. Admission is serialized across workers; duplicate Message-IDs remain idempotent. A full quota returns HTTP 429 before retaining another body; retention cleanup or deletion of retained jobs releases capacity.

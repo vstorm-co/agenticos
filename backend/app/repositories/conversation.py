@@ -520,20 +520,19 @@ def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
 RUNNING_HORIZON = timedelta(hours=2)
 
 
-async def running_since(
-    db: AsyncSession, conversation_ids: Collection[UUID]
-) -> dict[UUID, datetime]:
-    """When the run still at work in each of these conversations began.
+class RunningActivity(NamedTuple):
+    since: datetime
+    run_ids: list[UUID]
 
-    One query for a page, as `favourite_ids` is. Only top-level runs: a delegate's
-    row carries its parent's conversation, and the parent already says the thread is
-    at work. A run parked on an approval is waiting on a person, not working, so it
-    is not counted. The earliest start, where two are running at once.
-    """
+
+async def running_activity(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, RunningActivity]:
+    """Active top-level run identities and their earliest start, in one page query."""
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.conversation_id, func.min(AgentRun.started_at))
+        select(AgentRun.conversation_id, func.min(AgentRun.started_at), func.array_agg(AgentRun.id))
         .where(
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
@@ -544,7 +543,21 @@ async def running_since(
         )
         .group_by(AgentRun.conversation_id)
     )
-    return dict(result.all())
+    return {
+        identifier: RunningActivity(since, list(run_ids))
+        for identifier, since, run_ids in result.all()
+        if identifier is not None and since is not None
+    }
+
+
+async def running_since(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, datetime]:
+    """Earliest start of active runs; callers needing identities use running_activity."""
+    return {
+        identifier: activity.since
+        for identifier, activity in (await running_activity(db, conversation_ids)).items()
+    }
 
 
 async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:

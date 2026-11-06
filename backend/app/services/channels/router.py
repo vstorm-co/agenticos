@@ -80,7 +80,6 @@ from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
 from app.services.ml import measure_audio_seconds
-from app.services.primary_conversation import PrimaryConversationService
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -1942,42 +1941,26 @@ class ChannelMessageRouter:
             return False
         if owner != identity.user_id:
             return True
-        primary_agent = await primary_conversation_repo.agent_for_conversation(
-            db,
-            organization_id=bot.organization_id,
-            conversation_id=conversation_id,
+        # A bridge's asserted sender identity is not consent to disclose console history.
+        return (
+            await primary_conversation_repo.agent_for_conversation(
+                db,
+                organization_id=bot.organization_id,
+                conversation_id=conversation_id,
+            )
+            is not None
         )
-        if primary_agent is None:
-            return False
-        binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
-        return binding is None or binding.agent_id != primary_agent
 
     @staticmethod
     async def _first_conversation(
         incoming: IncomingMessage, bot: ChannelBot, identity: ChannelIdentity, db: AsyncSession
     ) -> Any:
-        """The conversation a chat's first message lands in.
+        """Keep channel history separate from private console conversations.
 
-        A linked person's direct message continues the one private conversation they have
-        with the bot's agent - the same one the console opens - so what they said on the web
-        is there when they text, and the reverse (#2575). Anything else - a room, an
-        unlinked sender, a bot with no agent yet - gets a conversation of its own, owned by
-        the organization that owns the bot and not by the linked user's personal org: a Slack
-        channel is the tenant's workspace, and whoever speaks in it does not move the
-        conversation into their own org. `/new` still starts a fresh one for the chat.
+        Linking a platform identity authenticates the sender; it does not authorize
+        a bot or bridge to receive the person's pre-existing console history.
         """
         title = f"{incoming.platform.capitalize()} Chat"
-        binding = (
-            await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
-            if incoming.chat_type == "private" and identity.user_id is not None
-            else None
-        )
-        if binding is not None and identity.user_id is not None:
-            return await PrimaryConversationService(db).ensure(
-                organization_id=bot.organization_id,
-                user_id=identity.user_id,
-                agent_id=binding.agent_id,
-            )
         conv = await conversation_repo.create_conversation(
             db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
         )

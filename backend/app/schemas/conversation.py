@@ -551,6 +551,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "clears it."
         ),
     )
+    running_run_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Active top-level runs, so completing one does not hide another.",
+    )
     running_since: datetime | None = Field(
         default=None,
         description=(

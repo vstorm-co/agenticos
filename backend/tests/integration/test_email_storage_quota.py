@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.clients.redis import RedisClient
 from app.core.background import drain, start_after_rollback, start_deferred
 from app.db.models.background_job import BackgroundJob
-from app.repositories import background_job as job_repo
 from app.services.channels import email_state
 from app.services.channels.email import EmailAdapter, queue_delivery
 from app.worker.jobs import PROCESS_EMAIL_DELIVERY
@@ -197,19 +196,7 @@ async def test_concurrent_relay_retries_share_one_committed_receipt(engine: Asyn
         }
     )
     sessions = async_sessionmaker(engine, expire_on_commit=False)
-    barrier = asyncio.Barrier(2)
-    lookup = job_repo.get_by_idempotency_key
-    looked_up = 0
     handles: list[str] = []
-
-    async def synchronized_lookup(db, **kwargs):
-        nonlocal looked_up
-        looked_up += 1
-        first = looked_up <= 2
-        found = await lookup(db, **kwargs)
-        if first:
-            await barrier.wait()
-        return found
 
     async def submit() -> None:
         incoming = EmailAdapter().parse_incoming(json.loads(body), str(bot_id))
@@ -228,9 +215,8 @@ async def test_concurrent_relay_retries_share_one_committed_receipt(engine: Asyn
             start_deferred(db)
 
     try:
-        with patch.object(job_repo, "get_by_idempotency_key", side_effect=synchronized_lookup):
-            async with asyncio.timeout(10):
-                await asyncio.gather(submit(), submit())
+        async with asyncio.timeout(10):
+            await asyncio.gather(submit(), submit())
         async with sessions() as db:
             rows = list(
                 await db.scalars(
@@ -328,3 +314,84 @@ async def test_sms_and_imessage_receipts_are_durable_and_rollback_remains_retria
         assert routed.await_args.args[0].platform == platform
     finally:
         await adapter.aclose()
+
+
+@pytest.mark.parametrize("quota", ["bytes", "jobs"])
+async def test_retained_email_quota_covers_text_duplicates_and_completed_receipts(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, quota: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services.channels import email as email_module
+
+    monkeypatch.setattr(email_module, "keep_inbound", AsyncMock(return_value=object()))
+    organization, bot = uuid4(), uuid4()
+    body = json.dumps(
+        {
+            "from": "ada@example.com",
+            "sender_authentication": {"dmarc": "pass", "from": "ada@example.com"},
+            "text": "x" * 100,
+            "message_id": "first",
+        }
+    )
+    first = EmailAdapter().parse_incoming(json.loads(body), str(bot))
+    assert first is not None and not first.attachments
+    monkeypatch.setattr(
+        email_module,
+        "MAX_RETAINED_DELIVERY_BYTES" if quota == "bytes" else "MAX_RETAINED_DELIVERIES",
+        len(body.encode()) if quota == "bytes" else 1,
+    )
+    arguments = {
+        "organization_id": organization,
+        "bot_id": bot,
+        "bot_address": "bot@example.com",
+        "body": body,
+        "incoming": first,
+    }
+    assert await queue_delivery(db, **arguments)
+    receipt = (await db.scalars(select(BackgroundJob))).one()
+    receipt.status = "succeeded"
+    await db.flush()
+    assert await queue_delivery(db, **arguments)
+    second = EmailAdapter().parse_incoming(json.loads(body.replace("first", "other")), str(bot))
+    assert second is not None
+    assert not await queue_delivery(db, **{**arguments, "incoming": second})
+    assert await queue_delivery(db, **{**arguments, "organization_id": uuid4(), "incoming": second})
+    assert len(list(await db.scalars(select(BackgroundJob)))) == 2
+
+
+async def test_concurrent_email_admission_cannot_exceed_retained_job_quota(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services.channels import email as email_module
+
+    monkeypatch.setattr(email_module, "MAX_RETAINED_DELIVERIES", 1)
+    monkeypatch.setattr(email_module, "keep_inbound", AsyncMock(return_value=object()))
+    organization, bot = uuid4(), uuid4()
+
+    async def admit(identifier: str) -> bool:
+        body = json.dumps(
+            {
+                "from": "ada@example.com",
+                "sender_authentication": {"dmarc": "pass", "from": "ada@example.com"},
+                "text": "Mail",
+                "message_id": identifier,
+            }
+        )
+        incoming = EmailAdapter().parse_incoming(json.loads(body), str(bot))
+        assert incoming is not None
+        async with AsyncSession(engine) as db:
+            accepted = await queue_delivery(
+                db,
+                organization_id=organization,
+                bot_id=bot,
+                bot_address="bot@example.com",
+                body=body,
+                incoming=incoming,
+            )
+            await db.commit()
+            return accepted
+
+    assert sorted(await asyncio.gather(admit("one"), admit("two"))) == [False, True]

@@ -165,3 +165,23 @@ describe("durable tasks", () => {
     expect(screen.queryByText("No tasks here yet")).not.toBeInTheDocument();
   });
 });
+
+it("does not offer New task on an archived read-only board to a table creator", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path) =>
+    path === "/tasks/boards"
+      ? [
+          {
+            id: "board",
+            scope_kind: "private",
+            scope_id: "me",
+            table_id: "board",
+            can_edit: false,
+            scope_name: null,
+          },
+        ]
+      : { items: [], has_more: false },
+  );
+  render(<TasksPanel />, { wrapper });
+  expect(await screen.findByText("No tasks here yet")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
+});

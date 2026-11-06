@@ -1167,6 +1167,13 @@ class AgentTriggerService:
         for trigger in triggers:
             await self._deregister_webhook(ctx, trigger)
 
+    async def deregister_project_webhooks(self, ctx: AuthContext, project_id: UUID) -> None:
+        """Remove provider registrations before the project cascades its routines."""
+        for trigger in await agent_trigger_repo.list_for_project(
+            self.db, project_id=project_id, organization_id=ctx.organization_id
+        ):
+            await self._deregister_webhook(ctx, trigger)
+
     async def update(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: TriggerUpdate
     ) -> AgentTrigger:

@@ -971,6 +971,18 @@ class ChannelBotService:
         "stop it" needed a deploy.
         """
         bot = await self.get(bot_id)
+        if bot.platform == "sms":
+            from app.db.locks import LockScope, hold_subject
+            from app.repositories import telephony as phone_repo
+
+            await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, self._org_id)
+            if await phone_repo.bot_has_unfinished_calls(
+                self.db, organization_id=self._org_id, bot_id=bot_id
+            ):
+                raise ConflictError(
+                    message="End all telephone calls before deactivating this SMS bot"
+                )
+        bot = await self.get(bot_id, for_update=True)
         deactivated = await channel_bot_repo.update(
             self.db, db_bot=bot, update_data={"is_active": False}
         )

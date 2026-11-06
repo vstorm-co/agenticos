@@ -1,5 +1,5 @@
 ---
-source_sha: "cfebf1118241"
+source_sha: "ccaa0a8c7180"
 ---
 
 # La API HTTP { #the-http-api }
@@ -903,3 +903,6 @@ solo avanza.
   que consultar, así que un run largo no mantiene una conexión abierta.
 - **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
   cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.
+
+
+Los skills cuya carga exige aprobación deben aprobarse de nuevo en cada turno; las cargas históricas nunca omiten ese control.

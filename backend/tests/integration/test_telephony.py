@@ -1350,3 +1350,47 @@ async def test_conflicting_provider_receipts_remain_unknown_instead_of_binding_a
     await db.refresh(row)
     assert row.status == "unknown" and row.provider_sid == SID
     assert not await _settle_submission(sessions(db), uuid4(), status="failed")
+
+
+async def test_sms_deactivation_preserves_unfinished_calls(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.channel_bot import ChannelBotService
+
+    ctx, bot, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, receipt.id)
+    assert row is not None
+    service = ChannelBotService(db, ctx.organization_id)
+    with pytest.raises(ConflictError, match="End all telephone calls"):
+        await service.deactivate(bot.id)
+    assert bot.is_active
+    row.status = "completed"
+    row.finished_at = datetime.now(UTC)
+    await db.flush()
+    assert not (await service.deactivate(bot.id)).is_active
+
+
+async def test_operator_can_read_another_members_receipt_but_cannot_control_it(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.audit import set_impersonator
+    from app.services.telephony.runtime import hangup
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    service = PhoneCallService(db)
+    assert (await service.controllable(ctx, receipt.id)).id == receipt.id
+    other = replace(ctx, user_id=uuid4())
+    assert (await service.readable(other, receipt.id)).id == receipt.id
+    for authority in (other, replace(ctx, api_key_id=uuid4())):
+        with pytest.raises(AuthorizationError, match="call owner"):
+            await service.controllable(authority, receipt.id)
+        with pytest.raises(AuthorizationError, match="call owner"):
+            await hangup(db, authority, receipt.id)
+    set_impersonator(uuid4())
+    try:
+        with pytest.raises(AuthorizationError, match="call owner"):
+            await service.controllable(ctx, receipt.id)
+    finally:
+        set_impersonator(None)

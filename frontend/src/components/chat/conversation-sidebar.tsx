@@ -121,9 +121,13 @@ function ConversationItem({
   const waiting = useWorkingStore((state) => state.waiting[conversation.id]);
   const tTools = useTranslations("pages.runs");
   const finishedAt = useWorkingStore((state) => state.finishedAt[conversation.id]);
+  const finishedRuns = useWorkingStore((state) => state.finishedRuns[conversation.id]);
   const serverSince = conversation.running_since;
   const listedSince =
-    serverSince && (!finishedAt || Date.parse(serverSince) > Date.parse(finishedAt))
+    serverSince &&
+    (conversation.running_run_ids !== undefined
+      ? conversation.running_run_ids.some((id) => !finishedRuns?.[id])
+      : !finishedAt || Date.parse(serverSince) > Date.parse(finishedAt))
       ? serverSince
       : null;
   const runningSince = workingHere ?? listedSince;

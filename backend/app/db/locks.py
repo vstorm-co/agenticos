@@ -95,6 +95,8 @@ class LockScope(IntEnum):
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
     #: Telephone reservations, opt-in changes and endpoint admission share one order.
     PHONE_CALLS_PER_ORG = 28
+    #: Retained inbound email bodies and receipt counts, before durable enqueue.
+    EMAIL_DELIVERY_STORAGE_PER_ORG = 29
     #: Read/compare/write of claims within one organization, owner and agent scope.
     MEMORY_CLAIMS_PER_SCOPE = 26
     TASK_BOARD = 27

@@ -57,6 +57,7 @@ export interface Conversation {
   unread?: boolean;
   /** When the run still at work in it began; null when none is. Listings only. */
   running_since?: string | null;
+  running_run_ids?: string[];
 }
 
 /** One of a project's chats, with the people around it - a project's chats are its members'. */

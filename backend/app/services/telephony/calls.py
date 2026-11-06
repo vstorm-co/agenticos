@@ -307,6 +307,20 @@ class PhoneCallService:
             raise NotFoundError(message="Telephone call not found")
         return row
 
+    async def controllable(
+        self, ctx: AuthContext, call_id: UUID, *, lock: bool = False
+    ) -> PhoneCall:
+        """Only the initiating member's current session may control a live call."""
+        row = await self.readable(ctx, call_id, lock=lock)
+        if (
+            ctx.user_id is None
+            or ctx.api_key_id is not None
+            or current_impersonator() is not None
+            or row.user_id != ctx.user_id
+        ):
+            raise AuthorizationError(message="Only the call owner may control this telephone call")
+        return row
+
     async def get(self, ctx: AuthContext, call_id: UUID) -> PhoneCallRead:
         return PhoneCallRead.model_validate(await self.readable(ctx, call_id))
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "cfebf1118241"
+source_sha: "ccaa0a8c7180"
 ---
 
 # API HTTP { #the-http-api }
@@ -873,3 +873,6 @@ tylko do przodu.
   odpytywania, więc długi run nie trzyma otwartego połączenia.
 - **Publiczne API jest w `/api/v1/public/openapi.json`** i w ramach v1 zmienia
   się tylko addytywnie, z 90 dniami deprecjacji; SDK jeszcze nie ma.
+
+
+Skille, których załadowanie wymaga akceptacji, wymagają jej ponownie w każdej turze; historia nie omija tej bramki.

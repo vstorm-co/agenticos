@@ -347,6 +347,33 @@ describe("what the sidebar says about the list", () => {
     vi.useRealTimers();
   });
 
+  it("keeps an overlapping run visible after another run in that chat finishes", async () => {
+    const started = new Date(Date.now() - 120_000).toISOString();
+    serve([
+      {
+        ...conversation("c-2", "Overlapping work"),
+        running_since: started,
+        running_run_ids: ["done", "other"],
+      },
+    ]);
+    const { client } = mount();
+    await screen.findAllByText("Overlapping work");
+    const row = within(list())
+      .getByText("Overlapping work")
+      .closest("[class*='group']") as HTMLElement;
+    act(() => useWorkingStore.getState().finish("c-2", "done"));
+    expect(within(row).getByText(/Working/)).toBeInTheDocument();
+    serve([
+      {
+        ...conversation("c-2", "Overlapping work"),
+        running_since: started,
+        running_run_ids: ["done"],
+      },
+    ]);
+    await act(() => client.invalidateQueries());
+    await waitFor(() => expect(within(row).queryByText(/Working/)).not.toBeInTheDocument());
+  });
+
   it("lets a handed-off mark go when the listing never shows the run", async () => {
     // A turn short enough to end between two listings: after the grace, the
     // listing that says nothing is running is right.

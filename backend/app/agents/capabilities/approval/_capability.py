@@ -25,13 +25,13 @@ happen instead of the run dying with a stack trace.
 import asyncio
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import Any
 
-from pydantic_ai import ApprovalRequired, RunContext
-from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
-from pydantic_ai.messages import ToolCallPart
+from pydantic_ai import AgentRunResult, ApprovalRequired, RunContext
+from pydantic_ai.capabilities import AbstractCapability, WrapRunHandler, WrapToolExecuteHandler
+from pydantic_ai.messages import CapabilityLoadDeltaPart, ModelRequest, ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 from pydantic_core import to_jsonable_python
 
@@ -41,7 +41,11 @@ from app.agents.approval import (
     ApprovalRequest,
     refusal,
 )
-from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES, ApprovalDescriber
+from app.agents.capabilities._registry import (
+    FRAMEWORK_TOOL_NAMES,
+    LOAD_CAPABILITY,
+    ApprovalDescriber,
+)
 from app.agents.deps import AgentDeps
 from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
@@ -95,6 +99,33 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     # Effective tool name to the stable id its capability declares it under, from
     # `approval_tool_ids`, so the request names the tool the way a surface words it.
     tool_ids: Mapping[str, str] = field(default_factory=dict)
+
+    async def wrap_run(
+        self, ctx: RunContext[AgentDeps], *, handler: WrapRunHandler
+    ) -> AgentRunResult[object]:
+        """A remembered load cannot replace a fresh approval of skill instructions.
+
+        Gated loads deliberately require approval each turn. Ungated loads retain
+        progressive disclosure; the current registry still limits what is available.
+        """
+        if self.gate_every_tool or LOAD_CAPABILITY in self.required_tool_names:
+            kept = []
+            for message in ctx.messages:
+                if isinstance(message, ModelRequest):
+                    parts = [
+                        part
+                        for part in message.parts
+                        if not (
+                            isinstance(part, CapabilityLoadDeltaPart)
+                            and part.tool_call_id == "agenticos:restored-loads"
+                        )
+                    ]
+                    if parts:
+                        kept.append(replace(message, parts=parts))
+                else:
+                    kept.append(message)
+            ctx.messages[:] = kept
+        return await handler()
 
     @staticmethod
     async def _describe(

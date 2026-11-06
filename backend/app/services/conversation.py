@@ -114,22 +114,41 @@ def _as_history(
     for row in rows:
         if row.id == exclude_message_id:
             continue
-        # Cards and steers are real user input stored in the assistant's parts.
-        # Preserve their order; a refused turn withholds all its words.
+        # Rebuild the assistant's spoken sequence around human answers, instead
+        # of moving every answer before the text that originally asked for it.
+        ordered: list[HistoryMessage] = []
+        texts: list[str] = []
         if not row.guardrail_refused:
             for part in row.parts or []:
-                if part.get("type") == "steer" and isinstance(text := part.get("text"), str):
-                    history.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
+                kind = part.get("type")
+                if (
+                    row.role == "assistant"
+                    and kind == "text"
+                    and isinstance(text := part.get("text"), str)
+                    and text.strip()
+                ):
+                    ordered.append({"role": "assistant", "content": text})
+                    texts.append(text)
+                elif kind == "steer" and isinstance(text := part.get("text"), str):
+                    ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
                 elif (
                     row.role == "assistant"
-                    and part.get("type") == "ask_user"
+                    and kind == "ask_user"
                     and isinstance(question := part.get("question"), str)
                     and isinstance(answer := part.get("answer"), str)
                     and answer.strip()
                 ):
-                    history.append(
+                    ordered.append(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
+        history.extend(ordered)
+        if texts and (row.content == texts[-1] or row.content == "".join(texts)):
+            # Anchor compaction to the last answer, not to every streamed fragment.
+            for entry in reversed(ordered):
+                if entry["role"] == "assistant":
+                    entry["context_used_tokens"] = row.context_used_tokens
+                    break
+            continue
         history.append(
             {
                 "role": row.role,
@@ -261,7 +280,15 @@ class ConversationService:
             ):
                 loaded[capability_id] = None
         if loaded:
-            history.append(ModelRequest(parts=[CapabilityLoadDeltaPart(loaded=list(loaded))]))
+            history.append(
+                ModelRequest(
+                    parts=[
+                        CapabilityLoadDeltaPart(
+                            loaded=list(loaded), tool_call_id="agenticos:restored-loads"
+                        )
+                    ]
+                )
+            )
         return history
 
     async def find_conversation(self, conversation_id: UUID) -> Conversation | None:
@@ -981,11 +1008,13 @@ class ConversationService:
         `_attach_agents` is, and one query for the page."""
         if not conversations:
             return
-        since = await conversation_repo.running_since(
+        activity = await conversation_repo.running_activity(
             self.db, [conversation.id for conversation in conversations]
         )
         for conversation in conversations:
-            conversation.running_since = since.get(conversation.id)  # ty: ignore[unresolved-attribute]
+            current = activity.get(conversation.id)
+            conversation.running_since = current.since if current else None  # ty: ignore[unresolved-attribute]
+            conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[unresolved-attribute]
 
     async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.

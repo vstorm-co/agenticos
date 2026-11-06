@@ -377,6 +377,14 @@ class ProjectService:
         await TaskService(self.db).purge_scope(
             "project", project.id, organization_id=ctx.organization_id
         )
+        from app.core.memory_keys import project_owner_key
+        from app.repositories import memory_claim as claim_repo
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).deregister_project_webhooks(ctx, project.id)
+        await claim_repo.delete_for_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=project_owner_key(project.id)
+        )
         await project_repo.delete(self.db, project)
         await record_audit(
             self.db,

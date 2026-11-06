@@ -269,7 +269,7 @@ test.describe("Agents", () => {
     );
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are \{\{agent_name\}\}, an assistant in/,
+      /You are \{\{agent_name\}\}, the helpful general-purpose assistant in/,
     );
 
     // The model section leads with the profile this agent actually runs on, and

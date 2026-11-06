@@ -83,7 +83,7 @@ function TasksView() {
             </Link>
           </Button>
         )}
-        {(activeBoard?.can_edit || can(Perm.tablesCreate)) && (
+        {(activeBoard ? activeBoard.can_edit : can(Perm.tablesCreate)) && (
           <Button onClick={() => setCreating(true)}>
             <Plus className="size-4" aria-hidden />
             {t("newTask")}

@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import anyio
 from pydantic_ai.tools import RunContext
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.coding_agent._harness import Harness
 from app.agents.capabilities.coding_agent._personal import PersonalCodingTask
@@ -48,38 +49,53 @@ class PersonalCodingSessionFactory:
         self, account_id: UUID, generation: UUID, conversation_id: UUID | None = None
     ) -> bool:
         async with get_db_context() as db:
-            membership = await member_repo.get(
-                db, organization_id=self.ctx.organization_id, user_id=account_owner(self.ctx)
-            )
-            if membership is None:
-                return False
-            row = await account_repo.get(
-                db,
+            return await self._active_in(db, account_id, generation, conversation_id)
+
+    async def _active_in(
+        self,
+        db: AsyncSession,
+        account_id: UUID,
+        generation: UUID,
+        conversation_id: UUID | None = None,
+        *,
+        lock: bool = False,
+    ) -> bool:
+        membership = await member_repo.get(
+            db,
+            organization_id=self.ctx.organization_id,
+            user_id=account_owner(self.ctx),
+            for_update=lock,
+        )
+        if membership is None:
+            return False
+        row = await account_repo.get(
+            db,
+            organization_id=self.ctx.organization_id,
+            user_id=account_owner(self.ctx),
+            account_id=account_id,
+            locked=lock,
+        )
+        if row is None or not row.enabled or row.generation != generation:
+            return False
+        if self.project_id is not None:
+            fresh = AuthContext(
+                user_id=self.ctx.user_id,
                 organization_id=self.ctx.organization_id,
-                user_id=account_owner(self.ctx),
-                account_id=account_id,
+                role=membership.role,
             )
-            if row is None or not row.enabled or row.generation != generation:
+            try:
+                await project_for_workspace(db, fresh, self.project_id)
+            except NotFoundError, AuthorizationError:
                 return False
-            if self.project_id is not None:
-                fresh = AuthContext(
-                    user_id=self.ctx.user_id,
-                    organization_id=self.ctx.organization_id,
-                    role=membership.role,
-                )
-                try:
-                    await project_for_workspace(db, fresh, self.project_id)
-                except NotFoundError, AuthorizationError:
-                    return False
-            if conversation_id is not None:
-                shares = await conversation_share_repo.get_shares_for_conversation(
-                    db, conversation_id, organization_id=self.ctx.organization_id
-                )
-                if any(
-                    share.shared_with is not None and share.permission == "edit" for share in shares
-                ):
-                    return False
-            return True
+        if conversation_id is not None:
+            shares = await conversation_share_repo.get_shares_for_conversation(
+                db, conversation_id, organization_id=self.ctx.organization_id
+            )
+            if any(
+                share.shared_with is not None and share.permission == "edit" for share in shares
+            ):
+                return False
+        return True
 
     async def _account(self, harness: Harness) -> CodingAccount:
         async with get_db_context() as db:
@@ -258,6 +274,12 @@ class PersonalCodingSessionFactory:
                 archive = result.archive(forbidden)
                 async with get_db_context() as publication_db:
                     conversation_id = ctx.deps.conversation_id
+                    if not await self._active_in(
+                        publication_db, account.id, account.generation, conversation_id, lock=True
+                    ):
+                        raise AuthorizationError(
+                            message="The personal coding account was revoked before publication"
+                        )
                     if (
                         conversation_id is not None
                         and not await conversation_share_repo.lock_private_publication(

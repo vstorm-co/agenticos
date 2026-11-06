@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3f4038d74bdc"
+source_sha: "e9573cb4bf21"
 ---
 
 # Projekte { #projects }
@@ -305,3 +305,6 @@ Wähle auf der Projektseite **Projekt auf Kurs halten**. Wähle einen veröffent
 Die Routine handelt als du im Projekt und berichtet in dessen Unterhaltung. Sie liest Aufgaben, prüft Fortschritte anhand der genehmigten Quellen, aktualisiert nächste Schritte und meldet Blockaden und Fristen. Externe Nachrichten benötigen weiterhin die übliche Autorisierung. Neue Quellen, eine erneute Kontozustimmung oder ein ersetzter Projektarbeitsbereich verlangen eine neue Quellenprüfung. Verlorener Projektzugriff stoppt weitere Werkzeuge; wartende Projektbenachrichtigungen prüfen den aktuellen Zugriff des Empfängers erneut. Ein identischer Wiederholungsversuch verwendet vorhandene Ressourcen. Intervall und Quellen verwaltest du unter Routinen; die Tabelle öffnest du auf der Projektseite.
 
 Eine geplante Unterhaltung ohne Eigentümer in einem Projekt kann von Personen mit Bearbeitungsrecht für dieses Projekt umbenannt, archiviert oder gelöscht werden. Von einer anderen Person gestartete Chats bleiben unter deren Verwaltung.
+
+
+Beim Löschen eines Projekts werden auch seine Gedächtniseinträge und abgeleiteten geteilten Kopien entfernt. Registrierte Provider-Webhooks werden vor der kaskadierenden Löschung der Routinen bestmöglich entfernt. Ein nicht erreichbarer Provider wird protokolliert und blockiert die Löschung nicht.

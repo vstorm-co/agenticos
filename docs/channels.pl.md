@@ -1,5 +1,5 @@
 ---
-source_sha: "e5b8b1f59bd8"
+source_sha: "f895c76f1a38"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -3030,7 +3030,7 @@ Transport zapewnia firmowy Mac z Wiadomościami i [BlueBubbles](https://docs.blu
 
 Przypisz opublikowanego agenta, następnie otwórz edycję kanału i po zapisaniu zmian wybierz **Zarejestruj webhook iMessage**. Zmiana adresu lub hasła unieważnia poprzedni sekret callbacku; zarejestruj webhook ponownie. AgenticOS rejestruje tylko `new-message` pod `/api/v1/imessage/{bot_id}/webhook`. Generuje osobny sekret callbacku i rejestruje uwierzytelnianie HTTP Basic. Dla ruchu przez niezaufaną sieć skonfiguruj HTTPS. Przy prywatnym adresie AgenticOS administrator BlueBubbles musi jawnie zezwolić webhookom API na adresy lokalne. Usunięcie webhooka usuwa wyłącznie callbacki tego bota na tym wdrożeniu.
 
-Tekst i pliki korzystają z AppleScript w BlueBubbles. Opcjonalne potwierdzenia reakcją wymagają Private API. Powiązany nadawca prywatny kontynuuje tę samą główną rozmowę co w konsoli; grupy mają osobne rozmowy i wymagają zwykłego wspomnienia agenta. Zgody korzystają z istniejących numerowanych pytań: odpowiedz wyświetlonym numerem. Własne wiadomości, reakcje i zdarzenia systemowe nie uruchamiają kolejnej tury. Załączniki są pobierane wyłącznie po GUID ze skonfigurowanego mostu, z limitem rozmiaru wysyłanych plików.
+Tekst i pliki korzystają z AppleScript w BlueBubbles. Opcjonalne potwierdzenia reakcją wymagają Private API. Powiązany nadawca prywatny otrzymuje osobną rozmowę w kanale. Powiązanie tożsamości nie daje botowi ani mostowi dostępu do wcześniejszej prywatnej historii z konsoli; grupy mają osobne rozmowy i wymagają zwykłego wspomnienia agenta. Zgody korzystają z istniejących numerowanych pytań: odpowiedz wyświetlonym numerem. Własne wiadomości, reakcje i zdarzenia systemowe nie uruchamiają kolejnej tury. Załączniki są pobierane wyłącznie po GUID ze skonfigurowanego mostu, z limitem rozmiaru wysyłanych plików.
 
 W **Ustawienia → Powiadomienia** wybierz powiązaną rozmowę prywatną, aby włączyć dostarczanie. Grupa nigdy nie jest prywatnym miejscem docelowym. Akceptacja przez most oznacza przekazanie, nie dostarczenie przez Apple ani potwierdzenie odbiorcy. Niedostępność mostu daje widoczny błąd; niepewna wysyłka nie jest ponawiana automatycznie.
 
@@ -3041,3 +3041,6 @@ Formularz webhooka SMS ma limit 64 KiB i dziesięciosekundowy czas odczytu przed
 
 
 Przychodzący e-mail jest odczytywany strumieniowo z limitem 25 MiB przed sprawdzeniem podpisu, również bez wiarygodnego Content-Length.
+
+
+Przed trwałym zapisaniem e-maila organizację obowiązuje limit 4096 zachowanych zadań dostarczenia i 256 MiB treści, również zakończonych i nieudanych. Przyjęcia są serializowane między workerami; powtórzone Message-ID pozostają idempotentne. Przekroczenie limitu zwraca HTTP 429 przed zapisaniem kolejnej treści; retencja lub usunięcie zachowanych zadań zwalnia miejsce.

@@ -280,3 +280,6 @@ Choose **Keep project on track** on a project's page. Select a published agent y
 The routine runs as you inside that project and reports in its project conversation. It reads task state, verifies progress from the reviewed sources, updates next actions and flags blockers and deadlines. Sending an external follow-up still needs the usual authorization. New sources, account consent or a workspace replacement require a new source review. Losing project access stops subsequent tools; queued project notifications recheck the recipient's current project access. An identical setup retry reuses its existing resources. Manage its cadence and source review under Routines; open its table from the project page.
 
 An ownerless scheduled conversation in a project can be renamed, archived or deleted by someone with permission to edit that project. Chats started by another person remain under that person’s management.
+
+
+Deleting a project also erases its memory claims and derived shared copies, and attempts to remove its registered provider webhooks before cascading its routines. An unavailable provider is logged; it does not block deletion.

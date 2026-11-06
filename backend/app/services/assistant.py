@@ -271,25 +271,13 @@ class AssistantService:
             detail = "guide missing or detached; binding left alone"
         number = None
         if not dry_run:
-            added_skills: list[UUID] = []
-            if plan in (LibraryRefresh.CURRENT, LibraryRefresh.UPDATE):
-                workflow_skills = await self.registry.template_skills(
-                    ctx,
-                    replace(
-                        template, skills=("software/workflow-builder", "software/virtual-tables")
-                    ),
-                )
-                added_skills = [
-                    skill.id for skill in workflow_skills if skill.id not in draft.skill_ids
-                ]
-            if plan is LibraryRefresh.UPDATE or added_skills:
+            if plan is LibraryRefresh.UPDATE:
                 await self.registry.save_draft(
                     ctx,
                     agent.id,
                     draft.model_copy(
                         update={
                             "instructions": template.instructions,
-                            "skill_ids": [*draft.skill_ids, *added_skills],
                         }
                     ),
                 )
