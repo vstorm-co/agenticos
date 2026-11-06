@@ -56,14 +56,19 @@ it.each([
   },
 ])("narrows optional choice translations before displaying them: %j", (raw) => {
   const original = renderHook(() => intl.useTranslations("capabilityConfig")).result.current;
-  const translator = Object.assign(original, {
-    has: () => true,
-    raw: (key: string): unknown =>
-      key.endsWith(".title")
-        ? "Environment"
-        : key.endsWith(".description")
-          ? "Choose an environment"
-          : raw,
+  const translator = new Proxy(original, {
+    get(target, property, receiver) {
+      if (property === "has") return () => true;
+      if (property === "raw") {
+        return (key: string): unknown =>
+          key.endsWith(".title")
+            ? "Environment"
+            : key.endsWith(".description")
+              ? "Choose an environment"
+              : raw;
+      }
+      return Reflect.get(target, property, receiver);
+    },
   });
   vi.spyOn(intl, "useTranslations").mockReturnValue(translator);
   const { result } = renderHook(() => useCapabilityFieldCopy("computer_use"));
