@@ -1,5 +1,5 @@
 ---
-source_sha: "5f0029409778"
+source_sha: "aa764453821d"
 ---
 
 # Governance { #governance }
@@ -631,6 +631,29 @@ Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
 der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
+
+Der nächtliche Job liest nur einen Prompt, der den Eingabe-Guardrail des Agents
+passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
+[Guardrails](reference/capabilities.md#guardrails):
+
+- Ein Prompt, den ein Guardrail abgelehnt hat, bleibt draußen.
+- Ein Prompt, den kein Run angenommen hat, bleibt draußen: einer an einen
+  archivierten Agent, einer, der abgelehnt wurde, bevor sein Run begann, und ein
+  Chat-Prompt, der an einen Workflow geht.
+- Ein Prompt, dessen Run noch läuft, wartet. Der Job liest ihn in einer späteren
+  Nacht, wenn der Run beendet ist.
+- Stoppt ein Run vor seiner ersten Model-Anfrage, zum Beispiel am Budget, lässt
+  der Job den Eingabe-Guardrail dieses Runs über den Prompt laufen und lässt aus,
+  was er blockiert. Gibt es die Agent-Version nicht mehr, bleibt der Prompt draußen.
+- Hat die Aufbewahrung den Run gelöscht, liest der Job den Prompt nur, wenn eine
+  Antwort eines Models auf ihn folgt. Ein Prompt von vor Version 1.36.0 wird
+  genauso gelesen, also bleibt die Ablehnung eines Eingabe-Guardrails draußen,
+  denn sie hat keine Antwort hinterlassen. Ein gesprochener Turn zeichnet kein
+  Model auf, also bleibt er draußen, sobald sein Run weg ist.
+
+Ein Prompt, den ein Guardrail geschwärzt hat, passiert, und der Job liest ihn so,
+wie er gespeichert ist, also ungeschwärzt
+([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).
 
 Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
 Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,

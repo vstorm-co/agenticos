@@ -25,6 +25,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.suggestion import SuggestionKind
+from app.repositories.conversation import PersonRequest
 from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
 from app.services.proactive import _role_pack, _thinker, _welcome
@@ -272,6 +273,22 @@ class TestThinking:
         assert isinstance(answer, NightlyReading)
         assert read == ["listed"]
 
+    async def test_the_run_can_be_dated_from_before_the_call(self):
+        """The nightly look reads first; its run says when it read, not when it asked."""
+        read_at = datetime.now(UTC) - timedelta(seconds=5)
+        get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
+        with get_slug, limits, version, profiles, create as create_run, finish:
+            await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+                started_at=read_at,
+            )
+
+        assert create_run.await_args.kwargs["started_at"] == read_at
+
     async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self, recorded_manifest):
         def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
             raise ModelHTTPError(status_code=500, model_name="claude")
@@ -464,6 +481,10 @@ def _user(**overrides):
     return SimpleNamespace(**values)
 
 
+def _request(content: str) -> PersonRequest:
+    return PersonRequest(MagicMock(content=content, created_at=datetime.now(UTC)), None)
+
+
 class TestTheNightlyLook:
     @staticmethod
     def _patches(
@@ -568,9 +589,7 @@ class TestTheNightlyLook:
         assert made == 0
 
     async def test_a_model_that_could_not_answer_proposes_nothing(self):
-        made, _, mocks = await self._look(
-            reading=None, requests=[MagicMock(content="x", created_at=datetime.now(UTC))]
-        )
+        made, _, mocks = await self._look(reading=None, requests=[_request("x")])
 
         assert made == 0
         mocks["propose"].assert_not_awaited()
@@ -600,9 +619,7 @@ class TestTheNightlyLook:
             role_pack="sales",
             role_pack_title="Pakiet sprzedaży",
         )
-        made, _, mocks = await self._look(
-            reading=reading, requests=[MagicMock(content="Raport", created_at=datetime.now(UTC))]
-        )
+        made, _, mocks = await self._look(reading=reading, requests=[_request("Raport")])
 
         assert made == 4
         # Kept on the membership: they come from this organization's week (Codex on #2324).

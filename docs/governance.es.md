@@ -1,5 +1,5 @@
 ---
-source_sha: "5f0029409778"
+source_sha: "aa764453821d"
 ---
 
 # Governance { #governance }
@@ -596,6 +596,29 @@ que la organización eligió al activarla (no hay uno por defecto:
 como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
+
+La tarea nocturna solo lee un prompt que pasó el
+[guardrail](reference/capabilities.md#guardrails) de entrada del agent al que se
+envió, porque el modelo de proactividad no tiene guardrails propios:
+
+- Un prompt que un guardrail rechazó queda fuera.
+- Un prompt que ningún run tomó queda fuera: uno enviado a un agent archivado,
+  uno rechazado antes de abrirse su run y un prompt del chat que pasa a un
+  workflow.
+- Un prompt cuyo run sigue en marcha espera. La tarea lo lee una noche posterior,
+  cuando el run ya ha terminado.
+- Si un run se detuvo antes de su primera petición al modelo, por ejemplo por un
+  budget, la tarea pasa el guardrail de entrada de ese run por el prompt y
+  deja fuera lo que bloquea. Si la versión del agent ya no existe, el prompt queda
+  fuera.
+- Si la retención borró el run, la tarea lee el prompt solo cuando le sigue una
+  respuesta de un modelo. Un prompt anterior a la versión 1.36.0 se lee igual, así
+  que el rechazo de un guardrail de entrada, que no dejó respuesta, queda fuera.
+  Un turno hablado no registra el modelo, así que queda fuera cuando ya no existe
+  su run.
+
+Un prompt que un guardrail redactó pasa, y la tarea lo lee tal como está guardado,
+sin redactar ([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).
 
 Además, los runs por iniciativa propia de cada persona en un mes natural los
 limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por
