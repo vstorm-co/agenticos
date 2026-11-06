@@ -15580,6 +15580,13 @@
       "hidden": "{count, plural, one {# agent, którego nie widzisz, został bez zmian.} few {# agenty, których nie widzisz, zostały bez zmian.} many {# agentów, których nie widzisz, zostało bez zmian.} other {# agenta, którego nie widzisz, zostało bez zmian.}}",
       "archived": "Nikt już nie czyta forka, więc został zarchiwizowany.",
       "remaining": "{count, plural, =0 {Fork został bez zmian.} one {# agent nadal czyta fork, więc nie został zarchiwizowany.} few {# agenty nadal czytają fork, więc nie został zarchiwizowany.} many {# agentów nadal czyta fork, więc nie został zarchiwizowany.} other {# agenta nadal czyta fork, więc nie został zarchiwizowany.}}"
+    },
+    "forked": {
+      "title": "Co zrobiło utworzenie forka",
+      "made": "Zmiana jest teraz forkiem „{name}”.",
+      "live": "Przeniesione i opublikowane: {names}.",
+      "drafts": "{count, plural, one {Przeniesiony w drafcie, który czeka na publikację: {names}.} other {Przeniesione w draftach, które czekają na publikację: {names}.}}",
+      "nobody": "Żaden agent nie został przeniesiony; przenieś agentów ze strony skilla."
     }
   }
 }

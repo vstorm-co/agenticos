@@ -15478,6 +15478,13 @@
       "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, blieb unverändert.} other {# Agents, die Sie nicht sehen, blieben unverändert.}}",
       "archived": "Niemand liest den Fork mehr, daher wurde er archiviert.",
       "remaining": "{count, plural, =0 {Der Fork blieb unverändert.} =1 {1 Agent liest den Fork noch, daher wurde er nicht archiviert.} other {# Agents lesen den Fork noch, daher wurde er nicht archiviert.}}"
+    },
+    "forked": {
+      "title": "Was der Fork bewirkt hat",
+      "made": "Die Änderung ist jetzt der Fork „{name}“.",
+      "live": "Darauf verschoben und veröffentlicht: {names}.",
+      "drafts": "{count, plural, =1 {Im Entwurf darauf verschoben, der auf Veröffentlichung wartet: {names}.} other {In ihren Entwürfen darauf verschoben, die auf Veröffentlichung warten: {names}.}}",
+      "nobody": "Kein Agent wurde darauf verschoben; verschiebe Agents auf der Seite des Skills."
     }
   }
 }

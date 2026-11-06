@@ -11,6 +11,7 @@ import type {
   SkillImprovement,
   SkillImprovementAwaiting,
   SkillImprovementEstimate,
+  SkillImprovementForked,
   SkillProblems,
 } from "@/types/skill-improvement";
 
@@ -78,8 +79,8 @@ export function forkSkillImprovement(
   skillId: string,
   sessionId: string,
   body: { name: string; agent_ids: string[]; acknowledge_unknown: boolean },
-): Promise<{ session: SkillImprovement }> {
-  return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/fork`, {
+): Promise<SkillImprovementForked> {
+  return apiClient.post<SkillImprovementForked>(`${root(skillId)}/${sessionId}/fork`, {
     confirmed: true,
     ...body,
   });

@@ -28,7 +28,7 @@ import {
   stopOf,
 } from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
-import type { SkillImprovement } from "@/types/skill-improvement";
+import type { SkillImprovement, SkillImprovementForked } from "@/types/skill-improvement";
 import type { MergeKind, ReturnedToMain } from "@/types/skill-merge";
 import { CheckAgain } from "./check-again";
 import { CheckAgents } from "./check-agents";
@@ -37,6 +37,7 @@ import { MainAloneChoice, MainAloneResult } from "./main-alone";
 import { MergeAgain } from "./merge-again";
 import { MergeChanges } from "./merge-changes";
 import { MergeStart } from "./merge-start";
+import { ForkedSummary } from "./forked-summary";
 import { ReturnedSummary } from "./returned-summary";
 import { SkillAccept } from "./skill-accept";
 import { SkillStart } from "./skill-start";
@@ -120,6 +121,7 @@ function SkillSession({
   const [mainAlone, setMainAlone] = useState(true);
   // Kept here: returning to main closes the session, which takes Accept off the screen.
   const [returned, setReturned] = useState<ReturnedToMain | null>(null);
+  const [forked, setForked] = useState<SkillImprovementForked | null>(null);
   const session = actions.session as SkillImprovement | undefined;
   const merging = session !== undefined && isMerge(session);
   // Read once the session stops at Changes; while it works, the model is still writing.
@@ -267,11 +269,13 @@ function SkillSession({
                 check={check}
                 onStarted={followCurrent}
                 onReturned={setReturned}
+                onForked={setForked}
               />
             ) : (
               <>
                 <p className="text-sm">{t("acceptClosed")}</p>
                 {returned && <ReturnedSummary returned={returned} />}
+                {forked && <ForkedSummary forked={forked} />}
               </>
             ))}
         </>

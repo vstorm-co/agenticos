@@ -96,6 +96,16 @@ export interface SkillContinuationEstimate extends ContinuationEstimate {
   main_alone_estimate?: SkillCheckEstimate | null;
 }
 
+/** What forking a session's change did: the fork, and who moved onto it and how. */
+export interface SkillImprovementForked {
+  session: SkillImprovement;
+  fork: { id: string; name: string };
+  /** Moved and published where each agent publishes. */
+  moved: { id: string; name: string }[];
+  /** Moved only in the draft, which waits to be published. */
+  draft_only: { id: string; name: string }[];
+}
+
 /** A passage of one run that shows a problem, checked word for word against it. */
 export interface SkillProblemExample {
   run_id: string;

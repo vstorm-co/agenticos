@@ -15806,6 +15806,13 @@
       "hidden": "{count, plural, =1 {1 agent you cannot see was left as it was.} other {# agents you cannot see were left as they were.}}",
       "archived": "Nobody reads the fork any more, so it was archived.",
       "remaining": "{count, plural, =0 {The fork was left as it was.} =1 {1 agent still reads the fork, so it was not archived.} other {# agents still read the fork, so it was not archived.}}"
+    },
+    "forked": {
+      "title": "What forking did",
+      "made": "The change is now the fork “{name}”.",
+      "live": "Moved onto it and published: {names}.",
+      "drafts": "{count, plural, =1 {Moved onto it in its draft, which waits to be published: {names}.} other {Moved onto it in their drafts, which wait to be published: {names}.}}",
+      "nobody": "No agent was moved onto it; move agents from the skill's page."
     }
   }
 }
