@@ -140,13 +140,13 @@ export function useArtifactListActions() {
  * Named by the server through the artifacts themselves, so a page shared with
  * somebody offers its publisher even when that agent is not theirs to open.
  */
-export function useArtifactAgents(enabled: boolean): ArtifactAgent[] {
-  const { data } = useQuery({
+export function useArtifactAgents(enabled: boolean) {
+  const { data, isLoading } = useQuery({
     queryKey: qk.artifacts.agents(),
     queryFn: () => apiClient.get<{ items: ArtifactAgent[] }>("/apps/agents"),
     enabled,
   });
-  return data?.items ?? [];
+  return { agents: data?.items ?? [], isLoading };
 }
 
 /**

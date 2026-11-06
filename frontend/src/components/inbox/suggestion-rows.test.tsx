@@ -10,14 +10,22 @@ import type { Suggestion } from "@/lib/suggestions-api";
  * is about, and the same answers the chat's cards give - in the row.
  */
 
-const state = vi.hoisted(() => ({ accept: vi.fn(), dismiss: vi.fn(), dialogs: 0 }));
+const state = vi.hoisted(() => ({
+  accept: vi.fn(),
+  dismiss: vi.fn(),
+  dialogs: 0,
+  catalogLoading: false,
+}));
 
 vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: () => ({ suggestions: [], accept: state.accept, dismiss: state.dismiss }),
 }));
 vi.mock("@/hooks", () => ({
   useMcpCatalog: () => ({
-    servers: [{ key: "linear", name: "Linear", icon: "linear", url: null }],
+    servers: state.catalogLoading
+      ? []
+      : [{ key: "linear", name: "Linear", icon: "linear", url: null }],
+    isLoading: state.catalogLoading,
   }),
 }));
 vi.mock("@/components/triggers/trigger-form-dialog", () => ({
@@ -48,6 +56,7 @@ function item(id: string, overrides: Partial<Suggestion> = {}): Suggestion {
 }
 
 beforeEach(() => {
+  state.catalogLoading = false;
   state.accept.mockReset().mockResolvedValue(undefined);
   state.dismiss.mockReset().mockResolvedValue(undefined);
   state.dialogs = 0;
@@ -162,7 +171,7 @@ it("opens the working chat without marking its draft as completed", async () => 
   );
   expect(screen.getByRole("link", { name: "Open conversation" })).toHaveAttribute(
     "href",
-    `/chat/${chat}`,
+    `/chat?id=${chat}`,
   );
   expect(state.accept).not.toHaveBeenCalled();
 });
@@ -187,4 +196,16 @@ it("links task titles to their table without a separate Open table action", () =
   expect(link).toHaveAttribute("href", `/tables/${table}`);
   expect(link).not.toHaveAttribute("target");
   expect(screen.queryByText("Open table")).not.toBeInTheDocument();
+});
+
+it("reserves source metadata instead of painting a temporary routine label", () => {
+  state.catalogLoading = true;
+  const finding = item("loading-source", { kind: "finding", payload: { server: "linear" } });
+  const view = render(<SuggestionRows items={[finding]} />);
+  const row = screen.getByRole("listitem", { name: finding.title });
+  expect(row.querySelector(".animate-pulse")).not.toBeNull();
+  expect(row).not.toHaveTextContent("Routine");
+  state.catalogLoading = false;
+  view.rerender(<SuggestionRows items={[finding]} />);
+  expect(row).toHaveTextContent("Linear");
 });

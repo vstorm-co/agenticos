@@ -10,7 +10,7 @@ import {
   useSuggestionActions,
   useSuggestionSource,
 } from "@/components/chat/suggestion-actions";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Skeleton } from "@/components/ui";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ export function SuggestionRows({
   const tInbox = useTranslations("inbox");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const sourceOf = useSuggestionSource();
+  const { sourceOf, isLoading: sourceLoading } = useSuggestionSource();
   const { take, notNow, dialog } = useSuggestionActions(null);
 
   return (
@@ -50,7 +50,13 @@ export function SuggestionRows({
               : null;
           const url =
             tableUrl ?? (suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : null);
-          const source = sourceOf(suggestion)?.name ?? tInbox(`source.${suggestion.kind}`);
+          const server = sourceOf(suggestion);
+          const source = server?.name ?? tInbox(`source.${suggestion.kind}`);
+          const waitingSource =
+            !server &&
+            sourceLoading &&
+            suggestion.kind === "finding" &&
+            typeof suggestion.payload.server === "string";
           return (
             <li
               key={suggestion.id}
@@ -99,10 +105,14 @@ export function SuggestionRows({
                   )}
                 </div>
                 <span className="text-muted-foreground mt-1 block text-xs">
-                  {tInbox("sourceAt", {
-                    source,
-                    when: timeAgo(suggestion.created_at, tTime, locale),
-                  })}
+                  {waitingSource ? (
+                    <Skeleton aria-hidden className="h-4 w-32" />
+                  ) : (
+                    tInbox("sourceAt", {
+                      source,
+                      when: timeAgo(suggestion.created_at, tTime, locale),
+                    })
+                  )}
                 </span>
                 {suggestion.detail && (
                   <p
@@ -127,7 +137,9 @@ export function SuggestionRows({
                     suggestion.payload.conversation_id,
                   ) && (
                     <Button asChild size="sm" variant="secondary" className="h-8">
-                      <Link href={`/chat/${suggestion.payload.conversation_id}`}>
+                      <Link
+                        href={`/chat?id=${encodeURIComponent(suggestion.payload.conversation_id)}`}
+                      >
                         <MessageSquare className="size-3.5" aria-hidden />
                         {tInbox("openWorkingChat")}
                       </Link>

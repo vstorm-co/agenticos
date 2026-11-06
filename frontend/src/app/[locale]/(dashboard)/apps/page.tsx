@@ -67,7 +67,9 @@ export default function ArtifactsPage() {
     groupId,
   });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
-  const agents = useArtifactAgents(!isLoadingPermissions && can(Perm.artifactsView));
+  const { agents, isLoading: agentsLoading } = useArtifactAgents(
+    !isLoadingPermissions && can(Perm.artifactsView),
+  );
   // The role's edit right, as the agents and workflows lists gate their menus:
   // the server still decides each page, and refuses one the caller may not change.
   const canEdit = can(Perm.artifactsEdit);
@@ -128,6 +130,7 @@ export default function ArtifactsPage() {
                 />
                 <AgentFilter
                   agents={agents}
+                  loading={agentsLoading}
                   value={agentId}
                   onChange={(next) => {
                     setAgentId(next);

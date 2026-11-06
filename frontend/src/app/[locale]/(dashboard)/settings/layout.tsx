@@ -1,5 +1,8 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+import { scrollWithin } from "@/lib/scroll-within";
+
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 
@@ -16,7 +19,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const isMemory = pathname.endsWith("/settings/memory");
   const start = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    start.current?.scrollIntoView({ block: "start" });
+    if (start.current) scrollWithin(start.current, "start", glideOrJump());
   }, [pathname]);
   return (
     <div ref={start} className="flex flex-1 scroll-mt-16 flex-col space-y-4 lg:scroll-mt-6">

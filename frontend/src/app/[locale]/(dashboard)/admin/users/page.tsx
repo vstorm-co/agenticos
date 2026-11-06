@@ -63,6 +63,10 @@ export default function AdminUsersPage() {
 
   // Debounced fetch - the server does filtering, sorting, and pagination.
   useEffect(() => {
+    if (!search.trim()) {
+      load(page, search, sort.by, sort.dir);
+      return;
+    }
     const timer = setTimeout(() => {
       load(page, search, sort.by, sort.dir);
     }, 300);

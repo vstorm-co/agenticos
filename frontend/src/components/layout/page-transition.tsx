@@ -1,8 +1,10 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { stripLocale } from "@/lib/active-route";
+import { prefersReducedMotion } from "@/lib/motion";
 import { directionFor } from "@/lib/navigation-direction";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
@@ -39,8 +41,22 @@ const OWN_SCROLL_PANE =
  */
 const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^/]+$/;
 
+// Keep shared layouts mounted: keying the frame by pathname also reset their
+// forms, scroll positions and queries, even when only a sibling tab changed.
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const frame = useRef<HTMLDivElement>(null);
+  const previousPath = useRef(pathname);
+  useLayoutEffect(() => {
+    if (previousPath.current === pathname) return;
+    previousPath.current = pathname;
+    if (prefersReducedMotion()) return;
+    const reveal = frame.current?.animate?.([{ opacity: 0.65 }, { opacity: 1 }], {
+      duration: 160,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    });
+    return () => reveal?.cancel();
+  }, [pathname]);
   const workflowRunPage = /^\/workflows\/(?:runs|[^/]+\/runs(?:\/[^/]+)?)\/?$/.test(
     stripLocale(pathname),
   );
@@ -57,7 +73,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     // the last card at every width (#933). This box grows with its content, so
     // padding here is painted after the last element.
     <div
-      key={pathname}
+      ref={frame}
       data-direction={direction}
       className={cn(
         "page-enter flex flex-1 flex-col",

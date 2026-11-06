@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
+import { scrollWithin } from "@/lib/scroll-within";
 import SettingsLayout from "./layout";
+
+vi.mock("@/lib/scroll-within", () => ({ scrollWithin: vi.fn() }));
+vi.mock("@/lib/motion", () => ({ glideOrJump: () => "smooth" }));
 
 let pathname = "/settings/account";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
@@ -10,9 +14,9 @@ vi.mock("@/components/dashboard/page-header", () => ({
 vi.mock("@/components/dashboard/page-tabs", () => ({ PageTabs: () => <nav /> }));
 
 it("returns to the settings heading when the section changes, preserving the memory page title", () => {
-  const scroll = vi.fn();
+  const scroll = vi.mocked(scrollWithin);
   const previous = HTMLElement.prototype.scrollIntoView;
-  HTMLElement.prototype.scrollIntoView = scroll;
+
   try {
     const { rerender } = render(
       <SettingsLayout>
@@ -20,7 +24,7 @@ it("returns to the settings heading when the section changes, preserving the mem
       </SettingsLayout>,
     );
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
-    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+    expect(scroll).toHaveBeenCalledWith(expect.any(HTMLElement), "start", "smooth");
     scroll.mockClear();
     pathname = "/settings/memory";
     rerender(
