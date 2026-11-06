@@ -332,7 +332,9 @@ class KnowledgeBaseService:
         such a writer left it: no base on it, a claim refused except to an app admin
         or the organization the chunks left all belong to, and `rag-drop` to remove
         it. `force_drop` is that operator's override, so a `rag-drop` of a held name
-        still drops the table.
+        still drops the table. An unfiled write holds the name through its commit
+        (`insert_document`), so the table is asked after any such write in flight,
+        and one that comes after a drop is decided is refused by the reservation.
 
         When the table does go, another tenant's unfiled rows under the name stay
         with their files - the caller holds no authority over them, so what happens

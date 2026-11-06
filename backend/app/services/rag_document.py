@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.vector_tables import VectorScope
@@ -180,8 +179,7 @@ class RAGDocumentService:
         The teardown uses this lock before reserving a name and deleting its rows.
         A CLI insert therefore either precedes that delete or observes its tombstone.
         """
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
-        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+        if not await collection_teardown_repo.hold_unreserved(self.db, collection_name):
             raise BadRequestError(
                 message="Collection is being deleted. Try again shortly.",
                 details={"collection": collection_name},

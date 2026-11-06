@@ -1,5 +1,5 @@
 ---
-source_sha: "e5b97820e421"
+source_sha: "64a66e5123ec"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1077,6 +1077,11 @@ Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki 
 `rag-ingest`: nie ma jej żadna baza, usuwa ją `rag-drop <name>`, a `claim` odrzuca ją
 wszystkim poza administratorem aplikacji i organizacją, której chunki są jedynymi, jakie
 zostały ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Zapis fragmentów bez bazy trzyma nazwę do swojego zatwierdzenia, więc tabela jest
+sprawdzana dopiero po zakończeniu każdego takiego zapisu, który już trwa. Zapis, który
+przyjdzie po decyzji o usunięciu tabeli, jest odrzucany i plik trzeba zaindeksować
+ponownie.
 
 Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
 chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez

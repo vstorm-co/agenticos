@@ -1019,6 +1019,10 @@ leaves it: no base holds it, `rag-drop <name>` removes it, and `claim` refuses i
 everyone but an app admin and an organization whose chunks are all that remain
 ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
+A chunk write with no base holds the name until it commits, so the table is asked only
+after any such write already running has finished. A write that comes after the drop is
+decided is refused, and the file has to be ingested again.
+
 A personal base outside an organization takes no unfiled chunk, though a chunk its own
 rows name goes with it. A legacy chunk with no base, no organization and no row cannot
 be told from an operator's: it keeps the table too, stays until `rag-drop <name>`, and

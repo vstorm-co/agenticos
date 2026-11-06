@@ -33,7 +33,7 @@ from app.db.vector_tables import (
     is_runtime_vector_table,
     validate_collection_name,
 )
-from app.repositories import knowledge_base_repo, rag_document_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.filters import AppScope, RetrievalQuery, RetrievalScope, TenantScope
 from app.services.rag.models import (
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseRemovedError(NotFoundError):
-    """The knowledge base or tracked document is gone; no chunks were inserted."""
+    """The base, the tracked document or the table is going; no chunks were inserted."""
 
 
 def _document_is_unaddressed(doc: DocumentInfo) -> bool:
@@ -889,10 +889,17 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
-            # In this transaction, before the rows: see `hold_key_share` (#2561).
-            if scope.knowledge_base_id is not None and not await knowledge_base_repo.hold_key_share(
-                session, scope.knowledge_base_id
-            ):
+            if scope.knowledge_base_id is None:
+                # No base row to hold, and a CLI sync has no tracking row either, so
+                # the name is what a last holder's teardown waits on before it asks
+                # the table what is in it (#2747). Taken first, as a teardown takes it.
+                if not await collection_teardown_repo.hold_unreserved(session, collection_name):
+                    raise KnowledgeBaseRemovedError(
+                        message="The collection is being deleted",
+                        details={"collection": collection_name},
+                    )
+            elif not await knowledge_base_repo.hold_key_share(session, scope.knowledge_base_id):
+                # In this transaction, before the rows: see `hold_key_share` (#2561).
                 raise KnowledgeBaseRemovedError(
                     message="The knowledge base was deleted while this file was being indexed",
                     details={
@@ -913,8 +920,8 @@ class PgVectorStore(BaseVectorStore):
                     message="The document was cleared while this file was being indexed",
                     details={"collection": collection_name},
                 )
-            # Both target locks remain held through creation and the chunk commit,
-            # so a completed teardown cannot be followed by an empty replacement.
+            # The target locks remain held through creation and the chunk commit, so
+            # a completed teardown cannot be followed by an empty replacement.
             await self._ensure_collection(collection_name)
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False

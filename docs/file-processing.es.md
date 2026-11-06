@@ -1,5 +1,5 @@
 ---
-source_sha: "e5b97820e421"
+source_sha: "64a66e5123ec"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1102,6 +1102,11 @@ Salvo en una base por defecto, que sigue en el nombre, este queda como lo deja
 `rag-ingest`: ninguna base lo tiene, `rag-drop <name>` lo elimina y `claim` lo rechaza a
 todos menos a un administrador de la aplicación y a una organización cuyos fragmentos
 son los únicos que quedan ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Una escritura de fragmentos sin base retiene el nombre hasta su commit, así que la tabla
+se consulta solo cuando ha terminado cualquier escritura de ese tipo que ya estuviera en
+curso. Una escritura que llega después de decidirse la eliminación se rechaza, y el
+archivo debe ingerirse de nuevo.
 
 Una base personal fuera de una organización no toma ningún fragmento sin asignar,
 aunque un fragmento que nombran sus propias filas se va con ella. Un fragmento antiguo

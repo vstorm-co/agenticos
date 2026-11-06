@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.locks import LockScope, hold_name
 from app.db.models.collection_teardown import CollectionTeardown
 
 
@@ -30,6 +31,18 @@ async def is_reserved(db: AsyncSession, collection_name: str) -> bool:
         )
     )
     return result.scalar_one_or_none() is not None
+
+
+async def hold_unreserved(db: AsyncSession, collection_name: str) -> bool:
+    """Hold a name until this transaction ends, and say whether it is free to write to.
+
+    For a writer no base row serializes against a teardown. A teardown holds the
+    name while it decides on the drop and reserves it, so a writer holding it
+    commits before that decision is made, and one that comes after finds the
+    reservation. False means the table is about to go, with the name still held.
+    """
+    await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection_name)
+    return not await is_reserved(db, collection_name)
 
 
 async def release(db: AsyncSession, collection_name: str) -> None:

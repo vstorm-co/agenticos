@@ -34,6 +34,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     conversation_repo,
     knowledge_base_repo,
@@ -52,7 +53,7 @@ from app.services.rag.models import (
     DocumentPageChunk,
     IngestionStatus,
 )
-from app.services.rag.vectorstore import PgVectorStore
+from app.services.rag.vectorstore import KnowledgeBaseRemovedError, PgVectorStore
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -2632,4 +2633,122 @@ class TestALastHolderLeavesContentThatIsNotItsOwn:
         finally:
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+
+async def _waiting_on_a_lock_or_done(engine: AsyncEngine, task: asyncio.Task[None]) -> None:
+    """Return once `task` has ended or a session of this database waits on a lock."""
+    while not task.done():
+        async with engine.connect() as connection:
+            waiting = await connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+                )
+            )
+        if waiting:
+            return
+        await asyncio.sleep(0.02)
+
+
+class TestAnUnfiledWriteInFlightAtTheTeardown:
+    """The last holder's probe reads committed chunks, so a write still open when it
+    ran was invisible to it: the teardown chose the drop, and the job dropped the
+    chunks that committed a moment later. An unfiled write holds the name through its
+    commit, so the probe waits for it, and one that comes after a drop is decided is
+    refused rather than written into a table about to go (#2747)."""
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("tracked", [True, False], ids=["rag-ingest", "rag-sync"])
+    async def test_the_teardown_waits_for_it_and_keeps_its_table(
+        self, engine: AsyncEngine, tracked: bool
+    ) -> None:
+        from app.repositories import collection_teardown_repo
+
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbflight{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            row = _kb_document(collection, None, None, "")
+            row.status = DocumentStatus.PROCESSING.value
+            if tracked:
+                s.add(row)
+            await s.commit()
+
+        writing, resume = asyncio.Event(), asyncio.Event()
+        ensure = store._ensure_collection
+
+        async def ensure_then_pause(name: str) -> None:
+            await ensure(name)
+            writing.set()
+            await resume.wait()
+
+        operators = _parsed("operator")
+        operators.metadata.rag_document_id = row.id if tracked else None
+
+        async def tear_down() -> None:
+            async with factory() as s:
+                await _tear_down(s, "kb_delete", base.id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+        try:
+            await store.insert_document(collection, _parsed("member"), base.vector_scope)
+            store._ensure_collection = ensure_then_pause  # type: ignore[method-assign]
+            write = asyncio.create_task(
+                store.insert_document(collection, operators, VectorScope(tenant=None))
+            )
+            await asyncio.wait_for(writing.wait(), 10)
+            teardown = asyncio.create_task(tear_down())
+            await asyncio.wait_for(_waiting_on_a_lock_or_done(engine, teardown), 10)
+            resume.set()
+            await asyncio.wait_for(asyncio.gather(write, teardown), 30)
+
+            async with factory() as s:
+                assert await _table_exists(s, table)
+                assert (await s.execute(text(f"SELECT content FROM {table}"))).scalars().all() == [  # noqa: S608
+                    "operator"
+                ]
+                assert not await collection_teardown_repo.is_reserved(s, collection)
+                if tracked:
+                    kept = await s.get(RAGDocument, row.id)
+                    assert kept is not None
+                    assert kept.status == DocumentStatus.PROCESSING.value
+        finally:
+            resume.set()
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_a_write_after_the_drop_was_decided_is_refused(self, engine: AsyncEngine) -> None:
+        """Between the commit and the job the name is reserved, and a write with no
+        row to refuse it would land in the table the job then drops, reported done."""
+        from app.repositories import collection_teardown_repo
+
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbflight{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            await collection_teardown_repo.reserve(s, collection)
+            await s.commit()
+
+        try:
+            with pytest.raises(KnowledgeBaseRemovedError, match="being deleted"):
+                await store.insert_document(collection, _parsed("late"), VectorScope(tenant=None))
+            assert not await store._collection_exists(collection)
+        finally:
+            async with factory() as s:
+                await collection_teardown_repo.release(s, collection)
+                await s.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
                 await s.commit()

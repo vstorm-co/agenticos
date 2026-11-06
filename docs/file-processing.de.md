@@ -1,5 +1,5 @@
 ---
-source_sha: "e5b97820e421"
+source_sha: "64a66e5123ec"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1152,6 +1152,11 @@ Außer bei einer Standardbasis, die auf dem Namen bleibt, ist der Name so, wie
 `rag-ingest` ihn hinterlässt: Keine Basis hält ihn, `rag-drop <name>` entfernt ihn, und
 `claim` lehnt ihn für alle ab außer einem App-Admin und einer Organisation, deren Chunks
 als einzige übrig sind ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Ein Chunk-Schreibvorgang ohne Basis hält den Namen bis zu seinem Commit. Die Tabelle wird
+deshalb erst geprüft, wenn jeder bereits laufende Schreibvorgang dieser Art beendet ist.
+Ein Schreibvorgang, der nach der Entscheidung für das Löschen kommt, wird abgelehnt, und
+die Datei muss erneut indexiert werden.
 
 Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
 Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne
