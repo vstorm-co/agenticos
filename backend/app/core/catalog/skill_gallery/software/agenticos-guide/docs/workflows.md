@@ -101,7 +101,7 @@ connection that sets the order: the step it points to runs after the one it leav
 Each node is a card with the step's icon, its name and one line under it: what it
 is set up to do - a condition, a URL, the number of mapped fields - after the
 agent, model or table it works with. A step with more than one way
-out lists its ports by name: **true** and **false**, **Each item** and **Done**,
+out lists its ports by name: **true** and **false**, a loop's **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
 publish carries a setup mark (red after testing or publishing): hovering lists the first items, and clicking it
 opens the step.
@@ -158,10 +158,11 @@ connects a server. An app's action rows are picked, not dragged: only
 the step's own rows can be dragged onto the canvas.
 
 A new step never lands on top of another, is selected, opens its settings when it
-has any, and the canvas scrolls to it when it falls outside the view. Inside a
-loop's body every new step is wired into the body, so it stays there. The picker
-shows what is valid where you are: **Loop item** and **Loop result** only inside a
-loop's body, and a loop until loops are nested as deep as publishing allows.
+has any, and the canvas scrolls to it when it falls outside the view. A step added
+or pasted inside a loop's body belongs to that body, wired after the last step with
+an output free or, when none has one, left for you to wire. A new loop already holds
+its **Loop item** and **Loop result**, so the picker never offers them; it offers a
+loop until loops are nested as deep as publishing allows.
 
 Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
 **Delete step**. With several steps selected, a bar at the bottom deletes them together.
@@ -499,9 +500,14 @@ loop body** on the step, which says how many steps the body holds, enters that
 view, and the **Workflow scope** breadcrumb in the canvas's corner shows where you
 are, from **Workflow** down to the loop you opened. Each crumb navigates back out.
 
-A body starts at **Loop item**, which the loop's **Each item** port connects to,
-and ends at **Loop result**; nothing in it connects back to the loop, which
-continues through **Done** once every item has been through the body. The step picker and the binding sources follow the scope you are in, and a step in a body may read
+A body starts at **Loop item** and ends at **Loop result**. Every step remembers
+the loop it belongs to, so removing a wire never moves a step out of a body; a step
+**Loop item** does not lead to is reported until you connect it. No wire runs from
+the loop into its body or back to the loop, which continues through **Done** once
+every item has been through the body. **Loop item** and **Loop result** go only with
+their loop: deleting the loop deletes its whole body, and copying it copies the body.
+
+The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
 [node reference](reference/workflow-nodes.md#loops).
 

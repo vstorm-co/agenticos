@@ -1,5 +1,5 @@
 ---
-source_sha: "102f4da698e8"
+source_sha: "850fc8b768bf"
 ---
 
 # Workflows { #workflows }
@@ -111,7 +111,7 @@ que sale.
 Cada nodo es una tarjeta con el icono del paso, su nombre y una línea debajo: lo que
 está configurado para hacer - una condición, una URL, el número de campos mapeados -
 y, antes, el agente, el modelo o la tabla con los que trabaja. Un paso con más de una
-salida nombra sus puertos: **true** y **false**, **Each item** y **Done**, y un
+salida nombra sus puertos: **true** y **false**, el **Done** de un bucle, y un
 puerto **Error** rojo en un paso que gestiona sus errores. Un paso que bloquea la
 publicación lleva una marca de configuración (roja tras intentar probar o publicar): al pasar el ratón por encima lista los primeros
 problemas, y un clic abre el paso.
@@ -169,11 +169,12 @@ el workflow ve solo los triggers. Quien lo edita pero no gestiona servidores MCP
 solo las filas propias de un paso se pueden arrastrar al lienzo.
 
 Un paso nuevo nunca cae encima de otro, queda seleccionado, abre sus ajustes cuando
-tiene alguno, y el lienzo se desplaza hasta él cuando queda fuera de la vista. Dentro
-del cuerpo de un bucle cada paso nuevo se conecta al cuerpo, así que se queda ahí. El
-selector muestra lo que es válido donde estás: **Loop item** y **Loop result** solo
-dentro del cuerpo de un bucle, y un bucle mientras los bucles no estén anidados tan
-hondo como permite la publicación.
+tiene alguno, y el lienzo se desplaza hasta él cuando queda fuera de la vista. Un
+paso añadido o pegado dentro del cuerpo de un bucle pertenece a ese cuerpo: se
+conecta tras el último paso con una salida libre o, si ninguno la tiene, queda
+pendiente de conectar. Un bucle nuevo ya trae su **Loop item** y su **Loop result**,
+así que el selector nunca los ofrece; ofrece un bucle mientras los bucles no estén
+anidados tan hondo como permite la publicación.
 
 Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off** y
 **Delete step**. Con varios pasos seleccionados, una barra abajo los borra juntos.
@@ -525,9 +526,15 @@ entra en esa vista, y las migas **Workflow scope** en la esquina del lienzo mues
 dónde estás, desde **Workflow** hasta el bucle que abriste. Cada miga vuelve hacia
 fuera.
 
-Un cuerpo empieza en **Loop item**, al que se conecta el puerto **Each item**
-del bucle, y termina en **Loop result**; nada en él vuelve al bucle, que continúa por
-**Done** cuando cada elemento ha pasado por el cuerpo. El selector de pasos y las fuentes de binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
+Un cuerpo empieza en **Loop item** y termina en **Loop result**. Cada paso recuerda
+el bucle al que pertenece, así que quitar una conexión nunca saca un paso de un
+cuerpo; un paso al que **Loop item** no lleva se señala hasta que lo conectes.
+Ninguna conexión va del bucle a su cuerpo ni del cuerpo de vuelta al bucle, que
+continúa por **Done** cuando cada elemento ha pasado por el cuerpo. **Loop item** y
+**Loop result** solo desaparecen con su bucle: borrar el bucle borra todo su cuerpo,
+y copiarlo copia el cuerpo.
+
+El selector de pasos y las fuentes de binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
 cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 [referencia de nodos](reference/workflow-nodes.md#loops).
 

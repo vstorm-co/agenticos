@@ -1,5 +1,5 @@
 ---
-source_sha: "a380a5b5a5cd"
+source_sha: "c9c91f40a6b7"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1035,10 +1035,13 @@ rewizji albo błąd walidacji można skierować, ale nigdy nie jest ponawiany na
 
 `control.foreach` uruchamia swoje ciało raz dla każdego elementu zbindowanej
 listy `items`, po jednym elemencie i po kolei. Potem idzie dalej portem `done` z
-`results` w kolejności wejścia, `errors` i `count`. Ciało zaczyna się od
-`loop.item`, podłączonego z portu `body` pętli, który udostępnia `item`, `index`
-i `count`. Kończy się na `loop.yield`, którego zbindowane `value` jest wynikiem
-iteracji. Żadna krawędź nie prowadzi z powrotem do pętli. Krok w ciele może
+`results` w kolejności wejścia, `errors` i `count`. Ciało to kroki, które wskazują
+pętlę w `scope_id`; żadna krawędź do niego nie prowadzi. Zaczyna się od
+`loop.item`, który udostępnia `item`, `index` i `count`, a do każdego kroku ciała
+musi prowadzić z `loop.item` ścieżka po krawędziach samego ciała. Kończy się na `loop.yield`, którego zbindowane `value` jest wynikiem
+iteracji.
+
+Żadna krawędź nie prowadzi z powrotem do pętli. Krok w ciele może
 bindować do wszystkiego, co działało przed pętlą, a nic spoza ciała nie może
 bindować do jego wnętrza.
 
