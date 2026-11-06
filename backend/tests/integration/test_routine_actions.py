@@ -1116,3 +1116,27 @@ async def test_publisher_routine_does_not_offer_a_persons_unreviewed_mcp_account
         world.ctx, world.trigger, world.spec
     )
     assert options == [] and unavailable == []
+
+
+@pytest.mark.parametrize("purpose,enabled", [("mcp", False), ("account", True)])
+async def test_mcp_action_review_omits_disabled_and_account_only_connections(
+    db: AsyncSession, world: World, purpose: str, enabled: bool
+) -> None:
+    from app.agents.spec import OrgMcpServerRef
+
+    connection = McpConnection(
+        scope="org",
+        purpose=purpose,
+        organization_id=world.org.id,
+        name="Unavailable work account",
+        url="https://service.example/mcp",
+        is_enabled=enabled,
+        last_tools=[{"name": "write", "description": "Write", "inputSchema": {"type": "object"}}],
+    )
+    db.add(connection)
+    await db.flush()
+    world.spec.mcp_servers = [OrgMcpServerRef(connection_id=connection.id)]
+    options, unavailable = await RoutineActionService(db)._mcp_options(
+        world.ctx, world.trigger, world.spec
+    )
+    assert options == [] and unavailable == []

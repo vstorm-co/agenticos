@@ -256,3 +256,18 @@ async def test_matching_mcp_account_without_reviewed_tools_cannot_lend_authority
     )
     with pytest.raises(RoutineSourcesRequired):
         await authority._mcp_in(AsyncMock(), McpToolOrigin(connection, identity, "write"))
+
+
+async def test_watch_authority_does_not_apply_a_trigger_project_binding():
+    from app.services.routine_authority import RoutineAuthority
+
+    authority = RoutineAuthority(
+        routine_id=uuid4(),
+        organization_id=uuid4(),
+        user_id=uuid4(),
+        root_agent_id=uuid4(),
+        role="owner",
+        acts_as_creator=False,
+        routine_kind="watch",
+    )
+    authority.require_project(None)
