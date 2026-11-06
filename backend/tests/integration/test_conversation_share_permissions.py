@@ -76,3 +76,41 @@ async def test_a_changed_share_reads_back_with_its_new_permission(db: AsyncSessi
     assert await conversation_share_repo.share_permissions(
         db, user_id=reader.id, conversation_ids=[conversation.id]
     ) == {conversation.id: "edit"}
+
+
+@pytest.mark.security
+async def test_the_shared_list_holds_only_the_named_organizations(db: AsyncSession) -> None:
+    """A reader in two organizations sees, in each, only that one's shares."""
+    from app.db.models.organization import OrganizationMember
+
+    owner, reader = await _user(db), await _user(db)
+    conversations = []
+    for name in ("Acme", "Globex"):
+        organization = Organization(
+            name=name, slug=f"{name.lower()}-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+        )
+        db.add(organization)
+        await db.flush()
+        db.add(OrganizationMember(organization_id=organization.id, user_id=reader.id))
+        conversation = Conversation(
+            user_id=owner.id, organization_id=organization.id, title=f"{name} plan"
+        )
+        db.add(conversation)
+        await db.flush()
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=reader.id
+        )
+        conversations.append(conversation)
+    acme, globex = conversations
+
+    listed = await conversation_share_repo.get_conversations_shared_with_user(
+        db, reader.id, organization_id=acme.organization_id
+    )
+
+    assert [c.id for c in listed] == [acme.id]
+    assert (
+        await conversation_share_repo.count_conversations_shared_with_user(
+            db, reader.id, organization_id=globex.organization_id
+        )
+        == 1
+    )

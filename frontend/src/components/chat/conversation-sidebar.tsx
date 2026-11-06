@@ -86,7 +86,7 @@ function ConversationItem({
   onShare,
   onFavourite,
   shared = false,
-  onLeave = () => undefined,
+  onLeave,
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
@@ -300,7 +300,7 @@ function ConversationItem({
                   className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onLeave();
+                    onLeave?.();
                     setShowMenu(false);
                   }}
                 >

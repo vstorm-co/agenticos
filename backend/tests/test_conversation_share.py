@@ -193,11 +193,20 @@ async def test_a_thread_shared_with_you_says_whether_you_starred_it(
         conv_repo.favourite_ids = AsyncMock(return_value={mine})
         named = AsyncMock()
 
-        with patch(f"{MODULE}.ConversationService.attach_agents", new=named):
-            items, total = await service.list_shared_with_me(reader)
+        with patch(f"{MODULE}.ConversationService.attach_listing_state", new=named):
+            items, total = await service.list_shared_with_me(reader, organization_id=ORG)
 
-        # Each row names who it is with, as the reader's own list does.
+        # Each row reads as the reader's own list does: agents, a run at work, unseen answers.
         assert [item.id for item in named.await_args.args[0]] == [mine, theirs]
+        assert named.await_args.kwargs == {"user_id": reader}
+        # Only the active organization's shares.
+        assert (
+            share_repo.get_conversations_shared_with_user.await_args.kwargs["organization_id"]
+            == ORG
+        )
+        assert share_repo.count_conversations_shared_with_user.await_args.kwargs == {
+            "organization_id": ORG
+        }
 
         assert total == 2
         assert [item.is_favourite for item in items] == [True, False]
@@ -477,9 +486,10 @@ async def test_leaving_ends_only_the_readers_own_share(service: ConversationShar
     ):
         share_repo.get_share = AsyncMock(return_value=share)
         share_repo.delete = AsyncMock(return_value=True)
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(uuid.uuid4()))
         conv_repo.set_favourite = AsyncMock()
 
-        await service.leave(conversation_id, reader)
+        await service.leave(conversation_id, reader, organization_id=ORG)
 
     share_repo.get_share.assert_awaited_once_with(service.db, conversation_id, reader)
     share_repo.delete.assert_awaited_once_with(service.db, share.id)
@@ -491,15 +501,25 @@ async def test_leaving_ends_only_the_readers_own_share(service: ConversationShar
 
 
 @pytest.mark.anyio
-async def test_leaving_a_conversation_never_shared_with_you_is_refused(
-    service: ConversationShareService,
+@pytest.mark.security
+@pytest.mark.parametrize("found", ["no share", "another organization"])
+async def test_leaving_a_conversation_never_shared_with_you_here_is_refused(
+    service: ConversationShareService, found: str
 ):
-    with patch(f"{MODULE}.conversation_share_repo") as share_repo:
-        share_repo.get_share = AsyncMock(return_value=None)
+    """The leave route acts in the active organization, as the list it was picked from."""
+    conversation = _conversation(uuid.uuid4())
+    if found == "another organization":
+        conversation.organization_id = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+    ):
+        share_repo.get_share = AsyncMock(return_value=None if found == "no share" else MagicMock())
         share_repo.delete = AsyncMock()
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
 
         with pytest.raises(NotFoundError):
-            await service.leave(uuid.uuid4(), uuid.uuid4())
+            await service.leave(uuid.uuid4(), uuid.uuid4(), organization_id=ORG)
 
     share_repo.delete.assert_not_awaited()
 

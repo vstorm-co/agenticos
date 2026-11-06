@@ -35,11 +35,11 @@ def upgrade() -> None:
         "conversations",
         sa.Column("forked_from_message_id", postgresql.UUID(as_uuid=True), nullable=True),
     )
-    op.create_index(
-        op.f("conversations_forked_from_conversation_id_idx"),
-        "conversations",
-        ["forked_from_conversation_id"],
-    )
+    for column in ("forked_from_conversation_id", "forked_from_message_id"):
+        # Indexed for the `SET NULL` as much as for reading: deleting a
+        # conversation deletes its messages, and each has to find the forks
+        # naming it.
+        op.create_index(op.f(f"conversations_{column}_idx"), "conversations", [column])
     op.create_foreign_key(
         op.f("conversations_forked_from_conversation_id_fkey"),
         "conversations",
@@ -65,6 +65,7 @@ def downgrade() -> None:
     op.drop_constraint(
         op.f("conversations_forked_from_conversation_id_fkey"), "conversations", type_="foreignkey"
     )
-    op.drop_index(op.f("conversations_forked_from_conversation_id_idx"), table_name="conversations")
+    for column in ("forked_from_message_id", "forked_from_conversation_id"):
+        op.drop_index(op.f(f"conversations_{column}_idx"), table_name="conversations")
     op.drop_column("conversations", "forked_from_message_id")
     op.drop_column("conversations", "forked_from_conversation_id")

@@ -417,6 +417,11 @@ describe("what the sidebar says about the list", () => {
 
     expect(within(row).queryByRole("button", { name: "Rename" })).toBeNull();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+
+    // Nor a click on the menu itself, between its items.
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(within(row).getByRole("button", { name: "Rename" }).parentElement!);
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
   it("takes a shared thread out of the reader's chats, and closes it if it was open", async () => {
@@ -454,6 +459,17 @@ describe("what the sidebar says about the list", () => {
       expect(toast.error).toHaveBeenCalledWith("Failed to remove the conversation"),
     );
     expect(useConversationStore.getState().currentConversationId).toBe("c-shared");
+  });
+
+  it("leaves out a shared thread its owner archived", async () => {
+    shared = [
+      conversation("c-live", "Their live plan"),
+      { ...conversation("c-old", "Their old plan"), is_archived: true },
+    ];
+    mount();
+    await screen.findAllByText("Their live plan");
+
+    expect(within(list()).queryByText("Their old plan")).toBeNull();
   });
 
   it("leaves the shared heading out of the archive and out of an agent filter", async () => {

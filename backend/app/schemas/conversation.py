@@ -585,8 +585,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
     share_permission: Literal["view", "edit"] | None = Field(
         default=None,
         description=(
-            "On `GET /conversations/shared-with-me`: what the share lets the caller do - "
-            "`view` to read, `edit` to write in it too. Null everywhere else."
+            "What the caller's share of somebody else's conversation lets them do - "
+            "`view` to read, `edit` to write in it too. Set on "
+            "`GET /conversations/shared-with-me` and on a single conversation's read; "
+            "null for the owner and for anyone reading it another way."
         ),
     )
     forked_from: ConversationForkOrigin | None = Field(

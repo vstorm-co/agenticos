@@ -25,12 +25,14 @@ Two things are versioned separately from this file and worth knowing about:
   under an agent's answer opens a new conversation of your own, in the same
   project, holding the history up to and including that answer, so you can try
   another approach or take a side question elsewhere without changing the
-  original. Only the owner can fork; the fork copies messages and tool calls,
-  not attachment or workspace files, generated images, cost or runs. Its **Forked from** line
+  original. Only the owner can fork, up to ten a minute; the fork copies
+  messages, tool calls and a long conversation's summary, not attachment or
+  workspace files, generated images, cost or runs. Its **Forked from** line
   is shown only to you. `POST /conversations/{id}/fork` does the same over the
   API. See [the console guide](docs/console.md#forking).
 - **Conversations shared with you, in the chat sidebar.** They sit under
-  **Shared with you**, below your favourites; until now a conversation shared
+  **Shared with you**, below your favourites, for the organization you are in,
+  with their agents, unread dots and running state; until now a conversation shared
   with you could only be opened by its link. Renaming, sharing, archiving and
   deleting stay the owner's; their menu holds **Remove from my chats**, which
   ends your own access (`DELETE /conversations/{id}/shared-with-me`).

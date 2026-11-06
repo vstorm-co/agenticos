@@ -941,10 +941,14 @@ async def fork_conversation(
     them to files they cannot open. A reply to a message that was not copied
     loses its target.
 
-    The rows the model's history is rebuilt from are copied whole, but the
-    source's summary is not: it is keyed to the source's ordinals. A fork of a
-    summarised conversation rebuilds its history from the copied turns and
-    summarises again when it needs to.
+    The source's summary comes too when it ends at or before the fork point:
+    a long conversation replays its summary and the turns after it, and
+    without it the fork's model would read only the recent window of turns
+    and lose everything older. It is re-anchored on the copy of the last turn
+    it covers, since ordinals are new. Media the summary moved out of the
+    history stay keyed to the source, so the fork's model reads those as
+    references rather than files. A summary that reaches past the fork point
+    covers turns the fork does not have, and is left behind.
     """
     fork = Conversation(
         user_id=source.user_id,
@@ -1006,6 +1010,22 @@ async def fork_conversation(
         db.add(copy)
         await db.flush()
         copied[original.id] = copy.id
+    summary, summary_ordinal = (
+        await db.execute(
+            select(Conversation.summary_messages, Conversation.summary_ordinal).where(
+                Conversation.id == source.id
+            )
+        )
+    ).one()
+    if summary is not None and summary_ordinal is not None and summary_ordinal <= through.ordinal:
+        covered = [original.id for original in originals if original.ordinal <= summary_ordinal]
+        fork.summary_messages = summary
+        fork.summary_ordinal = (
+            await db.scalar(select(Message.ordinal).where(Message.id == copied[covered[-1]]))
+            if covered
+            else 0
+        )
+        await db.flush()
     await db.refresh(fork)
     return fork
 

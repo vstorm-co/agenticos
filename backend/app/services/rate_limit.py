@@ -272,6 +272,21 @@ def ml_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
 
 
+FORKS_PER_MINUTE = 10
+"""How many conversations one member may fork in one organization, per minute."""
+
+
+def fork_limit() -> Limit:
+    """What one member may fork in one organization, per minute.
+
+    A fork is a small request that stores a copy of a whole conversation, so the
+    thing rationed is how fast one member can grow the shared database by forking
+    the same long thread again and again. Ten a minute is far past what somebody
+    trying approaches by hand does.
+    """
+    return Limit(attempts=FORKS_PER_MINUTE)
+
+
 def table_write_limit() -> Limit:
     """What one member may write to Virtual Tables in one organization, per minute.
 

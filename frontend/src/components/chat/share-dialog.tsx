@@ -179,8 +179,8 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   };
 
   const [changingId, setChangingId] = useState<string | null>(null);
+  // Radix calls this only for a level other than the one shown, so every call is a change.
   const handleChange = async (share: ConversationShare, next: Permission) => {
-    if (next === share.permission) return;
     setChangingId(share.id);
     try {
       await changePermission(conversationId, share.id, next);

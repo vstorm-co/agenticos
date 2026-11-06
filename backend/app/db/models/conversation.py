@@ -97,6 +97,9 @@ class Conversation(Base, TimestampMixin):
         # needs one of the two keys added after both tables exist.
         ForeignKey("messages.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
+        # Deleting a message has to find the forks naming it; unindexed, every
+        # message of a deleted conversation scanned the whole table.
+        index=True,
     )
     """The answer of the source conversation the fork's copied history ends with."""
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

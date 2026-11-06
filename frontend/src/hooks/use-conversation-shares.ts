@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores/org-store";
 import type {
   Conversation,
   ConversationListResponse,
@@ -25,15 +26,58 @@ const SHARED_IN_SIDEBAR = 50;
  * reachable only by its link.
  */
 export function useSharedConversations(enabled: boolean): Conversation[] {
+  // The active organization's shares: the request carries its header, and the
+  // key has to change with it or a switch shows the last organization's list.
+  const orgId = useOrgStore((state) => state.activeOrgId);
   const { data } = useQuery({
-    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR),
+    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId),
     queryFn: () =>
       apiClient.get<ConversationListResponse>(
         `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}`,
       ),
     enabled,
   });
-  return enabled ? (data?.items ?? []) : [];
+  // An archived thread is its owner's to bring back; it is no conversation to
+  // continue, so it is not offered beside the active ones.
+  return useMemo(
+    () => (enabled ? (data?.items ?? []).filter((conversation) => !conversation.is_archived) : []),
+    [enabled, data],
+  );
+}
+
+/** What the reader may do in an open conversation, once it is known. */
+export interface ConversationAccess {
+  /** Whether the answer has arrived; until it has, nothing should be written. */
+  known: boolean;
+  archived: boolean;
+  /** Shared with the reader to view only. */
+  viewOnly: boolean;
+}
+
+/**
+ * Whether the reader may write in a conversation their own listing does not hold.
+ *
+ * Opened by link or from a notice, or past the first page of shares, a thread
+ * has no row to read this from - and a composer offered on a guess is a message
+ * the server then refuses. Asked of the conversation itself, only when needed.
+ * A read that fails restricts nothing: the server still refuses what it must.
+ */
+export function useConversationAccess(
+  conversationId: string | null,
+  enabled: boolean,
+): ConversationAccess {
+  const orgId = useOrgStore((state) => state.activeOrgId);
+  const { data, isError } = useQuery({
+    queryKey: qk.conversationShares.access(conversationId ?? "", orgId),
+    queryFn: () => apiClient.get<Conversation>(`/conversations/${conversationId}/metadata`),
+    enabled: enabled && conversationId !== null,
+    retry: false,
+  });
+  return {
+    known: !enabled || data !== undefined || isError,
+    archived: data?.is_archived === true,
+    viewOnly: data?.share_permission === "view",
+  };
 }
 
 /**

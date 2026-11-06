@@ -15,6 +15,7 @@ from app.api.deps import (
     ProjectSvc,
     VisualSvc,
     WorkspaceSvc,
+    limit_fork,
     require,
 )
 from app.api.responses import content_disposition
@@ -74,11 +75,14 @@ async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx:
 async def list_shared_with_me(
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """List conversations shared with the current user."""
-    items, total = await share_service.list_shared_with_me(current_user.id, skip=skip, limit=limit)
+    """List conversations shared with the current user in the active organization."""
+    items, total = await share_service.list_shared_with_me(
+        current_user.id, organization_id=active_org.id, skip=skip, limit=limit
+    )
     return ConversationList(items=items, total=total)
 
 
@@ -206,7 +210,10 @@ async def get_conversation(
 
 
 @router.post(
-    "/{conversation_id}/fork", response_model=ConversationRead, status_code=status.HTTP_201_CREATED
+    "/{conversation_id}/fork",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_fork)],
 )
 async def fork_conversation(
     conversation_id: UUID,
@@ -224,9 +231,10 @@ async def fork_conversation(
     run records are not copied.
 
     Only the conversation's owner may fork it; anybody else gets 404. `400`
-    when the answer's run is still running or parked on an approval or a
-    question. `forked_from` on the response names the source, and is only ever
-    set for the person who owns both.
+    when a run in the copied history is still running or parked on an
+    approval or a question. `forked_from` on the response names the source, and is only ever
+    set for the person who owns both. `429` past ten forks a minute per member
+    and organization.
     """
     return await conversation_service.fork(
         conversation_id,
@@ -620,13 +628,14 @@ async def leave_shared_conversation(
     conversation_id: UUID,
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ) -> None:
     """Remove a conversation somebody shared with you from your chats.
 
     Ends your own share of it; the conversation and everybody else's access to
-    it stay. `404` when it was not shared with you.
+    it stay. `404` when it was not shared with you in the active organization.
     """
-    await share_service.leave(conversation_id, current_user.id)
+    await share_service.leave(conversation_id, current_user.id, organization_id=active_org.id)
 
 
 @router.get("/{conversation_id}/workspace", response_model=WorkspaceListing)

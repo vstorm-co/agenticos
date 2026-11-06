@@ -261,18 +261,21 @@ class ConversationShareService:
 
         await conversation_share_repo.delete(self.db, share_id)
 
-    async def leave(self, conversation_id: UUID, user_id: UUID) -> None:
+    async def leave(self, conversation_id: UUID, user_id: UUID, *, organization_id: UUID) -> None:
         """Take a conversation somebody shared with this reader out of their chats.
 
         The reader's own share ends; the conversation, and everybody else's
         access to it, stays. Their star on it goes too, so it does not come back
-        to their favourites if it is shared with them again.
+        to their favourites if it is shared with them again. Only in the active
+        organization, as the list it was picked from is.
 
         Raises:
-            NotFoundError: If the conversation was not shared with this reader.
+            NotFoundError: If the conversation was not shared with this reader
+                in this organization.
         """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         share = await conversation_share_repo.get_share(self.db, conversation_id, user_id)
-        if share is None:
+        if share is None or conversation is None or conversation.organization_id != organization_id:
             raise NotFoundError(
                 message="Conversation not shared with you",
                 details={"conversation_id": conversation_id},
@@ -283,28 +286,34 @@ class ConversationShareService:
         )
 
     async def list_shared_with_me(
-        self, user_id: UUID, *, skip: int = 0, limit: int = 50
+        self, user_id: UUID, *, organization_id: UUID, skip: int = 0, limit: int = 50
     ) -> tuple[list, int]:
-        """List conversations shared with the current user.
+        """List the conversations shared with the current user in one organization.
 
-        The star is stamped here too. A thread somebody was *shared* is exactly
+        One organization, the active one: a share from another would open under
+        the wrong organization and fail, and its title has no business on this
+        one's screen.
+
+        Each row carries what the reader's own list does - who it is with,
+        whether a run is at work in it, whether it holds an answer they have
+        not seen - and what the share lets them do. The star is stamped here too. A thread somebody was *shared* is exactly
         the kind they favourite - a shared conversation may be starred by anyone
         who can read it - so a list that answered `false` for every row was
         wrong on the surface where it matters most (#1254).
         """
         items = await conversation_share_repo.get_conversations_shared_with_user(
-            self.db, user_id, skip=skip, limit=limit
+            self.db, user_id, organization_id=organization_id, skip=skip, limit=limit
         )
-        total = await conversation_share_repo.count_conversations_shared_with_user(self.db, user_id)
+        total = await conversation_share_repo.count_conversations_shared_with_user(
+            self.db, user_id, organization_id=organization_id
+        )
         starred = await conversation_repo.favourite_ids(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]
         )
         permissions = await conversation_share_repo.share_permissions(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]
         )
-        # Who each thread is with, as the reader's own list says: without it a
-        # shared row had no face, until opening it borrowed the composer's.
-        await ConversationService(self.db).attach_agents(items)
+        await ConversationService(self.db).attach_listing_state(items, user_id=user_id)
         for item in items:
             item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
             item.share_permission = permissions.get(item.id)  # ty: ignore[unresolved-attribute]

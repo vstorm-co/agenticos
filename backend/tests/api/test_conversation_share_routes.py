@@ -9,7 +9,12 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_conversation_share_service, get_current_user, get_db_session
+from app.api.deps import (
+    get_active_organization,
+    get_conversation_share_service,
+    get_current_user,
+    get_db_session,
+)
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.main import app
@@ -27,9 +32,13 @@ CALLER = SimpleNamespace(
 )
 
 
+ORGANIZATION = SimpleNamespace(id=uuid4())
+
+
 @pytest.fixture
 async def shares() -> AsyncGenerator[AsyncMock]:
     app.dependency_overrides[get_current_user] = lambda: CALLER
+    app.dependency_overrides[get_active_organization] = lambda: ORGANIZATION
     app.dependency_overrides[get_db_session] = lambda: AsyncMock()
     service = AsyncMock()
     app.dependency_overrides[get_conversation_share_service] = lambda: service
@@ -46,7 +55,9 @@ async def test_the_caller_leaves_their_own_share(shares: AsyncMock) -> None:
         response = await client.delete(ENDPOINT)
 
     assert response.status_code == 204
-    shares.leave.assert_awaited_once_with(CONVERSATION_ID, CALLER.id)
+    shares.leave.assert_awaited_once_with(
+        CONVERSATION_ID, CALLER.id, organization_id=ORGANIZATION.id
+    )
 
 
 async def test_a_conversation_never_shared_with_the_caller_is_missing(shares: AsyncMock) -> None:
@@ -82,6 +93,17 @@ async def test_the_owner_changes_a_share_and_gets_it_back(shares: AsyncMock) -> 
     assert response.json()["permission"] == "edit"
     assert shares.change_permission.await_args.args == (CONVERSATION_ID, share_id, CALLER.id)
     assert shares.change_permission.await_args.kwargs == {"permission": "edit"}
+
+
+@pytest.mark.security
+async def test_the_shared_list_is_the_active_organizations(shares: AsyncMock) -> None:
+    shares.list_shared_with_me = AsyncMock(return_value=([], 0))
+
+    async with _client() as client:
+        response = await client.get(f"{settings.API_V1_STR}/conversations/shared-with-me")
+
+    assert response.status_code == 200
+    assert shares.list_shared_with_me.await_args.kwargs["organization_id"] == ORGANIZATION.id
 
 
 @pytest.mark.security

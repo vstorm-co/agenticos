@@ -42,6 +42,14 @@ CALLER = SimpleNamespace(
 ORGANIZATION = SimpleNamespace(id=uuid4())
 
 
+@pytest.fixture(autouse=True)
+def fresh_allowance(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test forks against an allowance of its own; the floor is per process."""
+    from app.services import rate_limit
+
+    monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+
+
 @pytest.fixture
 async def service() -> AsyncGenerator[AsyncMock]:
     app.dependency_overrides[get_current_user] = lambda: CALLER
@@ -115,3 +123,32 @@ async def test_a_fork_needs_an_answer(service: AsyncMock) -> None:
 
     assert response.status_code == 422
     assert service.fork.await_count == 0
+
+
+@pytest.mark.security
+async def test_forking_is_rationed_per_member(
+    service: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each fork stores a copy of a whole conversation from a request a few bytes long,
+    so one member forking the same long thread in a loop must hit a ceiling."""
+    from app.services import rate_limit
+
+    monkeypatch.setattr(rate_limit, "FORKS_PER_MINUTE", 2)
+    service.fork = AsyncMock(
+        return_value=SimpleNamespace(
+            id=uuid4(),
+            title="Pricing",
+            user_id=CALLER.id,
+            organization_id=ORGANIZATION.id,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+        )
+    )
+
+    async with _client() as client:
+        answers = [
+            await client.post(ENDPOINT, json={"message_id": str(ANSWER_ID)}) for _ in range(3)
+        ]
+
+    assert [answer.status_code for answer in answers] == [201, 201, 429]
+    assert service.fork.await_count == 2

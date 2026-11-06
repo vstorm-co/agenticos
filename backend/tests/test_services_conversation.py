@@ -14,7 +14,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemP
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.repositories import conversation_repo
+from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
 from app.services.conversation import ConversationService
 from app.services.message_history import REFUSED_TURN
@@ -2696,6 +2696,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(
             conversation_repo, "favourite_ids", AsyncMock(return_value={conversation.id})
         )
+        monkeypatch.setattr(conversation_share_repo, "get_share", AsyncMock(return_value=None))
         service = ConversationService(AsyncMock())
         monkeypatch.setattr(service, "_may_read", AsyncMock(return_value=True))
 
@@ -2704,6 +2705,52 @@ class TestAFavouriteBelongsToTheReader:
         )
 
         assert read.is_favourite is True
+
+    @pytest.mark.parametrize(
+        ("share", "permission"), [(None, None), ("view", "view"), ("edit", "edit")]
+    )
+    async def test_a_single_read_says_what_the_readers_share_allows(
+        self, monkeypatch, share, permission
+    ):
+        """A thread opened by link or from a notice is not in the reader's own
+        list, so the read itself has to say whether they may write in it."""
+        conversation = MockConversation(user_id=uuid4())
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        monkeypatch.setattr(
+            conversation_share_repo,
+            "get_share",
+            AsyncMock(return_value=None if share is None else MagicMock(permission=share)),
+        )
+        service = ConversationService(AsyncMock())
+        monkeypatch.setattr(service, "_may_read", AsyncMock(return_value=True))
+
+        read = await service.get_conversation(
+            conversation.id, organization_id=TEST_ORG_ID, user_id=uuid4()
+        )
+
+        assert read.share_permission == permission
+
+    @pytest.mark.security
+    async def test_the_owner_reads_no_share_permission(self, monkeypatch):
+        owner = uuid4()
+        conversation = MockConversation(user_id=owner)
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        asked = AsyncMock()
+        monkeypatch.setattr(conversation_share_repo, "get_share", asked)
+        service = ConversationService(AsyncMock())
+
+        read = await service.get_conversation(
+            conversation.id, organization_id=TEST_ORG_ID, user_id=owner
+        )
+
+        assert read.share_permission is None
+        asked.assert_not_awaited()
 
     async def test_a_read_that_only_authorizes_asks_for_no_stars(self, monkeypatch):
         """`GET /conversations/{id}/messages` resolves the conversation through

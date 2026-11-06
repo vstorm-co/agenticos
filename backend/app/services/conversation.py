@@ -391,8 +391,9 @@ class ConversationService:
         eight while each route had to remember. It is turned **off** by the
         callers that use this only to authorize and then discard the row:
         `GET /conversations/{id}/messages` resolves it through `transcript`, which
-        serializes no star. The same flag carries the fork's origin (#2762), which
-        is the reader's as much as the star is.
+        serializes no star. The same flag carries the fork's origin (#2762) and
+        the reader's share permission, which are the reader's as much as the
+        star is.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -445,7 +446,24 @@ class ConversationService:
         if include_favourite:
             await self._attach_favourites([conversation], user_id=user_id)
             await self._attach_fork_origins([conversation], user_id=user_id)
+            await self._attach_share_permission(conversation, user_id=user_id)
         return conversation
+
+    async def _attach_share_permission(
+        self, conversation: Conversation, *, user_id: UUID | None
+    ) -> None:
+        """Say what a reader's share of somebody else's conversation lets them do.
+
+        So a console that opened it by link or from a notification - a thread
+        its own listing does not hold - can tell a reader from a writer before a
+        message is refused. Null for the owner and for anyone reading it
+        another way.
+        """
+        permission = None
+        if user_id is not None and conversation.user_id != user_id:
+            share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
+            permission = share.permission if share is not None else None
+        conversation.share_permission = permission  # ty: ignore[unresolved-attribute]
 
     async def _may_read(
         self, conversation: Conversation, user_id: UUID, *, ctx: AuthContext | None = None
@@ -895,6 +913,18 @@ class ConversationService:
         await self._attach_running(items)
         await self._attach_unread(items, user_id=user_id)
         return items, total
+
+    async def attach_listing_state(
+        self, conversations: Sequence[Conversation], *, user_id: UUID
+    ) -> None:
+        """What a sidebar row shows beyond the row: its agents, a run at work, an unseen answer.
+
+        For a listing assembled elsewhere - the conversations shared with the
+        reader - so its rows read the way the reader's own list does.
+        """
+        await self.attach_agents(conversations)
+        await self._attach_running(conversations)
+        await self._attach_unread(conversations, user_id=user_id)
 
     async def _attach_unread(
         self, conversations: Sequence[Conversation], *, user_id: UUID | None

@@ -208,6 +208,45 @@ class TestTheSidebarListsForks:
         assert by_id[source.id].forked_from is None
 
 
+class TestASummarisedSource:
+    async def test_the_summary_comes_along_re_anchored_on_the_copied_turns(
+        self, db: AsyncSession
+    ) -> None:
+        """Without it the fork's model reads only the recent window and loses everything older."""
+        source = await _source(db)
+        await _turn(db, source, "user", "Old question")
+        summarised = await _turn(db, source, "assistant", "Old answer")
+        await _turn(db, source, "user", "New question")
+        answer = await _turn(db, source, "assistant", "New answer")
+        source.summary_messages = [{"kind": "request", "parts": []}]
+        source.summary_ordinal = summarised.ordinal
+        await db.flush()
+
+        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+
+        copied = await _messages(db, fork.id)
+        assert fork.summary_messages == [{"kind": "request", "parts": []}]
+        assert fork.summary_ordinal == copied[1].ordinal
+        after = await conversation_repo.get_messages_after(
+            db, fork.id, ordinal=fork.summary_ordinal, limit=200
+        )
+        assert [m.content for m in after] == ["New question", "New answer"]
+
+    async def test_a_summary_reaching_past_the_fork_point_stays_behind(
+        self, db: AsyncSession
+    ) -> None:
+        source = await _source(db)
+        answer = await _turn(db, source, "assistant", "Early answer")
+        later = await _turn(db, source, "assistant", "Later answer")
+        source.summary_messages = [{"kind": "request", "parts": []}]
+        source.summary_ordinal = later.ordinal
+        await db.flush()
+
+        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+
+        assert (fork.summary_messages, fork.summary_ordinal) == (None, None)
+
+
 class TestTheForkOutlivesItsSource:
     async def test_deleting_the_source_leaves_the_fork_whole(self, db: AsyncSession) -> None:
         source = await _source(db)

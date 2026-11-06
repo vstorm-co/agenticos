@@ -48,7 +48,7 @@ import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
 import { ForkedFrom } from "./forked-from";
-import { useSharedConversations } from "@/hooks/use-conversation-shares";
+import { useConversationAccess } from "@/hooks/use-conversation-shares";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
@@ -239,19 +239,16 @@ export function ChatContainer({
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
   // An archived conversation is read-only: the backend refuses new messages on
-  // it, so the composer says so instead of letting a send fail server-side.
-  const isArchived =
-    conversations.find((conversation) => conversation.id === currentConversationId)?.is_archived ??
-    false;
-  // So is one somebody shared with the reader to view. The reader's own listing
-  // does not hold it, so it is looked up among the shares only then.
-  const notListed =
-    currentConversationId !== null &&
-    !conversations.some((conversation) => conversation.id === currentConversationId);
-  const viewOnly =
-    useSharedConversations(notListed).find(
-      (conversation) => conversation.id === currentConversationId,
-    )?.share_permission === "view";
+  // it, so the composer says so instead of letting a send fail server-side. So
+  // is one somebody shared with the reader to view. A thread the reader's own
+  // listing does not hold - shared, opened by link or from a notice - is asked
+  // about directly, and the composer waits for the answer.
+  const listed = conversations.find((conversation) => conversation.id === currentConversationId);
+  const notListed = currentConversationId !== null && listed === undefined;
+  const access = useConversationAccess(currentConversationId, notListed);
+  const isArchived = listed?.is_archived ?? access.archived;
+  const viewOnly = notListed && access.viewOnly;
+  const readOnly = isArchived || viewOnly || !access.known;
 
   // The one agent a conversation used, when it used exactly one. Recovered from the
   // conversation rather than the message, which is the only source history has left.
@@ -712,9 +709,18 @@ export function ChatContainer({
   // with view or edit, cannot fork it, so they are not offered the button.
   const ownsOpenConversation = openConversation !== undefined && openConversation.user_id === meId;
   const openId = openConversation?.id;
+  // One fork at a time: each request copies the whole history, and a second
+  // click while the first is copying made a second fork.
+  const forking = useRef(false);
   const handleFork = useCallback(
-    (messageId: string) => {
-      if (openId !== undefined) void forkConversation(openId, messageId);
+    async (messageId: string) => {
+      if (openId === undefined || forking.current) return;
+      forking.current = true;
+      try {
+        await forkConversation(openId, messageId);
+      } finally {
+        forking.current = false;
+      }
     },
     [forkConversation, openId],
   );
@@ -796,7 +802,8 @@ export function ChatContainer({
       isLoadingConversation={
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
-      isArchived={isArchived || viewOnly}
+      isArchived={readOnly}
+      archivedNotice={isArchived}
       viewOnly={viewOnly}
       sendMessage={send}
       steers={steers}
@@ -922,6 +929,8 @@ interface ChatUIProps {
   isArchived?: boolean;
   /** Shared with the reader to view: read-only for the same reason an archived thread is. */
   viewOnly?: boolean;
+  /** The thread really is archived, as against read-only for another reason. */
+  archivedNotice?: boolean;
   sendMessage: (
     content: string,
     fileIds?: string[],
@@ -1004,6 +1013,7 @@ function ChatUI({
   isLoadingConversation,
   isArchived,
   viewOnly = false,
+  archivedNotice = isArchived,
   sendMessage,
   onModelProfileChange,
   onApprovalModeChange,
@@ -1654,7 +1664,7 @@ function ChatUI({
                               !compact && "sm:px-4 sm:pt-4 sm:pb-1",
                             )}
                           >
-                            {isArchived && (
+                            {archivedNotice && (
                               <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
                                 {t("conversationArchived")}
                               </p>

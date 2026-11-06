@@ -82,14 +82,29 @@ def _shared_with_member(user_id: UUID) -> tuple:
     )
 
 
+def _in_organization(organization_id: UUID | None) -> tuple:
+    """Narrow a shared-with-me query to one organization, when one is named."""
+    return () if organization_id is None else (Conversation.organization_id == organization_id,)
+
+
 async def get_conversations_shared_with_user(
-    db: AsyncSession, user_id: UUID, *, skip: int = 0, limit: int = 50
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    organization_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 50,
 ) -> list[Conversation]:
-    """Get conversations shared with a specific user, within their own tenants."""
+    """Get conversations shared with a specific user, within their own tenants.
+
+    `organization_id` narrows it to one of them: the console lists the active
+    organization's, and a share from another one would open under the wrong
+    organization and fail.
+    """
     result = await db.execute(
         select(Conversation)
         .join(ConversationShare, ConversationShare.conversation_id == Conversation.id)
-        .where(*_shared_with_member(user_id))
+        .where(*_shared_with_member(user_id), *_in_organization(organization_id))
         .order_by(Conversation.updated_at.desc())
         .offset(skip)
         .limit(limit)
@@ -112,13 +127,15 @@ async def share_permissions(
     return dict(result.tuples().all())
 
 
-async def count_conversations_shared_with_user(db: AsyncSession, user_id: UUID) -> int:
+async def count_conversations_shared_with_user(
+    db: AsyncSession, user_id: UUID, *, organization_id: UUID | None = None
+) -> int:
     """Count conversations shared with a specific user, within their own tenants."""
     result = await db.scalar(
         select(func.count())
         .select_from(ConversationShare)
         .join(Conversation, ConversationShare.conversation_id == Conversation.id)
-        .where(*_shared_with_member(user_id))
+        .where(*_shared_with_member(user_id), *_in_organization(organization_id))
     )
     return result or 0
 
