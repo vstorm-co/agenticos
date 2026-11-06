@@ -1074,3 +1074,40 @@ async def test_a_reminder_blocks_when_its_creator_loses_group_access(db: AsyncSe
     assert (await service.get(data.contexts[1], task.id)).status == "blocked"
     link = await db.get(TaskLink, task.id)
     assert link is not None and link.outcome_id is not None
+
+
+@pytest.mark.parametrize("field", ["status", "next_actor"])
+async def test_managed_task_lifecycle_choices_cannot_be_removed_via_generic_schema_editor(
+    db: AsyncSession, field: str
+) -> None:
+    data = await world(db)
+    board = await TaskService(db).ensure_board(data.contexts[0], BoardEnsure())
+    tables = VirtualTableService(db)
+    current = await tables.describe_table(data.contexts[0], board.table_id)
+    columns = [
+        ColumnInput.model_validate(column.model_dump(exclude={"revision"}))
+        for column in current.columns
+    ]
+    selected = next(column for column in columns if str(column.id) == board.column_ids[field])
+    selected.options = selected.options[:-1]
+    with pytest.raises(BadRequestError, match=r"Task states|next-step choices"):
+        await tables.update_schema(
+            data.contexts[0],
+            board.table_id,
+            SchemaUpdate(expected_version=current.schema_version, columns=columns),
+        )
+
+
+async def test_task_listing_and_board_index_do_not_reveal_another_members_private_board(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    service = TaskService(db)
+    mine = await service.ensure_board(data.contexts[0], BoardEnsure())
+    other = await service.ensure_board(data.contexts[1], BoardEnsure())
+    visible = await service.boards(data.contexts[0])
+    assert [board.table_id for board in visible] == [mine.table_id]
+    with pytest.raises(NotFoundError):
+        await service.list_tasks(data.contexts[0], other.table_id)
+    with pytest.raises(NotFoundError):
+        await service.list_tasks(data.contexts[0], uuid4())

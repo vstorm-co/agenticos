@@ -146,3 +146,28 @@ describe("useMyClaims", () => {
     await waitFor(() => expect(result.current.skip).toBe(0));
   });
 });
+
+it("keeps the explicit decision evidence on a correction and supports the pre-organization cache scope", async () => {
+  useOrgStore.setState({ activeOrgId: null });
+  const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.page).toBeDefined());
+  const episode = {
+    situation: "Supplier late",
+    choice: "Ask for date",
+    alternatives: [],
+    expected_outcome: null,
+    actual_outcome: "Date confirmed",
+    correction: "Ask earlier",
+  };
+  await act(async () => {
+    expect(await result.current.correct("decision", "Ask earlier", null, episode)).toBe(true);
+  });
+  expect(apiClient.post).toHaveBeenCalledWith("/memory/claims/mine/decision/correct", {
+    statement: "Ask earlier",
+    effective_from: null,
+    episode,
+  });
+  await act(async () => {
+    expect(await result.current.retract("decision")).toBe(true);
+  });
+});

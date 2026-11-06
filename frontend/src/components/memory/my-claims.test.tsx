@@ -225,3 +225,33 @@ it("supports compact type and scope selection and clears a search with no matche
   await userEvent.click(screen.getByRole("button", { name: "clearFilters" }));
   expect(useMyClaims).toHaveBeenLastCalledWith({ q: "" });
 });
+
+it.each([null, "Researcher"])(
+  "shows an agent-scoped consolidated memory without confusing its audience (%s)",
+  async (agentName) => {
+    mount({
+      items: [
+        claim({
+          scope: "agent",
+          agent_id: "a",
+          agent_name: agentName,
+          origin: "consolidation",
+          derived_from_count: 2,
+          effective_from: "2026-11-01T00:00:00Z",
+        }),
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(`scopeAgent:${agentName ?? "anAgent"}`);
+    expect(screen.getByRole("dialog")).toHaveTextContent("drawnFrom:2");
+  },
+);
+it("keeps a refused memory retraction open for another decision", async () => {
+  retract.mockResolvedValue(false);
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+  await userEvent.click(screen.getByRole("button", { name: "retract" }));
+  const confirm = screen.getAllByRole("dialog").at(-1)!;
+  await userEvent.click(within(confirm).getByRole("button", { name: "retract" }));
+  expect(confirm).toBeInTheDocument();
+});

@@ -836,3 +836,52 @@ async def test_descendant_share_waits_for_personal_ancestry_erasure(
         )
         == []
     )
+
+
+async def test_share_retries_if_a_second_person_is_added_to_its_ancestry_during_admission(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.core.exceptions import ConflictError
+    from app.services.memory import _claims
+
+    org, user, _, _ = await _tenant(db)
+    other = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+    db.add(other)
+    await db.flush()
+    first = (await _say(db, org, ClaimScope(person_owner_key(user.id), None), "Shared fact")).claim
+    second = (
+        await _say(db, org, ClaimScope(person_owner_key(other.id), None), "Shared fact")
+    ).claim
+    scope = ClaimScope(f"project:{uuid.uuid4()}", None)
+    project = await claims.share(db, claim=first, to=scope, author_user_id=user.id)
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+    hold = _claims._hold_scope
+    inserted = False
+    async with sessions() as reading:
+        source = await claim_repo.get(reading, organization_id=org.id, claim_id=project.id)
+        assert source is not None
+
+        async def interleave(session, *, organization_id, scope_key):
+            nonlocal inserted
+            if session is reading and not inserted:
+                inserted = True
+                async with sessions() as writing:
+                    ancestor = await claim_repo.get(
+                        writing, organization_id=org.id, claim_id=second.id
+                    )
+                    assert ancestor is not None
+                    await claims.share(writing, claim=ancestor, to=scope, author_user_id=other.id)
+                    await writing.commit()
+            await hold(session, organization_id=organization_id, scope_key=scope_key)
+
+        monkeypatch.setattr(_claims, "_hold_scope", interleave)
+        with pytest.raises(ConflictError, match="ancestry changed"):
+            await claims.share(
+                reading,
+                claim=source,
+                to=ClaimScope(organization_owner_key(org.id), None),
+                author_user_id=user.id,
+            )

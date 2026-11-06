@@ -197,3 +197,20 @@ async def test_empty_transfer_directory_is_explicit(monkeypatch, admission):
         await PhoneCallTools(uuid4()).list_phone_transfer_contacts(context())
         == "No transfer contacts are currently available."
     )
+
+
+def test_phone_binding_requires_validated_configuration_and_explains_contact_limits() -> None:
+    from app.agents.capabilities import CapabilityBuildContext
+    from app.agents.capabilities.phone_calls import _build
+    from app.agents.spec import CapabilityBindingSpec
+    from app.schemas.telephony import PhoneCallsConfig
+
+    binding = CapabilityBindingSpec(id="phone_calls")
+    with pytest.raises(TypeError, match="validated endpoint"):
+        _build(CapabilityBuildContext(binding=binding, config=None))
+    endpoint = uuid4()
+    capability = _build(
+        CapabilityBuildContext(binding=binding, config=PhoneCallsConfig(endpoint_id=endpoint))
+    )
+    assert capability.endpoint_id == endpoint
+    assert "Never claim a queued" in capability.get_instructions()

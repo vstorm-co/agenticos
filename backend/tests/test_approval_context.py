@@ -263,5 +263,19 @@ class TestWhichToolsAreDescribed:
 
         try:
             assert set(REGISTRY["test_described"].describers) == {"real"}
+            from app.agents.capabilities.approval._policy import approval_describers
+            from app.agents.spec import AgentSpec, CapabilityBindingSpec
+
+            spec = AgentSpec(
+                name="Described",
+                capabilities=[
+                    CapabilityBindingSpec(
+                        id="test_described", tool_overrides={"real": {"name": "renamed"}}
+                    )
+                ],
+            )
+            assert approval_describers(spec) == {
+                "renamed": REGISTRY["test_described"].describers["real"]
+            }
         finally:
             REGISTRY.pop("test_described")
