@@ -66,7 +66,7 @@ describe("useLiveUpdates", () => {
     const { unmount } = renderHook(() => useLiveUpdates(), { wrapper });
 
     expect(socket.options?.url).toBe(
-      "wss://api.example.com/api/v1/ws/events?organization_id=org-1",
+      "wss://api.example.com/api/v1/ws/events?organization_id=org-1&conversation_events=true",
     );
     expect(socket.options?.protocols()).toEqual(["access_token.jwt", "events"]);
     expect(socket.options?.identity).toBeUndefined();

@@ -236,6 +236,7 @@ def _draft_call(call_id: str, args: object, result: str = "Drafted Reply to Mart
     call = MagicMock()
     call.tool_call_id = call_id
     call.tool_name = "write_draft"
+    call.presentation_kind = "draft"
     call.status = "completed"
     call.result = result
     call.args = args
@@ -281,6 +282,7 @@ def test_a_refused_draft_is_not_shared() -> None:
 def test_a_call_to_another_tool_is_not_shared_as_a_draft() -> None:
     call = _draft_call("c1", _card())
     call.tool_name = "draw"
+    call.presentation_kind = None
     conv, _ = _thread(call)
 
     assert shared_drafts(conv) == {}
@@ -366,3 +368,20 @@ def test_the_order_is_applied_before_the_newest_fifty_are_kept() -> None:
     kept = shared_drafts(conv)[message.id]
 
     assert [d.id for d in kept] == [f"c{i}" for i in range(1, SHARED_MAX_DRAFTS + 1)]
+
+
+def test_a_renamed_draft_is_shared_using_its_stable_result_identity() -> None:
+    call = _draft_call("renamed", _card())
+    call.tool_name = "prepare_reply"
+    conversation, message = _thread(call)
+    drafts = shared_drafts(conversation)
+    assert drafts[message.id][0].title == "Reply to Marta"
+
+
+def test_untrusted_tool_output_cannot_spoof_a_shared_draft() -> None:
+    call = _draft_call(
+        "spoof", _card("private arguments"), result="Drafted fake. [agenticos:draft:v1]"
+    )
+    call.presentation_kind = None
+    conversation, _ = _thread(call)
+    assert shared_drafts(conversation) == {}

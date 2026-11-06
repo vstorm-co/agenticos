@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
  */
 const PREVIEW: Record<Look, { light: [string, string, string]; dark: [string, string, string] }> = {
   standard: {
-    light: ["oklch(96.3% 0.002 265)", "oklch(97.8% 0.002 265)", "oklch(17.5% 0.004 265)"],
-    dark: ["oklch(20.5% 0.0025 265)", "oklch(23.5% 0.0025 265)", "oklch(94.5% 0.003 265)"],
+    light: ["#eeeef1", "#f7f7f9", "#242428"],
+    dark: ["#141416", "#1c1c1f", "#eeeef1"],
   },
   glass: {
     light: [
@@ -22,15 +22,15 @@ const PREVIEW: Record<Look, { light: [string, string, string]; dark: [string, st
       "oklch(98.5% 0.002 265 / 0.62)",
       "oklch(17.5% 0.004 265)",
     ],
-    dark: ["oklch(22% 0.004 265 / 0.4)", "oklch(21% 0.004 265 / 0.62)", "oklch(94.5% 0.003 265)"],
+    dark: ["oklch(19% 0.004 265 / 0.84)", "oklch(24% 0.004 265 / 0.9)", "oklch(94.5% 0.003 265)"],
   },
   graphite: {
     light: ["oklch(95.2% 0.004 75)", "oklch(97.2% 0.003 75)", "oklch(20% 0.008 75)"],
-    dark: ["oklch(19.5% 0.004 75)", "oklch(22.5% 0.004 75)", "oklch(94% 0.005 75)"],
+    dark: ["oklch(18.5% 0.004 75)", "oklch(23% 0.004 75)", "oklch(94% 0.005 75)"],
   },
   midnight: {
     light: ["oklch(95% 0.012 255)", "oklch(97.3% 0.008 255)", "oklch(20% 0.03 265)"],
-    dark: ["oklch(14% 0.02 268)", "oklch(16.5% 0.022 268)", "oklch(95% 0.01 268)"],
+    dark: ["oklch(17% 0.02 268)", "oklch(21% 0.022 268)", "oklch(95% 0.01 268)"],
   },
   paper: {
     light: ["oklch(94.5% 0.014 85)", "oklch(97% 0.012 85)", "oklch(25% 0.02 60)"],

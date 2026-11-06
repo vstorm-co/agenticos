@@ -1,7 +1,10 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { FileIcon } from "@/components/files/file-icon";
-import { BookOpen, Database, FolderKanban, MessageSquare, Wrench } from "lucide-react";
+import { BookOpen, Database, Wrench } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -68,8 +71,8 @@ export function MentionMark({ item, className }: { item: Mentionable; className?
     return <FileIcon name={item.name} className={cn(size, "text-muted-foreground")} />;
   if (item.kind === "conversation")
     return <MessageSquare className={cn(size, "text-muted-foreground")} aria-hidden />;
-  const Icon =
-    item.kind === "collection" ? Database : item.kind === "skill" ? BookOpen : FolderKanban;
+  if (item.kind === "project") return <ProjectAvatar name={item.name} className={size} />;
+  const Icon = item.kind === "collection" ? Database : BookOpen;
   return <Icon className={cn(size, "text-muted-foreground")} aria-hidden />;
 }
 

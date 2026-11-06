@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
 
@@ -17,17 +17,27 @@ vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
-const recentProjects = vi.fn<() => { id: string; name: string }[]>(() => []);
+const recentProjects = vi.fn<() => { id: string; name: string; has_unread_chats?: boolean }[]>(
+  () => [],
+);
 vi.mock("@/hooks/use-projects", () => ({
   useProjects: () => ({ projects: recentProjects() }),
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
-const sidebar = { openGroups: [] as string[], toggleGroup: vi.fn<(key: string) => void>() };
+const sidebar = {
+  openGroups: [] as string[],
+  closedGroups: [] as string[],
+  toggleGroup: vi.fn<(key: string) => void>(),
+};
 vi.mock("@/stores", () => ({
   useAuthStore: () => ({ user: currentUser() }),
   useSidebarStore: <T,>(select: (state: typeof sidebar) => T) => select(sidebar),
 }));
+
+beforeEach(() => {
+  sidebar.closedGroups = [];
+});
 
 function renderNav() {
   return render(<SidebarNav />);
@@ -86,6 +96,7 @@ describe("isActive", () => {
 describe("SidebarNav", () => {
   it("shows every destination the caller is entitled to", () => {
     can.mockReturnValue(true);
+    sidebar.openGroups = ["knowledge", "monitoring"];
 
     renderNav();
 
@@ -137,13 +148,13 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
-  it("drops a group heading when nothing in it survives the filter", () => {
+  it("keeps the overview available without management permissions", () => {
     // A "Build" label above empty space reads as a broken page.
     can.mockReturnValue(false);
 
     renderNav();
 
-    expect(screen.queryByText("build")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
   it("keeps the admin group for platform admins only", () => {
@@ -230,6 +241,26 @@ describe("SidebarNav", () => {
     recentProjects.mockReturnValue([]);
   });
 
+  it("limits recent projects to three and marks unseen answers in the column and rail", () => {
+    can.mockReturnValue(true);
+    recentProjects.mockReturnValue([
+      { id: "p-1", name: "Newest", has_unread_chats: true },
+      { id: "p-2", name: "Second" },
+      { id: "p-3", name: "Third" },
+      { id: "p-4", name: "Older" },
+    ]);
+    const { unmount } = renderNav();
+    expect(screen.getByRole("link", { name: /Newest/ })).toBeInTheDocument();
+    expect(screen.queryByText("Older")).toBeNull();
+    expect(screen.getByRole("img", { name: "unread" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "allProjects" })).toBeInTheDocument();
+    unmount();
+    render(<SidebarNav collapsed />);
+    expect(screen.getByRole("link", { name: "Newest · unread" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "unread" })).toBeInTheDocument();
+    recentProjects.mockReturnValue([]);
+  });
+
   it("draws the rail as the same list without its words", () => {
     // Folded groups stay folded, so the rail offers what the column does and
     // its fold control opens the same group; a project is named by its title.
@@ -310,7 +341,15 @@ describe("the navigation definition", () => {
     // The inbox holds only what was brought to the person looking (#2301).
     // Everything else must state what it needs, or a Viewer is shown pages that
     // will refuse them.
-    const open = new Set(["dashboard", "chat", "inbox", "organizations", "groups", "documents"]);
+    const open = new Set([
+      "dashboard",
+      "chat",
+      "inbox",
+      "backgroundWork",
+      "organizations",
+      "groups",
+      "documents",
+    ]);
     const unguarded = NAV_GROUPS.filter((group) => !group.adminOnly)
       .flatMap((group) => group.items)
       .filter((item) => !item.permission && !open.has(item.labelKey));
@@ -336,5 +375,49 @@ describe("the inbox count (#2301)", () => {
     waiting.mockReturnValue([]);
     render(<SidebarNav />);
     expect(screen.queryByLabelText("inboxCount")).toBeNull();
+  });
+});
+
+describe("daily-work navigation", () => {
+  it("keeps the overview first and automation directly below agents", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/chat");
+    sidebar.openGroups = [];
+    renderNav();
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(hrefs.slice(0, 6)).toEqual([
+      "/dashboard",
+      "/chat",
+      "/inbox",
+      "/agents",
+      "/workflows",
+      "/routines",
+    ]);
+    expect(screen.queryByRole("link", { name: "backgroundWork" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "monitoring" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(hrefs.indexOf("/documents")).toBeGreaterThan(hrefs.indexOf("/rag"));
+    expect(screen.queryByRole("button", { name: "build" })).not.toBeInTheDocument();
+  });
+
+  it("opens knowledge by default but respects an explicit saved closure", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/chat");
+    sidebar.openGroups = [];
+    const { rerender } = renderNav();
+    expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "skills" })).toBeInTheDocument();
+    sidebar.closedGroups = ["knowledge"];
+    rerender(<SidebarNav />);
+    expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("link", { name: "skills" })).not.toBeInTheDocument();
   });
 });

@@ -157,12 +157,14 @@ for (const platform of ["ios", "android"] as const) {
       await expect(dialog).toBeHidden();
 
       await page.goto("/chat");
-      const picker = page.getByRole("button", { name: /^Agent:/ });
+      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
+      const attachmentSheet = page.getByRole("dialog");
+      await expect(attachmentSheet).toBeVisible();
+      const picker = attachmentSheet.getByRole("button", { name: /^Agent:/ });
       await expectTouchTarget(picker);
       await picker.tap();
       await expect(page.getByRole("radiogroup")).toBeVisible();
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
       await expect(
         page.getByRole("dialog").getByRole("button", { name: "Files", exact: true }),
       ).toBeVisible();

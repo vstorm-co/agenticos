@@ -17,7 +17,6 @@ import {
   Plus,
   X,
   Clipboard,
-  Files,
   Loader2,
   Mic,
   Quote,
@@ -27,6 +26,7 @@ import {
   Pin,
   PinOff,
 } from "lucide-react";
+import { DocumentIcon as Files } from "@/components/icons/product-icons";
 
 import { toast } from "sonner";
 import { QuickAskVoice } from "./quick-ask-voice";

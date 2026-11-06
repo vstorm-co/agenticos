@@ -74,8 +74,10 @@ class McpConnection(Base, TimestampMixin):
             "uq_connected_accounts_user_email",
             "user_id",
             "catalog_key",
+            "account_source_organization_id",
             "account_email",
             unique=True,
+            postgresql_nulls_not_distinct=True,
             postgresql_where=text(
                 "purpose = 'account' AND scope = 'user' AND account_email IS NOT NULL"
             ),
@@ -215,6 +217,9 @@ class McpConnection(Base, TimestampMixin):
     # `notion` and `notion-2`, and neither says which workspace it reaches.
     # Optional, not unique, and never a replacement - the slug stays on screen
     # beside it, because a run's tool calls are recorded under the prefix.
+    account_source_organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
     account_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
 
     label: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -281,6 +286,13 @@ class McpConnection(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
     auth_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Re-consent can switch provider accounts under the same connection id.
+    authorization_generation: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+        nullable=False,
+    )
     # Which vault master key sealed this row's secrets - the bearer token and
     # both OAuth payloads. One version per row, so a rotation moves them
     # together and a payload can never be readable while the token beside it is

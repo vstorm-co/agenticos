@@ -14,6 +14,7 @@ because the audit lock is the last one a transaction takes.
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID
 
 from pydantic import JsonValue
@@ -60,7 +61,13 @@ class ParkedRunService:
         self.approvals = approvals
 
     async def decide(
-        self, ctx: AuthContext, approval_id: UUID, *, approved: bool, note: str | None
+        self,
+        ctx: AuthContext,
+        approval_id: UUID,
+        *,
+        approved: bool,
+        note: str | None,
+        remember_scope: Literal["conversation", "agent"] | None = None,
     ) -> DecidedApproval:
         """Approve or reject a parked call; on a chat run, continue it there when it was the last.
 
@@ -69,14 +76,26 @@ class ParkedRunService:
         """
         run = await self._claimed_chat_run(ctx, approval_id)
         if run is None:
-            decided = await self.approvals.decide(ctx, approval_id, approved=approved, note=note)
+            decided = await self.approvals.decide(
+                ctx,
+                approval_id,
+                approved=approved,
+                note=note,
+                remember_scope=remember_scope,
+            )
             return DecidedApproval(decided, False)
         # Computed on the row held now, not on one read before the claim.
         flag = continues_in_chat(run, ctx)
         await channel_prompt_repo.settle_open(
             self.db, run_id=run.id, approval_id=approval_id, by="decided"
         )
-        decided = await self.approvals.decide(ctx, approval_id, approved=approved, note=note)
+        decided = await self.approvals.decide(
+            ctx,
+            approval_id,
+            approved=approved,
+            note=note,
+            remember_scope=remember_scope,
+        )
         destination = chat_destination(run)
         if flag and destination is not None and not await self._anything_pending(run):
             spawn_after_commit(

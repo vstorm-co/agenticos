@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/states";
 import { selectChips } from "./option-chip";
-import { FileText } from "lucide-react";
+import { ArrowUpRight, FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui";
 import { recordCellText } from "@/lib/format-cell-value";
 import type { ColumnDef, RecordRead } from "@/types/tables";
@@ -62,23 +62,34 @@ export function TableListView({
   }
 
   return (
-    <ul className="divide-border divide-y overflow-hidden rounded-lg border">
+    <ul className="space-y-2 p-3 sm:p-4">
       {records.map((record) => (
         <li key={record.id}>
           <button
             type="button"
             onClick={() => onOpenRecord(record)}
-            className="hover:bg-accent/50 focus-visible:ring-ring flex w-full flex-col gap-2 px-5 py-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className="group border-border/60 bg-background/60 hover:border-foreground/15 hover:bg-background focus-visible:ring-ring flex w-full flex-col gap-3 rounded-xl border px-4 py-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
           >
             <span className="text-foreground flex min-w-0 items-center gap-2 text-sm font-medium">
-              <FileText className="text-muted-foreground size-4 shrink-0" aria-hidden />
-              <span className={display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate"}>
+              <span className="bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                <FileText className="size-4" aria-hidden />
+              </span>
+              <span
+                className={cn(
+                  "min-w-0 flex-1",
+                  display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
+                )}
+              >
                 {(title && recordCellText(title, record, boolLabel, locale, display)) ||
                   t("unnamedRecord")}
               </span>
+              <ArrowUpRight
+                className="text-muted-foreground size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                aria-hidden
+              />
             </span>
             {secondary.length > 0 && (
-              <span className="flex min-w-0 flex-wrap gap-x-6 gap-y-1 text-xs">
+              <span className="flex min-w-0 flex-wrap gap-x-6 gap-y-2 text-xs sm:pl-10">
                 {secondary.slice(0, 3).map((column) => {
                   const value = recordCellText(column, record, boolLabel, locale, display);
                   return value ? (

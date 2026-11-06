@@ -955,8 +955,55 @@ class TestDiscordMembershipSources:
             engine.dispose()
 
 
+class TestProactivityMainMerge:
+    def test_existing_discord_exposure_survives_proactivity_upgrade_and_downgrade(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0256_discord_role_mappings")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        exposure_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_exposures "
+                        "(id, organization_id, agent_id, channel_bot_id, surface, is_active) "
+                        "VALUES (:id, :org, :agent, :bot, 'discord', true)"
+                    ),
+                    {"id": exposure_id, "org": uuid4(), "agent": uuid4(), "bot": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT surface FROM agent_exposures WHERE id=:id"),
+                        {"id": exposure_id},
+                    )
+                    == "discord"
+                )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0256_discord_role_mappings")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT surface FROM agent_exposures WHERE id=:id"),
+                        {"id": exposure_id},
+                    )
+                    == "discord"
+                )
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+        finally:
+            engine.dispose()
+
+
 class TestSyncSourceKnowledgeBase:
-    """`0258_sync_source_knowledge_base.py`: what the operator is told, both ways.
+    """`0296_sync_source_knowledge_base.py`: what the operator is told, both ways.
 
     The upgrade and the downgrade each stop sources they cannot place, and the log
     is the only record of which and why (#2551). Each reason has its own remedy,
@@ -966,7 +1013,7 @@ class TestSyncSourceKnowledgeBase:
     def test_each_stopped_source_is_logged_with_its_reason(self):
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        before = _alembic("upgrade", "0257_connected_accounts")
+        before = _alembic("upgrade", "0295_tool_approval_consent")
         assert before.returncode == 0, before.stderr
         org, tie_a, tie_b, single = uuid4(), uuid4(), uuid4(), uuid4()
         tied, nowhere, kept = uuid4(), uuid4(), uuid4()
@@ -1003,7 +1050,7 @@ class TestSyncSourceKnowledgeBase:
                         {"id": source_id, "org": org, "name": name},
                     )
 
-            upgraded = _alembic("upgrade", "0258_sync_source_knowledge_base")
+            upgraded = _alembic("upgrade", "0296_sync_source_knowledge_base")
             assert upgraded.returncode == 0, upgraded.stderr
             assert (
                 f"Sync source {tied} (organization {org}) names collection 'tied', which "
@@ -1023,7 +1070,7 @@ class TestSyncSourceKnowledgeBase:
                     text("UPDATE sync_sources SET knowledge_base_id = NULL WHERE id = :id"),
                     {"id": kept},
                 )
-            downgraded = _alembic("downgrade", "0257_connected_accounts")
+            downgraded = _alembic("downgrade", "0295_tool_approval_consent")
             assert downgraded.returncode == 0, downgraded.stderr
             assert (
                 f"Sync source {kept} (organization {org}) records no knowledge base; "
@@ -1099,5 +1146,99 @@ class TestConnectedAccountMigration:
                     ).scalar_one()
                     == 2
                 )
+        finally:
+            engine.dispose()
+
+
+class TestConnectedAccountSources:
+    @pytest.mark.security
+    def test_source_tenant_upgrade_and_downgrade_keep_mcp_connections(self) -> None:
+        up = _alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'mcp_connections' AND column_name = 'account_source_organization_id'"
+                        )
+                    ).scalar_one()
+                    == 1
+                )
+            down = _alembic("downgrade", "0292_merge_connected_accounts")
+            assert down.returncode == 0, down.stderr
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
+            engine.dispose()
+
+
+class TestDraftPresentationMigration:
+    @pytest.mark.security
+    def test_backfill_uses_published_bindings_not_provider_result_markers(self) -> None:
+        import json
+
+        up = _alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr
+        down = _alembic("downgrade", "0293_connected_account_sources")
+        assert down.returncode == 0, down.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        version_id, message_id, real_id, spoof_id = (uuid4() for _ in range(4))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_versions (id, agent_id, organization_id, version, spec) VALUES (:id,:agent,:org,1,CAST(:spec AS jsonb))"
+                    ),
+                    {
+                        "id": version_id,
+                        "agent": uuid4(),
+                        "org": uuid4(),
+                        "spec": json.dumps(
+                            {
+                                "capabilities": [
+                                    {
+                                        "id": "drafts",
+                                        "tool_overrides": {"write_draft": {"name": "save_reply"}},
+                                    }
+                                ]
+                            }
+                        ),
+                    },
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO messages (id,conversation_id,role,content,agent_version_id) VALUES (:id,:conversation,'assistant','',:version)"
+                    ),
+                    {"id": message_id, "conversation": uuid4(), "version": version_id},
+                )
+                for identifier, name in ((real_id, "save_reply"), (spoof_id, "external")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO tool_calls (id,message_id,tool_call_id,tool_name,args,result,status,started_at) VALUES (:id,:message,:call,:name,'{}','Drafted fake. [agenticos:draft:v1]','completed',now())"
+                        ),
+                        {
+                            "id": identifier,
+                            "message": message_id,
+                            "call": str(identifier),
+                            "name": name,
+                        },
+                    )
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+            with engine.connect() as connection:
+                rows = dict(
+                    connection.execute(
+                        text(
+                            "SELECT id,presentation_kind FROM tool_calls WHERE id IN (:real,:spoof)"
+                        ),
+                        {"real": real_id, "spoof": spoof_id},
+                    ).all()
+                )
+                assert rows == {real_id: "draft", spoof_id: None}
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
         finally:
             engine.dispose()

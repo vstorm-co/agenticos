@@ -16,8 +16,8 @@ const Switch = React.forwardRef<
     {...props}
     ref={ref}
   >
-    <span className="group-data-[state=checked]/switch:bg-success group-data-[state=unchecked]/switch:bg-input pointer-events-none inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent shadow-sm transition-colors">
-      <SwitchPrimitives.Thumb className="bg-background block h-4 w-4 rounded-full shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0" />
+    <span className="group-data-[state=checked]/switch:bg-primary group-data-[state=unchecked]/switch:bg-input pointer-events-none inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent shadow-sm transition-colors">
+      <SwitchPrimitives.Thumb className="bg-background block h-4 w-4 rounded-full shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0" />
     </span>
   </SwitchPrimitives.Root>
 ));

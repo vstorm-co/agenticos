@@ -10,7 +10,13 @@ import { ApiError } from "@/lib/api-error";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
-import { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+import {
+  useEditReplyExpectation,
+  useCausingRun,
+  useRunHistory,
+  useWorkflowRun,
+  useWorkflowRuns,
+} from "./use-workflow-runs";
 
 vi.mock("@/lib/workflows/runs-api", () => ({
   listWorkflowRuns: vi.fn(),
@@ -23,6 +29,7 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   listRunHistory: vi.fn(),
   retryWorkflowRun: vi.fn(),
   resolveWorkflowRunStep: vi.fn(),
+  editReplyExpectation: vi.fn(),
 }));
 vi.mock("@/lib/workflows/logs-api", () => ({ listRunLogs: vi.fn() }));
 /** The options a routine confirmation goes out with (`toastDone`). */
@@ -328,4 +335,30 @@ it("refreshes final files even when the steps are newer than the terminal observ
   await waitFor(() => expect(result.current.files).toHaveLength(1));
   expect(api.listWorkflowRunNodes).toHaveBeenCalledTimes(1);
   expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2);
+});
+
+it("refreshes the paused step after an expectation change and after a refused change", async () => {
+  const { result } = renderHook(() => useEditReplyExpectation("run", "node"), { wrapper });
+  const body = {
+    paused: true,
+    review_mailbox: false,
+    thread_id: "thread",
+    expected_sender: "sender@example.com",
+    not_before: "2026-11-06T12:00:00Z",
+    deadline: "2026-11-07T12:00:00Z",
+    anchor_message_id: null,
+  };
+  vi.mocked(api.editReplyExpectation).mockResolvedValue({
+    ...body,
+    provider: "google",
+    connection_id: "account",
+    authorization_generation: "generation",
+  });
+  await act(() => result.current.mutateAsync(body));
+  expect(api.editReplyExpectation).toHaveBeenCalledWith("run", "node", body);
+  vi.mocked(api.editReplyExpectation).mockRejectedValue(new Error("Mailbox access changed"));
+  await act(async () => {
+    await result.current.mutateAsync(body).catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
 });

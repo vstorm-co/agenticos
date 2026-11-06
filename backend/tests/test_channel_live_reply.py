@@ -213,13 +213,12 @@ class TestWhichHalfOfTheRunnerIsUsed:
         prepared.execute.assert_not_awaited()
         driven.assert_awaited_once()
 
-    async def test_a_resumed_run_is_waited_for_even_with_a_stream(self):
-        """`iterate()` carries no deferred results, and a resumed run is one
-        somebody already waited for once."""
-        result, prepared = await self._answer(stream=AsyncMock(), deferred=object())
-
-        assert result == "waited for"
-        prepared.iterate.assert_not_called()
+    async def test_a_resumed_run_streams_the_graph_with_its_decisions(self):
+        deferred = object()
+        result, prepared = await self._answer(stream=AsyncMock(), deferred=deferred)
+        assert result == "streamed"
+        prepared.execute.assert_not_awaited()
+        assert prepared.iterate.call_args.kwargs["deferred_tool_results"] is deferred
 
 
 class TestTheFinalEditNeverLosesTheAnswer:

@@ -1,5 +1,5 @@
 ---
-source_sha: "102f4da698e8"
+source_sha: "1e44896d7e1d"
 ---
 
 # Workflows { #workflows }
@@ -39,7 +39,22 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 ### Szablony, eksport i import { #templates-exporting-and-importing }
 
-Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje tabelę i kompletnie skonfigurowany szkic. Domyślnie są prywatne; jawnie wybrani odbiorcy dotyczą workflow i jego tabeli. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+Szablony z tabelą to **Public API → table** i **Markdown notebook**. Serwer w jednej transakcji przygotowuje tabelę i kompletnie skonfigurowany szkic. Domyślnie są prywatne; jawnie wybrani odbiorcy dotyczą workflow i jego tabeli. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+
+**Oczekuj odpowiedzi** tworzy prywatny workflow uruchamiany ręcznie, ze skrzynką
+Gmail lub Outlook wybraną jawnie podczas tworzenia. Nie wymaga uprawnień do tabel,
+modelu ani poświadczeń do wysyłania, tylko istniejącej zgody na odczyt. Opublikuj
+szkic; formularz **Run** poprosi o identyfikator wątku u dostawcy, dokładnego nadawcę,
+czas początkowy i termin (ISO 8601 ze strefą czasową). Zweryfikowana odpowiedź kończy
+przez swoją gałąź. W przeciwnym razie udany końcowy odczyt zapisuje jedno przypomnienie
+dla twórcy o przeglądzie wątku i przygotowaniu follow-upu. Nic nie wysyła automatycznie.
+
+Dla Outlooka formularz tworzenia pozwala też wskazać skrzynkę współdzieloną dostępną dla połączonego konta.
+
+Domyślnie powiadamia w aplikacji. Węzeł **Notify members** pozwala wybrać pozostałe
+kanały, z zachowaniem preferencji odbiorcy i zgody na prywatny kanał.
+[Węzeł oczekiwania](reference/workflow-nodes.md#flow-await-reply) zachowuje reguły
+dopasowania, pauzy, korekty, anulowania i terminu.
 
 Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez przycisku rozszerzania. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
 
@@ -1332,3 +1347,8 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   opublikowaną wersję, a run pokazuje swój graf krok po kroku tak, jak przebiegł.
 
 Nową automatyzację można przekazać przez `prepare_workflow_draft`: jedna akceptacja tworzy prywatną tabelę i kompletny graf w jednej transakcji. Błąd walidacji wycofuje oba zasoby. `check_workflow_draft` sprawdza graf i odwołania do zasobów bez uruchamiania kroków i bez akceptacji zapisu. Jawnie informuje, że integracje pozostają niezweryfikowane. Testy wykonujące akcje nadal wymagają zgody; test harmonogramu przyjmuje zwykłe dane i automatycznie dodaje czas zdarzenia oraz skonfigurowane wartości. Widok runa odróżnia test szkieletu od weryfikacji integracji.
+
+
+### Szkice follow-upów { #follow-up-drafts }
+
+W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szkic follow-upu po terminie**. Wybierz istniejący model i maksymalny koszt szkicu. Przy uruchomieniu workflow podaj kontekst do przygotowania treści. Agent działa tylko w gałęzi terminu po udanym sprawdzeniu skrzynki; zweryfikowana odpowiedź pomija szkic, a błąd skrzynki kończy sprawdzenie błędem. Agent nie ma narzędzi. Szkic zapisuje się w wyniku workflow, a powiadomienie prowadzi do niego. Przed wysyłką sprawdź aktualny wątek. Preset nie tworzy szkicu w Gmail/Outlook ani nie wysyła poczty.

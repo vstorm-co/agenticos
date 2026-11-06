@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ExternalLink, Plug, Plus, Settings2, Wrench, X } from "lucide-react";
+import { UserRound, ExternalLink, Plug, Plus, Settings2, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { McpToolChecklist } from "@/components/agents/mcp-tool-checklist";
@@ -827,7 +827,7 @@ function WhichOrgAccount({
         if (target) onChange(target);
       }}
     >
-      <SelectTrigger size="sm" aria-label={t("whichAccount", { name })}>
+      <SelectTrigger size="sm" icon={UserRound} aria-label={t("whichAccount", { name })}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

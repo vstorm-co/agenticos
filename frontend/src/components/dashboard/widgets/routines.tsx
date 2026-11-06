@@ -118,7 +118,7 @@ function row(
   tt: Translate,
   locale: string,
 ): StatusRow {
-  const [pill, tone] = outcome(trigger, run, t);
+  const [pill, tone] = outcome(trigger, run, t, tt);
   return {
     id: trigger.id,
     label: trigger.name ?? trigger.agent_name ?? t("unnamed"),
@@ -139,7 +139,12 @@ function row(
  * heartbeat has yet to claim, and "next" about it would assert a future that
  * already failed to happen, loudest exactly when the worker is down. */
 function upcomingFireMs(trigger: Trigger): number | null {
-  if (!trigger.is_active || trigger.next_fire_at === null) return null;
+  if (
+    !trigger.is_active ||
+    trigger.next_fire_at === null ||
+    (trigger.waiting_device_count ?? 0) > 0
+  )
+    return null;
   const at = new Date(trigger.next_fire_at).getTime();
   return at >= Date.now() ? at : null;
 }
@@ -193,8 +198,15 @@ function useNextFireTick(triggers: Trigger[]): void {
   }, [soonest]);
 }
 
-function outcome(trigger: Trigger, run: AgentRun | undefined, t: Translate): [string, StatusTone] {
+function outcome(
+  trigger: Trigger,
+  run: AgentRun | undefined,
+  t: Translate,
+  tt: Translate,
+): [string, StatusTone] {
   if (!trigger.is_active) return [t("paused"), "neutral"];
+  if ((trigger.waiting_device_count ?? 0) > 0)
+    return [tt("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 }), "warn"];
   if (trigger.last_fired_at === null) return [t("neverRun"), "neutral"];
   // Fired, but the run it started is not in the page of recent ones - it is older
   // than the page reaches, or this reader may not read runs at all. Saying

@@ -11,24 +11,11 @@ const badgeVariants = cva(
       variant: {
         default: "border-transparent bg-foreground/8 text-foreground",
         secondary: "border-transparent bg-secondary text-secondary-foreground",
-        // Tinted, not filled - and the text is `foreground`, not the tone.
-        //
-        // This was a solid red pill with white text, which contradicted the
-        // rule two lines above it: metadata set in a bold accent chip competes
-        // with the content it annotates, and five of these on a table of
-        // connections read as five alarms.
-        //
-        // The text colour is the part worth measuring. Tone-on-tone - red text
-        // on a red tint - is what it looks like it should be and is the one
-        // thing that does not work: `text-destructive` on `bg-destructive/15`
-        // measures **2.70:1** on the dark card, under every floor there is.
-        // `text-foreground` on the same tint measures 12.18:1 dark and 16.45:1
-        // light. So the tint and the border carry the hue and the text stays
-        // legible, which is also the shape `announcement-banner` and
-        // `deployment-gate` already use.
-        destructive: "border-destructive/35 bg-destructive/10 text-foreground",
-        warning: "border-warning/35 bg-warning/10 text-foreground",
-        success: "border-success/35 bg-success/10 text-foreground",
+        // Status text has its own light/dark ink; action-fill colors are too
+        // dark to serve as small text on a tinted surface.
+        destructive: "border-transparent bg-destructive/12 text-destructive-ink",
+        warning: "border-transparent bg-warning/12 text-warning-ink",
+        success: "border-transparent bg-success/12 text-success-ink",
         outline: "text-foreground",
       },
     },

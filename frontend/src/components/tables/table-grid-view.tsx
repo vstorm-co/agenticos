@@ -313,7 +313,10 @@ export function TableGridView({
       ),
     // Numbers read right-aligned, so their digits line up down the column.
     align: isNumeric(column.type) ? ("right" as const) : undefined,
-    className: isNumeric(column.type) ? "tabular-nums" : undefined,
+    className: cn(
+      isNumeric(column.type) && "tabular-nums",
+      column.id === columns[0]?.id && "font-medium text-foreground",
+    ),
     cell: (record) => renderCell(column, record),
     sortable: column.system
       ? column.system.endsWith("_at")
@@ -422,7 +425,7 @@ export function TableGridView({
         }
         // Every row is one height, so only the rows in view are drawn.
         className={cn(
-          "rounded-none border-0 bg-transparent",
+          "[&_thead]:bg-foreground/[0.025] [&_th]:text-muted-foreground [&_tbody_tr]:border-border/50 rounded-none border-0 bg-transparent [&_th]:text-xs [&_th]:font-medium",
           preferences.wrap_text ? "[&_tbody_td]:whitespace-normal" : "[&_tbody_td]:h-[52px]",
         )}
         rowHeight={preferences.wrap_text ? undefined : ROW_HEIGHT}

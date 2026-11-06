@@ -3,19 +3,28 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PrincipalCell, PrincipalBadges } from "./principal-cell";
-import type { CellValue } from "@/types/tables";
+import type { CellValue, RecordSource } from "@/types/tables";
 
 const directoryState = vi.hoisted(() => ({
   loading: false,
   error: null as Error | null,
   invalid: false,
+  scoped: null as RecordSource[] | null | undefined,
+  pending: false,
 }));
 beforeEach(() => {
   directoryState.loading = false;
   directoryState.error = null;
   directoryState.invalid = false;
+  directoryState.scoped = null;
+  directoryState.pending = false;
 });
 vi.mock("@/hooks/use-table-principals", () => ({
+  useTableAssignees: () => ({
+    data: directoryState.scoped,
+    isPending: directoryState.pending,
+    error: directoryState.error,
+  }),
   useTablePrincipals: (kind: string) => ({
     items:
       kind === "user"
@@ -175,4 +184,61 @@ it("refuses a directory entry without a stable identity", async () => {
   await userEvent.click(screen.getByRole("option", { name: "Missing identity" }));
   expect(change).not.toHaveBeenCalled();
   expect(screen.getByRole("listbox")).toBeVisible();
+});
+
+it("offers only the people authorized for a managed task board", async () => {
+  directoryState.scoped = [{ kind: "user", id: "a", name: "Anna Nowak" }];
+  render(
+    <PrincipalCell
+      id="person"
+      label="Person"
+      value={null}
+      kind="user"
+      multiple={false}
+      tableId="private-board"
+      onChange={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox"));
+  expect(screen.getByRole("option", { name: "Anna Nowak" })).toBeVisible();
+  expect(screen.queryByRole("option", { name: "Jan Kowalski" })).not.toBeInTheDocument();
+});
+
+it("does not flash the full directory while task eligibility loads or fails", async () => {
+  directoryState.scoped = undefined;
+  directoryState.pending = true;
+  const props = {
+    id: "person",
+    label: "Person",
+    value: null,
+    kind: "user" as const,
+    multiple: false,
+    tableId: "private-board",
+    onChange: vi.fn(),
+  };
+  const view = render(<PrincipalCell {...props} />);
+  await userEvent.click(screen.getByRole("combobox"));
+  expect(screen.getByRole("status")).toBeVisible();
+  expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  directoryState.pending = false;
+  directoryState.error = new Error("Access changed");
+  view.rerender(<PrincipalCell {...props} />);
+  expect(screen.getByRole("alert")).toBeVisible();
+  expect(screen.queryByRole("option")).not.toBeInTheDocument();
+});
+
+it("retains the organization directory for ordinary tables", async () => {
+  render(
+    <PrincipalCell
+      id="person"
+      label="Person"
+      value={null}
+      kind="user"
+      multiple={false}
+      tableId="ordinary-table"
+      onChange={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox"));
+  expect(screen.getByRole("option", { name: "Jan Kowalski" })).toBeVisible();
 });

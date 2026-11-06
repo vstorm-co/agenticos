@@ -148,7 +148,7 @@ model instead.
 
 | By voice | Capabilities |
 |---|---|
-| As-is | clock (the time in the instructions is fixed when the call connects), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation, text to speech |
+| As-is | clock (the time in the instructions is fixed when the call connects), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, planning, tool output limits, image generation, text to speech |
 | On screen | ask the user: in `/chat` the question card appears in the call view, read aloud as well, and the caller taps an answer or says it; a widget's or hosted page's call is not offered it |
 | Adapted | skills: loaded as instructions on demand, without the tools a text run uses to read them |
 | Dropped | tool search: the MCP tools it would have deferred are passed to the call directly |
@@ -191,7 +191,7 @@ the call. The agent's own voice note follows it.
 
 Over WebRTC the agent is resolved twice, once to answer the offer and once for
 the sideband. MCP servers are connected twice and dynamic instructions run
-twice, so a mem0 memory lookup is paid twice; both are metered on the run.
+twice, so a memory lookup is paid twice; both are metered on the run.
 
 ## Approvals in a call
 
@@ -380,3 +380,25 @@ The socket closes, and the server hangs up the provider call and records its
 time and cost. If the server itself stopped, the sweep hangs the call up within
 about a minute of its last heartbeat. The turns said before the tab closed are
 already saved in the conversation.
+
+
+## Telephone calls { #telephone-calls }
+
+Configure an existing vault-backed Twilio SMS bot in Channels, then enable its telephone route. Use an HTTPS `PUBLIC_BASE_URL`, copy the displayed inbound URL into the number’s Voice webhook (POST), and keep signed status callbacks reachable. Select a published public voice embed for inbound calls; caller ID never authenticates an inbound visitor. The existing realtime model runs through a server audio relay, with text transcripts and no audio recording.
+
+In Settings → Notifications, select your verified SMS identity and explicitly allow calls, spoken reports and/or transfers. Set your time zone, quiet hours, daily limit and report language. These permissions are independent of SMS notification consent. Reports can reach voicemail; enabling them authorizes that possibility. You can revoke consent at any time. An administrator sets route duration, concurrency, call counts, transfer contacts and the daily telephone budget.
+
+Use the personal dialer for a conversation or a spoken report. The `phone_calls` capability binds one route: `call_me` calls only the authenticated member’s opted-in contact. Scheduled routines may send spoken reports, but cannot start an interactive conversation with broader source authority. `list_phone_transfer_contacts` returns permitted contact IDs; `transfer_phone_call` and `end_phone_call` affect only the current trusted telephone session. Transfers retain the original time ceiling and require the destination’s separate consent.
+
+Every outbound request has a durable idempotency key. Unknown provider acceptance waits for a signed callback and never automatically redials. Consent, membership, source authority and route generations are checked again before execution and during active calls. A prepared report is not proof that a person heard it. Call cards show provider state, estimated cost and available transcript links; private source chats can continue privately, while shared project chats receive a receipt without the private transcript.
+
+Enter a conservative per-minute price covering the destination, voice synthesis and other applicable fees. The platform reserves rounded minutes, including a possible transfer leg, before calling; these estimates are separate from AI model budgets and are not a Twilio invoice. Receipts expire after 30 days; conversations retain their normal retention policy. Personal export includes your consent and receipts without provider credentials. Validate real numbers, audio, voicemail, transfer and provider billing on your own Twilio account before relying on live calls.
+
+
+Select the agents allowed to request calls or scheduled reports. Important-case contact needs an additional opt-in and your written importance criteria. The agent reads those criteria and the current conversation’s open cases with `get_phone_contact_policy`, then supplies the existing outcome ID and its assessment to `call_me`. Set a zero delay for immediate contact or a delay after the first unread notification.
+
+Acknowledging, resolving or muting that outcome, or reading its notification, cancels queued calls and requests termination of calls already starting or active. Case admission and notification changes share database locks; an in-flight provider request is hung up as soon as its call ID arrives. Each case permits one telephone attempt; this deduplication survives receipt expiry. Source conversations and current permissions remain required.
+
+Account and organization deletion is refused while telephone calls remain unfinished. End those calls and wait for their final status before retrying deletion; this preserves the provider callbacks and duration limits. Personal export includes all outcomes, including cases with no telephone attempt, with full content counted against the export size limit.
+
+SMS bot credential replacement is also refused until its telephone calls finish. Cancelling while a dial request is still in flight records the stop intent and hangs up as soon as the provider call ID arrives. Cleanup commits that intent before contacting the provider, allowing signed status callbacks to settle the receipt concurrently.

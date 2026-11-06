@@ -21,6 +21,8 @@ export interface FormFieldProps {
   error?: string | null;
   required?: boolean;
   className?: string;
+  /** Switches put the control beside their label and explanatory text. */
+  layout?: "stacked" | "switch";
   /** The control (Input, Textarea, Select trigger, …). A single element. */
   children: React.ReactNode;
 }
@@ -38,6 +40,7 @@ export function FormField({
   error,
   required,
   className,
+  layout = "stacked",
   children,
 }: FormFieldProps) {
   const descId = `${htmlFor}-desc`;
@@ -58,9 +61,19 @@ export function FormField({
     : children;
 
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div
+      className={cn(
+        layout === "switch"
+          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-1"
+          : "space-y-2",
+        className,
+      )}
+    >
       {label && (
-        <Label htmlFor={controlId}>
+        <Label
+          htmlFor={controlId}
+          className={layout === "switch" ? "col-start-1 row-start-1" : undefined}
+        >
           {label}
           {required && (
             <span className="text-destructive ml-0.5" aria-hidden="true">
@@ -69,14 +82,31 @@ export function FormField({
           )}
         </Label>
       )}
-      {control}
+      {layout === "switch" ? (
+        <div className="col-start-2 row-span-2 row-start-1 self-center">{control}</div>
+      ) : (
+        control
+      )}
       {description && !error && (
-        <p id={descId} className="text-muted-foreground text-[13px] leading-relaxed">
+        <p
+          id={descId}
+          className={cn(
+            "text-muted-foreground text-xs leading-5",
+            layout === "switch" && "col-start-1 row-start-2",
+          )}
+        >
           {description}
         </p>
       )}
       {error && (
-        <p id={errId} role="alert" className="text-destructive text-[13px] leading-relaxed">
+        <p
+          id={errId}
+          role="alert"
+          className={cn(
+            "text-destructive-ink text-[13px] leading-5",
+            layout === "switch" && "col-start-1 row-start-2",
+          )}
+        >
           {error}
         </p>
       )}

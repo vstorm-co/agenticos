@@ -1,14 +1,17 @@
 """Binding an agent to this platform's own MCP server (#2063)."""
 
 import uuid
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.agents.audience import RunAudience
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PlatformMcpServerRef
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent_run import AgentRun, RunSurface
 from app.services.agent_registry import AgentRegistryService
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AgentRunnerService, _routine_source
 
 pytestmark = pytest.mark.anyio
 
@@ -28,7 +31,7 @@ class TestTheCredential:
             assert await runner._platform_credential(bound, CTX) == "aos_minted"
             assert await runner._platform_credential(unbound, CTX) is None
 
-        mint.assert_awaited_once_with(CTX, agent_id=None)
+        mint.assert_awaited_once_with(CTX, agent_id=None, conversation_id=None)
 
     async def test_a_fresh_agent_is_named_before_its_run_row_exists(self) -> None:
         runner = AgentRunnerService(MagicMock())
@@ -38,7 +41,7 @@ class TestTheCredential:
             "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_minted")
         ) as mint:
             assert await runner._platform_credential(bound, CTX, agent_id=agent_id) == "aos_minted"
-        mint.assert_awaited_once_with(CTX, agent_id=agent_id)
+        mint.assert_awaited_once_with(CTX, agent_id=agent_id, conversation_id=None)
 
     async def test_existing_agent_identity_travels_with_its_platform_credential(self) -> None:
         runner = AgentRunnerService(MagicMock())
@@ -51,7 +54,7 @@ class TestTheCredential:
             ) as mint,
         ):
             assert await runner._platform_credential(bound, CTX, run) == "aos_minted"
-        mint.assert_awaited_once_with(CTX, agent_id=run.agent_id)
+        mint.assert_awaited_once_with(CTX, agent_id=run.agent_id, conversation_id=None)
 
     async def test_a_run_resumed_by_somebody_else_keeps_its_owner_s_authority(self) -> None:
         """Codex on #2062: an administrator answering an approval lent the run their role."""
@@ -141,3 +144,148 @@ class TestPublishing:
         assert alone == []
         assert len(clashing) == 1
         assert "'agenticos'" in clashing[0]
+
+
+@pytest.mark.parametrize(
+    "surface",
+    [
+        RunSurface.WEB,
+        RunSurface.SLACK,
+        RunSurface.TELEGRAM,
+        RunSurface.MATTERMOST,
+        RunSurface.TEAMS,
+        RunSurface.SMS,
+        RunSurface.EMAIL,
+    ],
+)
+def test_only_an_admitted_private_human_turn_can_create_personal_routine_authority(
+    surface: RunSurface,
+) -> None:
+    conversation = uuid.uuid4()
+    assert (
+        _routine_source(
+            CTX,
+            surface=surface,
+            conversation_id=conversation,
+            memory_room_key=None,
+            audience=None,
+            public_origin=False,
+            impersonated=False,
+            existing_run=None,
+        )
+        == conversation
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "schedule",
+        "workflow",
+        "api",
+        "embed",
+        "a2a",
+        "proactive",
+        "no-conversation",
+        "no-person",
+        "publisher",
+        "personal-fire",
+        "routine",
+        "key",
+        "key-scopes",
+        "room",
+        "public-origin",
+        "impersonated",
+        "restored-room",
+        "restored-anonymous",
+        "restored-other-person",
+        "old-publisher",
+        "old-key",
+        "old-routine",
+        "old-surface",
+    ],
+)
+def test_background_and_resumed_nonprivate_runs_never_gain_personal_routine_authority(
+    case: str,
+) -> None:
+    ctx = CTX
+    surface = {
+        "schedule": RunSurface.SCHEDULE,
+        "workflow": RunSurface.WORKFLOW,
+        "api": RunSurface.API,
+        "embed": RunSurface.EMBED,
+        "a2a": RunSurface.A2A,
+        "proactive": RunSurface.PROACTIVE,
+    }.get(case, RunSurface.SLACK)
+    if case == "no-person":
+        ctx = replace(ctx, user_id=None)
+    if case == "publisher":
+        ctx = replace(ctx, subject_is_publisher_fallback=True)
+    if case == "personal-fire":
+        ctx = replace(ctx, fired_as_creator="schedule")
+    if case == "routine":
+        ctx = replace(ctx, routine_id=uuid.uuid4())
+    if case == "key":
+        ctx = replace(ctx, api_key_id=uuid.uuid4())
+    if case == "key-scopes":
+        ctx = replace(ctx, key_scopes=frozenset({Perm.AGENTS_RUN}))
+    audience = None
+    if case == "restored-room":
+        audience = RunAudience(user_id=CTX.user_id, room_key="room:slack:C123")
+    if case == "restored-anonymous":
+        audience = RunAudience()
+    if case == "restored-other-person":
+        audience = RunAudience(user_id=uuid.uuid4())
+    run = None
+    if case.startswith("old-"):
+        run = AgentRun(
+            user_id=CTX.user_id,
+            surface=RunSurface.SLACK.value,
+            initiated_by_publisher_fallback=case == "old-publisher",
+            key_scopes=None,
+            routine_origin_id=None,
+        )
+        if case == "old-key":
+            run.key_scopes = ["agents:run"]
+        if case == "old-routine":
+            run.routine_origin_id = uuid.uuid4()
+        if case == "old-surface":
+            run.surface = RunSurface.API.value
+    assert (
+        _routine_source(
+            ctx,
+            surface=surface,
+            conversation_id=None if case == "no-conversation" else uuid.uuid4(),
+            memory_room_key="room:slack:C123" if case == "room" else None,
+            audience=audience,
+            public_origin=case == "public-origin",
+            impersonated=case == "impersonated",
+            existing_run=run,
+        )
+        is None
+    )
+
+
+def test_resumed_private_chat_keeps_the_original_person_instead_of_the_approver() -> None:
+    original = uuid.uuid4()
+    conversation = uuid.uuid4()
+    run = AgentRun(
+        user_id=original,
+        surface=RunSurface.WEB.value,
+        initiated_by_publisher_fallback=False,
+        key_scopes=None,
+        routine_origin_id=None,
+    )
+    assert (
+        _routine_source(
+            CTX,
+            surface=RunSurface.WEB,
+            conversation_id=conversation,
+            memory_room_key=None,
+            audience=RunAudience(user_id=original),
+            public_origin=False,
+            impersonated=False,
+            existing_run=run,
+        )
+        == conversation
+    )

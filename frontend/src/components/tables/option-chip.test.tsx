@@ -23,7 +23,7 @@ const base: ColumnDef = {
 };
 it("retains configured colors and visibly retires archived choices", () => {
   render(<OptionChip column={base} optionId="open" />);
-  expect(screen.getByText("Open")).toHaveClass("line-through", "text-sky-700");
+  expect(screen.getByText("Open")).toHaveClass("line-through", "text-table-blue-foreground");
 });
 it("renders unknown and multi-select values without inventing an option", () => {
   render(<>{selectChips({ ...base, type: "multi_select" }, ["open", 4, "unknown"])}</>);

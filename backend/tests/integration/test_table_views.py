@@ -926,3 +926,28 @@ async def test_a_view_can_intentionally_hide_every_custom_column(db):
         ),
     )
     assert (await views.get_view(ctx, table.id, created.id)).config.visible_columns == []
+
+
+async def test_default_view_must_be_shared_and_belong_to_the_table_and_resets_on_delete(db):
+    from app.core.exceptions import BadRequestError
+    from app.db.models.virtual_table import VirtualTable
+    from app.schemas.virtual_table import TableCreate, TableUpdate
+
+    views, tables, ctx, owner, org, table = await _setup(db)
+    private = await views.create_view(ctx, table.id, TableViewCreate(name="Only me", kind="table"))
+    with pytest.raises(BadRequestError, match="shared saved view"):
+        await tables.update_table(ctx, table.id, TableUpdate(default_view_id=private.id))
+    shared = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Everyone", kind="table", visibility="shared")
+    )
+    updated = await tables.update_table(ctx, table.id, TableUpdate(default_view_id=shared.id))
+    assert updated.default_view_id == shared.id
+    with pytest.raises(BadRequestError, match="another default"):
+        await views.update_view(ctx, table.id, shared.id, TableViewUpdate(visibility="private"))
+    other = await tables.create_table(ctx, TableCreate(name="Other tasks"))
+    with pytest.raises(BadRequestError, match="shared saved view"):
+        await tables.update_table(ctx, other.id, TableUpdate(default_view_id=shared.id))
+    await views.delete_view(ctx, table.id, shared.id)
+    persisted = await db.get(VirtualTable, table.id)
+    await db.refresh(persisted)
+    assert (await tables.describe_table(ctx, table.id)).default_view_id is None

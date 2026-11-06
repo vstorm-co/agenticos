@@ -215,6 +215,7 @@ describe("the drafts of a turn", () => {
   const call: ToolCall = {
     id: "tc-1",
     name: "write_draft",
+    presentation_kind: "draft",
     status: "completed",
     result: "Drafted Reply.",
     args: { title: "Reply", kind: "email", versions: [{ fields: [{ text: "Hi Marta," }] }] },

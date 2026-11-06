@@ -190,7 +190,11 @@ class TestDeciding:
         assert decided.approval is p.decided
         assert decided.continues_in_chat is False
         assert p.approvals.decide.await_args.args == (_person(), APPROVAL)
-        assert p.approvals.decide.await_args.kwargs == {"approved": True, "note": "n"}
+        assert p.approvals.decide.await_args.kwargs == {
+            "approved": True,
+            "note": "n",
+            "remember_scope": None,
+        }
 
     async def test_a_decision_on_a_chat_run_parked_before_its_chat_was_recorded_leaves_resuming_to_the_browser(
         self,
@@ -261,6 +265,10 @@ class TestDeciding:
                 "app.services.approvals.voice_call_repo.is_live_run", AsyncMock(return_value=False)
             ),
             patch("app.services.approvals.record_audit", AsyncMock()),
+            patch(
+                "app.services.approvals.agent_run_repo.list_approvals_for_run",
+                AsyncMock(return_value=[pending]),
+            ),
             patch(
                 "app.services.approvals.spawn_after_commit",
                 side_effect=lambda d, c, name: wake(c, name=name),

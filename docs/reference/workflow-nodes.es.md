@@ -1,5 +1,5 @@
 ---
-source_sha: "a380a5b5a5cd"
+source_sha: "112189419852"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -851,14 +851,20 @@ Cuando la llamada se corta, lo que sigue depende de si pudo llegar al servidor:
 
 ## notification.send { #notification-send }
 
-Notifica a miembros de la organización en la aplicación, por email o por ambos,
-a través del centro de notificaciones. Los destinatarios son miembros indicados
+Notifica a miembros mediante el centro de notificaciones: en la aplicación, por
+email, push, Slack, Telegram, Mattermost, Microsoft Teams, SMS o iMessage. Los destinatarios son miembros indicados
 por id. En el momento de ejecutarse, cada uno debe seguir siendo un miembro
 activo que puede ver el workflow, y los demás se descartan. Si no queda nadie, el
 paso falla con `NO_PERMITTED_RECIPIENTS`. Las preferencias de cada persona para
 **Workflow notifications** siguen aplicándose. El paso termina cuando la
 notificación queda escrita, y el email se entrega después. Un paso reintentado no
 escribe una segunda notificación.
+
+Los canales privados requieren una ruta de notificaciones configurada y aceptada
+por cada destinatario. Seleccionar un canal no concede consentimiento ni permite
+enviar a un chat indicado por el workflow. La entrega vuelve a comprobar acceso,
+preferencias y autorización de la ruta antes de enviar. La entrega ocurre después
+de finalizar el paso; finalizar no demuestra recepción.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
@@ -982,6 +988,45 @@ de la ejecución responde `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Esperar respuesta por correo.** Selecciona el buzón Gmail u Outlook conectado de
+la organización, el `thread_id` del proveedor, el remitente exacto
+`expected_sender`, `not_before` y `deadline` con zona horaria, y opcionalmente el
+RFC `anchor_message_id` original. Outlook admite un buzón compartido que la cuenta
+pueda leer. Solo consulta metadatos cada 60–3600 segundos (300 por defecto) con el
+temporizador duradero del workflow, sin ocupar un worker ni un modelo mientras
+espera. Conserva la cuenta y su generación de consentimiento tras reinicios;
+nunca cambia automáticamente a una cuenta nueva.
+
+La salida `reply` gana cuando el remitente autenticado responde en ese hilo después
+de `not_before` y antes del plazo, inclusive. Los encabezados RFC opcionales solo
+restringen la coincidencia. No cuentan los mensajes enviados, borradores, respuestas
+automáticas ni recibos. Una última consulta correcta sin coincidencia verificada
+sale por `deadline`; `ignored_unverified` cuenta coincidencias sin autenticación.
+Significa **ninguna respuesta coincidente verificada**, no demuestra que nadie
+haya escrito. Un buzón ilegible, excesivo o revocado falla explícitamente y nunca
+sale por el plazo. El límite es de 500 mensajes y cinco páginas Graph. También
+considera respuestas recibidas antes de que el paso empezara a esperar.
+
+La pestaña Pasos muestra la expectativa. Quien inició el workflow o un editor puede
+pausarla o corregirla mientras espera; en pruebas, solo un editor. Una consulta en
+curso devuelve 409. La pausa conserva el plazo y no consulta el buzón. La revisión
+explícita de un consentimiento renovado solo acepta la misma cuenta. Un paso que
+requiere atención necesita además su decisión de reintento. Cancelar cierra el
+temporizador e impide pasos posteriores. Dura como máximo treinta días; el plazo
+general puede finalizar antes. Prepara seguimientos en `deadline` con los nodos
+habituales de notificación y aprobación; este nodo no envía correo.
+
+Si el plazo vence durante la pausa, el paso falla sin consultar el buzón ni afirmar
+que no llegó respuesta. Reanúdalo o corrígelo antes del plazo.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

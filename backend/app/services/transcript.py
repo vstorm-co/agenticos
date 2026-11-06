@@ -259,7 +259,8 @@ class TranscriptService:
         model_label: str | None = None,
         context_used_tokens: int | None = None,
         mcp_origins: Mapping[str, UUID] | None = None,
-    ) -> None:
+        draft_tools: Collection[str] = (),
+    ) -> UUID | None:
         """Write whatever this run produced, and never fail the run for it.
 
         `prompt` is `None` where there is nothing new to record: a resumed run
@@ -330,7 +331,7 @@ class TranscriptService:
         row rides on stays usable.
         """
         if run.conversation_id is None:
-            return
+            return None
         try:
             async with self.db.begin_nested():
                 if prompt or attachments:
@@ -359,7 +360,7 @@ class TranscriptService:
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:
-                    await self._answer(
+                    return await self._answer(
                         run.conversation_id,
                         run,
                         answer=answer,
@@ -368,6 +369,7 @@ class TranscriptService:
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
                         mcp_origins=mcp_origins or {},
+                        draft_tools=draft_tools,
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -444,7 +446,8 @@ class TranscriptService:
         model_label: str | None,
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
-    ) -> None:
+        draft_tools: Collection[str],
+    ) -> UUID:
         """The assistant turn and the calls it made, attributed to the version.
 
         `agent_version_id` comes off the run rather than the agent: an agent is
@@ -494,6 +497,7 @@ class TranscriptService:
                 started_at=now,
                 status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
                 mcp_connection_id=mcp_origins.get(call.tool_name),
+                presentation_kind="draft" if call.tool_name in draft_tools else None,
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(
@@ -507,3 +511,5 @@ class TranscriptService:
             from app.services.follow_ups import queue_next_steps
 
             queue_next_steps(self.db, message.id, run.organization_id)
+
+        return message.id

@@ -46,7 +46,7 @@ export function ColumnHeaderMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="hover:text-foreground data-[state=open]:text-foreground inline-flex items-center gap-1.5 uppercase outline-none"
+        className="hover:text-foreground data-[state=open]:text-foreground inline-flex items-center gap-1.5 normal-case outline-none"
         aria-label={t("open", { column: column.label })}
       >
         <ColumnTypeIcon type={column.type} />

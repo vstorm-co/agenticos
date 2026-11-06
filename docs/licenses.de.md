@@ -1,5 +1,5 @@
 ---
-source_sha: "448790f4bd52"
+source_sha: "54831c55840b"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -223,8 +223,7 @@ schuldet die Quellcode-Angebote dafür.
 
 ## Gehostete Dienste und Provider-Bedingungen { #hosted-services-and-provider-terms }
 
-Die API eines Modell-Providers, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0,
-Daytona, Google Drive und S3 sind keine Software, die dieses Projekt ausliefert,
+Die API eines Modell-Providers, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona, Google Drive und S3 sind keine Software, die dieses Projekt ausliefert,
 und haben keine Lizenz im obigen Sinne. Jedes ist eine Dienstvereinbarung zwischen
 dem Deployment und dem Provider, geschlossen in dem Moment, in dem ein
 Administrator die Zugangsdaten dieses Providers im [Vault](secrets.md) ablegt. Die

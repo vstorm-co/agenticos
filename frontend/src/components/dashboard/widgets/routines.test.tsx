@@ -376,3 +376,10 @@ describe("the routines widget", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 });
+
+it("shows a pending device activation instead of an old success or upcoming fire", () => {
+  renderWidget([trigger({ waiting_device_count: 2, next_fire_at: "2099-01-01T09:00:00Z" })]);
+  expect(screen.getByText("Waiting for computer (2)")).toBeVisible();
+  expect(screen.queryByText("ok")).not.toBeInTheDocument();
+  expect(screen.queryByText(/next Jan/)).not.toBeInTheDocument();
+});

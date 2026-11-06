@@ -1,6 +1,6 @@
 # notification.send
 
-Notifies members of the organization in the app, by email, or both. It uses the
+Notifies members through the channels each one opted into. It uses the
 same notification center as budget alerts and run notices. The headline is
 `subject`, and the bound `message`, if there is one, follows it.
 
@@ -12,7 +12,9 @@ same notification center as budget alerts and run notices. The headline is
 | `out` | output | `NotificationSendOutput` | `notified_member_ids` |
 
 Config: `recipients` (members, picked in the editor), `subject`, and `channels`
-(`in_app`, `email`).
+(`in_app`, `email`, `push`, `slack`, `telegram`, `mattermost`, `teams`, `sms`,
+`imessage`). Private chat delivery requires the recipient's explicitly configured
+notification route; a workflow never chooses an arbitrary chat for them.
 
 ## Who can be notified
 

@@ -1047,3 +1047,114 @@ class TestTheFrameThatCarriesTheMode:
         a run they think is running."""
         with pytest.raises(BadRequestError):
             requested_approval_mode({"approval_mode": "yolo"})
+
+
+@pytest.mark.anyio
+async def test_routine_standing_consent_executes_and_records_the_consenting_person():
+    from app.agents.routine_actions import RoutineToolDecision
+
+    person = uuid.uuid4()
+    channel = ApprovalChannel(
+        organization_id=uuid.uuid4(), agent_id=uuid.uuid4(), run_id=uuid.uuid4()
+    )
+    ctx = _ctx(None)
+    ctx.deps.request_approval = channel
+    tool = _Recorder()
+    gate = ApprovalGate(
+        routine_policy=AsyncMock(
+            return_value=RoutineToolDecision(required=True, consented_by=person)
+        )
+    )
+    assert (
+        await gate.wrap_tool_execute(
+            ctx,
+            call=_call({"to": "a@example.com"}),
+            tool_def=_tool_def(),
+            args={"to": "a@example.com"},
+            handler=tool,
+        )
+        == "sent"
+    )
+    (recorded,) = channel.requested
+    assert recorded.standing and recorded.routine_consented_by == person
+    assert recorded.tool_args == {"to": "a@example.com"}
+    assert channel.parked == {}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("explicit", ["agent", "ask-all", "connection"])
+async def test_a_routine_exception_never_weakens_an_explicit_gate(explicit):
+    from app.agents.routine_actions import RoutineToolDecision
+
+    callback = AsyncMock(return_value=ApprovalPending())
+    ctx = _ctx(None)
+    ctx.deps.request_approval = callback
+    definition = _tool_def(None if explicit == "connection" else "email")
+    if explicit == "connection":
+        definition.metadata = {NEEDS_APPROVAL: True}
+    gate = ApprovalGate(
+        required_tool_names=GATED if explicit == "agent" else frozenset(),
+        gate_every_tool=explicit == "ask-all",
+        routine_policy=AsyncMock(
+            return_value=RoutineToolDecision(required=True, consented_by=uuid.uuid4())
+        ),
+    )
+    tool = _Recorder()
+    with pytest.raises(ApprovalRequired):
+        await gate.wrap_tool_execute(
+            ctx, call=_call({}), tool_def=definition, args={}, handler=tool
+        )
+    assert tool.calls == []
+    assert callback.await_args.args[0].routine_consented_by is None
+
+
+@pytest.mark.anyio
+async def test_routine_default_gate_parks_or_refuses_without_a_channel_and_revocation_is_final():
+    from app.agents.routine_actions import RoutineToolDecision
+
+    tool = _Recorder()
+    policy = AsyncMock(return_value=RoutineToolDecision(required=True))
+    gate = ApprovalGate(routine_policy=policy)
+    refused = await gate.wrap_tool_execute(
+        _ctx(None), call=_call({}), tool_def=_tool_def(), args={}, handler=tool
+    )
+    assert "cannot ask" in refused and tool.calls == []
+    with pytest.raises(ApprovalRequired):
+        await gate.wrap_tool_execute(
+            _ctx(ApprovalPending()), call=_call({}), tool_def=_tool_def(), args={}, handler=tool
+        )
+    policy.side_effect = AuthorizationError(message="Routine paused")
+    refused = await gate.wrap_tool_execute(
+        _ctx(ApprovalGranted({})), call=_call({}), tool_def=_tool_def(), args={}, handler=tool
+    )
+    assert "Routine paused" in refused and tool.calls == []
+
+
+@pytest.mark.anyio
+async def test_a_routine_checks_authority_without_gating_a_question_to_the_person():
+    from app.agents.routine_actions import RoutineToolDecision
+
+    policy = AsyncMock(return_value=RoutineToolDecision(required=True))
+    gate = ApprovalGate(asking_tool_names=frozenset({"connect_account"}), routine_policy=policy)
+    handler = _Recorder()
+    assert (
+        await gate.wrap_tool_execute(
+            _ctx(None),
+            call=_call({}),
+            tool_def=_tool_def(None, "connect_account"),
+            args={},
+            handler=handler,
+        )
+        == "sent"
+    )
+    policy.assert_awaited_once()
+    policy.side_effect = AuthorizationError(message="Routine paused")
+    refused = await gate.wrap_tool_execute(
+        _ctx(None),
+        call=_call({}),
+        tool_def=_tool_def(None, "connect_account"),
+        args={},
+        handler=handler,
+    )
+    assert "Routine paused" in refused
+    assert handler.calls == [{}]

@@ -78,7 +78,7 @@ export interface MemoryChange {
 const SAVES = new Set(["write_memory", "edit_memory"]);
 
 /** What the turn noted down about the person, or forgot - each change once. */
-export type SetupKind = "agent" | "routine" | "connection";
+export type SetupKind = "agent" | "routine" | "watch" | "connection";
 
 export interface SetupProposal {
   key: string;
@@ -92,7 +92,7 @@ export interface SetupProposal {
   server: string | null;
 }
 
-const SETUP_KINDS: readonly string[] = ["agent", "routine", "connection"];
+const SETUP_KINDS: readonly string[] = ["agent", "routine", "watch", "connection"];
 
 /** What the turn's last `propose_setup` proposed, one card each. */
 export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupProposal[] {
@@ -122,10 +122,29 @@ export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupP
   });
 }
 
+/** A completed call can still be a refusal, so require the runtime's confirmation. */
+export function recordedMemoryStatement(call: ToolCall): string | null {
+  if (
+    call.status !== "completed" ||
+    !["remember", "correct_memory"].includes(call.name) ||
+    typeof call.result !== "string" ||
+    !/^(Recorded|Corrected) \(claim [0-9a-f-]{36}\)/i.test(call.result)
+  )
+    return null;
+  return typeof call.args.statement === "string" ? call.args.statement : null;
+}
+
 export function memoryChangesOf(calls: readonly ToolCall[] | undefined): MemoryChange[] {
   return (calls ?? []).flatMap((call) => {
+    const statement = recordedMemoryStatement(call);
+    if (statement) return [{ callId: call.id, forgot: false, label: statement }];
     const forgot = call.name === "delete_memory";
     if (call.status !== "completed" || !(forgot || SAVES.has(call.name))) return [];
+    if (
+      typeof call.result !== "string" ||
+      !/^(Saved|Updated|Forgot) note ['"][\s\S]+['"]\.$/.test(call.result)
+    )
+      return [];
     const { name, description } = call.args;
     // The index the agent keeps for itself is not a note about anybody.
     if (name === "MEMORY.md") return [];

@@ -79,13 +79,16 @@ export function FileEditor({
   const pane = (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col rounded-md border",
+        "bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
         expanded && "overflow-hidden rounded-2xl border-0",
         className,
       )}
     >
       <div
-        className={cn("flex flex-wrap items-center gap-2 border-b px-3 py-2", expanded && "pr-14")}
+        className={cn(
+          "bg-muted/70 flex flex-wrap items-center gap-2 border-b px-3 py-2",
+          expanded && "pr-14",
+        )}
       >
         <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
         {!expanded && toolbar}

@@ -186,7 +186,9 @@ describe("the sources panel", () => {
   it("opens the cited file whole, from the base it came from", async () => {
     open([rag(1, { collection: "support_aa" })]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Open the original" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open the original of handbook.pdf" }),
+    );
 
     await userEvent.click(screen.getByText("viewing handbook.pdf in kb-1"));
     expect(screen.queryByText("viewing handbook.pdf in kb-1")).toBeNull();
@@ -204,7 +206,7 @@ describe("the sources panel", () => {
   it("offers no original for a file whose base the reader cannot see", () => {
     open([rag(1, { collection: "someone_elses" })]);
 
-    expect(screen.queryByRole("button", { name: "Open the original" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open the original of handbook.pdf" })).toBeNull();
   });
 
   it("closes on the button", async () => {
@@ -259,9 +261,30 @@ describe("where the panel opens", () => {
     expect(useSourcesPanelStore.getState().isOpen).toBe(false);
   });
 
-  it("stays at the page's right edge on the chat page", () => {
+  it("joins a wide chat layout and covers only the chat when narrow", () => {
     const { container } = open([web(1)]);
 
-    expect(container.firstElementChild).toHaveClass("fixed", "right-0");
+    expect(container.firstElementChild).toHaveClass(
+      "absolute",
+      "inset-0",
+      "@min-[48rem]/sources-layout:relative",
+    );
+    expect(container.firstElementChild).not.toHaveClass("fixed");
   });
+});
+
+it("counts a web page once while keeping both retrieved passages", () => {
+  open([web(1), web(2, { content: "Another passage from the same page." })]);
+  expect(screen.getByRole("heading", { name: /Sources/ })).toHaveTextContent("(1)");
+  expect(screen.getAllByRole("link")).toHaveLength(1);
+  expect(screen.getByText("Fourteen days.")).toBeVisible();
+  expect(screen.getByText("Another passage from the same page.")).toBeVisible();
+});
+
+it("closes the old sources when navigating to another conversation", () => {
+  useSourcesPanelStore.getState().open([web(1)]);
+  const { rerender } = render(<SourcesPanel conversationId="first" />);
+  expect(useSourcesPanelStore.getState().isOpen).toBe(true);
+  rerender(<SourcesPanel conversationId="second" />);
+  expect(useSourcesPanelStore.getState().isOpen).toBe(false);
 });

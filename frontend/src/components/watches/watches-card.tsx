@@ -1,20 +1,22 @@
 "use client";
 
+import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Inbox, Pencil, Radar, Trash2 } from "lucide-react";
+import { Pencil, Radar, Trash2 } from "lucide-react";
+import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
 import { Badge, Button, ListCard, ListCardEmpty, Switch } from "@/components/ui";
-import { useMcpConnections, useOrganizations } from "@/hooks";
+import { useAgents, useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatches } from "@/hooks/use-watches";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import { cadenceLabel } from "@/lib/watch-cadence";
 import type { Watch } from "@/lib/watches-api";
 import { WatchAccount } from "./watch-account";
@@ -36,7 +38,15 @@ export function useCanWatch(): boolean {
  * it looks and when it last did, how many of its findings wait in the inbox, why
  * one that is on is not being read, and the controls to change, pause or remove it.
  */
-export function WatchesCard({ onNew }: { onNew: () => void }) {
+export function WatchesCard({
+  onNew,
+  agentId,
+  watchId,
+}: {
+  onNew?: () => void;
+  agentId?: string;
+  watchId?: string;
+}) {
   const t = useTranslations("watches");
   const tc = useTranslations("common");
   const ts = useTranslations("states");
@@ -44,7 +54,10 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
   const router = useRouter();
   const { activeOrg } = useOrganizations();
   const { connections } = useMcpConnections();
-  const { watches, isLoading, error, refetch, update, remove } = useWatches();
+  const { watches: allWatches, isLoading, error, refetch, update, remove } = useWatches();
+  const watches = allWatches.filter(
+    (watch) => (!agentId || watch.agent_id === agentId) && (!watchId || watch.id === watchId),
+  );
   // A connection whose sign-in lapsed is still "on", and a look through it reads
   // nothing - so the row says so rather than looking as if it were working.
   const lapsed = new Set(connections.filter((each) => !each.authorized).map((each) => each.id));
@@ -63,9 +76,9 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
   return (
     <ListCard
       fill
-      namedByPage
-      title={t("title")}
-      counted={isLoading || error ? null : t("count", { count: watches.length })}
+      namedByPage={!watchId}
+      title={t(watchId ? "watchCard" : "title")}
+      counted={isLoading || error || watchId ? null : t("count", { count: watches.length })}
       contentClassName="p-0"
       headerTour="routines-watches"
       controls={
@@ -115,6 +128,8 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
             />
           ))}
         </ul>
+      ) : watchId ? (
+        <ListCardEmpty icon={Radar} title={t("watchUnavailable")} />
       ) : !allowed ? (
         <ListCardEmpty icon={Radar} title={t("offTitle")} description={t("orgOff")} />
       ) : connections.length === 0 ? (
@@ -129,7 +144,7 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
           icon={Radar}
           title={t("emptyTitle")}
           description={t("emptyDescription")}
-          cta={{ label: t("add"), onClick: onNew }}
+          cta={onNew ? { label: t("add"), onClick: onNew } : undefined}
         />
       )}
       {editing && (
@@ -139,13 +154,15 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
   );
 }
 
-function WatchRow({
+export function WatchRow({
+  className,
   watch,
   lapsed,
   onEdit,
   onToggle,
   onRemove,
 }: {
+  className?: string;
   watch: Watch;
   lapsed: boolean;
   onEdit: () => void;
@@ -156,11 +173,44 @@ function WatchRow({
   const tCadence = useTranslations("watches.cadence");
   const tTime = useTranslations("time");
   const locale = useLocale();
+  const { agents } = useAgents({ enabled: watch.agent_id !== null });
   const cadence = cadenceLabel(watch.interval_minutes, tCadence);
+  const unsuccessful = watch.last_attempt_status && watch.last_attempt_status !== "completed";
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5">
+    <li
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5",
+        className,
+      )}
+    >
       <div className="min-w-0 flex-1 space-y-1">
         <p className="truncate text-sm font-medium">{watch.title}</p>
+        <RoutineAutoPause stoppedAt={watch.auto_stopped_at} count={watch.consecutive_failures} />
+        <p className="text-muted-foreground text-xs">
+          {watch.agent_id
+            ? t("executedBy", {
+                name:
+                  agents.find((agent) => agent.id === watch.agent_id)?.name ??
+                  t("unavailableAgent"),
+              })
+            : t("stopped.needs_agent")}
+          {watch.agent_id && (
+            <>
+              {" "}
+              ·{" "}
+              {t(
+                watch.pinned_version_id
+                  ? "versionPinned"
+                  : watch.environment_id
+                    ? "environmentSelected"
+                    : "versionFollowing",
+              )}
+            </>
+          )}
+        </p>
+        {watch.report_mode === "every_check" && (
+          <p className="text-muted-foreground text-xs">{t("everyCheck")}</p>
+        )}
         <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
           <WatchAccount
             server={watch.server}
@@ -169,11 +219,38 @@ function WatchRow({
           />
           <span aria-hidden>·</span>
           <span className="truncate">
-            {watch.last_run_at
-              ? t("rowLooked", { cadence, when: timeAgo(watch.last_run_at, tTime, locale) })
-              : t("rowFirst", { cadence })}
+            {unsuccessful || watch.stopped || !watch.is_active
+              ? cadence
+              : watch.last_run_at
+                ? t("rowLooked", { cadence, when: timeAgo(watch.last_run_at, tTime, locale) })
+                : t("rowFirst", { cadence })}
           </span>
         </div>
+        {unsuccessful && (
+          <p className="text-destructive text-xs" role="status">
+            {t(`attempt.${watch.last_attempt_status}`)}
+            {watch.last_attempt_at && (
+              <span className="text-muted-foreground">
+                {" · "}
+                {t("attemptedAt", { when: timeAgo(watch.last_attempt_at, tTime, locale) })}
+              </span>
+            )}
+          </p>
+        )}
+        {watch.is_active &&
+          !watch.stopped &&
+          watch.agent_id &&
+          watch.last_attempt_status !== "budget_paused" &&
+          (!watch.ends_at || new Date(watch.next_run_at) < new Date(watch.ends_at)) && (
+            <p className="text-muted-foreground text-xs">
+              {t("nextCheck", {
+                at: new Intl.DateTimeFormat(locale, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(watch.next_run_at)),
+              })}
+            </p>
+          )}
       </div>
       {watch.waiting > 0 && (
         <Link

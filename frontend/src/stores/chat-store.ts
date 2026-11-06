@@ -49,6 +49,26 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
       aliases.set(answer.id, responses[0]!.id);
     }
   });
+  // HTTP continuations have no message_saved frame. Their text and call ids
+  // arrive again in persisted rows, sometimes split across several segments.
+  for (const message of local) {
+    if (!message.isLocalContinuation || !message.runId) continue;
+    const run = history.filter(
+      (saved) =>
+        saved.role === "assistant" && saved.runId === message.runId && !saved.isLocalContinuation,
+    );
+    const calls = message.toolCalls ?? [];
+    const savedCalls = new Set(
+      run.flatMap((saved) => (saved.toolCalls ?? []).map((call) => call.id)),
+    );
+    if (!calls.every((call) => savedCalls.has(call.id))) continue;
+    const match = message.content
+      ? run.find((saved) => saved.content === message.content)
+      : calls.length > 0
+        ? run.find((saved) => saved.toolCalls?.some((call) => call.id === calls.at(-1)?.id))
+        : undefined;
+    if (match) aliases.set(message.id, match.id);
+  }
   return aliases;
 }
 
@@ -91,14 +111,29 @@ const chatState: StateCreator<ChatState> = (set) => ({
   replyTo: null,
 
   addMessage: (message) =>
-    set((state) => ({
-      messages: [...state.messages, message],
-    })),
+    set((state) => {
+      // A persisted update can beat the HTTP response that describes it.
+      if (
+        message.isLocalContinuation &&
+        persistedAliases([message], state.messages).has(message.id)
+      )
+        return state;
+      return { messages: [...state.messages, message] };
+    }),
 
   updateMessage: (id, updater) =>
-    set((state) => ({
-      messages: state.messages.map((msg) => (msg.id === id ? updater(msg) : msg)),
-    })),
+    set((state) => {
+      const index = state.messages.findIndex((message) => message.id === id);
+      if (index < 0) return state;
+      const updated = updater(state.messages[index]!);
+      // History may arrive before message_saved renames the live bubble. Keep
+      // its render key and current content, replacing the already-fetched row.
+      return {
+        messages: state.messages.flatMap((message, position) =>
+          position === index ? [updated] : message.id === updated.id ? [] : [message],
+        ),
+      };
+    }),
 
   removeMessage: (id) =>
     set((state) => ({

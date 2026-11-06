@@ -13,8 +13,9 @@ import uuid
 from collections import Counter
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -27,6 +28,7 @@ from app.core.exceptions import AuthenticationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.main import app
@@ -817,13 +819,21 @@ class TestTheAssistantsCredential:
         member = await _join(db, organization, OrgRoleName.MEMBER)
         ctx = AuthContext(user_id=member.id, organization_id=organization.id, role="member")
         agent_id = uuid.uuid4()
-        raw = await ApiKeyService(db).issue_for_run(ctx, agent_id=agent_id)
+        conversation = Conversation(
+            organization_id=organization.id, user_id=member.id, title="Chat"
+        )
+        db.add(conversation)
+        await db.flush()
+        raw = await ApiKeyService(db).issue_for_run(
+            ctx, agent_id=agent_id, conversation_id=conversation.id
+        )
         assert raw is not None
         caller = await ApiKeyService(db).authenticate(raw)
         key = (
             await db.execute(select(ApiKey).where(ApiKey.id == caller.context.api_key_id))
         ).scalar_one()
         assert key.source_agent_id == agent_id
+        assert caller.context.source_conversation_id == conversation.id
         assert caller.context.subject_id == member.id
         assert not caller.context.has(Perm.API_KEYS_CREATE)
 
@@ -954,3 +964,57 @@ class TestWorkAKeyAskedForEarlier:
         await service.revoke(ctx, row.id)
         with pytest.raises(AuthenticationError):
             await service.context_for_key(row.id, organization_id=organization.id)
+
+
+@pytest.mark.security
+async def test_a_key_started_run_cannot_mint_private_chat_provenance(db: AsyncSession) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    conversation = Conversation(organization_id=organization.id, user_id=owner.id, title="Chat")
+    db.add(conversation)
+    await db.flush()
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    for keyed in (
+        replace(ctx, api_key_id=uuid.uuid4()),
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_RUN})),
+        replace(ctx, subject_is_publisher_fallback=True),
+        replace(ctx, fired_as_creator="schedule"),
+        replace(ctx, fired_as_creator="event"),
+        replace(ctx, routine_id=uuid.uuid4()),
+    ):
+        raw = await ApiKeyService(db).issue_for_run(keyed, conversation_id=conversation.id)
+        if keyed.subject_is_publisher_fallback:
+            assert raw is None
+            continue
+        assert raw is not None
+        assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None
+
+
+@pytest.mark.security
+async def test_an_external_key_never_supplies_private_chat_provenance(db: AsyncSession) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    conversation = Conversation(organization_id=organization.id, user_id=owner.id, title="Chat")
+    db.add(conversation)
+    await db.flush()
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    raw = await ApiKeyService(db).issue_for_run(ctx, conversation_id=conversation.id)
+    assert raw is not None
+    row = (await db.execute(select(ApiKey).where(ApiKey.prefix == raw[:12]))).scalar_one()
+    row.internal = False
+    await db.flush()
+    assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None
+
+
+@pytest.mark.security
+async def test_impersonation_never_mints_private_routine_authority(db: AsyncSession) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    conversation = Conversation(organization_id=organization.id, user_id=owner.id, title="Chat")
+    db.add(conversation)
+    await db.flush()
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    with patch("app.services.api_key.current_impersonator", return_value=uuid.uuid4()):
+        raw = await ApiKeyService(db).issue_for_run(ctx, conversation_id=conversation.id)
+    assert raw is not None
+    assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None

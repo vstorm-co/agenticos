@@ -234,6 +234,7 @@ async def get_conversation_by_id(
     *,
     include_messages: bool = False,
     include_summary: bool = False,
+    fresh: bool = False,
 ) -> Conversation | None:
     """Get a conversation by ID without a tenant filter.
 
@@ -260,8 +261,12 @@ async def get_conversation_by_id(
                 .selectinload(Message.files)
                 .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
-        result = await db.execute(query)
+        result = await db.execute(query.execution_options(populate_existing=fresh))
         return result.scalar_one_or_none()
+    if fresh:
+        return await db.get(
+            Conversation, conversation_id, options=summary_options, populate_existing=True
+        )
     return await db.get(Conversation, conversation_id, options=summary_options)
 
 
@@ -515,20 +520,19 @@ def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
 RUNNING_HORIZON = timedelta(hours=2)
 
 
-async def running_since(
-    db: AsyncSession, conversation_ids: Collection[UUID]
-) -> dict[UUID, datetime]:
-    """When the run still at work in each of these conversations began.
+class RunningActivity(NamedTuple):
+    since: datetime
+    run_ids: list[UUID]
 
-    One query for a page, as `favourite_ids` is. Only top-level runs: a delegate's
-    row carries its parent's conversation, and the parent already says the thread is
-    at work. A run parked on an approval is waiting on a person, not working, so it
-    is not counted. The earliest start, where two are running at once.
-    """
+
+async def running_activity(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, RunningActivity]:
+    """Active top-level run identities and their earliest start, in one page query."""
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.conversation_id, func.min(AgentRun.started_at))
+        select(AgentRun.conversation_id, func.min(AgentRun.started_at), func.array_agg(AgentRun.id))
         .where(
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
@@ -539,7 +543,21 @@ async def running_since(
         )
         .group_by(AgentRun.conversation_id)
     )
-    return dict(result.all())
+    return {
+        identifier: RunningActivity(since, list(run_ids))
+        for identifier, since, run_ids in result.all()
+        if identifier is not None and since is not None
+    }
+
+
+async def running_since(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, datetime]:
+    """Earliest start of active runs; callers needing identities use running_activity."""
+    return {
+        identifier: activity.since
+        for identifier, activity in (await running_activity(db, conversation_ids)).items()
+    }
 
 
 async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:
@@ -986,6 +1004,13 @@ async def archive_conversation(
     return db_conversation
 
 
+async def get_owner(db: AsyncSession, conversation_id: UUID | None) -> UUID | None:
+    """Whose conversation this is, or `None` for one with no owner or none at all."""
+    if conversation_id is None:
+        return None
+    return await db.scalar(select(Conversation.user_id).where(Conversation.id == conversation_id))
+
+
 async def delete_conversation(db: AsyncSession, *, db_conversation: Conversation) -> None:
     """Delete a conversation and all related messages/tool_calls (cascades)."""
     await db.delete(db_conversation)
@@ -1301,6 +1326,7 @@ class RunOutcome(NamedTuple):
 
     status: str
     duration_ms: int | None
+    started_at: datetime | None = None
 
 
 async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, RunOutcome]:
@@ -1322,6 +1348,7 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     return {
         run_id: RunOutcome(
             status=status,
+            started_at=started,
             duration_ms=(
                 round((ended - started).total_seconds() * 1000)
                 if started is not None and ended is not None
@@ -1391,6 +1418,29 @@ async def get_messages_after(
     return list(result.scalars().all())
 
 
+async def capability_loads_in_messages(
+    db: AsyncSession, message_ids: Collection[UUID]
+) -> list[ToolCall]:
+    """Completed capability loads in an already-authorized history window.
+
+    Read only these calls, not every potentially large tool result in the thread.
+    The service verifies the recorded return before restoring the load state.
+    """
+    if not message_ids:
+        return []
+    result = await db.scalars(
+        select(ToolCall)
+        .where(
+            ToolCall.message_id.in_(message_ids),
+            ToolCall.tool_name == "load_capability",
+            ToolCall.status == "completed",
+            ToolCall.result.is_not(None),
+        )
+        .order_by(ToolCall.started_at, ToolCall.id)
+    )
+    return list(result.all())
+
+
 async def set_summary(
     db: AsyncSession,
     *,
@@ -1456,8 +1506,9 @@ async def get_messages_by_run(
     skip: int = 0,
     limit: int = 100,
     include_tool_calls: bool = False,
+    newest: bool = False,
 ) -> list[Message]:
-    """The turns one run produced, oldest first.
+    """The turns one run produced, chronologically; optionally select its newest page.
 
     Narrowed by `messages.run_id` rather than by a time window over the
     conversation: two runs started in one thread interleave, so windowing by the
@@ -1470,9 +1521,14 @@ async def get_messages_by_run(
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
-    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
+    query = (
+        query.order_by(Message.ordinal.desc() if newest else Message.ordinal.asc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
-    return list(result.scalars().all())
+    rows = list(result.scalars().all())
+    return list(reversed(rows)) if newest else rows
 
 
 async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
@@ -1714,6 +1770,7 @@ async def create_tool_call(
     started_at: datetime,
     status: str = "running",
     mcp_connection_id: UUID | None = None,
+    presentation_kind: Literal["draft"] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -1731,6 +1788,7 @@ async def create_tool_call(
         started_at=started_at,
         status=status,
         mcp_connection_id=mcp_connection_id,
+        presentation_kind=presentation_kind,
     )
     db.add(tool_call)
     await db.flush()

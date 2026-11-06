@@ -1,1 +1,3 @@
-export { startConnectedAccountOAuth as POST } from "@/lib/connected-account-oauth";
+import { startConnectedAccountOAuth } from "@/lib/connected-account-oauth";
+
+export const POST = startConnectedAccountOAuth;

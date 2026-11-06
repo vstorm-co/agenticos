@@ -174,6 +174,24 @@ describe("deleting a secret", () => {
  * moment somebody adds one - and the symptom is a provider nobody can key.
  */
 describe("useSecretPurposes", () => {
+  it("promotes preferred providers without reordering the rest or mutating the catalog", async () => {
+    const ids = ["openai", "anthropic", "google", "openrouter", "otari", "alibaba", "openai_codex"];
+    const items = ids.map((id) => ({ id, label: id, category: "model_provider" }));
+    vi.mocked(apiClient.get).mockResolvedValue({ items, total: items.length });
+    const { result } = renderHook(() => useSecretPurposes(), { wrapper });
+    await waitFor(() => expect(result.current.purposes).toHaveLength(items.length));
+    expect(result.current.purposes.map((entry) => entry.id)).toEqual([
+      "openai",
+      "openai_codex",
+      "anthropic",
+      "openrouter",
+      "google",
+      "otari",
+      "alibaba",
+    ]);
+    expect(items.map((entry) => entry.id)).toEqual(ids);
+  });
+
   beforeEach(() => vi.clearAllMocks());
 
   it("reads the deployment's own list", async () => {

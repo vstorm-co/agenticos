@@ -1,5 +1,5 @@
 ---
-source_sha: "dc7308008f49"
+source_sha: "f415e83adfe5"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -156,7 +156,7 @@ Eso la llamada lo pasa al modelo de texto propio del agent.
 
 | Por voz | Capabilities |
 |---|---|
-| Tal cual | reloj (la hora de las instrucciones queda fijada cuando se conecta la llamada), contexto, conocimiento, investigación web, lectura de páginas web, gráficos, artefactos, ejecución de código, búsqueda de conversaciones, archivos de memoria, memoria mem0, planificación, límites de salida de herramientas, generación de imágenes, texto a voz |
+| Tal cual | reloj (la hora de las instrucciones queda fijada cuando se conecta la llamada), contexto, conocimiento, investigación web, lectura de páginas web, gráficos, artefactos, ejecución de código, búsqueda de conversaciones, archivos de memoria, planificación, límites de salida de herramientas, generación de imágenes, texto a voz |
 | En pantalla | preguntar al usuario: en `/chat` la tarjeta de preguntas aparece en la vista de la llamada y además se lee en voz alta; quien llama toca una respuesta o la dice. Una llamada desde un widget o una página alojada no la recibe |
 | Adaptada | skills: se cargan como instrucciones bajo demanda, sin las herramientas que usa un run de texto para leerlos |
 | Eliminada | búsqueda de herramientas: las herramientas MCP que habría diferido se pasan directamente a la llamada |
@@ -203,8 +203,7 @@ nota de voz propia del agent va a continuación.
 
 Sobre WebRTC el agent se resuelve dos veces, una para responder a la oferta y
 otra para el sideband. Los servidores MCP se conectan dos veces y las
-instrucciones dinámicas se ejecutan dos veces, así que una consulta a la memoria
-mem0 se paga dos veces; ambas se miden en el run.
+instrucciones dinámicas se ejecutan dos veces, así que una consulta a la memoria se paga dos veces; ambas se miden en el run.
 
 ## Aprobaciones en una llamada { #approvals-in-a-call }
 
@@ -412,3 +411,25 @@ El socket se cierra, y el servidor cuelga la llamada del provider y registra su
 tiempo y su coste. Si el propio servidor se detuvo, el barrido cuelga la llamada
 en cerca de un minuto desde su último heartbeat. Los turnos dichos antes de que
 se cerrara la pestaña ya están guardados en la conversación.
+
+
+## Llamadas telefónicas { #telephone-calls }
+
+En Canales, configura un bot SMS de Twilio existente con credenciales en la bóveda y activa su ruta telefónica. Usa una `PUBLIC_BASE_URL` HTTPS, copia la URL entrante mostrada al webhook Voice del número (POST) y permite los callbacks de estado firmados. Las llamadas entrantes necesitan un embed de voz público publicado. El identificador de llamada no autentica al visitante. El modelo realtime existente utiliza un relé de audio del servidor; se conserva texto, sin grabar audio.
+
+En Ajustes → Notificaciones, selecciona tu identidad SMS verificada y autoriza por separado conversaciones, informes hablados y transferencias. Configura zona horaria, horas de silencio, límite diario e idioma de informes. Estos permisos son independientes de las notificaciones SMS. Los informes pueden llegar al buzón de voz; el consentimiento incluye esa posibilidad y se puede revocar. El administrador limita duración, concurrencia, número de llamadas, contactos de transferencia y presupuesto telefónico.
+
+El formulario personal permite solicitar una conversación o informe. La capacidad `phone_calls` vincula una ruta: `call_me` llama únicamente al contacto autorizado del miembro autenticado. Las rutinas pueden emitir informes, pero no iniciar conversaciones interactivas con permisos de fuentes más amplios. `list_phone_transfer_contacts` devuelve identificadores permitidos; `transfer_phone_call` y `end_phone_call` afectan solo a la sesión telefónica actual de confianza. Las transferencias conservan el límite original y requieren consentimiento independiente del destino.
+
+Cada solicitud saliente tiene una clave de idempotencia duradera. Si la aceptación del proveedor es incierta, se espera un callback firmado sin volver a marcar automáticamente. Se comprueban consentimiento, membresía, fuentes y generación de ruta antes de ejecutar y durante la llamada. Preparar un informe no demuestra que alguien lo escuchó. Las tarjetas muestran estado del proveedor, coste estimado y transcripciones disponibles. Los chats privados pueden continuar; los proyectos compartidos reciben un comprobante sin transcripción privada.
+
+Introduce una tarifa conservadora por minuto que cubra destino, síntesis y demás cargos. La plataforma reserva minutos redondeados, incluida una posible segunda conexión de transferencia, antes de llamar. Estas estimaciones son independientes del presupuesto de IA y no son una factura de Twilio. Los comprobantes caducan a los 30 días; las conversaciones mantienen su retención habitual. La exportación personal incluye consentimientos e historial sin credenciales. Verifica números reales, audio, buzón de voz, transferencias y facturación en tu cuenta Twilio.
+
+
+Selecciona los agentes autorizados para solicitar llamadas o informes. El contacto por casos importantes requiere consentimiento adicional y tus criterios escritos de importancia. El agente consulta los criterios y casos abiertos de la conversación actual mediante `get_phone_contact_policy` y entrega a `call_me` el identificador existente y su evaluación. Cero segundos significa contacto inmediato; otro valor retrasa la llamada desde la primera notificación sin leer.
+
+Confirmar, resolver o silenciar el caso, o leer su notificación, cancela las llamadas pendientes y solicita finalizar las que ya están iniciándose o activas. La admisión y las notificaciones comparten bloqueos de base de datos; una solicitud en curso se cuelga en cuanto llega su identificador del proveedor. Cada caso permite un intento telefónico, incluso después de caducar el comprobante. Se mantienen el contexto de origen y los permisos actuales.
+
+No se permite eliminar cuentas ni organizaciones mientras haya llamadas telefónicas sin finalizar. Finaliza las llamadas y espera su estado final antes de volver a intentar la eliminación; así se conservan los callbacks del proveedor y los límites de duración. La exportación personal incluye todos los casos, incluso sin intento telefónico, y todo su contenido cuenta para el límite de tamaño de la exportación.
+
+También se rechaza cambiar las credenciales del bot SMS hasta que terminen sus llamadas telefónicas. La cancelación durante una solicitud de llamada guarda la intención de finalizar y cuelga en cuanto llega el identificador del proveedor. La limpieza confirma esa intención antes de contactar al proveedor, permitiendo que los callbacks de estado firmados liquiden el registro a la vez.

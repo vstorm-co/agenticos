@@ -31,8 +31,8 @@ def test_runtime_explains_selected_resources_without_changing_the_agent(
     assert spec.instructions == "Do the job."
     assert actual.capabilities == spec.capabilities
     assert APP_ENVIRONMENT_GUIDANCE in actual.instructions
-    assert "not uploaded, synchronized" in actual.instructions
-    assert "does not provide a desktop shell" in actual.instructions
+    assert "Local folders remain personal" in actual.instructions
+    assert "Mobile has no desktop shell" in actual.instructions
     assert ("### Selected for this run" in actual.instructions) is (target is not None)
     if target is not None:
         assert ("Sandbox tools use" in actual.instructions) is (target.folder is not None)
@@ -50,5 +50,5 @@ def test_runtime_explains_selected_resources_without_changing_the_agent(
 
 def test_mcp_carries_the_same_environment_facts_without_claiming_device_access() -> None:
     assert APP_ENVIRONMENT_GUIDANCE in INSTRUCTIONS
-    assert "cannot grant native" in INSTRUCTIONS
+    assert "platform MCP cannot grant it" in INSTRUCTIONS
     assert "Mobile" in INSTRUCTIONS

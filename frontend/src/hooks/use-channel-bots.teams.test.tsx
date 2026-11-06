@@ -4,11 +4,15 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDownloadTeamsPackage, useTeamsConversations } from "./use-channel-bots";
+import {
+  useRegisterChannelWebhook,
+  useDownloadTeamsPackage,
+  useTeamsConversations,
+} from "./use-channel-bots";
 import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), raw: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), raw: vi.fn(), post: vi.fn() } }));
 vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -59,4 +63,20 @@ describe("where a trigger can post", () => {
     renderHook(() => useTeamsConversations(false), { wrapper });
     expect(apiClient.get).not.toHaveBeenCalled();
   });
+});
+
+it("registers a saved webhook without returning its signing credential and reports refusal", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    success: true,
+    webhook_url: "https://server/webhook",
+  });
+  const { result } = renderHook(() => useRegisterChannelWebhook(), { wrapper });
+  await act(() => result.current.mutateAsync("bot"));
+  expect(apiClient.post).toHaveBeenCalledWith("/channels/bots/bot/webhook/register", {});
+  expect(toast.success).toHaveBeenCalled();
+  vi.mocked(apiClient.post).mockRejectedValue(new Error("Bot is disabled"));
+  await act(async () => {
+    await result.current.mutateAsync("bot").catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
 });

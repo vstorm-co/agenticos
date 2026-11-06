@@ -1,5 +1,5 @@
 ---
-source_sha: "27e31adcbb5e"
+source_sha: "3ef65d6f2f43"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -366,7 +366,7 @@ nigdy klucz API, gość widżetu czy czat kogoś innego - a
 [trigger](triggers.md) tylko wtedy, gdy działa jako jego twórca, który wskazuje mu
 folder swojego komputera w polu **Pracuj na** triggera.
 
-**Gdy komputera nie ma.** Run, który poprosił o ten komputer i zastał aplikację
+**Gdy komputera nie ma — czat interaktywny.** Run, który poprosił o ten komputer i zastał aplikację
 bez połączenia, czeka na nią do dziesięciu minut, a czat o tym mówi. Operacja,
 która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmiana sieci
 
@@ -657,3 +657,15 @@ nie potwierdzi ich niepodpisany lokalny build.
 Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje własny szkic, załączniki, wybranego agenta i trwającą odpowiedź. Ostatnie rozmowy otwiera przeszukiwaną listę i przełącza na istniejącą zakładkę, jeśli rozmowa jest już otwarta; zapisane rozmowy wczytują wiadomości i wcześniejszą historię. Nieaktywne zakładki nie przechwytują plików, skrótów dyktowania ani fokusu. Ostatnie rozmowy pokazują avatary agentów w rozwijanej sekcji. Zajmuje ona tylko potrzebne miejsce, bez rezerwowania pustej wysokości okna. Nowy czat jest jedyną akcją otwierającą nową zakładkę. Sidebar w przeglądarce proponuje pobranie desktopu; zamknięcie przypomnienia wycisza je na 14 dni dla tego konta w tej przeglądarce.
 
 Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok istniejącego skrótu przytrzymywanego. Połączenia głosowe korzystają z tych samych kontrolek co chat: konfiguracji wybranego agenta, napisów, zatwierdzeń i pytań. Wypowiedziane tury zapisują się w rozmowie. Wysyłanie tekstu i dyktowanie czekają podczas połączenia. Przejście do innej zakładki lub zmiana agenta kończy połączenie i zwalnia mikrofon.
+
+## Rutyny lokalne { #local-routines }
+
+Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę, a potem aplikacja komputerowa prosi w natywnym oknie o zgodę na jej identyfikator, organizację, serwer, folder i operacje. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+
+**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Ponowne parowanie, odłączenie, wylogowanie lub zmiana serwera usuwa te zgody. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
+
+Gdy konkretny zatwierdzony komputer jest offline przed wykonaniem, trwała aktywacja czeka w PostgreSQL. Wiersz rutyny pokazuje liczbę oczekujących aktywacji. Wywołania harmonogramu i ręczne łączą się podczas oczekiwania; odrębne zdarzenia zachowują własny kontekst i identyfikator aktywacji. Istniejący worker sprawdza połączenie co minutę. Sprawdzanie gotowości nie wywołuje modelu i nie zużywa prób błędnych uruchomień. Dopuszczenie do wykonania zatwierdza się z przebiegiem przed pierwszym wywołaniem modelu. Rozpoczęta aktywacja nie jest automatycznie powtarzana po awarii workera; niepewna operacja plikowa lub polecenie nie tworzy nowego przebiegu.
+
+Wstrzymanie, zmiana zadania lub zgody lokalnej, usunięcie rutyny albo osiągnięcie jej końca anuluje stare oczekiwanie zamiast przenosić je do innego folderu. Cofnięta sesja urządzenia wymaga ponownego przeglądu. Trzy martwe lub utracone zadania przed dopuszczeniem zatrzymują rutynę i tworzą incydent właściciela; kontekst nieudanego zdarzenia pozostaje dostępny w eksporcie jego danych. Kontekst po rozpoczęciu lub anulowaniu jest od razu usuwany. Zakończone metadane i nieudany kontekst podlegają retencji historii przebiegów organizacji; aktywne oczekiwanie trwa do dopuszczenia, anulowania lub usunięcia.
+
+Wdrażaj API, workery i aplikację komputerową razem; przed włączeniem kontraktu opróżnij stare workery. Starsze aplikacje nie potwierdzają zgód rutyn; istniejące rutyny lokalne wymagają jawnego przeglądu. Migracja `0272_routine_device_waits.py` dodaje oczekiwanie bez zmiany tożsamości rutyny. Przed cofnięciem migracji wstrzymaj rutyny lokalne i opróżnij ich zadania: cofnięcie usuwa oczekujący kontekst i go nie wykonuje. Stare zaparkowane przebiegi bez migawki celu lokalnego wymagają nowego uruchomienia.

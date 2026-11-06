@@ -14,12 +14,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import person_owner_key, room_owner_key
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import memory_repo
-from app.services.memory import MemoryService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -239,95 +238,3 @@ class TestRevivingASuppressedName:
         await db.refresh(note)
         assert won is False
         assert note.content == "first"
-
-
-class TestWhichSpecTheDisclosureReads:
-    """An agent's published spec is what runs, and the draft is what it may become."""
-
-    @staticmethod
-    def _mem0_spec() -> dict:
-        return {
-            "capabilities": [{"id": "memory_mem0", "enabled": True, "secret_id": str(uuid.uuid4())}]
-        }
-
-    async def test_a_published_binding_is_disclosed_though_the_draft_dropped_it(
-        self, db: AsyncSession
-    ):
-        """Runs continue on the published version, so the store is still being
-        written to - a disclosure off the draft says the opposite."""
-        organization, user = await _tenant(db)
-        agent = await _agent(db, organization, user, "Support")
-        agent.draft_spec = {"capabilities": []}
-        version = AgentVersion(
-            agent_id=agent.id,
-            organization_id=organization.id,
-            version=1,
-            spec=self._mem0_spec(),
-        )
-        db.add(version)
-        await db.flush()
-        agent.current_version_id = version.id
-        await db.flush()
-
-        page = await MemoryService(db)._notes_for(organization.id, person_owner_key(user.id))
-
-        assert page.external_stores == ["Support"]
-
-    async def test_a_draft_only_binding_is_not_disclosed(self, db: AsyncSession):
-        """It has written nothing yet: the published version is what runs."""
-        organization, user = await _tenant(db)
-        agent = await _agent(db, organization, user, "Support")
-        agent.draft_spec = self._mem0_spec()
-        version = AgentVersion(
-            agent_id=agent.id, organization_id=organization.id, version=1, spec={"capabilities": []}
-        )
-        db.add(version)
-        await db.flush()
-        agent.current_version_id = version.id
-        await db.flush()
-
-        page = await MemoryService(db)._notes_for(organization.id, person_owner_key(user.id))
-
-        assert page.external_stores == []
-
-    async def test_an_unpublished_agent_falls_back_to_its_draft(self, db: AsyncSession):
-        """Nothing is frozen yet, so the draft is the only spec there is."""
-        organization, user = await _tenant(db)
-        agent = await _agent(db, organization, user, "Support")
-        agent.draft_spec = self._mem0_spec()
-        await db.flush()
-
-        page = await MemoryService(db)._notes_for(organization.id, person_owner_key(user.id))
-
-        assert page.external_stores == ["Support"]
-
-
-@pytest.mark.parametrize("single_agent", [False, True])
-async def test_memory_erasure_collects_draft_and_retained_versions_inside_one_tenant(
-    db: AsyncSession, single_agent: bool
-) -> None:
-    from app.repositories import agent_repo
-
-    organization, user = await _tenant(db)
-    foreign_org, foreign_user = await _tenant(db)
-    agent = await _agent(db, organization, user, "Local")
-    foreign = await _agent(db, foreign_org, foreign_user, "Foreign")
-    for row, owner in [(agent, organization), (foreign, foreign_org)]:
-        row.draft_spec = {"capabilities": [{"id": "draft"}]}
-        for number, capability in [(1, "retired"), (2, "published")]:
-            db.add(
-                AgentVersion(
-                    agent_id=row.id,
-                    organization_id=owner.id,
-                    version=number,
-                    spec={"capabilities": [{"id": capability}]},
-                )
-            )
-    await db.flush()
-    snapshots = await agent_repo.memory_erasure_capabilities(
-        db, organization_id=organization.id, agent_id=agent.id if single_agent else None
-    )
-    assert {held_id for held_id, _ in snapshots} == {agent.id}
-    assert len(snapshots) == 3
-    for capability in ["draft", "retired", "published"]:
-        assert (agent.id, [{"id": capability}]) in snapshots

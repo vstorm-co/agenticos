@@ -30,16 +30,16 @@ const CSS = readFileSync(join(__dirname, "globals.css"), "utf8");
  * `.theme-dark` found the sentence explaining it and then read the accent ramp
  * that follows as its body.
  */
-function block(marker: string): Map<string, string> {
-  const opener = new RegExp(`^${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{`, "m");
-  const start = CSS.search(opener);
+function block(marker: string, css = CSS): Map<string, string> {
+  const opener = new RegExp(`^\\s*${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{`, "m");
+  const start = css.search(opener);
   expect(start, `${marker} is no longer a rule in globals.css`).toBeGreaterThan(-1);
-  const open = CSS.indexOf("{", start + marker.length);
+  const open = css.indexOf("{", start + marker.length);
   let depth = 0;
   let end = open;
-  for (let i = open; i < CSS.length; i += 1) {
-    if (CSS[i] === "{") depth += 1;
-    if (CSS[i] === "}") {
+  for (let i = open; i < css.length; i += 1) {
+    if (css[i] === "{") depth += 1;
+    if (css[i] === "}") {
       depth -= 1;
       if (depth === 0) {
         end = i;
@@ -47,7 +47,7 @@ function block(marker: string): Map<string, string> {
       }
     }
   }
-  const body = CSS.slice(open + 1, end);
+  const body = css.slice(open + 1, end);
   const declarations = new Map<string, string>();
   // The `?? ""` rather than destructuring the groups: a match always has both,
   // and TypeScript types them optional either way.
@@ -74,4 +74,17 @@ describe("the dark mapping's three copies", () => {
       expect(toggled.get(name), `${name} disagrees between .theme-dark and :root.dark`).toBe(value);
     }
   });
+});
+
+const LOOK_CSS = readFileSync(join(__dirname, "looks.css"), "utf8");
+
+describe("look palette consistency", () => {
+  it.each(["graphite", "midnight", "paper", "glass"])(
+    "gives %s the same complete dark palette before and after hydration",
+    (look) => {
+      const explicit = block(`:root.dark[data-look="${look}"]`, LOOK_CSS);
+      const system = block(`:root:not(.light)[data-look="${look}"]`, LOOK_CSS);
+      expect(Object.fromEntries(system)).toEqual(Object.fromEntries(explicit));
+    },
+  );
 });

@@ -4,7 +4,7 @@ import * as preferences from "./notification-preferences-api";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), patch: vi.fn() },
+  apiClient: { get: vi.fn(), patch: vi.fn(), put: vi.fn() },
 }));
 
 /**
@@ -47,5 +47,22 @@ describe("notification preferences API", () => {
       enabled: false,
     });
     expect(updated).toEqual({ event_type: "run_completed", channel: "in_app", enabled: false });
+  });
+});
+
+it("reads private destinations without treating them as event preferences", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], destinations: [] });
+  await expect(preferences.listNotificationRoutes()).resolves.toEqual({
+    items: [],
+    destinations: [],
+  });
+  expect(apiClient.get).toHaveBeenCalledWith("/notifications/destinations");
+});
+it("revokes a route with an explicit null rather than omitting the change", async () => {
+  vi.mocked(apiClient.put).mockResolvedValue({ items: [], destinations: [] });
+  await preferences.replaceNotificationRoute({ channel: "teams", session_id: null });
+  expect(apiClient.put).toHaveBeenCalledWith("/notifications/destinations", {
+    channel: "teams",
+    session_id: null,
   });
 });

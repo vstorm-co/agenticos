@@ -68,7 +68,11 @@ function versionOf(value: unknown): DraftVersion | null {
 
 /** The card a finished `write_draft` call shows, or null when it shows none. */
 export function draftOf(call: ToolCall): DraftCard | null {
-  if (call.name !== WRITE_DRAFT || call.status !== "completed" || !wroteDraft(call.result)) {
+  if (
+    call.status !== "completed" ||
+    !wroteDraft(call.result) ||
+    call.presentation_kind !== "draft"
+  ) {
     return null;
   }
   const { title, kind, versions } = call.args;

@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef, type ReactNode } from "react";
@@ -99,7 +101,7 @@ function Shelf({
   const page = (direction: 1 | -1) =>
     strip.current?.scrollBy({
       left: direction * strip.current.clientWidth * 0.85,
-      behavior: "smooth",
+      behavior: glideOrJump(),
     });
   const on = shelf.entries.filter((entry) => enabled.has(entry.id)).length;
   return (

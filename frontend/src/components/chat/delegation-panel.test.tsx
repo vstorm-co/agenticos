@@ -287,7 +287,7 @@ describe("DelegationPanels - nesting", () => {
 });
 
 describe("DelegationPanels - once the turn is over", () => {
-  it("drops a delegation that answered in its turn, which its step already records", () => {
+  it("keeps finished delegate exchanges visible after the parent settles", () => {
     render(
       <DelegationPanels
         settled
@@ -300,19 +300,19 @@ describe("DelegationPanels - once the turn is over", () => {
     );
 
     // The failure says why, and the background one reports after the turn.
-    expect(screen.queryByText("Researcher")).toBeNull();
-    expect(screen.getByText("Writer")).toBeInTheDocument();
-    expect(screen.getByText("Critic")).toBeInTheDocument();
+    expect(screen.getByRole("log").textContent).toMatch(/researcher/i);
+    expect(screen.getByRole("log").textContent).toMatch(/writer/i);
+    expect(screen.getByRole("log").textContent).toMatch(/critic/i);
   });
 
-  it("drops a delegation the person stopped, which its step now says", () => {
+  it("keeps the stopped exchange visible", () => {
     // A stopped run left "Sales Researcher stopped" hanging under the answer
     // while the step list still spun "Asking Sales Researcher".
     const { container } = render(
       <DelegationPanels settled delegations={[delegation({ status: "cancelled" })]} />,
     );
 
-    expect(container).toBeEmptyDOMElement();
+    expect(container).toHaveTextContent("stopped");
   });
 
   it("keeps a stopped specialist that can still be kept", () => {
@@ -326,12 +326,12 @@ describe("DelegationPanels - once the turn is over", () => {
     expect(screen.getByText("stopped")).toBeInTheDocument();
   });
 
-  it("draws nothing once every delegation is recorded elsewhere", () => {
+  it("retains the finished exchange when all delegates have completed", () => {
     const { container } = render(
       <DelegationPanels settled delegations={[delegation({ status: "completed" })]} />,
     );
 
-    expect(container).toBeEmptyDOMElement();
+    expect(container).toHaveTextContent("finished");
   });
 });
 
