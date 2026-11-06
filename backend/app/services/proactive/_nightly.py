@@ -24,7 +24,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -153,13 +153,20 @@ def _reached_a_model(run: AgentRun) -> bool:
 
 
 def _passes(stored_spec: Mapping[str, object], text: str) -> bool:
-    """Whether the input edge of `stored_spec` lets `text` through."""
-    screen = input_screen_for(AgentSpec.model_validate(stored_spec))
-    if screen is None:
-        return True
+    """Whether the input edge of `stored_spec` lets `text` through.
+
+    A spec written by an older version of this code may no longer validate. Then
+    nothing can vouch for the prompt, and it must not take the person's whole look
+    with it, night after night, until it leaves the window.
+    """
     try:
-        screen(text)
+        screen = input_screen_for(AgentSpec.model_validate(stored_spec))
+        if screen is not None:
+            screen(text)
     except GuardrailBlocked:
+        return False
+    except ValidationError:
+        logger.warning("nightly_look_unreadable_spec")
         return False
     return True
 

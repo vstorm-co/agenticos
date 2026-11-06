@@ -33,6 +33,8 @@ export interface AgentRun {
   agent_version_id: string | null;
   user_id: string | null;
   surface: string;
+  /** The platform role that did this run when no agent's instructions ran (#2575). */
+  system_role?: string | null;
   status: RunStatus;
   model_label: string | null;
   /**
@@ -520,6 +522,8 @@ export interface CacheByAgentModel {
  */
 /** A tool call a resumed run is now waiting on. */
 export interface ParkedCall {
+  can_remember?: boolean;
+  subagent_name?: string | null;
   id: string;
   tool_call_id: string | null;
   tool_name: string;
@@ -546,7 +550,14 @@ export interface SettledCall {
   result: string;
 }
 
+export interface SettledDelegation {
+  task_id: string;
+  status: RunStatus;
+}
+
 export interface ResumedRun {
+  /** Published delegates settled independently of the parent continuation. */
+  delegations?: SettledDelegation[];
   run_id: string;
   /** The run goes on in the chat it was asked in, which also gets its answer. */
   continues_in_chat?: boolean;

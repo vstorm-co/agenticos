@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { PageHeader } from "./page-header";
 
-vi.mock("@/components/onboarding/restart-tour-button", () => ({ RestartTourButton: () => null }));
+vi.mock("@/components/onboarding/page-help", () => ({ PageHelp: () => null }));
 
 it("opens secondary commands without replacing the primary action and closes on Escape", async () => {
   const command = vi.fn();

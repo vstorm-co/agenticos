@@ -295,6 +295,26 @@ it("checks native pin state and sends the pin and file picker policies", async (
   await expect(commands.quickAskPinned()).rejects.toThrow("malformed");
 });
 
+it("checks the paired device identity while accepting older native statuses", () => {
+  const identity = {
+    origin: "https://example.com",
+    user_id: "00000000-0000-4000-8000-000000000001",
+    device_id: "00000000-0000-4000-8000-000000000002",
+  };
+  expect(commands.parseDeviceStatus({ linked: true, connected: true, identity })).toEqual({
+    linked: true,
+    connected: true,
+    identity,
+  });
+  expect(() =>
+    commands.parseDeviceStatus({
+      linked: true,
+      connected: true,
+      identity: { ...identity, device_id: false },
+    }),
+  ).toThrow("malformed");
+});
+
 describe("local skills", () => {
   const skill = { name: "pdf", description: "d", source: "agents", shadowed_by: null };
   it("reads each skill with its source and what shadows it", async () => {

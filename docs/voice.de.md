@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "dc7308008f49"
+source_sha: "f415e83adfe5"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -164,7 +164,7 @@ Textmodell des Agenten.
 
 | Per Sprache | Capabilities |
 |---|---|
-| Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation, text to speech |
+| Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, planning, tool output limits, image generation, text to speech |
 | Auf dem Bildschirm | ask the user: In `/chat` erscheint die Fragekarte in der Anrufansicht und wird auch vorgelesen; der Anrufer tippt eine Antwort an oder sagt sie. Ein Anruf aus einem Widget oder einer gehosteten Seite bekommt sie nicht |
 | Angepasst | skills: bei Bedarf als Anweisungen geladen, ohne die Tools, mit denen ein Text-Run sie liest |
 | Weggelassen | tool search: Die MCP-Tools, die sie zurückgestellt hätte, werden dem Anruf direkt übergeben |
@@ -215,7 +215,7 @@ folgt darauf.
 Über WebRTC wird der Agent zweimal aufgelöst, einmal, um das Angebot zu
 beantworten, und einmal für die Sideband-Verbindung. MCP-Server werden zweimal
 verbunden und dynamische Anweisungen laufen zweimal, also wird ein
-mem0-Memory-Lookup zweimal bezahlt; beides wird auf dem Run gemessen.
+Memory-Lookup zweimal bezahlt; beides wird auf dem Run gemessen.
 
 ## Freigaben in einem Anruf { #approvals-in-a-call }
 
@@ -429,3 +429,25 @@ dessen Zeit und Kosten fest. Hat der Server selbst angehalten, legt der Sweep
 den Anruf innerhalb von etwa einer Minute nach seinem letzten Heartbeat auf. Die
 Züge, die gesprochen wurden, bevor der Tab schloss, sind bereits in der
 Unterhaltung gespeichert.
+
+
+## Telefonanrufe { #telephone-calls }
+
+Richte unter Kanäle einen bestehenden Twilio-SMS-Bot mit Zugangsdaten im Tresor ein und aktiviere seine Telefonroute. Verwende eine HTTPS-`PUBLIC_BASE_URL`, hinterlege die angezeigte Eingangsadresse als Voice-Webhook der Nummer (POST) und halte signierte Status-Callbacks erreichbar. Eingehende Anrufe benötigen ein veröffentlichtes öffentliches Voice-Embed. Die Rufnummer authentifiziert keinen Besucher. Das bestehende Realtime-Modell nutzt ein serverseitiges Audio-Relay; gespeichert wird Text, keine Audioaufnahme.
+
+Wähle unter Einstellungen → Benachrichtigungen deine verifizierte SMS-Identität und erlaube Gespräche, gesprochene Berichte und Weiterleitungen jeweils ausdrücklich. Lege Zeitzone, Ruhezeiten, Tageslimit und Berichtssprache fest. Diese Zustimmungen sind unabhängig von SMS-Benachrichtigungen. Berichte können auf der Mailbox landen; die Zustimmung umfasst diese Möglichkeit und ist widerrufbar. Administratoren begrenzen Dauer, parallele Anrufe, Anrufzahlen, Weiterleitungsziele und Telefonbudget.
+
+Der persönliche Dialog startet Gespräche oder Berichte. Die Capability `phone_calls` bindet eine Route: `call_me` ruft nur den zugestimmten Kontakt des angemeldeten Mitglieds an. Routinen dürfen Berichte übermitteln, aber keine interaktiven Gespräche mit weitergehender Quellenberechtigung starten. `list_phone_transfer_contacts` liefert erlaubte Kontakt-IDs; `transfer_phone_call` und `end_phone_call` betreffen nur die aktuelle vertrauenswürdige Telefonsitzung. Weiterleitungen behalten die ursprüngliche Zeitgrenze und benötigen eine eigene Zustimmung des Ziels.
+
+Ausgehende Aufträge haben dauerhafte Idempotenzschlüssel. Bei unklarer Providerannahme wartet das System auf einen signierten Callback, ohne automatisch erneut anzurufen. Zustimmung, Mitgliedschaft, Quellenrechte und Routengeneration werden vor Ausführung und während des Anrufs geprüft. Ein vorbereiteter Bericht belegt kein Anhören. Anrufkarten zeigen Providerstatus, geschätzte Kosten und verfügbare Transkripte. Private Chats können fortgesetzt werden; gemeinsame Projektchats erhalten einen Beleg ohne privates Transkript.
+
+Trage einen konservativen Minutenpreis einschließlich Zieltarif, Sprachsynthese und weiterer Gebühren ein. Vor dem Anruf reserviert die Plattform aufgerundete Minuten einschließlich einer möglichen Weiterleitungsstrecke. Diese Schätzung ist vom KI-Budget getrennt und keine Twilio-Rechnung. Belege verfallen nach 30 Tagen; Gespräche behalten ihre normale Aufbewahrung. Persönliche Exporte enthalten Zustimmungen und Belege ohne Providerzugangsdaten. Prüfe echte Nummern, Audio, Mailbox, Weiterleitungen und Abrechnung mit deinem Twilio-Konto.
+
+
+Wähle die Agenten aus, die Anrufe oder Berichte anfordern dürfen. Kontakt zu wichtigen Fällen benötigt eine zusätzliche Zustimmung und deine schriftlichen Wichtigkeitskriterien. Der Agent liest Kriterien und offene Fälle des aktuellen Gesprächs mit `get_phone_contact_policy` und übergibt an `call_me` die vorhandene Fall-ID sowie seine Begründung. Null Sekunden bedeuten sofortigen Kontakt, sonst gilt die Wartezeit ab der ersten ungelesenen Benachrichtigung.
+
+Bestätigen, Lösen oder Stummschalten des Falls sowie Lesen seiner Benachrichtigung storniert wartende Anrufe und veranlasst das Beenden bereits gestarteter oder aktiver Anrufe. Anrufzulassung und Benachrichtigungsänderungen teilen Datenbanksperren; eine laufende Anbieteranfrage wird beendet, sobald ihre Anruf-ID eintrifft. Pro Fall ist ein Telefonversuch erlaubt, auch nach Ablauf des Belegs. Quellkontext und aktuelle Berechtigungen bleiben erforderlich.
+
+Konten und Organisationen können nicht gelöscht werden, solange Telefonanrufe noch nicht abgeschlossen sind. Beenden Sie die Anrufe und warten Sie vor dem erneuten Löschen auf deren Endstatus; dadurch bleiben Anbieter-Callbacks und Zeitlimits wirksam. Der persönliche Export enthält alle Vorgänge, auch ohne Telefonversuch. Ihr vollständiger Inhalt zählt zur Größenbegrenzung des Exports.
+
+Auch der Austausch der SMS-Bot-Zugangsdaten wird bis zum Abschluss seiner Telefonanrufe abgelehnt. Ein Abbruch während der Anrufanforderung speichert die Beendigungsabsicht und legt auf, sobald die Anruf-ID des Anbieters eintrifft. Die Bereinigung bestätigt diese Absicht vor dem Anbieteraufruf, damit signierte Status-Callbacks den Beleg gleichzeitig abschließen können.

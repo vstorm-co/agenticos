@@ -81,7 +81,7 @@ import { Perm } from "@/types/permissions";
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { can, role, isAppAdmin, isLoading } = usePermissions();
-  const { storedEntries, save, reset } = useDashboardLayout();
+  const { storedEntries, isLoading: layoutLoading, save, reset } = useDashboardLayout();
   const { presets, savePreset, removePreset } = useDashboardPresets();
   const searchParams = useSearchParams();
   const periodParam = searchParams.get("period");
@@ -111,15 +111,13 @@ export default function DashboardPage() {
   const groupParam = searchParams.get("group");
 
   // can() answers false while permissions load; resolving the audience from
-  // that would flash a viewer-shaped page at a steward, so hold the skeleton
-  // until it is real. The saved arrangement is not held for: the hook reports
-  // no preference while it loads, so the audience default renders first and a
-  // saved arrangement settles it into place - the gate runs on both, so the
-  // brief default is never a wider page than the person may see.
+  // that would flash a viewer-shaped page at a steward. Wait for the saved
+  // arrangement too: unknown is not the same as choosing the default, and
+  // mounting that default first also starts requests for widgets being hidden.
   // A link to a group's view waits for the groups too: deciding without them
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
-  if (isLoading || (viewParam === "group" && groupsLoading)) {
+  if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
     const loadingAudience = resolveAudience(role, isAppAdmin);
     const loadingView =
       viewParam === "group"

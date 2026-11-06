@@ -10,7 +10,7 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
     <div
       ref={ref}
       className={cn(
-        "bg-card text-card-foreground shadow-card min-w-0 rounded-xl border",
+        "bg-card text-card-foreground border-foreground/8 min-w-0 rounded-xl border",
         className,
       )}
       {...props}
@@ -70,7 +70,7 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
       <div
         ref={ref}
         className={cn(
-          "text-foreground/85 text-sm leading-relaxed",
+          "text-muted-foreground text-[13px] leading-5",
           !open && "flex min-w-0 items-center gap-2",
           className,
         )}
@@ -84,7 +84,7 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
             type="button"
             onClick={() => setOpen((shown) => !shown)}
             className={cn(
-              "text-foreground/70 hover:text-foreground touch:min-h-11 focus-visible:outline-ring shrink-0 rounded-md text-xs underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2",
+              "text-muted-foreground hover:text-foreground touch:min-h-11 focus-visible:outline-ring shrink-0 rounded-md text-xs underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2",
               open && "mt-0.5",
             )}
             aria-expanded={open}

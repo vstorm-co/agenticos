@@ -4,9 +4,9 @@ import { goToDestination, postSignInDestination } from "./auth-landing";
 import { ROUTES } from "./constants";
 
 describe("postSignInDestination", () => {
-  it("defaults to the dashboard", () => {
-    expect(postSignInDestination()).toBe(ROUTES.DASHBOARD);
-    expect(postSignInDestination(null)).toBe(ROUTES.DASHBOARD);
+  it("defaults to the conversation workspace", () => {
+    expect(postSignInDestination()).toBe(ROUTES.CHAT);
+    expect(postSignInDestination(null)).toBe(ROUTES.CHAT);
   });
 
   it("honours a same-origin path, query and fragment included", () => {
@@ -30,8 +30,8 @@ describe("postSignInDestination", () => {
     "/\t/evil.example",
     "/\n/evil.example",
     "/\r/evil.example",
-  ])("refuses %j and falls back to the dashboard", (path) => {
-    expect(postSignInDestination(path)).toBe(ROUTES.DASHBOARD);
+  ])("refuses %j and falls back to the conversation workspace", (path) => {
+    expect(postSignInDestination(path)).toBe(ROUTES.CHAT);
   });
 });
 

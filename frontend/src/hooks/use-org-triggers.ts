@@ -44,6 +44,10 @@ export function useOrgTriggers(enabled = true) {
     queryKey: qk.triggers.orgList(),
     queryFn: fetchAllOrgTriggers,
     enabled,
+    refetchInterval: (query) =>
+      query.state.data?.items.some((trigger) => trigger.is_active && trigger.local_target != null)
+        ? 30_000
+        : false,
   });
 
   return {

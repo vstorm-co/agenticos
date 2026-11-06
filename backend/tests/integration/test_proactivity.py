@@ -14,12 +14,13 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext
@@ -38,6 +39,9 @@ from app.repositories import (
     member_repo,
     suggestion_repo,
 )
+from app.repositories.conversation import PersonRequest
+from app.schemas.conversation import MessageCreate
+from app.services.conversation import ConversationService
 from app.services.proactive._nightly import NightlyLook
 
 pytestmark = pytest.mark.anyio
@@ -146,7 +150,7 @@ async def _turn(
     version: uuid.UUID | None = None,
     test_spec: dict[str, object] | None = None,
 ) -> AgentRun:
-    """A person's run on `agent`, at the agent's current version unless told otherwise."""
+    """A person's run on `agent`, on `version`: none, as a deleted version leaves it."""
     run = AgentRun(
         id=uuid.uuid4(),
         organization_id=org.id,
@@ -765,11 +769,159 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
             starter_agent=AsyncMock(return_value=await _starter(db, org)),
             think=AsyncMock(return_value=None),
         )
-        before = datetime.now(UTC)
+        read_at: list[datetime] = []
+        reading = conversation_repo.person_requests_since
 
-        await look.look(org.id, person.id)
+        async def noted(*args: Any, **kwargs: Any) -> list[PersonRequest]:
+            read_at.append(datetime.now(UTC))
+            return await reading(*args, **kwargs)
 
-        assert before <= thinker.think.await_args.kwargs["started_at"] <= datetime.now(UTC)
+        with patch.object(conversation_repo, "person_requests_since", noted):
+            await look.look(org.id, person.id)
+
+        assert thinker.think.await_args.kwargs["started_at"] <= read_at[0]
+
+    async def test_a_crashed_turn_is_read_once_the_reaper_ends_it(self, db) -> None:
+        """Nothing about a dead process may hold a look up, and the prompt is not
+        lost: the reap is what decides it, so a later look finds it new."""
+        org, person, agent, chat = await self._scene(db)
+        look_at = _NOW - timedelta(minutes=30)
+        await self._looked_at(db, org, person, look_at)
+        run = await _turn(
+            db,
+            org,
+            agent,
+            person,
+            status=RunStatus.RUNNING,
+            version=agent.current_version_id,
+            ended_at=None,
+        )
+        run.started_at = _NOW - timedelta(hours=1)
+        await self._prompt(db, chat, _CLEAN, run=run, created_at=look_at - timedelta(minutes=5))
+        await self._prompt(db, chat, _BLOCKED, run=run, created_at=look_at - timedelta(minutes=5))
+
+        assert await self._read(db, org, person) is None
+
+        reaped = await agent_run_repo.fail_stale_runs(
+            db,
+            older_than=datetime.now(UTC) + timedelta(minutes=1),
+            ended_at=datetime.now(UTC),
+            error="died",
+        )
+
+        assert [row.id for row in reaped] == [run.id]
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    @pytest.mark.parametrize("status", [RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER])
+    async def test_a_parked_run_has_its_verdict(self, db, status: RunStatus) -> None:
+        """It stopped at a tool call or a question, so a model read the prompt."""
+        org, person, agent, chat = await self._scene(db)
+        parked = await _turn(db, org, agent, person, status=status, input_tokens=40)
+        await self._prompt(db, chat, _CLEAN, run=parked)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_prompt_goes_through_the_real_writers(self, db) -> None:
+        """Every rule here hangs on `run_id`, so the write and the link are the real ones."""
+        org, person, agent, chat = await self._scene(db)
+        written = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="user", content=_CLEAN, author_user_id=person.id
+        )
+
+        assert await self._read(db, org, person) == []
+
+        run = await _turn(
+            db,
+            org,
+            agent,
+            person,
+            status=RunStatus.RUNNING,
+            version=agent.current_version_id,
+            ended_at=None,
+        )
+        await conversation_repo.link_message_to_run(
+            db, message_id=written.id, run_id=run.id, conversation_id=chat.id
+        )
+        assert await self._read(db, org, person) == []
+
+        await agent_run_repo.finish_run(
+            db,
+            run=run,
+            status=RunStatus.COMPLETED.value,
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+            ended_at=datetime.now(UTC),
+        )
+        await db.refresh(written)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_spec_that_no_longer_validates_costs_one_prompt_not_the_look(self, db) -> None:
+        """A rollback or a tightened rule can leave a stored spec unreadable. With
+        nothing to screen by the prompt is out, and the rest of the week is read."""
+        org, person, agent, chat = await self._scene(db)
+        old = await _agent(db, org, slug="old", spec={**_GUARDED, "dropped_field": True})
+        stopped = await _turn(
+            db, org, old, person, status=RunStatus.FAILED, version=old.current_version_id
+        )
+        answered = await _turn(db, org, agent, person)
+        await self._prompt(db, chat, _BLOCKED, run=stopped)
+        await self._prompt(db, chat, _CLEAN, run=answered)
+
+        assert await self._read(db, org, person) == [_CLEAN]
+
+    async def test_a_version_of_another_organization_vouches_for_nothing(self, db) -> None:
+        org, person, agent, chat = await self._scene(db)
+        foreign_owner = await _person(db)
+        foreign = await _agent(
+            db, await _organization(db, foreign_owner), slug="foreign", spec={**_GUARDED}
+        )
+        stopped = await _turn(
+            db, org, agent, person, status=RunStatus.FAILED, version=foreign.current_version_id
+        )
+        await self._prompt(db, chat, _CLEAN, run=stopped)
+
+        assert await self._read(db, org, person) == []
+
+    async def test_a_prompt_inside_another_turn_is_not_vouched_for_by_its_answer(self, db) -> None:
+        """A colleague's answer can land under a prompt no run took, and retention
+        then takes that answer's run: the row under the prompt looks like its own."""
+        org, person, agent, chat = await self._scene(db)
+        other = await _turn(db, org, agent, person)
+        await self._prompt(db, chat, "A colleague's question", run=other, author_user_id=None)
+        await self._prompt(db, chat, _BLOCKED)
+        db.add(
+            Message(
+                id=uuid.uuid4(),
+                conversation_id=chat.id,
+                role="assistant",
+                content="An answer to a colleague",
+                model_name="gpt",
+                run_id=other.id,
+            )
+        )
+        await db.flush()
+        await db.execute(delete(AgentRun).where(AgentRun.id == other.id))
+        await db.flush()
+
+        assert _BLOCKED not in (await self._read(db, org, person) or [])
+
+    async def test_a_person_cannot_write_the_answer_that_vouches_for_a_prompt(self, db) -> None:
+        """`POST /conversations/{id}/messages` takes an assistant turn, and the look
+        trusts `model_name`: so a person's write never carries one."""
+        org, person, _, chat = await self._scene(db)
+        await self._prompt(db, chat, _BLOCKED)
+
+        await ConversationService(db).add_message(
+            chat.id,
+            MessageCreate(role="assistant", content="Sure", model_name="gpt"),
+            organization_id=org.id,
+            user_id=person.id,
+        )
+
+        assert await self._read(db, org, person) == []
 
 
 async def _starter(db, org: Organization) -> Agent:
@@ -1073,6 +1225,37 @@ class TestWatches:
         await db.refresh(due)
         assert due.next_run_at == _NOW + timedelta(hours=2)
         assert due.last_run_at == _NOW
+
+    async def test_attempts_persist_without_replacing_the_last_success(self, db) -> None:
+        from app.db.models.watch import WatchAttemptStatus
+        from app.repositories import watch_repo
+
+        person = await _person(db)
+        org = await _organization(db, person)
+        connection = await _own_connection(db, person)
+        watch = await _watch(db, org, person, connection)
+        assert watch.last_attempt_at is None and watch.last_attempt_status is None
+        await watch_repo.mark_ran(db, watch=watch, at=_NOW)
+        for offset, status in enumerate(
+            (
+                WatchAttemptStatus.SOURCE_UNAVAILABLE,
+                WatchAttemptStatus.NOT_COMPLETED,
+                WatchAttemptStatus.ACCESS_REVOKED,
+            ),
+            start=1,
+        ):
+            attempted_at = _NOW + timedelta(hours=offset)
+            await watch_repo.mark_attempt(db, watch=watch, at=attempted_at, status=status)
+            await db.refresh(watch)
+            assert watch.last_attempt_at == attempted_at
+            assert watch.last_attempt_status == status
+            assert watch.last_run_at == _NOW
+        completed_at = _NOW + timedelta(days=1)
+        await watch_repo.mark_ran(db, watch=watch, at=completed_at)
+        await db.refresh(watch)
+        assert watch.last_run_at == completed_at
+        assert watch.last_attempt_at == completed_at
+        assert watch.last_attempt_status == WatchAttemptStatus.COMPLETED
 
     async def test_a_cadence_under_fifteen_minutes_is_refused_by_the_database(self, db) -> None:
         from sqlalchemy.exc import IntegrityError

@@ -6,7 +6,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.drafts._spec import DRAFTED, WRITE_DRAFT, parse_draft_card
+from app.agents.capabilities.drafts._spec import (
+    DRAFTED,
+    parse_draft_card,
+)
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -67,9 +70,9 @@ def shared_drafts(conversation: Conversation) -> dict[UUID, list[SharedDraft]]:
         (message.id, call)
         for message in conversation.messages or []
         for call in _in_turn_order(message)
-        if call.tool_name == WRITE_DRAFT
-        and call.status == "completed"
+        if call.status == "completed"
         and (call.result or "").startswith(DRAFTED)
+        and call.presentation_kind == "draft"
     ]
     shared: dict[UUID, list[SharedDraft]] = {}
     budget = SHARED_MAX_DRAFT_CHARS
@@ -138,6 +141,10 @@ class ConversationShareService:
                 details={"conversation_id": str(conversation_id)},
             )
 
+        if permission == "edit" and not await conversation_share_repo.lock_private_publication(
+            self.db, conversation_id, conv.organization_id
+        ):
+            raise NotFoundError(message="Conversation not found")
         share_token = None
 
         if generate_link:

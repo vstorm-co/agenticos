@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { deleteNote, getMyMemory, setNoteActive, type MemoryPage } from "@/lib/memory-api";
+import { useChanged } from "./use-changed";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 
@@ -20,8 +21,8 @@ interface UseMyMemoryResult {
   error: unknown;
   skip: number;
   showPage: (skip: number) => void;
-  setActive: (id: string, active: boolean) => Promise<void>;
-  remove: (id: string) => Promise<void>;
+  setActive: (id: string, active: boolean) => Promise<boolean>;
+  remove: (id: string) => Promise<boolean>;
 }
 
 /**
@@ -36,16 +37,17 @@ interface UseMyMemoryResult {
  * leaves somebody believing a note has stopped reaching the model when it has
  * not, which is the worst outcome this screen can produce (#1594 review).
  */
-export function useMyMemory(): UseMyMemoryResult {
+export function useMyMemory(q = ""): UseMyMemoryResult {
   const queryClient = useQueryClient();
   const t = useTranslations("errors");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const [skip, setSkip] = useState(0);
-  const queryKey = qk.memory.mine(activeOrgId ?? "current", skip);
+  if (useChanged(`${activeOrgId}:${q}`)) setSkip(0);
+  const queryKey = qk.memory.mine(activeOrgId ?? "current", skip, q);
 
   const { data, isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => getMyMemory(skip, PAGE_SIZE),
+    queryFn: () => getMyMemory(skip, PAGE_SIZE, q),
   });
 
   const invalidate = () =>
@@ -63,18 +65,27 @@ export function useMyMemory(): UseMyMemoryResult {
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
 
-  // `mutate`, not `mutateAsync`: the click site has nothing to await and an
-  // unawaited `mutateAsync` rejects into nobody's hands. `onError` reports.
+  // A refused privacy action stays open; onError reports why it failed.
   const setActive = useCallback(
     async (id: string, active: boolean) => {
-      toggle.mutate({ id, active });
+      try {
+        await toggle.mutateAsync({ id, active });
+        return true;
+      } catch {
+        return false;
+      }
     },
     [toggle],
   );
 
   const remove = useCallback(
     async (id: string) => {
-      removal.mutate(id);
+      try {
+        await removal.mutateAsync(id);
+        return true;
+      } catch {
+        return false;
+      }
     },
     [removal],
   );

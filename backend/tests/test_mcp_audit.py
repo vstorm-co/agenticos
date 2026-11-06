@@ -44,6 +44,7 @@ def _dns(monkeypatch: pytest.MonkeyPatch) -> None:
         return [(2, 1, 6, "", (_PUBLIC, port or 443))]
 
     monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr(mcp_audit.mcp_oauth, "discover", AsyncMock(side_effect=OAuthError("none")))
 
 
 def _wire(*responses: httpx2.Response) -> httpx2.MockTransport:
@@ -77,6 +78,19 @@ class TestOneServer:
         assert probe.outcome is CheckOutcome.OPEN
         assert probe.auth == "none"
         assert probe.tools == tuple(tools)
+
+    async def test_public_tool_discovery_with_oauth_is_offered_as_sign_in(self, monkeypatch):
+        tools = [McpToolInfo("search", "", read_only=True)]
+        monkeypatch.setattr(mcp_audit, "validate_mcp_url", AsyncMock())
+        monkeypatch.setattr(mcp_audit, "probe_mcp_server", AsyncMock(return_value=tools))
+        monkeypatch.setattr(mcp_audit.mcp_oauth, "discover", AsyncMock())
+
+        probe = await _probe(_wire(_initialized()))
+
+        assert probe.outcome is CheckOutcome.SIGN_IN
+        assert probe.auth == "oauth"
+        assert probe.tools == tuple(tools)
+        assert mcp_audit.verified(probe.outcome, declared="oauth")
 
     async def test_a_stream_answer_is_an_mcp_server_too(self, monkeypatch):
         monkeypatch.setattr(mcp_audit, "validate_mcp_url", AsyncMock())

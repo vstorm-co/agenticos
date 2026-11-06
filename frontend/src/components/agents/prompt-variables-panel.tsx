@@ -49,7 +49,7 @@ export function PromptVariablesPanel({
   onTimeZoneChange,
 }: PromptVariablesPanelProps) {
   const t = useTranslations("agents");
-  const [expanded, setExpanded] = useState(custom.length > 0 || timeZone !== "system");
+  const [expanded, setExpanded] = useState(true);
   const [adding, setAdding] = useState({ name: "", value: "" });
   const taken = new Set([...system.map((v) => v.name), ...custom.map((v) => v.name)]);
   const nameProblem =

@@ -479,7 +479,7 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 <details>
 <summary>All 37 built-in capabilities, as text</summary>
 
-- **Knowledge and memory:** knowledge search with citations, skills, context, memory, memory through mem0, past conversations.
+- **Knowledge and memory:** knowledge search with citations, skills, context, memory, past conversations.
 - **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, a web browser the agent drives and you can take over, and computer use with your permission.
 - **Files, code and output:** calculations in Python, a sandbox with files and a shell, a coding agent that hands work to Claude Code or Codex, charts, drawings (diagrams, calculators, 3D scenes), image generation (OpenAI or Google), speech (OpenAI, ElevenLabs or Google), video clips (Google, BytePlus, xAI or Alibaba), command watches, Tables, Workflows and apps.
 - **How it works:** subagents, planning, thinking, work while tools run, tool search, date and time, instruction reminders, asking the user, drafts and follow-up suggestions.

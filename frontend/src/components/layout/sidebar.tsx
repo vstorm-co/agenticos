@@ -36,7 +36,7 @@ export function Sidebar() {
           </SheetTitle>
           <SheetClose onClick={close} />
         </SheetHeader>
-        <SidebarShell>
+        <SidebarShell onNavigate={close}>
           <SidebarNav onNavigate={close} />
         </SidebarShell>
       </SheetContent>

@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { ArrowRight, ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -121,7 +123,7 @@ export function DiscoverTips() {
               tile.getBoundingClientRect().left -
               node.getBoundingClientRect().left -
               TILE_GAP_PX;
-        node.scrollTo({ left, behavior: "smooth" });
+        node.scrollTo({ left, behavior: glideOrJump() });
         return next;
       });
     }, ADVANCE_MS);
@@ -142,7 +144,7 @@ export function DiscoverTips() {
   const page = (direction: 1 | -1) =>
     strip.current?.scrollBy({
       left: direction * strip.current.clientWidth * 0.85,
-      behavior: "smooth",
+      behavior: glideOrJump(),
     });
 
   return (

@@ -16,7 +16,7 @@ straight into its transport, never returning credentials to an API caller.
 """
 
 from typing import TYPE_CHECKING, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -285,6 +285,7 @@ class OrganizationSecretService:
         if value is not None:
             self._refuse_kind_change(secret, value)
             sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
+            update_data["authorization_generation"] = uuid4()
             update_data["sealed_secret"] = sealed.ciphertext
             update_data["hint"] = sealed.hint
             update_data["key_version"] = sealed.key_version
@@ -523,6 +524,12 @@ class OrganizationSecretService:
         )
 
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
+        value, _, _ = await self.oauth_app_identity(ctx, kind=kind)
+        return value
+
+    async def oauth_app_identity(
+        self, ctx: AuthContext, *, kind: SecretKind
+    ) -> tuple[OAuthAppSecret, UUID, UUID]:
         """Unseal the organization's OAuth client credentials for a token exchange.
 
         The third plaintext reader here, and deliberately the narrowest: it opens one
@@ -586,7 +593,7 @@ class OrganizationSecretService:
         # `unseal_secret` refuses anything whose sealed kind is not the one asked
         # for, so this is the concrete type - the cast narrows it without a branch
         # that could never run.
-        return cast(OAuthAppSecret, value)
+        return cast(OAuthAppSecret, value), row.id, row.authorization_generation
 
     async def app_secret(self, organization_id: UUID, *, kind: SecretKind) -> SecretValue:
         """The organization's single org-visible secret of one kind, by id alone.

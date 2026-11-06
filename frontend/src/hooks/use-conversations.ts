@@ -162,6 +162,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
+  const handedOff = useWorkingStore((state) => state.handedOff);
   // The scope's own stores, for reads made in a callback rather than a render.
   const conversationApi = useConversationStore.useApi();
   const selectionApi = useAgentSelectionStore.useApi();
@@ -231,7 +232,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // is only the safety net for what it does not announce (#2219).
     refetchInterval: (query) =>
       query.state.data?.items.some((conversation) => conversation.running_since) ||
-      Object.keys(useWorkingStore.getState().handedOff).length > 0
+      Object.keys(handedOff).length > 0
         ? useLiveFeedStore.getState().connected
           ? RUNNING_POLL_LIVE_MS
           : RUNNING_POLL_MS
@@ -317,32 +318,39 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
       const stillAddressed = () =>
         scoped || new URLSearchParams(window.location.search).get("id") === urlId;
-      await invalidateLists();
-      if (!stillCurrent() || !stillAddressed()) return;
-      if (urlId && conversationApi.getState().currentConversationId !== urlId) {
-        const selectedBefore = conversationApi.getState().currentConversationId;
-        const stillSelected = () =>
-          conversationApi.getState().currentConversationId === selectedBefore;
-        try {
-          const msgs = await readConversation(urlId, () =>
-            apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
-          );
-          if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
-          clearMessages();
-          setCurrentConversationId(urlId);
-          const page = transcriptPage(msgs);
-          setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
-        } catch {
-          // The failure belongs to whoever asked. A refusal answering after
-          // somebody else has signed in says nothing about the conversation they
-          // are looking at, and clearing the id would close it under them.
-          if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
-          // Not accessible (deleted, no permission) - clear the stale id
-          clearMessages();
-          setCurrentMessages([]);
-          setCurrentConversationId(null);
+      // The transcript does not depend on the sidebar page. Start both reads together.
+      const openAddress = async () => {
+        if (!stillCurrent() || !stillAddressed()) return;
+        if (urlId && conversationApi.getState().currentConversationId !== urlId) {
+          const selectedBefore = conversationApi.getState().currentConversationId;
+          const stillSelected = () =>
+            conversationApi.getState().currentConversationId === selectedBefore;
+          try {
+            const msgs = await readConversation(urlId, () =>
+              apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
+            );
+            if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
+            clearMessages();
+            setCurrentConversationId(urlId);
+            const page = transcriptPage(msgs);
+            setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
+          } catch {
+            // The failure belongs to whoever asked. A refusal answering after
+            // somebody else has signed in says nothing about the conversation they
+            // are looking at, and clearing the id would close it under them.
+            if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
+            // The rejected address must not keep the page in its opening state.
+            const address = new URL(window.location.href);
+            address.searchParams.delete("id");
+            window.history.replaceState(window.history.state, "", address);
+            // Not accessible (deleted, no permission) - clear the stale id
+            clearMessages();
+            setCurrentMessages([]);
+            setCurrentConversationId(null);
+          }
         }
-      }
+      };
+      await Promise.all([invalidateLists(), openAddress()]);
     },
     [
       invalidateLists,
@@ -673,6 +681,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           !stillSameTenant(organization)
         )
           return;
+        invalidateSoon(queryClient, qk.projects.all());
         await queryClient.cancelQueries({
           queryKey: qk.conversations.list(),
           predicate: (query) => query.state.data !== undefined,
@@ -841,6 +850,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       clearMessages();
       setCurrentMessages([]);
       setCurrentConversationId(null);
+      conversationApi.getState().requestComposerFocus();
       // Strip the stale ?id= immediately so a refresh mid-flight lands on a
       // fresh /chat instead of the old conversation. The new id will be set
       // by the WS conversation_created event on first message.

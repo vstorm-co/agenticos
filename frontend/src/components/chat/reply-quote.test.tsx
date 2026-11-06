@@ -42,7 +42,7 @@ describe("ReplyQuote", () => {
     document.body.append(target);
 
     render(<ReplyQuote reply={{ messageId: "m-7", role: "assistant", excerpt: "Plan: A" }} />);
-    await userEvent.click(screen.getByRole("button", { name: "Plan: A" }));
+    await userEvent.click(screen.getByRole("button", { name: /Plan: A/ }));
 
     expect(target.scrollIntoView).toHaveBeenCalled();
     expect(target.animate).toHaveBeenCalled();
@@ -51,7 +51,25 @@ describe("ReplyQuote", () => {
 
   it("does nothing for a quoted message no longer on screen", async () => {
     render(<ReplyQuote reply={{ messageId: "gone", role: "assistant", excerpt: "old" }} />);
-    await userEvent.click(screen.getByRole("button", { name: "old" }));
+    await userEvent.click(screen.getByRole("button", { name: /old/ }));
+  });
+
+  it("jumps without animation when reduced motion is requested", async () => {
+    const media = window.matchMedia("");
+    const match = vi.spyOn(window, "matchMedia").mockReturnValue({ ...media, matches: true });
+    const target = document.createElement("div");
+    target.dataset.messageId = "still";
+    target.scrollIntoView = vi.fn();
+    target.animate = vi.fn();
+    document.body.append(target);
+    render(
+      <ReplyQuote reply={{ messageId: "still", role: "assistant", excerpt: "Still quote" }} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Still quote/ }));
+    expect(target.scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "center" });
+    expect(target.animate).not.toHaveBeenCalled();
+    target.remove();
+    match.mockRestore();
   });
 
   it("folds a message into one short line", () => {

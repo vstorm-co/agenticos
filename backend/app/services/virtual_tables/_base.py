@@ -112,6 +112,7 @@ class Operations:
             visibility=as_visibility(table.visibility),
             owner_user_id=table.owner_user_id,
             schema_version=table.schema_version,
+            default_view_id=table.default_view_id,
             archived_at=table.archived_at,
             created_at=table.created_at,
             updated_at=table.updated_at,

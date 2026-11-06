@@ -8,8 +8,6 @@ import { useClearAgentMemory } from "@/hooks/use-memory";
 
 interface ClearAgentMemoryProps {
   agentId: string;
-  /** Whether this agent also keeps memories in mem0, which this cannot reach. */
-  usesMem0: boolean;
   disabled?: boolean;
 }
 
@@ -25,13 +23,8 @@ interface ClearAgentMemoryProps {
  * A store nobody can clear is a liability, though — which is why this exists at
  * all (#788). Typed confirmation, because it removes every person's and every
  * room's notes at once and nothing brings them back.
- *
- * `usesMem0` changes the sentence rather than the button. mem0 keeps its
- * memories in its own service, addressed per person, so there is nothing here
- * that can empty an agent's namespace wholesale — and a dialog that implied
- * otherwise would leave somebody believing a wipe happened that did not.
  */
-export function ClearAgentMemory({ agentId, usesMem0, disabled }: ClearAgentMemoryProps) {
+export function ClearAgentMemory({ agentId, disabled }: ClearAgentMemoryProps) {
   const t = useTranslations("memory");
   const [open, setOpen] = useState(false);
   const clear = useClearAgentMemory(agentId);
@@ -40,9 +33,7 @@ export function ClearAgentMemory({ agentId, usesMem0, disabled }: ClearAgentMemo
     <div className="border-destructive/30 bg-destructive/[0.03] space-y-3 rounded-lg border p-4">
       <div>
         <p className="text-destructive text-sm font-medium">{t("clearTitle")}</p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          {usesMem0 ? t("clearBodyWithMem0") : t("clearBody")}
-        </p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("clearBody")}</p>
       </div>
       <Button
         type="button"

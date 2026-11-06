@@ -505,3 +505,87 @@ it("retains late next-step buttons when an older history request finishes", () =
     "Make a table",
   ]);
 });
+
+describe("a saved message arriving before its acknowledgement", () => {
+  it("keeps one answer and its tool results when the live id becomes the stored id", () => {
+    const local = message({
+      id: "live",
+      isTemporaryId: true,
+      renderKey: "stable",
+      content: "One answer.",
+      toolCalls: [toolCall({ name: "propose_setup" })],
+    });
+    store().addMessage(message({ id: "question", role: "user", content: "Hello" }));
+    store().addMessage(local);
+    store().rereadMessages([
+      message({ id: "question", role: "user", content: "Hello" }),
+      message({ id: "saved", content: "One answer." }),
+    ]);
+    store().updateMessage("live", (msg) => ({ ...msg, id: "saved", isTemporaryId: false }));
+    expect(store().messages.map((msg) => msg.id)).toEqual(["question", "saved"]);
+    expect(store().messages[1]).toMatchObject({
+      renderKey: "stable",
+      content: "One answer.",
+      toolCalls: local.toolCalls,
+    });
+    store().rereadMessages([
+      message({ id: "question", role: "user", content: "Hello" }),
+      message({ id: "saved", content: "One answer.", toolCalls: local.toolCalls }),
+    ]);
+    expect(store().messages).toHaveLength(2);
+  });
+
+  it("does not merge distinct stored segments just because their text matches", () => {
+    store().addMessage(message({ id: "first", content: "Same." }));
+    store().addMessage(message({ id: "second", content: "Same." }));
+    store().updateMessage("second", (msg) => ({ ...msg, isStreaming: false }));
+    expect(store().messages.map((msg) => msg.id)).toEqual(["first", "second"]);
+  });
+});
+
+it("ignores a late update for a turn removed during navigation", () => {
+  const updater = vi.fn();
+  store().updateMessage("no-longer-present", updater);
+  expect(updater).not.toHaveBeenCalled();
+});
+
+describe("HTTP continuation reconciliation", () => {
+  const call = toolCall({ id: "verified-tasks", status: "completed" });
+  const local = () =>
+    message({
+      id: "resume-local",
+      runId: "run",
+      content: "Ten tasks created.",
+      isLocalContinuation: true,
+      toolCalls: [call],
+    });
+  const persisted = () => [
+    message({ id: "saved-tools", runId: "run", toolCalls: [call] }),
+    message({ id: "saved-final", runId: "run", content: "Ten tasks created." }),
+  ];
+  it("replaces the local answer when its persisted text and calls arrive in separate rows", () => {
+    store().addMessage(local());
+    store().rereadMessages(persisted());
+    expect(store().messages.map((m) => m.id)).toEqual(["saved-tools", "saved-final"]);
+    expect(store().messages.filter((m) => m.content === "Ten tasks created.")).toHaveLength(1);
+    expect(store().messages[1]?.renderKey).toBe("resume-local");
+  });
+  it("does not add a second answer when the persisted update beats the HTTP response", () => {
+    store().rereadMessages(persisted());
+    store().addMessage(local());
+    expect(store().messages).toHaveLength(2);
+  });
+  it("keeps an unpersisted segment or another run even when its answer has identical text", () => {
+    store().addMessage(local());
+    store().rereadMessages(persisted().map((m) => ({ ...m, runId: "another" })));
+    expect(store().messages.some((m) => m.id === "resume-local")).toBe(true);
+    store().rereadMessages(persisted().map((m) => ({ ...m, toolCalls: [] })));
+    expect(store().messages.some((m) => m.id === "resume-local")).toBe(true);
+  });
+  it("reconciles a tool-only continuation without matching unrelated empty rows", () => {
+    store().addMessage({ ...local(), content: "" });
+    store().rereadMessages(persisted());
+    expect(store().messages).toHaveLength(2);
+    expect(store().messages[0]?.renderKey).toBe("resume-local");
+  });
+});

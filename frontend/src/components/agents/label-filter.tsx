@@ -1,5 +1,6 @@
 "use client";
 
+import { FILTER_CONTROL } from "@/components/ui/control-styles";
 import { ChevronDown, ListFilter } from "lucide-react";
 
 import {
@@ -58,13 +59,8 @@ export function LabelFilter({
       <DropdownMenuTrigger asChild>
         {/* Drawn like the select beside it - a filter in a row of filters, not
             a pill among inputs. */}
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label={ariaLabel}
-          className="max-w-full rounded-lg px-2.5 font-normal"
-        >
-          <ListFilter />
+        <Button variant="outline" size="sm" aria-label={ariaLabel} className={FILTER_CONTROL}>
+          <ListFilter className="shrink-0 opacity-70" strokeWidth={1.75} aria-hidden />
           <span className="min-w-0 flex-1 truncate text-start">
             {selected.length === 0
               ? allLabel

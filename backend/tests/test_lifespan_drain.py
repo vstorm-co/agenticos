@@ -34,6 +34,13 @@ def _no_leftovers():
     background._running.clear()
 
 
+@pytest.fixture(autouse=True)
+def restore_sms_prompt_store(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.channels import sms_prompts
+
+    monkeypatch.setattr(sms_prompts, "_redis", None)
+
+
 class _FakeRedis:
     async def connect(self) -> None: ...
     async def close(self) -> None: ...

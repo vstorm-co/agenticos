@@ -15,7 +15,7 @@
  * and the maintenance screen, which `DeploymentGate` returns *instead of*
  * rendering that wrapper.
  */
-export const PAGE_CLEARANCE = "pb-[calc(1rem+var(--safe-bottom))] md:pb-16";
+export const PAGE_CLEARANCE = "pb-[calc(1rem+var(--safe-bottom))]";
 
 /**
  * The room a page drawing its own bottom edge owes a phone's home indicator.

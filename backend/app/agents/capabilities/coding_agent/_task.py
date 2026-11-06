@@ -26,6 +26,8 @@ from typing import Any
 from uuid import UUID
 
 import anyio
+import httpx
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.tools import RunContext
 from pydantic_ai.workspaces import WorkspaceError
 
@@ -68,6 +70,14 @@ STOP_GRACE_SECONDS = 3
 
 NO_EXIT_CODE = -1
 """A task whose group is gone with no exit code to read: killed, or it rewrote the file."""
+
+SANDBOX_FAILURES = (UserError, WorkspaceError, httpx.HTTPError)
+"""What the sandbox raises when it cannot run a command at all.
+
+The sandboxd client raises its HTTP error unmapped when the service refuses to
+open a session - a runtime still building answers 409 - so that is a sandbox the
+task could not run in, like the other two.
+"""
 
 _RUNNING = "running"
 _EXITED = "exited:"

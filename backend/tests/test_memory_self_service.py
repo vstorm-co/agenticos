@@ -70,22 +70,12 @@ def _organization() -> MagicMock:
     return MagicMock(id=ORG, name="Acme")
 
 
-def _service(*, notes=(), total=None, agents=()) -> MemoryService:
-    """A session answering the two reads a listing makes, in the order it makes them.
-
-    `_agent_names` first - which agent wrote each note - then `_external_stores`,
-    which pairs each agent with the spec that actually runs. One result for both
-    would hand the second loop the first's rows, and the second reads a different
-    shape.
-    """
+def _service(*, notes=(), total=None) -> MemoryService:
+    """A session answering the one read a listing makes: which agent wrote each note."""
     names = MagicMock()
     names.all.return_value = [(AGENT, "Support")]
-    external = MagicMock()
-    external.all.return_value = [(agent, None) for agent in agents]
     db = MagicMock()
-    # `_agent_names` asks nothing where there are no notes to name an agent for,
-    # so the disclosure read is the first statement on an empty page.
-    db.execute = AsyncMock(side_effect=([names] if notes else []) + [external])
+    db.execute = AsyncMock(return_value=names)
     service = MemoryService(db)
     service._listed = (list(notes), len(notes) if total is None else total)
     return service
@@ -141,20 +131,6 @@ class TestReadingYourOwn:
             page = await service.mine(_ctx(PERSON), skip=0, limit=50)
 
         assert page.items[0].deactivated_at is not None
-
-    async def test_an_external_store_is_named_rather_than_silently_left_out(self) -> None:
-        """Showing a page of native notes while calling it a complete inventory is
-        worse than saying which stores are outside it."""
-        agent = MagicMock(id=AGENT)
-        agent.name = "Support"
-        agent.draft_spec = {
-            "capabilities": [{"id": "memory_mem0", "enabled": True, "secret_id": str(uuid.uuid4())}]
-        }
-        service = _service(notes=[], agents=[agent])
-        with _listing(service):
-            page = await service.mine(_ctx(PERSON), skip=0, limit=50)
-
-        assert page.external_stores == ["Support"]
 
     async def test_the_page_is_asked_for_with_the_window_the_caller_gave(self) -> None:
         service = _service(notes=[])

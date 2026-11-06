@@ -130,7 +130,7 @@ function IndustryCards({
               key={industry.id}
               type="button"
               onClick={() => onPick(industry.id)}
-              className="group hover:border-primary hover:bg-accent grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
+              className="group bg-muted hover:bg-accent focus-visible:ring-ring/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
             >
               <Icon className="text-muted-foreground group-hover:text-primary row-span-3 size-7 transition-colors sm:size-8" />
               <span className="font-medium">{t(`industry.${industry.id}`)}</span>
@@ -183,7 +183,7 @@ function IndustrySkills({
           return (
             <div
               key={skill.key}
-              className="flex items-start justify-between gap-4 rounded-lg border p-4"
+              className="bg-muted flex items-start justify-between gap-4 rounded-lg border p-4"
             >
               <div className="min-w-0 space-y-1">
                 <div className="flex items-center gap-2">

@@ -105,6 +105,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
+    # Memory that changed since it was last folded (#2090): deterministic, no model,
+    # and a scope nobody wrote to costs nothing - only changed scopes are listed.
+    Schedule("consolidate-memory", jobs.CONSOLIDATE_MEMORY, timedelta(minutes=15)),
     # Take back what a Discord role gave somebody who lost it or left the server
     # (#2569). Their next turn would, but somebody who left stops taking turns.
     Schedule("sync-discord-roles", jobs.SYNC_DISCORD_ROLES, timedelta(minutes=15)),

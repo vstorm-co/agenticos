@@ -1,4 +1,5 @@
 import * as React from "react";
+import { FORM_CONTROL } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
@@ -11,7 +12,8 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           // value. Without a border to match, the message below the field is
           // the only sign, and on a form with several inputs it does not say
           // which one it is about.
-          "border-input text-foreground file:text-foreground placeholder:text-muted-foreground focus-visible:ring-ring aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive touch:min-h-11 bg-card flex h-9 w-full min-w-0 scroll-m-4 rounded-lg border px-3 py-1 text-base transition-colors duration-[var(--duration-fast)] file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          FORM_CONTROL,
+          "file:text-foreground touch:min-h-11 flex h-10 scroll-m-4 px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm",
           className,
         )}
         ref={ref}

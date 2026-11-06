@@ -115,6 +115,25 @@ export function useChannelBot(botId: string | null): ChannelBot | null {
   return data ?? null;
 }
 
+/** Register the saved bot's callback without exposing its callback credential. */
+export function useRegisterChannelWebhook() {
+  const t = useTranslations("pages.channels");
+  const errors = useTranslations("errors");
+  const queries = useQueryClient();
+  return useMutation({
+    mutationFn: (botId: string) =>
+      apiClient.post<{ success: boolean; webhook_url: string }>(
+        `/channels/bots/${botId}/webhook/register`,
+        {},
+      ),
+    onSuccess: async () => {
+      await queries.invalidateQueries({ queryKey: qk.channelBots.list() });
+      toast.success(t("imessageWebhookRegistered"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, errors)),
+  });
+}
+
 /**
  * Copy a Slack bot's app manifest to the clipboard (#2067).
  *

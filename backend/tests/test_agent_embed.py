@@ -100,6 +100,10 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
     with (
         patch("app.services.embed_session.AgentRunnerService") as runner_cls,
         patch(
+            "app.services.embed_session.conversation_repo.capability_loads_in_messages",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
             "app.services.embed_session.conversation_repo.create_conversation",
             new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         ),

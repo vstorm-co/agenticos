@@ -76,3 +76,19 @@ describe("spokenArgs", () => {
     });
   });
 });
+
+it("names a platform operation and its nested task before opaque IDs", () => {
+  expect(serviceAction("agenticos_create_task", false)).toEqual({
+    service: "AgenticOS",
+    action: "Create task",
+  });
+  expect(
+    callSummary({
+      table_id: "table-uuid",
+      task: { title: "Review supplier draft", notes: "Details" },
+    }),
+  ).toBe("Review supplier draft");
+  expect(callSummary({ payload: { data: { title: "Prepare the report" } } })).toBe(
+    "Prepare the report",
+  );
+});

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archiveTable,
+  getTableAssignees,
   countRecords,
   uploadTableImage,
   discardTableImage,
@@ -242,4 +243,10 @@ it("counts matching records and scopes image uploads and abandoned-image cleanup
   expect(apiClient.upload).toHaveBeenCalledWith("/tables/table/media", file);
   await discardTableImage("table", "image");
   expect(apiClient.delete).toHaveBeenCalledWith("/tables/table/media/image");
+});
+
+it("loads table-specific authorized assignees", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue([]);
+  expect(await getTableAssignees("t1")).toEqual([]);
+  expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/assignee-options");
 });

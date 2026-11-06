@@ -307,6 +307,7 @@ class TestTheSweep:
         mocks = {
             "delete_conversations": AsyncMock(return_value=counts.get("conversations", 0)),
             "lock_expiring_conversations": AsyncMock(return_value=[uuid.uuid4()]),
+            "delete_finished_device_waits": AsyncMock(return_value=0),
             "delete_runs_keeping_their_spend": AsyncMock(return_value=(counts.get("runs", 0), [])),
             "delete_workspaces": AsyncMock(return_value=counts.get("workspaces", 0)),
             "delete_memory": AsyncMock(return_value=counts.get("memory", 0)),

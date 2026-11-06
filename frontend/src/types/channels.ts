@@ -2,7 +2,8 @@
 
 import type { OrgRole } from "./organization";
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams" | "discord";
+export type ChannelPlatform =
+  "telegram" | "slack" | "mattermost" | "teams" | "discord" | "sms" | "email" | "imessage";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";

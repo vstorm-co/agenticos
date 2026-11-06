@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { brandMark } from "@/components/icons/brand-icon";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { CopyCode } from "@/components/settings/copy-code";
-import { ContextHelp } from "@/components/ui/context-help";
 import {
   Select,
   SelectContent,
@@ -58,11 +57,14 @@ export function McpConnect() {
   const url = `${apiUrl}/mcp`;
 
   return (
-    <section className="border-border bg-card rounded-xl border" data-tour="mcp-connect">
-      <header className="border-border border-b px-5 py-4">
-        <div className="flex items-center gap-1">
+    <section
+      className="bg-card border-foreground/[0.07] shadow-card rounded-2xl border"
+      data-tour="mcp-connect"
+    >
+      <header className="border-foreground/[0.06] border-b px-5 py-4 sm:px-6">
+        <div className="space-y-1">
           <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-          <ContextHelp>{t("why")}</ContextHelp>
+          <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
         </div>
         <a
           href={DOCS.MCP_SERVER}
@@ -74,7 +76,7 @@ export function McpConnect() {
           {t("docs")}
         </a>
       </header>
-      <div className="space-y-5 px-5 py-5">
+      <div className="space-y-5 p-5 sm:p-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
             <h3 className="text-xs font-semibold">{t("serverUrl")}</h3>

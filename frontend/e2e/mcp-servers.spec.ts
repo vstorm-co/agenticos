@@ -46,7 +46,8 @@ test.describe("MCP servers", () => {
     await expect(pageHeading(page, "MCP servers")).toBeVisible();
 
     for (const server of CATALOG) {
-      const card = page.getByRole("group", { name: server });
+      await page.getByRole("textbox", { name: "Search servers…" }).fill(server);
+      const card = page.getByRole("group", { name: server, exact: true });
       await expect(card, `${server} should be in the catalog`).toBeVisible();
       // Every card has the same foot whatever its state: where it stands, and
       // the verb that connects it. The category, the address and the auth it

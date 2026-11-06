@@ -374,5 +374,5 @@ it("loads four figures, the spend chart and the breakdown in their own frames", 
     expect(screen.getByText(title)).toBeInTheDocument();
   }
   expect(container.querySelector(".lg\\:grid-cols-4")?.children).toHaveLength(4);
-  expect(container.querySelectorAll(".shadow-card")).toHaveLength(6);
+  expect(container.querySelectorAll(".bg-card")).toHaveLength(6);
 });

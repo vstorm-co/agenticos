@@ -1,7 +1,11 @@
-import { renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { apiClient } from "@/lib/api-client";
+import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { useTablePrincipals } from "./use-table-principals";
+import { useTableAssignees, useTablePrincipals } from "./use-table-principals";
 import { useAgents } from "./use-agents";
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 vi.mock("./use-agents", () => ({
   useAgents: vi.fn(() => ({
     agents: [
@@ -69,4 +73,17 @@ it("disables the agent directory when no organization is selected", () => {
   expect(useAgents).toHaveBeenLastCalledWith({ includeArchived: true, enabled: false });
   renderHook(() => useTablePrincipals("user"));
   expect(useAgents).toHaveBeenLastCalledWith({ includeArchived: true, enabled: false });
+});
+
+it("loads only the assignees allowed for the selected task table", async () => {
+  const options = [{ kind: "user", id: "anna", name: "Anna" }];
+  vi.mocked(apiClient.get).mockResolvedValue(options);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { result } = renderHook(() => useTableAssignees("private-table"), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(result.current.data).toEqual(options));
+  expect(apiClient.get).toHaveBeenCalledWith("/tables/private-table/assignee-options");
 });

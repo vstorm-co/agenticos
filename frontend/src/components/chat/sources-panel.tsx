@@ -1,6 +1,9 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ExternalLink, FileSearch, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SourceViewer, type CitedFile } from "@/components/kb/source-viewer";
@@ -13,6 +16,7 @@ import {
   type SourceItem,
 } from "@/lib/chat-sources";
 import { cn } from "@/lib/utils";
+import { hostOf } from "@/lib/link-brands";
 
 import { MarkdownContent } from "./markdown-content";
 import { SourceMark } from "./source-mark";
@@ -33,7 +37,7 @@ function ScoreDot({ score }: { score: number }) {
 function useScrolledTo(highlighted: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (highlighted) ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (highlighted) ref.current?.scrollIntoView({ behavior: glideOrJump(), block: "nearest" });
   }, [highlighted]);
   return ref;
 }
@@ -137,6 +141,7 @@ function DocumentCard({
           <button
             type="button"
             onClick={onOpenFile}
+            aria-label={t("openOriginalNamed", { name: doc.title })}
             className="border-foreground/12 text-foreground/80 hover:bg-foreground/[0.05] inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium"
           >
             <FileSearch className="h-3.5 w-3.5" aria-hidden />
@@ -157,6 +162,7 @@ function DocumentCard({
 
 /** A page from the web: its service's mark, its title and site, and what it said. */
 function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: boolean }) {
+  const t = useTranslations("chat");
   const ref = useScrolledTo(highlighted);
   const body = (
     <div
@@ -190,7 +196,13 @@ function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
 
   if (item.url) {
     return (
-      <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+        aria-label={t("openPageNamed", { name: item.title })}
+      >
         {body}
       </a>
     );
@@ -205,10 +217,24 @@ function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
  * widget - instead of the page's right edge, where it opened beside a widget in
  * the corner, over whatever page that was.
  */
-export function SourcesPanel({ contained = false }: { contained?: boolean }) {
+export function SourcesPanel({
+  contained = false,
+  conversationId,
+}: {
+  contained?: boolean;
+  conversationId?: string | null;
+}) {
   const t = useTranslations("chat");
   const { isOpen, sources, highlightedIndex, close } = useSourcesPanelStore();
   const baseFor = useKnowledgeBaseFor();
+  const reduceMotion = useReducedMotion();
+  const previousConversation = useRef(conversationId);
+  useEffect(() => {
+    if (previousConversation.current !== conversationId) {
+      previousConversation.current = conversationId;
+      close();
+    }
+  }, [conversationId, close]);
   const [opened, setOpened] = useState<CitedFile | null>(null);
 
   useEffect(() => {
@@ -220,98 +246,141 @@ export function SourcesPanel({ contained = false }: { contained?: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, close]);
 
-  if (!isOpen) return null;
-
   const ragSources = sources.filter((s) => s.type === "rag");
   const webSources = sources.filter((s) => s.type === "web");
   const files = sourceDocuments(ragSources);
+  const pages = sourceDocuments(webSources);
 
   return (
-    <div
-      data-native-browser-blocked
-      className={cn(
-        "bg-background border-border flex flex-col",
-        contained
-          ? "absolute inset-0 z-40"
-          : "fixed top-0 right-0 z-50 h-full w-full border-l shadow-xl sm:w-[420px]",
-      )}
-    >
-      {/* Header. Inside a widget it is the widget's own back-arrow header, the
+    <AnimatePresence initial={false}>
+      {isOpen && (
+        <motion.aside
+          aria-label={t("sourcesHeading")}
+          data-native-browser-blocked
+          initial={contained ? { opacity: 0 } : { width: 0, opacity: 0 }}
+          animate={contained ? { opacity: 1 } : { width: "var(--sources-panel-width)", opacity: 1 }}
+          exit={contained ? { opacity: 0 } : { width: 0, opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+          className={cn(
+            "bg-background border-border flex h-full min-h-0 shrink-0 flex-col overflow-hidden",
+            contained
+              ? "absolute inset-0 z-40"
+              : "absolute inset-0 z-40 [--sources-panel-width:100%] @min-[48rem]/sources-layout:relative @min-[48rem]/sources-layout:inset-auto @min-[48rem]/sources-layout:z-auto @min-[48rem]/sources-layout:border-l @min-[48rem]/sources-layout:[--sources-panel-width:20rem]",
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-full min-h-0 flex-col",
+              !contained && "w-[var(--sources-panel-width)]",
+            )}
+          >
+            {/* Header. Inside a widget it is the widget's own back-arrow header, the
           one its conversation list wears; at the page's edge, a title and a
           close button. */}
-      <div
-        className={cn(
-          "border-foreground/8 flex items-center gap-1.5 border-b",
-          contained ? "px-2 py-2" : "justify-between px-4 py-3",
-        )}
-      >
-        {contained && (
-          <button
-            type="button"
-            onClick={close}
-            aria-label={t("closeSourcesPanel")}
-            title={t("closeSourcesPanel")}
-            className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] rounded-md p-1.5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        )}
-        <h2 className="text-foreground flex-1 text-sm font-semibold">
-          {t("sourcesHeading")}
-          <span className="text-muted-foreground ml-2 font-normal">({sources.length})</span>
-        </h2>
-        {!contained && (
-          <button
-            type="button"
-            onClick={close}
-            aria-label={t("closeSourcesPanel")}
-            className="text-muted-foreground hover:text-foreground hover:bg-foreground/8 rounded-md p-1 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+            <div
+              className={cn(
+                "border-foreground/8 flex shrink-0 items-center gap-1.5 border-b",
+                contained ? "px-2 py-2" : "justify-between px-4 py-3",
+              )}
+            >
+              {contained && (
+                <button
+                  type="button"
+                  onClick={close}
+                  aria-label={t("closeSourcesPanel")}
+                  title={t("closeSourcesPanel")}
+                  className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] rounded-md p-1.5"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
+              <h2 className="text-foreground flex flex-1 items-center gap-2 text-sm font-semibold">
+                <FileSearch className="size-4" aria-hidden />
+                {t("sourcesHeading")}
+                <span className="text-muted-foreground font-normal">
+                  ({files.length + pages.length})
+                </span>
+              </h2>
+              {!contained && (
+                <button
+                  type="button"
+                  onClick={close}
+                  aria-label={t("closeSourcesPanel")}
+                  className="text-muted-foreground hover:text-foreground hover:bg-foreground/8 touch:size-11 inline-flex size-8 items-center justify-center rounded-md transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
 
-      <div className="flex-1 scrollbar-thin space-y-5 overflow-y-auto px-4 py-4">
-        {files.length > 0 && (
-          <section className="space-y-2.5">
-            {webSources.length > 0 && (
-              <h3 className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-                {t("knowledgeBase")}
-              </h3>
-            )}
-            {files.map((doc) => {
-              const base = baseFor(doc.collection);
-              return (
-                <DocumentCard
-                  key={doc.key}
-                  doc={doc}
-                  passages={ragSources.filter((s) => sourceKey(s) === doc.key)}
-                  base={base?.name}
-                  highlightedIndex={highlightedIndex}
-                  onOpenFile={
-                    base ? () => setOpened({ kbId: base.id, filename: doc.title }) : undefined
-                  }
-                />
-              );
-            })}
-          </section>
-        )}
+            <div className="min-h-0 flex-1 scrollbar-thin space-y-5 overflow-y-auto overscroll-contain px-4 py-4">
+              {files.length > 0 && (
+                <section className="space-y-2.5">
+                  {webSources.length > 0 && (
+                    <h3 className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
+                      {t("knowledgeBase")}
+                    </h3>
+                  )}
+                  {files.map((doc) => {
+                    const base = baseFor(doc.collection);
+                    return (
+                      <DocumentCard
+                        key={doc.key}
+                        doc={doc}
+                        passages={ragSources.filter((s) => sourceKey(s) === doc.key)}
+                        base={base?.name}
+                        highlightedIndex={highlightedIndex}
+                        onOpenFile={
+                          base ? () => setOpened({ kbId: base.id, filename: doc.title }) : undefined
+                        }
+                      />
+                    );
+                  })}
+                </section>
+              )}
 
-        {webSources.length > 0 && (
-          <section className="space-y-2">
-            {files.length > 0 && (
-              <h3 className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-                {t("web")}
-              </h3>
-            )}
-            {webSources.map((s, position) => (
-              <WebSourceRow key={position} item={s} highlighted={s.index === highlightedIndex} />
-            ))}
-          </section>
-        )}
-      </div>
-      {opened && <SourceViewer cited={opened} onClose={() => setOpened(null)} />}
-    </div>
+              {webSources.length > 0 && (
+                <section className="space-y-2">
+                  {files.length > 0 && (
+                    <h3 className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
+                      {t("web")}
+                    </h3>
+                  )}
+                  {pages.map((page) => {
+                    const passages = webSources.filter((source) => sourceKey(source) === page.key);
+                    return (
+                      <div key={page.key} className="space-y-1">
+                        <WebSourceRow
+                          item={{
+                            ...page,
+                            subtitle: page.url ? (hostOf(page.url) ?? undefined) : undefined,
+                            content: passages.length === 1 ? passages[0]?.content : undefined,
+                          }}
+                          highlighted={passages.length === 1 && page.index === highlightedIndex}
+                        />
+                        {passages.length > 1 && (
+                          <p className="text-muted-foreground px-3 pt-2 text-xs">
+                            {t("passageCount", { count: passages.length })}
+                          </p>
+                        )}
+                        {passages.length > 1 &&
+                          passages.map((item, position) => (
+                            <Passage
+                              key={position}
+                              item={item}
+                              highlighted={item.index === highlightedIndex}
+                            />
+                          ))}
+                      </div>
+                    );
+                  })}
+                </section>
+              )}
+            </div>
+            {opened && <SourceViewer cited={opened} onClose={() => setOpened(null)} />}
+          </div>
+        </motion.aside>
+      )}
+    </AnimatePresence>
   );
 }

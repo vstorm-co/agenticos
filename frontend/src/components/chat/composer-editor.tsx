@@ -385,7 +385,7 @@ export function ComposerEditor({
 }
 
 const CHIP_CLASS =
-  "bg-foreground/[0.07] text-foreground mx-px inline-flex max-w-[18rem] items-center gap-1 rounded-md px-1.5 align-baseline text-[0.95em] leading-6 font-medium select-none";
+  "bg-foreground/[0.07] text-foreground mx-px inline-flex max-w-[min(18rem,100%)] items-center gap-1 rounded-md px-1.5 align-baseline text-[0.95em] leading-6 font-medium select-none";
 
 function ChipFace({ piece }: { piece: Exclude<Piece, { kind: "text" }> }) {
   if (piece.kind === "mention") {

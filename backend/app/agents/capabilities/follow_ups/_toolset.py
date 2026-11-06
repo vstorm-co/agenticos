@@ -21,10 +21,10 @@ MAX_PROPOSALS = 3
 class SetupProposal(BaseModel):
     """One thing to set up for the person, drawn as a card they act on in one click."""
 
-    kind: Literal["agent", "routine", "connection"] = Field(
+    kind: Literal["agent", "routine", "watch", "connection"] = Field(
         description=(
             "`agent`: an assistant of their own, built with the Architect. `routine`: you, "
-            "running a request on a schedule. `connection`: one of their services, connected "
+            "running a request on a schedule. `watch`: checking a connected account for relevant changes. `connection`: one of their services, connected "
             "with their own account."
         )
     )

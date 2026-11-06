@@ -25,6 +25,7 @@ ChangeResource = Literal[
     "secret",
     "mcp_connection",
     "run",
+    "conversation",
 ]
 """What changed. A `trigger` event names the agent whose routines changed, since
 that is what a subscriber's access to them is decided by; a `run` event is a run

@@ -2,17 +2,26 @@
 
 import re
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import CroniterBadDateError, croniter
-from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.core.config import settings
-from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
+from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, TriggerDeliveryStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
+from app.schemas.routine_notifications import ExternalNotificationChannel
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -436,17 +445,69 @@ class TriggerCreate(BaseSchema):
     stored or returned in the clear.
     """
 
+    project_id: UUID | None = Field(
+        default=None,
+        description="Explicit project workspace for this routine; fixed for its lifetime",
+    )
+
+    max_failures: int | None = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+
+    is_active: bool = Field(
+        default=True, description="Create paused while configuring device consent."
+    )
     prompt: str = Field(min_length=1, max_length=10000)
     # An optional human title; null lists the trigger by its agent's name instead.
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
     environment_id: UUID | None = None
+    pinned_version_id: UUID | None = Field(
+        default=None,
+        description="Run this immutable published version; null follows the environment. "
+        "A version and a named environment cannot both be selected.",
+    )
     teams_conversation_id: UUID | None = Field(
         default=None,
         description=(
             "Also post each fire's answer to this Teams channel or group chat - one "
             "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
         ),
+    )
+    monthly_budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "What this routine's runs may cost in a calendar month. Once spent its fires are "
+            "skipped - it shows as paused for its budget - and it starts again on the first. "
+            "Narrows the agent's and the organization's limits; never lifts them (#2575)"
+        ),
+    )
+    result_mode: Literal["report", "inbox"] = Field(
+        default="report",
+        description="Report every completed run, or create deduplicated Inbox cases with a private chat per source item only when attention is needed.",
+    )
+    answer_to: Literal["run_log", "primary", "conversation"] = Field(
+        default="primary",
+        description=(
+            "Where each fire's answer goes to the person, beside the run log that always "
+            "records it: `primary` is their own conversation with this agent, `conversation` "
+            "is one of their chats (`delivery_conversation_id`), `run_log` only the log (#2575)"
+        ),
+    )
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=9
+    )
+    delivery_conversation_id: UUID | None = Field(
+        default=None,
+        description="With `answer_to` = `conversation`: one of the caller's own chats",
+    )
+    ends_at: AwareDatetime | None = Field(
+        default=None,
+        description="A schedule stops by itself at this instant; null runs until stopped (#2575)",
     )
     runs_as_creator: bool = Field(
         default=False,
@@ -601,7 +662,14 @@ class TriggerCreate(BaseSchema):
             raise ValueError("cron_expression is not valid for an event trigger")
 
 
-_UPDATE_NOT_NULLABLE = ("prompt", "is_active", "runs_as_creator", "overlap")
+_UPDATE_NOT_NULLABLE = (
+    "prompt",
+    "is_active",
+    "runs_as_creator",
+    "overlap",
+    "answer_to",
+    "result_mode",
+)
 
 
 class TriggerUpdate(BaseSchema):
@@ -630,6 +698,13 @@ class TriggerUpdate(BaseSchema):
     shape CHECK 500.
     """
 
+    max_failures: int | None = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
     name: str | None = Field(default=None, max_length=120)
     schedule_kind: Literal["interval", "cron"] | None = None
@@ -652,12 +727,36 @@ class TriggerUpdate(BaseSchema):
     )
     is_active: bool | None = None
     environment_id: UUID | None = None
+    pinned_version_id: UUID | None = Field(
+        default=None,
+        description="Run this immutable published version; null follows the environment. "
+        "A version and a named environment cannot both be selected.",
+    )
     teams_conversation_id: UUID | None = Field(
         default=None,
         description=(
             "Also post each fire's answer to this Teams channel or group chat - one "
             "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
         ),
+    )
+    monthly_budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="This routine's own monthly limit; null removes it",
+    )
+    result_mode: Literal["report", "inbox"] | None = None
+    answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
+        default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
+    )
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=9
+    )
+    delivery_conversation_id: UUID | None = Field(
+        default=None,
+        description="With `answer_to` = `conversation`: one of the caller's own chats; null clears it",
+    )
+    ends_at: AwareDatetime | None = Field(
+        default=None, description="When a schedule stops by itself; null runs until stopped"
     )
     runs_as_creator: bool | None = Field(
         default=None,
@@ -700,6 +799,17 @@ class TriggerUpdate(BaseSchema):
 
 
 class TriggerRead(BaseSchema, TimestampSchema):
+    one_shot: bool = False
+
+    project_id: UUID | None = None
+    max_failures: int | None = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+    consecutive_failures: int = 0
+    auto_stopped_at: datetime | None = None
     id: UUID
     agent_id: UUID
     # Set only on the org-wide listing, where a row is shown away from its agent
@@ -725,9 +835,28 @@ class TriggerRead(BaseSchema, TimestampSchema):
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None
+    pinned_version_id: UUID | None = Field(
+        default=None,
+        description="Run this immutable published version; null follows the environment. "
+        "A version and a named environment cannot both be selected.",
+    )
     teams_conversation_id: UUID | None = None
+    result_mode: Literal["report", "inbox"] = "report"
+    answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=9
+    )
+    delivery_conversation_id: UUID | None = None
+    ends_at: datetime | None = None
+    monthly_budget_usd: Decimal | None = None
+    spent_this_month: Decimal | None = None
+    """What this routine's runs cost this month; set only where `monthly_budget_usd` is."""
+    paused_for_budget: bool = False
+    """Its month's budget is spent, so fires are skipped until the first."""
     runs_as_creator: bool = False
     local_target: LocalTarget | None = None
+    waiting_device_count: int = 0
+    waiting_device_since: datetime | None = None
     trigger_type: Literal["schedule", "event"]
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None
@@ -740,6 +869,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # Null on an event trigger, which has no scheduled next fire.
     next_fire_at: datetime | None = None
     last_fired_at: datetime | None = None
+    last_delivery_status: TriggerDeliveryStatus | None = None
     last_run_id: UUID | None = None
     conversation_id: UUID | None = None
     # The portal lineage, when this trigger came from a preset. `delivery_mode` is

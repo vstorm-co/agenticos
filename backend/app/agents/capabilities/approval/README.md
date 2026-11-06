@@ -1,8 +1,9 @@
 # Approval
 
 `ApprovalGate` wraps tool execution and refuses to let a gated tool run until a
-human has answered. Which tools are gated is resolved once, from the spec, when
-the agent is assembled.
+human has answered. The agent's approval floor is resolved from its spec when
+the agent is assembled; an unattended routine additionally applies a live action
+policy before each call.
 
 Not registered in the capability registry. Like the budget guard, every agent
 gets one - an agent whose approval gate is optional is an agent somebody can
@@ -62,12 +63,22 @@ The rule, in `_policy.py`, takes the most specific statement available:
 |---|---|---|
 | 1 | `tool_approval[tool_id]` | this agent, this tool |
 | 2 | the binding's `approval` | this agent, every tool of this capability |
-| 3 | the capability's `side_effecting` | what the code that wrote the tool says |
+| 3 | no approval | neither spec setting chose a gate |
 
 `'default'` at level 1 or 2 is a deferral, not an answer. A spec with neither
 key therefore behaves exactly as it did before per-tool approval existed, which
 is what keeps an agent published against `spec_version: 2` gating the same tools
 today.
+
+An `always_requires_approval` tool is required before these settings are read.
+An unattended routine tightens this floor: capability actions, local file writes,
+delegation and external MCP writes require approval. Its creator may grant a
+version/intent-bound exception for a declared capability action through
+`RoutineActionService`. `RoutineAuthority.action_policy` rechecks current rights,
+organization policy and the run's admitted consent identities. It never releases
+a spec-required or connection-required gate. Every waived call still reaches
+`ApprovalChannel` and records who consented and which arguments ran. Code mode
+is unavailable to routine runs so bundled calls cannot skip these boundaries.
 
 A `tool_approval` key naming a tool the capability does not declare is refused
 at publish (`AgentRegistryService.validate_spec`). It has to be: a typo there

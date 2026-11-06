@@ -45,7 +45,7 @@ export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
  * Where the bot can react to a question. Teams and Discord answer without one,
  * so a reaction chosen there would be saved and never drawn.
  */
-const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost"];
+const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost", "imessage"];
 
 /** Whether the bot can react to a question on `platform`. */
 export function reactsOn(platform: ChannelPlatform): boolean {
@@ -77,10 +77,21 @@ export function AnswerStyleFields({
   const reaction = value.ack_reaction;
   // A reaction stored before this list existed is still offered, so opening
   // the form never silently changes it.
-  const options =
-    reaction !== null && !REACTIONS.some(([name]) => name === reaction)
-      ? [...REACTIONS, [reaction, ""] as const]
+  const supported =
+    platform === "imessage"
+      ? ([
+          ["emphasize", "‼️"],
+          ["love", "❤️"],
+          ["like", "👍"],
+          ["dislike", "👎"],
+          ["laugh", "😄"],
+          ["question", "❓"],
+        ] as const)
       : REACTIONS;
+  const options =
+    reaction !== null && !supported.some(([name]) => name === reaction)
+      ? [...supported, [reaction, ""] as const]
+      : supported;
 
   return (
     <div className="space-y-4">
@@ -89,7 +100,7 @@ export function AnswerStyleFields({
         <FormField
           label={t("ackReaction")}
           htmlFor={`${idPrefix}-ack-reaction`}
-          description={t("ackReactionHint")}
+          description={t(platform === "imessage" ? "imessageReactionHint" : "ackReactionHint")}
         >
           <Select
             value={reaction ?? NONE}

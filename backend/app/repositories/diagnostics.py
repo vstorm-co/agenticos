@@ -46,7 +46,9 @@ async def feature_counts(db: AsyncSession, *, since: datetime) -> dict[Feature, 
     result: dict[Feature, int] = {}
     run_filters: dict[Feature, ColumnElement[bool]] = {
         "chat": AgentRun.surface.in_(["web", "embed", "api"]),
-        "channels": AgentRun.surface.in_(["slack", "teams", "mattermost", "telegram", "discord"]),
+        "channels": AgentRun.surface.in_(
+            ["slack", "teams", "discord", "mattermost", "telegram", "sms", "email", "imessage"]
+        ),
         "routines": AgentRun.surface == "schedule",
         "voice": AgentRun.modality == "voice",
     }

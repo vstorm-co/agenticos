@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,6 +101,15 @@ describe("TriggerFormDialog with no agent in context", () => {
     // offers a target the create would refuse.
     expect(screen.queryByRole("option", { name: /Restricted/ })).toBeNull();
     await user.click(await screen.findByRole("option", { name: /Nightly/ }));
+    await user.click(
+      within(dialog).getByRole("combobox", { name: "Pause after repeated failures" }),
+    );
+    await user.click(
+      await screen.findByRole("option", { name: "Do not pause for repeated execution failures" }),
+    );
+    fireEvent.change(within(dialog).getByLabelText("Ends at (device time)"), {
+      target: { value: "2099-01-01T12:00" },
+    });
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
@@ -108,9 +117,63 @@ describe("TriggerFormDialog with no agent in context", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/agents/a2/triggers",
-      expect.objectContaining({ prompt: "Do it", trigger_type: "schedule" }),
+      expect.objectContaining({
+        prompt: "Do it",
+        trigger_type: "schedule",
+        max_failures: null,
+        ends_at: new Date("2099-01-01T12:00").toISOString(),
+      }),
     );
     // The caller learns the routine exists - a suggestion is taken only then.
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "t-1" }));
   });
+});
+
+it("delivers a routine proposed in a chat back to that exact chat", async () => {
+  const user = userEvent.setup();
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "t-chat", trigger_type: "schedule" });
+  render(
+    <TriggerFormDialog
+      agentId="a1"
+      originConversationId="source-chat"
+      open
+      onOpenChange={vi.fn()}
+    />,
+    { wrapper },
+  );
+  const dialog = await screen.findByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.type(within(dialog).getByLabelText("Message"), "Report here");
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.click(within(dialog).getByRole("button", { name: "Create" }));
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/agents/a1/triggers",
+    expect.objectContaining({
+      answer_to: "conversation",
+      delivery_conversation_id: "source-chat",
+    }),
+  );
+});
+
+it("creates a quiet Inbox routine with working chats instead of a report destination", async () => {
+  const user = userEvent.setup();
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "t-inbox", trigger_type: "schedule" });
+  render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
+  const dialog = await screen.findByRole("dialog");
+  await user.click(within(dialog).getByRole("combobox", { name: "When to bring results" }));
+  await user.click(
+    await screen.findByRole("option", { name: "Only when something needs attention" }),
+  );
+  expect(within(dialog).queryByRole("combobox", { name: "Where the answer goes" })).toBeNull();
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.type(
+    within(dialog).getByLabelText("Message"),
+    "Check new mail and prepare drafts without sending.",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.click(within(dialog).getByRole("button", { name: "Create" }));
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/agents/a1/triggers",
+    expect.objectContaining({ result_mode: "inbox" }),
+  );
 });

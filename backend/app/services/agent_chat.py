@@ -38,6 +38,7 @@ from app.agents import prompt_variables
 from app.agents.browser_events import BrowserEventSink
 from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
@@ -326,6 +327,7 @@ class OpenedRun:
     run_id: UUID
     model_label: str
     agent_version_id: UUID | None
+    draft_tools: frozenset[str] = field(default_factory=frozenset)
     mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
     """The run's own `PreparedRun.mcp_origins`, filled as it lists its tools."""
 
@@ -379,6 +381,7 @@ class ChatTurn:
     and a one-request turn, which is most of them, never gets that far (#49).
     """
 
+    draft_tools: frozenset[str] = field(default_factory=frozenset)
     mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
     """Which organization MCP connection served each tool, by the name called -
     what the surface stores each call against (`PreparedRun.mcp_origins`)."""
@@ -593,6 +596,7 @@ class ChatAgentRunner:
                     model_label=prepared.built.model_label,
                     agent_version_id=prepared.run.agent_version_id,
                     mcp_origins=prepared.mcp_origins,
+                    draft_tools=draft_tool_names(prepared.spec),
                 )
             )
 
@@ -743,6 +747,7 @@ class ChatAgentRunner:
             parked=tuple(prepared.approvals.requested),
             questions=tuple(paused.questions) if paused is not None else (),
             mcp_origins=prepared.mcp_origins,
+            draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
             overhead_tokens=prepared.built.context.overhead,

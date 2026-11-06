@@ -1,5 +1,5 @@
 ---
-source_sha: "970dcbba6cd6"
+source_sha: "c60a0a5cad27"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -68,10 +68,8 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — | unverändert |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | angepasst |
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — | unverändert |
-| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | unverändert |
-| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich | unverändert |
+| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | unverändert |
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
-| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | unverändert |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | unverändert |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
@@ -100,6 +98,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
+| `phone_calls` | [Telefonanrufe](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
 | `drafts` | Entwürfe | utility | `write_draft` | — | — | nicht verfügbar |
 | `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
@@ -397,6 +396,61 @@ Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats
 geführten Notizen bleiben.
 
+### Fakten, Vorlieben und Entscheidungen { #memory-claims }
+
+Neben Notizen kann ein Agent **Claims** festhalten: eine dauerhafte Tatsache,
+Vorliebe oder Entscheidung in einem schlichten Satz, mit ihrer Herkunft (#2090).
+Notizen bleiben unverändert; ein Claim macht einen Satz nachprüfbar - seine
+Quelle, seit wann er gilt und was er ersetzt hat. Vier Tools: `remember`,
+`recall`, `correct_memory` und `share_memory`.
+
+Wo ein Claim lebt, ist eine Zugriffsregel und nie ein Etikett, das das Modell
+wählt:
+
+| Scope | Wessen | Wer ihn liest |
+|---|---|---|
+| Personenprofil | Eine Person in dieser Organisation; jeder Agent, der für sie handelt, darf es nutzen | Diese Person, allein mit einem beliebigen Agent |
+| Person und Agent | Die Beziehung eines Agents zu einer Person - Falldetails, der Standard | Diese Person, mit diesem Agent |
+| Gruppenchat | Ein Chat | Nur dieser Chat |
+| Projekt | Ein Projekt | Unterhaltungen in diesem Projekt |
+| Organisation | Alle hier | Private Unterhaltungen in dieser Organisation |
+
+Ein automatisches Schreiben bleibt im Scope der Unterhaltung, aus der es stammt,
+und ein Gruppenchat schreibt nie ein Profil. Nur `share_memory` erweitert einen
+Claim, und nur auf Anweisung einer Person, die das darf: `projects:edit` auf dem
+Projekt oder `context:edit` für die ganze Organisation. Sie wartet immer darauf, dass eine Person genau diesen Claim und Leserkreis freigibt, gleich welche Freigabe-Einstellungen der Agent hat, damit ein vom Agent gelesener Text ihn nicht zum Teilen überreden kann.
+
+Die Kopie nennt den Claim,
+aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit
+API-Key und ein geplanter Run lesen nichts; ein Gruppenchat liest nur seine
+eigenen Claims. Das Korrigieren eines Claims, den das ganze Projekt oder die ganze Organisation liest, braucht dieselbe Berechtigung wie das Teilen dorthin: Lesen ist keine Befugnis zum Umschreiben.
+
+- **Eine Korrektur behält, was sie korrigiert.** „Ab Montag übernimmt Piotr die
+  Rechnungen“ schließt den früheren Claim zu diesem Datum und fügt den neuen
+  hinzu; dass Anna sie vor Montag bearbeitet hat, bleibt wahr und sichtbar.
+- **Das Wort einer Person schlägt eine Schlussfolgerung.** Ein Agent-Claim, der
+  dem widerspricht, was eine Person gesagt hat, wird als *strittig* beiseitegelegt
+  und nie als gesichert angeboten. Auch zwei Agents, die sich widersprechen, sind
+  ein Streit, bis jemand ihn entscheidet.
+- **Die Konsolidierung faltet nur Übereinstimmung.** Alle fünfzehn Minuten werden
+  die Claims jedes Scopes, der sich *geändert* hat, zusammengeführt: gleiche Sätze
+  werden zu einem abgeleiteten Claim, der seine Quellen nennt, Widerspruch wird
+  als strittig markiert. Sie ist deterministisch - ohne Modellaufruf -, ein
+  unveränderter Scope kostet also nichts, und ein zweiter Durchlauf ändert nichts.
+  Wird ein abgeleiteter Claim zurückgezogen, kommen seine Quellen zurück und er
+  wird nicht erneut gezogen.
+- **Die Herkunft wird nach Zugriff gefiltert.** Ein ins Projekt geteilter Claim
+  verrät niemandem, der ihn nicht lesen darf, den privaten Claim, aus dem er
+  kopiert wurde.
+
+Eine private Unterhaltung bekommt das Profil der Person (höchstens etwa zwanzig
+Claims, 1.800 Zeichen) in ihren Anweisungen, nach derselben Regel wie der Index:
+nur dort, wo der Leser allein ist. Alles andere holt `recall`, das Wörter abgleicht
+und kein Modell aufruft. Abgerufene Claims sind Belege, nie eine Anweisung und nie
+eine Berechtigung.
+
+Unter **Einstellungen → Gedächtnis** zeigt **Erinnerungen** Fakten, Präferenzen und Entscheidungen; **Notizen** öffnet längere Dateien im gemeinsamen Dateibetrachter. Die Suche erfasst den gesamten Bestand vor der Seiteneinteilung. Filtern Sie Erinnerungen nach Art und Bereich, blenden Sie den Verlauf ein und öffnen Sie einen Eintrag für Quelle und Entscheidungsbelege. Korrekturen bewahren die vorherige Version. Nicht mehr verwendete Einträge bleiben im Verlauf; dauerhaftes Löschen einer Notiz erfordert Bestätigung. Das Löschen einer Person entfernt auch ihre Claims und weitergegebene Kopien.
+
 ### Was eingefügt wird, und was nur abgerufen wird { #what-is-injected-and-what-is-only-fetched }
 
 Ein Tool-Ergebnis ist etwas, das ein Modell abwägt; die Instruktionen sind das,
@@ -458,50 +512,8 @@ worauf er gesehen hat, wäre eine zweite Kopie des Geschützten.
 
 **Löschen**, unverändert. Eine Person räumt aus ihrem eigenen Profil alles weg,
 woran ein Agent sich über sie erinnert, und eine Administratorin mit
-`members:manage` kann das für jemand anderen tun; beides löscht die Zeilen hier
-**und** die zugehörigen Erinnerungen in mem0 bei jedem Agenten, der es bindet.
-Das Gedächtnis eines Agenten vollständig zu leeren steht in seinem Werkzeugkasten,
+`members:manage` kann das für jemand anderen tun; beides löscht die Notizen hier und die festgehaltenen Claims samt den daraus weitergegebenen Kopien.
 neben der Capability.
-
-**Was die Selbstauskunft nicht erreicht.** Ein an mem0 gebundener Agent hält seine
-Erinnerungen im Dienst eines Dritten, und diese Seite listet sie nicht - die API
-von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthält.
-Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
-nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
-die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
-
-Das Löschen des Speichers prüft Entwürfe und alle aufbewahrten Agentenversionen,
-auch frühere mem0-Endpunkte. Das Leeren eines Agenten entfernt außerdem seine
-mem0-Namensräume für alle Besitzer. Fehlende Zugangsdaten, Anbieterfehler oder
-unvollständige Listen führen zu einem Fehler. Stellen Sie den Zugriff wieder her
-und wiederholen Sie den Vorgang, um die Löschung abzuschließen.
-
-## Gedächtnis (mem0) { #memory-mem0 }
-
-`remember`, `recall`
-
-Semantisches Gedächtnis, das in einem [mem0](https://mem0.ai)-Dienst gehalten wird
-— in der Cloud oder selbst gehostet über `base_url` — statt in diesem Deployment.
-`remember` hält einen kurzen, in sich geschlossenen Satz fest; `recall` findet
-diejenigen, um die es in einer Frage geht, dem Sinn nach statt dem Namen nach. Es
-braucht einen API-Schlüssel aus dem Vault der Organisation.
-
-Welche Erinnerungen ein Run erreichen kann, folgt genau der obigen Regel, denn mem0
-bekommt den ganzen Scope als seine `user_id`: `{org}:{agent}:{owner}`. Ein
-mem0-Konto kann daher nicht die Erinnerungen zweier Organisationen, zweier Agents
-oder zweier Personen vermischen.
-
-Zwei Unterschiede, die man vor der Wahl kennen sollte. **Hier wird nichts
-gespeichert**, deshalb erreicht das Löschen des Gedächtnisses einer Person mem0
-über dessen eigene API und nicht über eine Zeile, die wir löschen. Und **mem0
-rechnet sein eigenes Embedding außerhalb ab**, deshalb sieht das Ausgabenkonto des
-Deployments es nicht und ein Budget-Cap begrenzt es nicht.
-
-Eine selbst gehostete `base_url` muss https sein und in `MEM0_ALLOWED_HOSTS`
-stehen. Eine leere Allowlist lehnt selbst gehostetes mem0 rundheraus ab, und das
-ist Absicht: Der Schlüssel reist in einem `Authorization`-Header, deshalb darf
-jemand, der einen geteilten Schlüssel binden, aber nicht lesen darf, ihn nicht auf
-einen eigenen Server richten können.
 
 ## Hintergrundthemen { #background-tasks }
 
@@ -1673,6 +1685,12 @@ Versuch würde erneut abgerechnet.
 
 ## Coding Agent { #coding-agent }
 
+**Persönliche Cloud-Konten.** Verbinde unter **Settings → Profile → Coding accounts** einen Anthropic-API-Schlüssel/Claude-Setup-Token, OpenAI-API-Schlüssel oder eine neue ChatGPT-Anmeldung und aktiviere die Nutzung ausdrücklich für diese Organisation. Wähle in Coding agent **Private cloud task with my account**. Nur selbst gestartete, authentifizierte Web/API-Chat-Aufgaben dürfen das Konto nutzen; Zeitpläne, Kanäle, API-Schlüssel und Identitätswechsel nicht. Andere Mitglieder können es nicht ausleihen.
+
+Ein eigener Container erhält eine begrenzte Quellkopie (500 Dateien, 1 MiB je Datei, 16 MiB insgesamt; keine Symlinks, Plattform- oder Cache-Ordner). Der Abschlussbericht nennt Konto und Snapshot; Diff und ZIP erscheinen im Chat. Quelldateien ändern sich nicht automatisch. Entzogener Kontozugriff bricht die Arbeit ab. Eine externe ChatGPT-Freigabe lässt sich zusätzlich in den ChatGPT-Einstellungen widerrufen. Bestehende Organisationsschlüssel und freigegebene lokale CLI-Anmeldungen bleiben getrennt. Aktualisiere API und Worker nach `0290_personal_coding_accounts.py` gemeinsam.
+
+Der persönliche Cloud-Modus akzeptiert nur private Quell-Workspaces. Er verweigert Projekte, Agenten-/Kanal-Workspaces, Gruppenchats und zur Bearbeitung freigegebene Unterhaltungen, bevor Anmeldedaten geladen oder Dateien kopiert werden. Ein privater Zielcontainer macht von Mitarbeitern kontrollierten Quellcode nicht vertrauenswürdig. Nutze für gemeinsame Projektarbeit den organisationsseitig konfigurierten Coding-Modus. Die Schwärzung der Ausgabe schützt Anmeldedaten nicht vor ausführbarem Quellcode.
+
 `run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 
 Übergibt Softwarearbeit an **Claude Code** oder **Codex**, die im eigenen
@@ -1722,6 +1740,25 @@ die Antwort, jeden Schritt und die geänderten Dateien. Bei einer Aufgabe über
 `timeout_minutes` und einer, die ein Mensch stoppt, wird die ganze Prozessgruppe
 gestoppt. Im Hintergrund heißt auch, dass eine Aufgabe nicht an der Obergrenze des
 Sandbox-Dienstes für einen Befehl abgeschnitten wird.
+
+**Was sie geändert hat, als Diff.** Bei `edit` in einer Unterhaltung wird der
+Workspace vor der Aufgabe und danach erneut erfasst, in einen eigenen Git-Speicher
+der Aufgabe unter `/tmp` - nie in das Repository, das jemand geklont hat, dessen
+Index und Historie unberührt bleiben. Das Panel listet dann die Dateien, die die
+Aufgabe hinzugefügt, geändert, gelöscht oder umbenannt hat, und darunter die Hunks
+jeder Datei, mit **Patch kopieren**; eine Aufgabe, die nichts geändert hat, sagt das.
+Auch eine fehlgeschlagene oder abgelaufene Aufgabe behält ihren Diff. Ausgelassen
+werden die eigenen Ordner der Plattform `.agenticos/`, `skills/` und `tool_output/`,
+Werkzeugordner wie `.git`, `.venv` und `node_modules` sowie Dateien über 1 MiB, es sei
+denn, sie waren zu Beginn der Aufgabe kleiner. Der Patch wird bis 256 KiB und 500 Dateien gespeichert und dort
+markiert, wo er abgeschnitten wurde.
+
+**Wer den Diff liest.** Er wird mit der Unterhaltung gespeichert und mit demselben
+Zugriff gelesen wie ihr Transkript, also sieht ihn jeder, der den Chat lesen darf;
+wird der Chat gelöscht, verschwindet er mit. In einem Sandbox, den mehrere Chats
+teilen, sieht eine Aufgabe, die gleichzeitig mit einer anderen läuft, auch deren
+Änderungen in ihrem Diff. Eine Aufgabe zurückzunehmen wird noch nicht angeboten,
+und eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
 
 **Die Aufgaben einer Unterhaltung setzen eine Sitzung fort.** Die Sitzungs-ID des
 Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, eine je
@@ -2076,7 +2113,10 @@ Berechtigungsmodell es alle sehen können.
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `max_result_chars` | 2000 | 200–20000 |
+| `allow_any_agent` | false | Andere zugängliche Agenten verwenden |
 | `share_with_delegates` | keine | Capability-ids, an die dieser Agent selbst gebunden ist, außer `subagents` |
+
+`allow_any_agent` löst optional zu Beginn interaktiver Läufe weitere veröffentlichte Agenten dieser Organisation auf, die die Person ausführen darf, unter `agent-<slug>`. Explizite Pins bleiben erhalten, Vorfahren werden ausgeschlossen, use-Freigaben und API-Key-Grenzen gelten weiter. Anonyme und unbeaufsichtigte Läufe werden nicht erweitert. Standardmäßig ausgeschaltet; große Kataloge erhöhen Vorbereitung und Kontext.
 
 **Der Modus ist die Entscheidung des Autors, nicht die des Modells.**
 
@@ -2620,39 +2660,9 @@ Run nie.
 
 ## Tabellen { #tables }
 
-Liest und schreibt die [Virtual Tables](../virtual-tables.md), die das Binding
-freigibt. Das Panel im Builder listet die Tabellen der Organisation. Haken Sie eine
-an und wählen Sie, was der Agent darin tun darf: Datensätze lesen, hinzufügen,
-ändern und löschen. Ein Upsert braucht Hinzufügen und Ändern, weil er den Datensatz
-anlegt, wenn keiner seinen Schlüssel hat.
+Tabellenoperationen sind Werkzeuge von **AgenticOS MCP**, keine separate Capability. Verbinden Sie das Plattform-MCP unter den Diensten des Agenten und suchen Sie dessen Tabellenwerkzeuge. Lesezugriffe verwenden die aktuellen Rechte des Mitglieds; Schreibzugriffe folgen der MCP-Genehmigungsrichtlinie.
 
-Die Freigaben sind Teil des veröffentlichten Specs, den das Modell nicht ändern
-kann. Ein Aufruf, der eine andere Tabelle oder eine nicht freigegebene Operation
-nennt, wird abgelehnt, bevor etwas gelesen wird. Jeder Aufruf durchläuft außerdem
-die eigene Zugriffsprüfung des Tabellen-Service als das Mitglied, für das der Run
-handelt, bei jedem Aufruf aus seiner Mitgliedschaft neu aufgebaut. Eine nicht mehr
-geteilte Tabelle oder eine eingeschränkte Rolle stoppt also den nächsten Aufruf.
-
-`create_table` wird nur mit **Allow create** angeboten, und das Mitglied braucht
-weiterhin `tables:create`. Datensatz-Tools legen nie Tabellen an. Eine Tabelle, die
-der Agent anlegt, ist für den Rest dieses Runs nutzbar.
-
-`list_views` liefert die gespeicherten Ansichten der Tabellen, die der Agent lesen
-darf, mit der ID jeder Ansicht, ihren Spalten und ob sie geteilt ist. Eine Seite
-kann ihre Abfrage von einer aus beginnen, was die Filter und die Sortierung der
-Ansicht kopiert; danach bleibt nichts an der Ansicht verknüpft, und eine Ansicht
-mit Suche lässt sich nicht binden. [Seiten und Ansichten](../virtual-tables.md#views-for-pages)
-sagt, wie eine Seite eine Tabelle liest. Das Tool `share_view` gibt es nicht mehr,
-und ein Spec, der es noch absichert oder umbenennt, lädt ohne es, mit einer Warnung
-im Log.
-
-Die Schreib-Tools sind pro Tool als seiteneffektbehaftet markiert, sodass eine
-Freigaberichtlinie sie erfasst und nicht die Lesezugriffe. Der Operationsschlüssel
-eines Schreibzugriffs stammt aus dem Run und dem Tool-Aufruf, daher spielt ein
-wiederholter Aufruf seine erste Antwort erneut ab. Werte werden per Spalten-ID oder
-Label angegeben, und die Auswahl einer Auswahlspalte ist das Label ihrer Option -
-beim Schreiben, Filtern und Lesen gleich. Konflikte, Validierung, Kontingente, Historie und Audit sind
-dieselben wie in der Konsole und der API, weil jedes Tool denselben Service aufruft.
+Spezifikationsversion 14 entfernt gespeicherte `virtual_tables`-Bindungen beim Laden. Bestehende Freigaben für veröffentlichte Apps wechseln zu `table_bindings`; dieses Feld stellt keine Werkzeuge bereit. Deaktivierte Freigaben bleiben deaktiviert. MCP-Verbindungen, erlaubte Werkzeuge und Genehmigungen werden nicht automatisch erweitert. Bei alten Agenten ohne Plattform-MCP muss es ausdrücklich verbunden werden, bevor sie Tabellen bearbeiten können.
 
 ## Workflows { #workflows }
 
@@ -2931,8 +2941,10 @@ jedem Zug bezahlt, ob es es jemals aufruft oder nicht.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, von der nativen Suche ignoriert |
+
+**`local_bm25`** bewertet Werkzeugkennungen, Beschreibungen und Argumentschemata lokal bei jedem Provider. Seltenheit und Textlänge beeinflussen die Rangfolge, Kennungen werden bevorzugt. Nur passende autorisierte Werkzeuge werden zurückgegeben, ohne Modell- oder Embedding-Aufruf. Die Ergebnisgrenze gilt weiterhin.
 
 - **`auto`** — native Tool-Suche, wo der Provider sie anbietet (Anthropic BM25 oder
   regex, OpenAI serverseitig), sonst überall der lokale Schlagwortalgorithmus.
@@ -3317,6 +3329,8 @@ den die Person noch nicht verbunden hat. Die Karten gibt es nur in der Konsole; 
 Sie ist im Starter-Agent und im Architect eingeschaltet, und ein Autor kann sie
 abschalten. Ein Sprachanruf lässt sie weg.
 
+Ein Einrichtungsvorschlag vom Typ `watch` öffnet das persönliche Beobachtungsformular mit Titel und Aufgabe. Die Person wählt ein tatsächlich verbundenes Konto und prüft Intervall sowie genehmigte Agentenquellen. Ein Vorschlag erstellt oder aktiviert keine Beobachtung.
+
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 
 Der Katalog ist die Antwort des Deployments auf „was existiert“. Ein
@@ -3477,3 +3491,12 @@ Siehe [Eine Capability hinzufügen](../howto/add-capability.md) für eine neue, 
 wenn die Capability bereits existiert.
 
 Für Tools, die hier niemand schreiben muss, siehe [MCP](../mcp.md).
+
+
+### Entscheidungsepisoden und Improve { #decision-episodes-and-improve }
+
+Eine Entscheidung kann strukturierte Belege enthalten: Situation, Wahl, Alternativen, erwartetes Ergebnis, beobachtetes Ergebnis und Korrektur. Der Agent verwendet `remember` mit `kind: decision` und `episode`; die Gedächtnispflege kann dieselben Angaben aus einer zugelassenen Unterhaltung erfassen. Unbekannte Ergebnisse bleiben leer. Eine Episode bleibt im Bereich der Person-Agent-Beziehung oder des Quellraums. Teilen verlangt weiterhin die ausdrückliche Genehmigung der Zielgruppe.
+
+Unter **Einstellungen → Gedächtnis** liest du Belege und erfasst mit der Korrektur ein beobachtetes Ergebnis. Eine Korrektur fügt einen neuen Eintrag hinzu; die bisherige Episode und ihre Herkunft bleiben im Verlauf. Die deterministische Konsolidierung macht aus Episoden keine allgemeinen Regeln. Löschung entfernt ihre Inhalte zusammen mit den Einträgen; der persönliche Datenexport enthält sie.
+
+**Improve-Fall vorbereiten** öffnet eine bearbeitbare Eingabe und erwartete Antwort. Prüfe den Text, entferne private Angaben und bestätige ausdrücklich den Download eines JSONL-Datensatzes. Die Felder `input`, `reference_answer`, `tags` und `note` entsprechen dem Importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importiere die Datei nach Installation dieser Funktion in einen Improve-Datensatz, evaluiere sie und akzeptiere/veröffentliche Änderungen dort. Dieser Export erstellt keinen Datensatz, startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.

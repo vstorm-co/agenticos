@@ -36,7 +36,7 @@ setup("authenticate as the bootstrapped owner", async ({ page }) => {
   // reads exactly like rejected credentials; the login request had in fact
   // returned 200 and the redirect was still compiling. Raising it does not
   // weaken the check: staying on /login for 30s is still a failure.
-  await expect(page).toHaveURL(/\/dashboard(\?.*)?$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/chat(\?.*)?$/, { timeout: 30_000 });
 
   // A URL change alone would also be satisfied by a client-side redirect that
   // bounces straight back. The dashboard shell renders behind `AuthGuard`, so

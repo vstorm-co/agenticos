@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.49.0"
+version = "1.50.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -190,8 +190,6 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
-    "mem0ai>=2.2.1",
-    "requests>=2.34.2",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
@@ -397,10 +395,6 @@ DEP002 = [
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
     "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
-    # `mem0/client/main.py` imports `requests` and does not declare it, so the SDK
-    # works only while something else happens to pull it in. Declared here so that
-    # accident becomes a dependency (#1470).
-    "requests",
 ]
 
 [tool.ruff]
@@ -728,6 +722,8 @@ include = [
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_templates.py",
+    "app/services/agent_defaults.py",
+    "app/services/shipped_agents.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
     # widget since #634. One frame vocabulary for both sockets, and the sink a
@@ -760,6 +756,7 @@ include = [
     "app/services/skill_proposal.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
+    "app/services/channels/sms_media.py",
     "app/services/channels/dedupe.py",
     "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
@@ -770,6 +767,8 @@ include = [
     "app/services/channels/prompts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
+    "app/services/channels/notification_send.py",
+
     "app/services/channels/handback.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
@@ -817,6 +816,9 @@ include = [
     "app/services/notification_catalog.py",
     "app/services/notification_center.py",
     "app/services/notification_delivery.py",
+    "app/services/notification_routes.py",
+    "app/repositories/notification_route.py",
+    "app/schemas/notification_route.py",
     "app/repositories/notification.py",
     "app/api/routes/v1/notifications.py",
     # The one action in this feature no organization-scoped role can reach.
@@ -837,6 +839,8 @@ include = [
     "app/services/portals/google_calendar.py",
     "app/services/portals/google_drive.py",
     "app/services/portals/mail_auth.py",
+    "app/services/portals/reply_metadata.py",
+    "app/services/reply_expectation.py",
     "app/services/portals/mail_thread.py",
     "app/services/portals/microsoft_files.py",
     "app/services/portals/outlook_calendar.py",
@@ -1027,9 +1031,59 @@ include = [
     "app/services/resource_usage.py",
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
+    "app/repositories/memory_claim.py",
+    "app/repositories/system_agent.py",
+    "app/repositories/outcome.py",
     "app/services/memory/_native.py",
+    "app/services/memory/_claims.py",
+    "app/services/memory/_runtime.py",
+    "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/primary_conversation.py",
+    "app/services/outcome.py",
+    "app/services/system_agent.py",
+    "app/services/routine_authority.py",
+    "app/services/routine_devices.py",
+    "app/services/routine_health.py",
+    "app/repositories/routine_health.py",
+    "app/db/models/routine_health.py",
+    "app/services/imessage_webhook.py",
+    "app/api/routes/v1/imessage_webhook.py",
+    "app/repositories/routine_device_wait.py",
+    "app/db/models/routine_device_wait.py",
+    "app/schemas/local_target.py",
+    "app/agents/routine_authority.py",
+    "app/agents/routine_actions.py",
+    "app/db/models/task_board.py",
+    "app/repositories/task.py",
+    "app/schemas/task.py",
+    "app/services/tasks.py",
+    "app/services/task_access.py",
+    "app/services/task_columns.py",
+    "app/services/task_execution.py",
+    "app/api/routes/v1/tasks.py",
+    "app/worker/tasks/task_tasks.py",
+    "app/services/project_tracking.py",
+    "app/schemas/project_tracking.py",
+    "app/schemas/decision_episode.py",
+    "app/schemas/telephony.py",
+    "app/db/models/telephony.py",
+    "app/repositories/telephony.py",
+    "app/services/telephony/*.py",
+    "app/agents/capabilities/phone_calls/*.py",
+    "app/repositories/project_tracking.py",
+    "app/db/models/project_tracking.py",
+    "app/services/routine_sources.py",
+    "app/schemas/routine_sources.py",
+    "app/services/routine_actions.py",
+    "app/schemas/routine_actions.py",
+    "app/services/routine_delivery.py",
+    "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
+    "app/api/routes/v1/primary_conversations.py",
+    "app/api/routes/v1/outcomes.py",
+    "app/api/routes/v1/system_agents.py",
+    "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1040,6 +1094,20 @@ include = [
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
     "app/services/conversation_tasks.py",
+    # What a coding-agent task changed, read under the conversation's own reader
+    # check (#2480).
+    "app/db/models/coding_task_change.py",
+    "app/schemas/coding_task_change.py",
+    "app/repositories/coding_task_change.py",
+    "app/services/coding_task_changes.py",
+    "app/db/models/coding_account.py",
+    "app/schemas/coding_account.py",
+    "app/repositories/coding_account.py",
+    "app/services/coding_accounts.py",
+    "app/services/personal_codex.py",
+    "app/services/coding_account_lease.py",
+    "app/services/personal_coding_snapshot.py",
+    "app/services/personal_coding.py",
     "app/services/conversation_turns.py",
     "app/worker/tasks/conversation_tasks.py",
     "app/db/models/generated_media.py",
@@ -1245,6 +1313,10 @@ include = [
     "app/worker/tasks/proactive_tasks.py",
     # Watches over a person's own connections, and the presets they start from.
     "app/services/watches.py",
+    "app/services/watch_sources.py",
+    "app/services/routine_notifications.py",
+    "app/schemas/routine_notifications.py",
+    "app/schemas/watch_sources.py",
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",
@@ -1399,6 +1471,8 @@ include = [
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_templates.py",
+    "app/services/agent_defaults.py",
+    "app/services/shipped_agents.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
@@ -1434,6 +1508,7 @@ include = [
     "app/services/skill_proposal.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
+    "app/services/channels/sms_media.py",
     "app/services/channels/dedupe.py",
     "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
@@ -1444,6 +1519,8 @@ include = [
     "app/services/channels/prompts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
+    "app/services/channels/notification_send.py",
+
     "app/services/channels/handback.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
@@ -1521,6 +1598,9 @@ include = [
     "app/services/notification_catalog.py",
     "app/services/notification_center.py",
     "app/services/notification_delivery.py",
+    "app/services/notification_routes.py",
+    "app/repositories/notification_route.py",
+    "app/schemas/notification_route.py",
     "app/repositories/notification.py",
     "app/api/routes/v1/notifications.py",
     # The one action in this feature no organization-scoped role can reach.
@@ -1541,6 +1621,8 @@ include = [
     "app/services/portals/google_calendar.py",
     "app/services/portals/google_drive.py",
     "app/services/portals/mail_auth.py",
+    "app/services/portals/reply_metadata.py",
+    "app/services/reply_expectation.py",
     "app/services/portals/mail_thread.py",
     "app/services/portals/microsoft_files.py",
     "app/services/portals/outlook_calendar.py",
@@ -1731,9 +1813,59 @@ include = [
     "app/services/resource_usage.py",
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
+    "app/repositories/memory_claim.py",
+    "app/repositories/system_agent.py",
+    "app/repositories/outcome.py",
     "app/services/memory/_native.py",
+    "app/services/memory/_claims.py",
+    "app/services/memory/_runtime.py",
+    "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/primary_conversation.py",
+    "app/services/outcome.py",
+    "app/services/system_agent.py",
+    "app/services/routine_authority.py",
+    "app/services/routine_devices.py",
+    "app/services/routine_health.py",
+    "app/repositories/routine_health.py",
+    "app/db/models/routine_health.py",
+    "app/services/imessage_webhook.py",
+    "app/api/routes/v1/imessage_webhook.py",
+    "app/repositories/routine_device_wait.py",
+    "app/db/models/routine_device_wait.py",
+    "app/schemas/local_target.py",
+    "app/agents/routine_authority.py",
+    "app/agents/routine_actions.py",
+    "app/db/models/task_board.py",
+    "app/repositories/task.py",
+    "app/schemas/task.py",
+    "app/services/tasks.py",
+    "app/services/task_access.py",
+    "app/services/task_columns.py",
+    "app/services/task_execution.py",
+    "app/api/routes/v1/tasks.py",
+    "app/worker/tasks/task_tasks.py",
+    "app/services/project_tracking.py",
+    "app/schemas/project_tracking.py",
+    "app/schemas/decision_episode.py",
+    "app/schemas/telephony.py",
+    "app/db/models/telephony.py",
+    "app/repositories/telephony.py",
+    "app/services/telephony/*.py",
+    "app/agents/capabilities/phone_calls/*.py",
+    "app/repositories/project_tracking.py",
+    "app/db/models/project_tracking.py",
+    "app/services/routine_sources.py",
+    "app/schemas/routine_sources.py",
+    "app/services/routine_actions.py",
+    "app/schemas/routine_actions.py",
+    "app/services/routine_delivery.py",
+    "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
+    "app/api/routes/v1/primary_conversations.py",
+    "app/api/routes/v1/outcomes.py",
+    "app/api/routes/v1/system_agents.py",
+    "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1744,6 +1876,20 @@ include = [
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
     "app/services/conversation_tasks.py",
+    # What a coding-agent task changed, read under the conversation's own reader
+    # check (#2480).
+    "app/db/models/coding_task_change.py",
+    "app/schemas/coding_task_change.py",
+    "app/repositories/coding_task_change.py",
+    "app/services/coding_task_changes.py",
+    "app/db/models/coding_account.py",
+    "app/schemas/coding_account.py",
+    "app/repositories/coding_account.py",
+    "app/services/coding_accounts.py",
+    "app/services/personal_codex.py",
+    "app/services/coding_account_lease.py",
+    "app/services/personal_coding_snapshot.py",
+    "app/services/personal_coding.py",
     "app/services/conversation_turns.py",
     "app/worker/tasks/conversation_tasks.py",
     "app/db/models/generated_media.py",
@@ -1949,6 +2095,10 @@ include = [
     "app/worker/tasks/proactive_tasks.py",
     # Watches over a person's own connections, and the presets they start from.
     "app/services/watches.py",
+    "app/services/watch_sources.py",
+    "app/services/routine_notifications.py",
+    "app/schemas/routine_notifications.py",
+    "app/schemas/watch_sources.py",
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",

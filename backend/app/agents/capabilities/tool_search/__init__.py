@@ -19,6 +19,7 @@ class ToolSearchConfig(BaseModel):
             "auto: native tool search on a provider that supports it, local "
             "keyword matching elsewhere. "
             "keywords: always match locally, on any provider. "
+            "local_bm25: rank identifiers, descriptions and arguments locally on any provider. "
             "bm25 / regex: force an Anthropic-native algorithm; errors on a "
             "provider that has no native tool search."
         ),

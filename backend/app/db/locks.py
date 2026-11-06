@@ -93,6 +93,13 @@ class LockScope(IntEnum):
     VIRTUAL_TABLE_EXPORT_PER_ORG = 18
     #: Cumulative inline results across retained runs, before run-row locks.
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
+    #: Telephone reservations, opt-in changes and endpoint admission share one order.
+    PHONE_CALLS_PER_ORG = 28
+    #: Retained inbound email bodies and receipt counts, before durable enqueue.
+    EMAIL_DELIVERY_STORAGE_PER_ORG = 29
+    #: Read/compare/write of claims within one organization, owner and agent scope.
+    MEMORY_CLAIMS_PER_SCOPE = 26
+    TASK_BOARD = 27
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.

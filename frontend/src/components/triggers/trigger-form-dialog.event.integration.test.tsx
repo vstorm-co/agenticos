@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +62,32 @@ function serve() {
     path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 },
   );
 }
+
+it.each([false, true])(
+  "preserves an existing exact end or explicitly clears it (%s)",
+  async (clear) => {
+    serve();
+    const user = userEvent.setup();
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ ends_at: "2000-01-01T12:00:32.333Z" })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    if (clear)
+      fireEvent.change(dialog.getByLabelText("Ends at (device time)"), { target: { value: "" } });
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1];
+    if (clear) expect(body).toHaveProperty("ends_at", null);
+    else expect(body).not.toHaveProperty("ends_at");
+  },
+);
 
 /** The event form, as reached from the portal grid's "Advanced: API trigger". */
 async function openEvent() {
@@ -296,9 +322,10 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     // Only the templates written for the source picked on step one - a prompt
     // about an email makes no sense against a signed POST from your own code, and
     // neither does one about a GitHub issue.
-    expect(dialog.queryByRole("button", { name: /Draft a reply/ })).toBeNull();
-    expect(dialog.queryByRole("button", { name: /Triage the new issue/ })).toBeNull();
-    await user.click(dialog.getByRole("button", { name: /Act on the payload/ }));
+    await user.click(dialog.getByRole("button", { name: "Start from a template" }));
+    expect(screen.queryByRole("button", { name: /Draft a reply/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Triage the new issue/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Act on the payload/ }));
     expect(dialog.getByLabelText<HTMLTextAreaElement>("Message").value).toBe(
       "Act on this payload.",
     );
@@ -313,4 +340,44 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     const option = await screen.findByRole("option", { name: "API (your own code)" });
     expect(option.querySelector("svg")).not.toBeNull();
   });
+});
+
+it("refuses an invalid budget without removing the saved spending cap", async () => {
+  serve();
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger({ monthly_budget_usd: null }));
+  render(
+    <TriggerFormDialog
+      agentId={AGENT_ID}
+      open
+      onOpenChange={vi.fn()}
+      trigger={trigger({ monthly_budget_usd: "10" })}
+    />,
+    { wrapper },
+  );
+  const dialog = within(await screen.findByRole("dialog"));
+  const budget = dialog.getByLabelText("Monthly budget (USD, optional)");
+  fireEvent.change(budget, { target: { value: "-2" } });
+  expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(
+    dialog.getByText("Enter a positive amount, or leave blank to remove this limit."),
+  ).toBeVisible();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+  fireEvent.change(budget, { target: { value: "" } });
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty(
+    "monthly_budget_usd",
+    null,
+  );
+});
+
+it("keeps a new schedule on configuration until its budget is valid", async () => {
+  serve();
+  render(<TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} />, { wrapper });
+  const dialog = within(await screen.findByRole("dialog"));
+  fireEvent.change(dialog.getByLabelText("Monthly budget (USD, optional)"), {
+    target: { value: "not a number" },
+  });
+  expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+  expect(apiClient.post).not.toHaveBeenCalled();
 });
