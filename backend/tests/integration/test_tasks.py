@@ -1420,3 +1420,29 @@ async def test_an_existing_task_binding_replaces_an_obsolete_attention_case(db, 
         description="Updated draft",
     )
     settle.assert_awaited_once_with(old, organization_id=data.org.id)
+
+
+async def test_concurrently_removed_board_cannot_update_or_purge_an_unrelated_table(
+    db, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    from app.services import tasks
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Original task"))
+    board = await tasks.task_repo.for_table(db, task.table_id, data.org.id)
+    assert board is not None
+    service.get = AsyncMock(return_value=task)
+    monkeypatch.setattr(tasks.task_repo, "for_table", AsyncMock(return_value=None))
+    with pytest.raises(NotFoundError):
+        await service.update(
+            data.contexts[0], task.id, TaskUpdate(title="Changed", expected_revision=task.revision)
+        )
+    monkeypatch.setattr(tasks.task_repo, "in_scope", AsyncMock(return_value=[board]))
+    monkeypatch.setattr(tasks.virtual_table_repo, "get_table", AsyncMock(return_value=None))
+    purge = AsyncMock()
+    monkeypatch.setattr(tasks.task_repo, "purge_table", purge)
+    await service.purge_scope("private", data.users[0].id, organization_id=data.org.id)
+    purge.assert_not_awaited()

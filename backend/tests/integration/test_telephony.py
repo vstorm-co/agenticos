@@ -1218,6 +1218,8 @@ async def test_telephone_history_is_tenant_scoped_and_inbound_callbacks_keep_the
     assert len(await repo.recent_calls(db, organization_id=ctx.organization_id, user_id=None)) == 1
     assert await repo.recent_calls(db, organization_id=uuid4(), user_id=None) == []
     calls = PhoneCallService(db)
+    with pytest.raises(NotFoundError):
+        await calls.get(ctx, uuid4())
     assert (await calls.get(ctx, call.id)).id == call.id
     assert [item.id for item in await calls.recent(ctx)] == [call.id]
     service = PhoneWebhookService(db)
@@ -1397,3 +1399,57 @@ async def test_operator_can_read_another_members_receipt_but_cannot_control_it(
             await service.controllable(ctx, receipt.id)
     finally:
         set_impersonator(None)
+
+
+async def test_spoken_source_run_retries_keep_the_original_owned_chat_receipt(db, monkeypatch):
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.conversation import Conversation, Message
+    from app.repositories import agent_run_repo
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    agent = Agent(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        name="Reporter",
+        slug=f"reporter-{uuid4()}",
+        status="published",
+    )
+    db.add(agent)
+    await db.flush()
+    version = AgentVersion(
+        agent_id=agent.id, organization_id=ctx.organization_id, version=1, spec={"name": "Reporter"}
+    )
+    source = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id, title="Source")
+    db.add_all([version, source])
+    await db.flush()
+    agent.current_version_id = version.id
+    contact = await repo.contact(db, organization_id=ctx.organization_id, user_id=ctx.user_id)
+    assert contact is not None
+    contact.agent_ids = [str(agent.id)]
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        user_id=ctx.user_id,
+        conversation_id=source.id,
+        surface="web",
+        model_label="test",
+        started_at=datetime.now(UTC),
+    )
+    await db.flush()
+    service = PhoneCallService(db)
+    data = PhoneCallCreate(
+        request_key=uuid4(),
+        endpoint_id=endpoint.id,
+        mode="report",
+        report="Summary",
+        source_conversation_id=source.id,
+    )
+    first = await service.create(ctx, data, source_run_id=run.id)
+    second = await service.create(
+        ctx, data.model_copy(update={"request_key": uuid4()}), source_run_id=run.id
+    )
+    assert second.id == first.id
+    posted = list(await db.scalars(select(Message).where(Message.conversation_id == source.id)))
+    assert len(posted) == 1 and posted[0].parts[0]["phone_call_id"] == str(first.id)

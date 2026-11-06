@@ -1105,3 +1105,14 @@ async def test_standing_consent_refuses_removed_or_corrupt_authority(
     else:
         with pytest.raises(AuthorizationError):
             await authority._consent_in(db, world.agent.id, WRITE)
+
+
+async def test_publisher_routine_does_not_offer_a_persons_unreviewed_mcp_account(db, world):
+    from app.agents.spec import PersonalMcpServerRef
+
+    world.trigger.runs_as_creator = False
+    world.spec.mcp_servers = [PersonalMcpServerRef(catalog_key="github", account="personal")]
+    options, unavailable = await RoutineActionService(db)._mcp_options(
+        world.ctx, world.trigger, world.spec
+    )
+    assert options == [] and unavailable == []

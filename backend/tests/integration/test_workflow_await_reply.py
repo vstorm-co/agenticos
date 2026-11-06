@@ -279,6 +279,7 @@ async def test_final_check_prefers_an_existing_timely_reply_to_deadline(
         "review_replaced",
         "review_disabled",
         "review_ok",
+        "review_attention",
     ],
 )
 async def test_corrections_refuse_invalid_state_and_require_explicit_source_review(
@@ -304,6 +305,12 @@ async def test_corrections_refuse_invalid_state_and_require_explicit_source_revi
     state = ReplyExpectation.model_validate(step.resume_payload)
     async with seeded.factory() as db:
         service = WorkflowExecutionService(db)
+        if variant == "review_attention":
+            from app.db.models.workflow_run import NodeRunStatus
+
+            step.status = NodeRunStatus.NEEDS_ATTENTION.value
+            db.add(step)
+            await db.flush()
         if variant == "permission":
             with (
                 patch.object(service, "_may_resolve", AsyncMock(return_value=False)),
@@ -354,7 +361,7 @@ async def test_corrections_refuse_invalid_state_and_require_explicit_source_revi
                 AsyncMock(return_value=grant),
             ):
                 reviewed = body.model_copy(update={"review_mailbox": True})
-                if variant == "review_ok":
+                if variant in {"review_ok", "review_attention"}:
                     updated = await service.edit_reply_expectation(
                         seeded.ctx, seeded.run.id, step.id, reviewed
                     )

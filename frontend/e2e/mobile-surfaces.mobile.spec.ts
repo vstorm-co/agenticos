@@ -158,7 +158,9 @@ for (const platform of ["ios", "android"] as const) {
 
       await page.goto("/chat");
       await page.getByRole("button", { name: "Add to message", exact: true }).tap();
-      const picker = page.getByRole("button", { name: /^Agent:/ });
+      const attachmentSheet = page.getByRole("dialog");
+      await expect(attachmentSheet).toBeVisible();
+      const picker = attachmentSheet.getByRole("button", { name: /^Agent:/ });
       await expectTouchTarget(picker);
       await picker.tap();
       await expect(page.getByRole("radiogroup")).toBeVisible();

@@ -220,12 +220,16 @@ def _wired(*, grants=(), triggers=(), secret=None, claims=True):
 
 
 class TestATriggerPastItsAllowance:
-    async def test_it_is_left_out_while_the_others_fire(self) -> None:
+    @pytest.mark.parametrize("delivery_id", [False, True])
+    async def test_it_is_left_out_while_the_others_fire(self, delivery_id: bool) -> None:
         """One App delivery can fire several triggers; the one that has fired too
         often this minute is skipped, not the delivery for everybody."""
         from app.services.rate_limit import Decision
 
         body = _body()
+        headers = _headers(body)
+        if not delivery_id:
+            headers.pop("x-github-delivery")
         busy, calm = _trigger(), _trigger()
 
         async def allowance(trigger_id: uuid.UUID) -> Decision:
@@ -235,7 +239,7 @@ class TestATriggerPastItsAllowance:
             _wired(grants=[_grant()], triggers=[busy, calm]),
             patch(f"{SERVICE}.rate_limit.trigger_delivery_allowed", new=allowance),
         ):
-            decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
+            decisions = await _service().prepare_app_fires(body=body, headers=headers)
 
         assert [decision.trigger_id for decision in decisions] == [calm.id]
 
@@ -902,3 +906,10 @@ class TestInstallationReadToken:
             await McpConnectionService(MagicMock()).github_app_access_token(
                 MagicMock(organization_id=organization, portal_key=portal)
             )
+
+
+async def test_a_signed_app_event_with_stale_sources_never_claims_a_trigger():
+    trigger, body, service = _trigger(), _body(), _service()
+    service._polled_source_current = AsyncMock(return_value=False)
+    with _wired(grants=[_grant()], triggers=[trigger]):
+        assert await service.prepare_app_fires(body=body, headers=_headers(body)) == []

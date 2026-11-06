@@ -963,7 +963,10 @@ async def test_terminal_account_source_review_fences_exact_owner_and_client_gene
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("source", ["credentials", "disabled_phone", "missing_remote"])
+@pytest.mark.parametrize(
+    "source",
+    ["credentials", "disabled_phone", "missing_remote", "missing_credential", "missing_phone"],
+)
 async def test_source_review_bounds_provider_inventory_without_connecting(db, monkeypatch, source):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -1022,6 +1025,34 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
         monkeypatch.setattr(
             organization_secret_repo, "authorization_generation", AsyncMock(return_value=uuid4())
         )
+    elif source == "missing_credential":
+        spec = AgentSpec(
+            name="Worker",
+            capabilities=[
+                {
+                    "id": "mirage",
+                    "config": {
+                        "mounts": [
+                            {
+                                "path": "/code/",
+                                "backend": "github",
+                                "options": {"owner": "o", "repo": "r"},
+                                "secrets": {"token": str(uuid4())},
+                            }
+                        ]
+                    },
+                }
+            ],
+        )
+        monkeypatch.setattr(
+            organization_secret_repo, "authorization_generation", AsyncMock(return_value=None)
+        )
+    elif source == "missing_phone":
+        spec = AgentSpec(
+            name="Worker",
+            capabilities=[{"id": "phone_calls", "config": {"endpoint_id": str(uuid4())}}],
+        )
+        monkeypatch.setattr(telephony, "endpoint", AsyncMock(return_value=None))
     elif source in {"phones", "disabled_phone"}:
         spec = AgentSpec(
             name="Worker",
@@ -1059,4 +1090,4 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
             await RoutineSourceService(db)._review(ctx, trigger)
     else:
         reviewed = await RoutineSourceService(db)._review(ctx, trigger)
-        assert bool(reviewed.unavailable) is (source == "missing_remote")
+        assert bool(reviewed.unavailable) is (source != "disabled_phone")

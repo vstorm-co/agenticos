@@ -199,3 +199,58 @@ async def test_inbound_voice_requires_an_active_public_voice_exposure(monkeypatc
     )
     with pytest.raises(BadRequestError, match="active public"):
         await policy.PhonePolicyService(AsyncMock()).public_embed(ctx, uuid4())
+
+
+@pytest.mark.parametrize("change", ["missing", "inactive", "wrong_platform", "generation"])
+async def test_route_loading_requires_the_current_sms_account(monkeypatch, change):
+    from app.core.exceptions import NotFoundError
+
+    generation = uuid4()
+    row = MagicMock(
+        enabled=True, organization_id=uuid4(), bot_id=uuid4(), bot_generation=generation
+    )
+    bot = MagicMock(
+        is_active=change != "inactive",
+        platform="slack" if change == "wrong_platform" else "sms",
+        authorization_generation=uuid4() if change == "generation" else generation,
+    )
+    monkeypatch.setattr(policy.repo, "endpoint", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        policy.channel_bot_repo,
+        "get_for_org",
+        AsyncMock(return_value=None if change == "missing" else bot),
+    )
+    with pytest.raises((AuthorizationError, NotFoundError)):
+        await policy.PhonePolicyService(AsyncMock()).load_endpoint(uuid4())
+
+
+async def test_settings_hide_retired_endpoints_non_sms_identities_and_removed_people(monkeypatch):
+    contact, _, ctx = contact_and_call()
+    ctx = replace(ctx, role="owner")
+    monkeypatch.setattr(
+        policy.channel_identity_repo,
+        "list_for_user",
+        AsyncMock(return_value=[MagicMock(platform="slack", is_active=True)]),
+    )
+    monkeypatch.setattr(policy.repo, "contact", AsyncMock(return_value=contact))
+    monkeypatch.setattr(policy.channel_identity_repo, "get_by_id", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        policy.repo, "endpoints", AsyncMock(return_value=[MagicMock(enabled=False)])
+    )
+    monkeypatch.setattr(policy.channel_bot_repo, "get_for_org", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        policy.channel_bot_repo,
+        "list_for_org",
+        AsyncMock(return_value=[MagicMock(platform="slack")]),
+    )
+    monkeypatch.setattr(policy.repo, "public_embeds", AsyncMock(return_value=[]))
+    monkeypatch.setattr(policy.repo, "transfer_contacts", AsyncMock(return_value=[contact]))
+    monkeypatch.setattr(policy, "acting_member", AsyncMock(return_value=None))
+    monkeypatch.setattr(policy.user_repo, "get_by_id", AsyncMock(return_value=None))
+    result = await policy.PhonePolicyService(AsyncMock()).settings(ctx)
+    assert (
+        result.sms_identities == []
+        and result.contact is None
+        and result.endpoints == []
+        and result.transfer_contacts == []
+    )

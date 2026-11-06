@@ -156,7 +156,7 @@ async def test_call_admission_refuses_unconsented_or_unpublished_execution(monke
 
 
 @pytest.mark.parametrize(
-    "reason", ["account", "number", "disabled", "receipt", "ended", "rotated", "expired"]
+    "reason", ["account", "number", "disabled", "receipt", "ended", "rotated", "expired", "current"]
 )
 async def test_inbound_admission_refuses_wrong_endpoint_and_finished_receipts(monkeypatch, reason):
     from tests.test_telephony import AUTH, SID
@@ -183,7 +183,7 @@ async def test_inbound_admission_refuses_wrong_endpoint_and_finished_receipts(mo
         row.status = "completed"
     elif reason == "rotated":
         row.endpoint_generation = uuid4()
-    else:
+    elif reason == "expired":
         row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     monkeypatch.setattr(calls, "hold_subject", AsyncMock())
     monkeypatch.setattr(
@@ -192,8 +192,11 @@ async def test_inbound_admission_refuses_wrong_endpoint_and_finished_receipts(mo
     monkeypatch.setattr(calls.repo, "request", AsyncMock(return_value=row))
     budget = AsyncMock()
     monkeypatch.setattr(calls.PhonePolicyService, "admit_budget", budget)
-    with pytest.raises((AuthorizationError, ConflictError)):
-        await calls.PhoneCallService(AsyncMock()).inbound(endpoint.id, params)
+    if reason == "current":
+        assert await calls.PhoneCallService(AsyncMock()).inbound(endpoint.id, params) is row
+    else:
+        with pytest.raises((AuthorizationError, ConflictError)):
+            await calls.PhoneCallService(AsyncMock()).inbound(endpoint.id, params)
     budget.assert_not_awaited()
 
 

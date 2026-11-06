@@ -274,6 +274,7 @@ async def test_only_a_verified_private_legacy_session_is_adopted(
 
 async def test_rebinding_a_bot_rotates_the_previous_agents_primary_history(
     db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.db.models.agent_exposure import AgentExposure
     from app.db.models.channel_bot import ChannelBot
@@ -302,6 +303,12 @@ async def test_rebinding_a_bot_rotates_the_previous_agents_primary_history(
         text="Hello",
         raw={},
     )
+    from unittest.mock import AsyncMock
+
+    from app.services.channels import sms_prompts
+
+    forget = AsyncMock()
+    monkeypatch.setattr(sms_prompts, "forget", forget)
     router = ChannelMessageRouter()
     session = await router._resolve_session(incoming, bot, identity, db)
     previous = session.conversation_id
@@ -321,3 +328,4 @@ async def test_rebinding_a_bot_rotates_the_previous_agents_primary_history(
     changed = await router._resolve_session(incoming, bot, identity, db)
     second_primary = await PrimaryConversationService(db).open(ctxs[0], agents[1].id)
     assert changed.conversation_id not in {first_primary, second_primary, previous}
+    forget.assert_awaited_once_with(str(bot.id), identity.platform_user_id, platform="sms")

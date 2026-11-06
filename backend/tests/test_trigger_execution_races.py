@@ -307,3 +307,214 @@ async def test_a_native_fire_keeps_its_durable_device_admission(monkeypatch, cha
     execute.assert_not_awaited()
     assert service.queue_fire.await_count == int(change == "local_upgrade")
     assert settled.await_count == int(change == "removed_local")
+
+
+async def test_a_fire_with_legacy_review_is_refused_by_execution_without_inventing_a_policy(
+    monkeypatch,
+):
+    trigger, service = _trigger(approved_sources={"legacy": True}), _service()
+    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    service._fire_loaded = AsyncMock()
+    await service.fire(trigger.id)
+    assert service._fire_loaded.await_args.kwargs["source_policy_id"] is None
+
+
+async def test_a_signed_event_with_stale_sources_never_claims_delivery(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from tests.test_agent_triggers import _event_trigger
+
+    service, trigger = _service(), _event_trigger()
+    service._polled_source_current = AsyncMock(return_value=False)
+    service._claim = AsyncMock()
+    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    monkeypatch.setattr(module, "unseal", lambda *args, **kwargs: "secret")
+    monkeypatch.setattr(module.trigger_events, "verify_signature", MagicMock(return_value=True))
+    monkeypatch.setattr(module.trigger_events, "event_matches", MagicMock(return_value=True))
+    assert await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={}) is None
+    service._claim.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", ["result_mode", "archived", "target", "expired_during_access"])
+async def test_delivery_rechecks_the_reviewed_mode_agent_and_target_before_posting(
+    monkeypatch, change
+):
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import MagicMock
+
+    from tests.test_agent_triggers import _agent
+
+    trigger = _trigger(
+        answer_to="conversation", delivery_conversation_id=uuid4(), result_mode="report"
+    )
+    service = _service()
+    if change == "result_mode":
+        trigger.result_mode = "inbox"
+    if change == "target":
+        trigger.delivery_conversation_id = None
+    service.agents.get = AsyncMock(
+        return_value=MagicMock(status="archived" if change == "archived" else "published")
+    )
+    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    monkeypatch.setattr(
+        module.member_repo, "get_active", AsyncMock(return_value=MagicMock(role="owner"))
+    )
+    monkeypatch.setattr(
+        module.conversation_repo,
+        "get_conversation_by_id",
+        AsyncMock(
+            return_value=MagicMock(
+                is_archived=False,
+                organization_id=trigger.organization_id,
+                user_id=trigger.created_by_user_id,
+            )
+        ),
+    )
+
+    async def access(*args, **kwargs):
+        trigger.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+
+    monkeypatch.setattr(module.ConversationService, "get_conversation", access)
+    post = AsyncMock()
+    monkeypatch.setattr(module.conversation_repo, "create_message", post)
+    delivery = await service._deliver(
+        trigger,
+        agent=_agent(),
+        run=MagicMock(routine_policy={"result_mode": "report"}),
+        answer="Done",
+    )
+    assert delivery.status == "unavailable"
+    post.assert_not_awaited()
+
+
+async def test_polled_event_cannot_reuse_a_source_admission_from_an_older_review(monkeypatch):
+    from app.services.portals import PolledEvent
+
+    service, trigger = _service(), _trigger()
+    monkeypatch.setattr(
+        module.agent_trigger_repo, "list_active_for_event_source", AsyncMock(return_value=[trigger])
+    )
+    assert (
+        await service.prepare_polled_fires(
+            organization_id=trigger.organization_id,
+            event_source="gmail",
+            events=[PolledEvent(delivery_id="mail-1", payload={})],
+            source_admissions={trigger.id: uuid4()},
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "change", ["foreign", "settled", "already_parked", "deduped_job", "removed_wait"]
+)
+async def test_native_activation_retries_preserve_the_owned_wait_identity(monkeypatch, change):
+    from types import SimpleNamespace
+
+    from app.core.exceptions import AuthorizationError
+    from app.schemas.local_target import LocalTarget
+
+    service = _service()
+    target = LocalTarget(
+        folder="/approved",
+        device_id=uuid4(),
+        routine_grant=uuid4(),
+        mode="read_only",
+        operations={"read": True, "write": False, "execute": False},
+    )
+    trigger = _trigger(local_target=target.model_dump(mode="json"), runs_as_creator=True)
+    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    existing = SimpleNamespace(
+        trigger_id=uuid4() if change == "foreign" else trigger.id,
+        organization_id=trigger.organization_id,
+        status="cancelled" if change == "settled" else "waiting",
+    )
+    monkeypatch.setattr(
+        module.device_wait_repo,
+        "get",
+        AsyncMock(
+            side_effect=[None, None]
+            if change == "removed_wait"
+            else [None]
+            if change == "already_parked"
+            else [existing]
+        ),
+    )
+    monkeypatch.setattr(
+        module.device_wait_repo, "park", AsyncMock(return_value=change != "already_parked")
+    )
+    job = uuid4()
+    queue = AsyncMock(return_value=None if change == "deduped_job" else job)
+    monkeypatch.setattr(module, "enqueue", queue)
+    if change == "foreign":
+        with pytest.raises(AuthorizationError):
+            await service.queue_fire(trigger.id, organization_id=trigger.organization_id)
+    else:
+        result = await service.queue_fire(trigger.id, organization_id=trigger.organization_id)
+        assert result == (job if change == "removed_wait" else None)
+    assert queue.await_count == int(change in {"deduped_job", "removed_wait"})
+
+
+@pytest.mark.parametrize("change", ["removed", "settled"])
+async def test_resumed_delivery_refuses_removed_or_previously_unavailable_receipts(
+    monkeypatch, change
+):
+    from types import SimpleNamespace
+
+    receipt = SimpleNamespace(trigger_id=uuid4(), status="unavailable")
+    monkeypatch.setattr(
+        module.routine_delivery_repo,
+        "get",
+        AsyncMock(side_effect=[receipt, None if change == "removed" else receipt]),
+    )
+    monkeypatch.setattr(module.agent_trigger_repo, "get", AsyncMock(return_value=None))
+    service = _service()
+    service._deliver = AsyncMock()
+    await service.deliver_resumed_answer(uuid4(), uuid4())
+    service._deliver.assert_not_awaited()
+
+
+@pytest.mark.parametrize("removed", [False, True])
+async def test_one_shot_finishes_only_after_its_current_trigger_survives_execution(
+    monkeypatch, removed
+):
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock
+
+    from app.services.agent_runner import AgentRunnerService
+    from app.services.task_execution import TaskExecution
+
+    trigger = _trigger(one_shot=True, result_mode="inbox")
+    monkeypatch.setattr(module.device_wait_repo, "get", AsyncMock(return_value=None))
+    service = _service()
+    service._stop_for_monthly_budget = AsyncMock(return_value=False)
+    service._creator_context = AsyncMock(return_value=_ctx())
+    service._run_log = AsyncMock(return_value=uuid4())
+    run = MagicMock(id=uuid4(), status="completed", ended_at=datetime.now(UTC), routine_policy={})
+    monkeypatch.setattr(TaskExecution, "started", AsyncMock(return_value=True))
+    finished = AsyncMock()
+    monkeypatch.setattr(TaskExecution, "finished", finished)
+    monkeypatch.setattr(AgentRunnerService, "execute", AsyncMock(return_value=("", run)))
+    monkeypatch.setattr(
+        module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=None if removed else trigger)
+    )
+    monkeypatch.setattr(module.OutcomeService, "resolve_routine_failure", AsyncMock())
+    await service._fire_loaded(trigger, activation_id=uuid4())
+    assert finished.await_count == int(not removed)
+
+
+async def test_a_legacy_folder_without_a_routine_grant_never_borrows_device_waits(monkeypatch):
+    from app.schemas.local_target import LocalTarget
+
+    trigger = _trigger(
+        local_target=LocalTarget(folder="/legacy", mode="full_access").model_dump(mode="json")
+    )
+    service = _service()
+    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    queue = AsyncMock(return_value=uuid4())
+    wait = AsyncMock()
+    monkeypatch.setattr(module, "enqueue", queue)
+    monkeypatch.setattr(module.device_wait_repo, "get", wait)
+    assert await service.queue_fire(trigger.id, organization_id=trigger.organization_id)
+    wait.assert_not_awaited()
+    assert queue.await_args.kwargs["dedupe_key"] is None

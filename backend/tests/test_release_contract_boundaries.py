@@ -234,3 +234,25 @@ async def test_a_watch_without_a_source_policy_cannot_lend_an_mcp_tool():
     assert not authority.allows_tool(
         ToolDefinition(name="read", metadata={MCP_ORIGIN: McpToolOrigin(uuid4(), identity, "read")})
     )
+
+
+async def test_matching_mcp_account_without_reviewed_tools_cannot_lend_authority():
+    from app.agents.mcp import McpSourceIdentity, McpToolOrigin
+    from app.services.routine_authority import RoutineAuthority
+    from app.services.routine_sources import RoutineSourcesRequired
+
+    connection = uuid4()
+    identity = McpSourceIdentity(
+        endpoint_hash="a" * 64, authorization_generation=uuid4(), tool_prefix="source"
+    )
+    authority = RoutineAuthority(
+        routine_id=uuid4(),
+        organization_id=uuid4(),
+        user_id=uuid4(),
+        root_agent_id=uuid4(),
+        role="owner",
+        acts_as_creator=False,
+        mcp_sources={connection: identity},
+    )
+    with pytest.raises(RoutineSourcesRequired):
+        await authority._mcp_in(AsyncMock(), McpToolOrigin(connection, identity, "write"))

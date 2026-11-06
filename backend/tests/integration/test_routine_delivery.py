@@ -100,9 +100,11 @@ async def messages(db: AsyncSession, world: World) -> list[Message]:
     return list(await db.scalars(select(Message).where(Message.run_id == world.run.id)))
 
 
+@pytest.mark.parametrize("one_shot", [False, True])
 async def test_a_durable_answer_is_delivered_once_after_a_restart(
-    db: AsyncSession, world: World
+    db: AsyncSession, world: World, one_shot: bool
 ) -> None:
+    world.trigger.one_shot = one_shot
     service = RoutineDeliveryService(db)
     await service.queue(world.run, answer="Final approved result")
     await service.queue(world.run, answer="Do not replace the admitted result")
@@ -124,16 +126,11 @@ async def test_a_durable_answer_is_delivered_once_after_a_restart(
     receipt = await delivery_repo.get(db, run_id=run_id, organization_id=org_id)
     assert receipt is not None and receipt.status == "delivered"
     assert receipt.conversation_id == world.chat.id
-    assert (
-        len(
-            list(
-                await db.scalars(
-                    select(Notification).where(Notification.event_type == "run_completed")
-                )
-            )
+    assert len(
+        list(
+            await db.scalars(select(Notification).where(Notification.event_type == "run_completed"))
         )
-        == 1
-    )
+    ) == int(not one_shot)
 
 
 @pytest.mark.parametrize(
@@ -502,3 +499,28 @@ async def test_new_finding_revision_durably_ends_its_previous_telephone_call(
         select(BackgroundJob).where(BackgroundJob.dedupe_key == f"phone-end:{row.id}")
     )
     assert job is not None and job.kind == "end-phone" and job.organization_id == world.org.id
+
+
+async def test_resumed_delivery_cannot_replace_a_newer_runs_delivery_status(db, world):
+    world.trigger.last_run_id = None
+    await RoutineDeliveryService(db).queue(world.run, answer="Result")
+    await AgentTriggerService(db).deliver_resumed_answer(world.org.id, world.run.id)
+    assert world.trigger.last_delivery_status == "not_completed"
+    assert len(await messages(db, world)) == 1
+
+
+async def test_routine_expiring_during_delivery_does_not_send_a_finished_notice(
+    db, world, monkeypatch
+):
+    from app.services.notifications import NotificationService
+
+    service = AgentTriggerService(db)
+    await RoutineDeliveryService(db).queue(world.run, answer="Result")
+    expire = AsyncMock(side_effect=[False, True])
+    notice = AsyncMock()
+    monkeypatch.setattr(service, "_expire_if_ended", expire)
+    monkeypatch.setattr(NotificationService, "routine_finished", notice)
+    await service.deliver_resumed_answer(world.org.id, world.run.id)
+    assert expire.await_count == 2
+    notice.assert_not_awaited()
+    assert len(await messages(db, world)) == 1

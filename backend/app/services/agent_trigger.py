@@ -2215,8 +2215,6 @@ class AgentTriggerService:
             and trigger.runs_as_creator
             and trigger.created_by_user_id is not None
         ):
-            if organization_id is not None and trigger.organization_id != organization_id:
-                raise AuthorizationError(message="The routine belongs to another organization")
             existing = await device_wait_repo.get(self.db, activation_id)
             if existing is not None:
                 if (

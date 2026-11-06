@@ -603,6 +603,8 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
     [
         "changed",
         "creator_left",
+        "agent_revoked",
+        "budget",
         "device_gone",
         "queued",
         "running",
@@ -658,13 +660,20 @@ async def test_device_wait_sweep_never_replays_or_spends_model_work_before_readi
     await db.flush()
     online = AsyncMock(return_value=object() if change == "online" else None)
     monkeypatch.setattr(module.device_hub, "wait_for", online)
-    count = await AgentTriggerService(db).resume_device_waits()
+    service = AgentTriggerService(db)
+    if change == "agent_revoked":
+        monkeypatch.setattr(
+            service.agents, "get", AsyncMock(side_effect=AuthorizationError(message="Revoked"))
+        )
+    if change == "budget":
+        monkeypatch.setattr(service, "_stop_for_monthly_budget", AsyncMock(return_value=True))
+    count = await service.resume_device_waits()
     await db.refresh(wait)
     await db.refresh(w.trigger)
     assert count == (1 if change == "online" else 0)
     if change in {"changed", "cancelled"}:
         assert wait.status == "cancelled" and wait.event_context is None
-    elif change in {"creator_left", "device_gone", "three_failures"}:
+    elif change in {"creator_left", "agent_revoked", "device_gone", "three_failures"}:
         assert not w.trigger.is_active
         if change == "three_failures":
             assert wait.status == "failed"
@@ -676,6 +685,8 @@ async def test_device_wait_sweep_never_replays_or_spends_model_work_before_readi
         "running",
         "cancelled",
         "creator_left",
+        "agent_revoked",
+        "budget",
         "device_gone",
         "changed",
         "three_failures",

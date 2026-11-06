@@ -86,11 +86,24 @@ async def request(
     )
 
 
-async def test_preset_creates_real_views_private_copy_and_project_conversation(db: AsyncSession):
+@pytest.mark.parametrize("existing_name", [False, True])
+async def test_preset_creates_real_views_private_copy_and_project_conversation(
+    db: AsyncSession, existing_name
+):
     ctx, project, agent, version = await seed(db)
     service = ProjectTrackingService(db)
     assert await service.get(ctx, project) is None
     data = await request(db, ctx, project, agent, version)
+    if existing_name:
+        from app.schemas.task import BoardEnsure
+        from app.services.tasks import TaskService
+        from app.services.virtual_tables import VirtualTableService
+
+        board = await TaskService(db).ensure_board(
+            ctx, BoardEnsure(scope="project", scope_id=project)
+        )
+        table = await VirtualTableService(db).describe_table(ctx, board.table_id)
+        data = data.model_copy(update={"table_name": table.name})
     installed = await service.create(ctx, project, data)
     clone = await db.get(Agent, installed.agent_id)
     original = await db.get(Agent, agent)
