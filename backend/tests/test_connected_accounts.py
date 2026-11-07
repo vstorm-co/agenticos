@@ -1396,8 +1396,9 @@ async def test_binding_a_rotated_application_account_is_refused_before_any_provi
         )
 
 
-async def test_a_current_native_account_still_needs_the_selected_trigger_product_scope(
-    ctx, native_repo, monkeypatch
+@pytest.mark.parametrize("stale", [False, True])
+async def test_a_native_trigger_account_requires_current_credentials_and_product_scopes(
+    ctx, native_repo, monkeypatch, stale
 ):
     row = _account(
         user_id=ctx.user_id,
@@ -1407,9 +1408,11 @@ async def test_a_current_native_account_still_needs_the_selected_trigger_product
     )
     native_repo.get_by_id = AsyncMock(return_value=row)
     monkeypatch.setattr(
-        McpConnectionService, "account_needs_reconnect", AsyncMock(return_value=False)
+        McpConnectionService, "account_needs_reconnect", AsyncMock(return_value=stale)
     )
-    with pytest.raises(service_module.BadRequestError, match="read permissions"):
+    with pytest.raises(
+        service_module.BadRequestError, match="Reconnect" if stale else "read permissions"
+    ):
         await McpConnectionService(AsyncMock()).get_polled_connection(
             ctx, row.id, portal_key="google"
         )
