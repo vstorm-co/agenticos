@@ -17,7 +17,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.services.agent_environment import AgentEnvironmentService
 
@@ -284,19 +284,19 @@ class TestPromoteAndRename:
         audit.assert_not_awaited()
 
     @pytest.mark.security
-    @pytest.mark.parametrize("delegated", ["key", "impersonation"])
-    async def test_a_publish_through_a_key_or_an_impersonator_keeps_nobody_s_consent(
+    @pytest.mark.parametrize("delegated", ["run_credential", "impersonation"])
+    async def test_a_publish_by_an_agent_or_an_impersonator_keeps_nobody_s_consent(
         self, _consent: AsyncMock, delegated: str
     ):
-        """Codex on #2062: the creator's own key kept their consent while it swapped
-        the spec a routine runs as them."""
+        """An agent's run credential or an administrator acting as the creator swapped
+        the spec a routine runs as them: that is not the creator's own publish."""
         from dataclasses import replace
 
         from app.services.agent_registry import AgentRegistryService
 
         ctx = _ctx()
-        if delegated == "key":
-            ctx = replace(ctx, api_key_id=uuid.uuid4())
+        if delegated == "run_credential":
+            ctx = replace(ctx, api_key_id=uuid.uuid4(), key_internal=True)
         agent = _agent()
         with patch(
             "app.services.agent_registry.current_impersonator",
@@ -305,6 +305,24 @@ class TestPromoteAndRename:
             await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)
 
         assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": None}
+
+    @pytest.mark.security
+    async def test_a_publish_through_the_creators_own_key_keeps_their_consent(
+        self, _consent: AsyncMock
+    ):
+        """A key or MCP token the creator issued is the creator publishing."""
+        from dataclasses import replace
+
+        from app.services.agent_registry import AgentRegistryService
+
+        ctx = replace(
+            _ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.PERSONAL_CONSENT})
+        )
+        agent = _agent()
+        with patch("app.services.agent_registry.current_impersonator", return_value=None):
+            await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)
+
+        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": ctx.user_id}
 
     async def test_a_promotion_withdraws_other_peoples_run_as_me(self, _consent: AsyncMock):
         """Codex on #2062: a creator agreed to what the agent did then, not to a

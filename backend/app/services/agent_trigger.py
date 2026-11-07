@@ -134,6 +134,7 @@ from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
     RoutineLocalConsentRequired,
+    follow_signed_in_session,
     local_scope,
 )
 from app.services.routine_devices import ready as local_device_ready
@@ -345,19 +346,15 @@ def _refuse_past_end(ends_at: datetime | None) -> None:
 def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     """Whether this caller is `person`, in person, and so may let a trigger act as them (#2027).
 
+    A key or MCP token the person issued is them acting, as their session is.
     Not an administrator acting as them through impersonation - the #1438 rule for
-    every identity binding - and not a script holding one of their API keys, which
-    could otherwise turn a leaked key into standing access to their mailbox.
-    A private chat's short-lived internal credential retains the signed-in
-    person's source conversation; it is the same person creating through MCP.
+    every identity binding - and not an agent's run credential outside their
+    private chat, which could be following a prompt nobody vetted.
     """
     return (
         person is not None
         and ctx.user_id == person
-        and not ctx.subject_is_publisher_fallback
-        and ctx.fired_as_creator is None
-        and ctx.routine_id is None
-        and (ctx.api_key_id is None or ctx.source_conversation_id is not None)
+        and ctx.acts_in_person
         and current_impersonator() is None
     )
 
@@ -2098,23 +2095,19 @@ class AgentTriggerService:
             except NotFoundError, AuthorizationError:
                 await self._disable(trigger, reason="creator_cannot_run_agent")
                 continue
-            if (
+            session_ended = (
                 await session_repo.active_device(
                     self.db, session_id=wait.device_id, user_id=wait.user_id, now=datetime.now(UTC)
                 )
                 is None
-            ):
-                await self._disable(trigger, reason="local_device_disconnected")
-                await NotificationService(self.db).routine_blocked(
-                    organization_id=trigger.organization_id,
-                    owner_user_id=wait.user_id,
-                    routine_id=trigger.id,
-                    routine_kind="trigger",
-                    reason="run",
-                    name=trigger.name or agent.name,
-                    detail="Its device session was disconnected. Link the computer and review its folder permission again.",
-                    observed_at=datetime.now(UTC),
-                )
+            )
+            can_rebind = session_ended and any(
+                device.capabilities.routine_grants
+                for device in await device_hub.connected(wait.user_id)
+            )
+            if session_ended and not can_rebind:
+                # A missing session is not a revoked native grant. A reconnecting
+                # desktop may still hold the person's all-routines consent.
                 continue
             if wait.last_job_id is not None:
                 job = await background_job_repo.get(self.db, wait.last_job_id)
@@ -2143,7 +2136,12 @@ class AgentTriggerService:
                 continue
             if await self._stop_for_monthly_budget(trigger):
                 continue
-            if await device_hub.wait_for(wait.user_id, wait.device_id, timeout=0) is None:
+            # The worker probes replacement grants outside this sweep's parent
+            # locks and migrates matching events only after native confirmation.
+            if (
+                not can_rebind
+                and await device_hub.wait_for(wait.user_id, wait.device_id, timeout=0) is None
+            ):
                 continue
             job_id = await self.queue_fire(
                 trigger.id, organization_id=trigger.organization_id, activation_id=wait.id
@@ -2600,6 +2598,13 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
+        unconfirmed_local_access = False
+        try:
+            await follow_signed_in_session(self.db, trigger, ctx)
+        except RoutineLocalConsentRequired:
+            # A different computer cannot establish that an offline holder's
+            # permission was revoked. Warn the owner without losing its events.
+            unconfirmed_local_access = True
         waiting = await device_wait_repo.get(self.db, activation_id)
         intent = activation_intent(trigger)
         if waiting is not None:
@@ -2620,6 +2625,17 @@ class AgentTriggerService:
                 )
                 return
             event_context = waiting.event_context
+        if unconfirmed_local_access:
+            await NotificationService(self.db).routine_blocked(
+                organization_id=trigger.organization_id,
+                owner_user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+                reason="run",
+                name=trigger.name or agent.name,
+                detail="Waiting for its approved computer. Reconnect it or review this routine's folder permission in the desktop app.",
+                observed_at=datetime.now(UTC),
+            )
         if trigger.local_target is not None:
             try:
                 local = LocalTarget.model_validate(trigger.local_target)
@@ -2765,7 +2781,7 @@ class AgentTriggerService:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
-        except BadRequestError:
+        except BadRequestError as refusal:
             # The agent is no longer runnable - unpublished back to a draft,
             # archived, or its version withdrawn - so `get_runnable_spec` refuses
             # inside execute. Left active, every cadence would dispatch another run
@@ -2774,7 +2790,26 @@ class AgentTriggerService:
             # before the blanket `Exception` below, which would otherwise find no run
             # of this fire's to recover and simply return, leaving the schedule to
             # dispatch the same doomed run every cadence.
-            await self._disable(trigger, reason="agent_not_runnable")
+            #
+            # Preparation flushed this fire's run before refusing; rolled back, it
+            # does not linger as `running` until the stale-run sweep calls it a
+            # crash. The owner is told the refusal itself - "this agent works on
+            # your computer" is a different fix from "it was unpublished".
+            await self.db.rollback()
+            current = await agent_trigger_repo.get_by_id(self.db, local_trigger_id, fresh=True)
+            if current is None:
+                return
+            await self._disable(current, reason="agent_not_runnable")
+            await NotificationService(self.db).routine_blocked(
+                organization_id=current.organization_id,
+                owner_user_id=current.created_by_user_id,
+                routine_id=current.id,
+                routine_kind="trigger",
+                reason="run",
+                name=local_trigger_name,
+                detail=refusal.message,
+                observed_at=datetime.now(UTC),
+            )
             return
         except Exception:
             # The run failed on something the runner re-raises instead of recording

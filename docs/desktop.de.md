@@ -1,12 +1,14 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "b0d63e54b2c9"
 ---
 
 # Die Desktop-App { #the-desktop-app }
 
 Die native OAuth-Anmeldung verwendet S256 PKCE. Die App behält einen privaten Verifier; der Callback enthält nur dessen öffentliche Challenge. Der Verifier wird im Inhalt der Austauschanfrage gesendet, niemals in einer URL. Abmelden entfernt native Benachrichtigungsvorschauen auf dem Telefon.
 
-Beim Trennen, Abmelden, erneuten Koppeln oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
+Beim Trennen, Abmelden oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Gemeinsame Ordnerfreigaben für Routinen bleiben bei Sitzungsablauf und erneuter Kopplung mit demselben verifizierten Konto und Server erhalten. Bis zur erneuten Identitätsprüfung bleiben sie inaktiv; explizites Trennen, Abmelden oder ein Server- oder Kontowechsel entfernt sie.
+
+Ein veröffentlichter Delegat, der diesen Computer benötigt, kann im selben Chat um Freigabe bitten, auch wenn der Hauptagent in der Cloud läuft. Die Zustimmung gehört dem Hauptagenten, der den Lauf startet. Lokale Coding-Delegaten verlangen Vollzugriff; verschachtelte Delegaten nutzen den freigegebenen Gerätearbeitsbereich, ohne ihn anderen Cloud-Delegaten zugänglich zu machen. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
 
 AgenticOS läuft im Browser, und so nutzen es die meisten. Die Desktop-App ist für
 alle, die mehr davon auf dem eigenen Computer wollen: die Konsole in einem eigenen
@@ -375,7 +377,9 @@ die Geräteverbindung nicht trennen. Größere Schreibvorgänge werden vor der
 Kodierung und Übertragung der Dateidaten abgelehnt.
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
-wenn `bwrap` installiert ist.
+wenn `bwrap` mit Unterstützung für `--bind-fd` installiert ist. Die App hält bis zum Sandbox-Start ein ohne Folgen symbolischer Links geöffnetes Verzeichnishandle fest. Umbenennen oder Ersetzen des Ordners durch einen symbolischen Link kann das genehmigte Verzeichnis dadurch nicht ändern. Unter Linux werden Umgebungsvariablen der Aufgabe innerhalb der Sandbox gesetzt, nicht in ihrem Startprozess; ihre Werte werden über einen privaten Deskriptor übergeben.
+
+Der Stammpfad eines Routine-Ordners darf keine symbolischen Links oder Junctions enthalten. Wählen Sie im Dialog den tatsächlichen Ordner; die Hintergrundzulassung löst keine Links im Stammpfad auf.
 
 **Der Computer entscheidet, nicht der Server.** Die gewählten Ordner mit ihren
 Modi stehen in den Einstellungen der App, und jede Operation nennt einen Ordner und
@@ -405,9 +409,16 @@ Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abge
 Im Builder speichert **Sandbox → Computer** `backend: local` ohne Pfad oder
 native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ein
 solcher Agent hat keinen Cloud-Workspace, daher bietet **Work on** für ihn keine
-Cloud an. Seine erste Nachricht fragt einmal, wo er arbeiten darf - **Gesamter
-Computer** oder ein Ordner -, und die Antwort wird für diesen Agenten auf diesem
-Computer gespeichert, sodass seine späteren Chats ohne Nachfrage dort beginnen. Beim Erstellen
+Cloud an.
+
+Du kannst ihm
+schreiben, bevor du etwas erlaubst: Er beantwortet, was keine Dateien braucht, und
+erst wenn eine Anfrage deine Dateien braucht, fragt er, wo er arbeiten darf -
+**Gesamter Computer** oder ein Ordner. Der Lauf wartet auf deine Wahl, danach setzt
+der Chat von selbst mit den Dateien fort. Die Antwort wird für diesen Agenten auf
+diesem Computer gespeichert, sodass seine späteren Chats ohne Nachfrage dort
+beginnen. In der Web-Konsole, wo es keinen Computer freizugeben gibt, sagt er, dass
+er deine Dateien nicht erreicht. Beim Erstellen
 eines Projekts öffnet **Projekt-Sandbox → Computer · Ihre Dateien** die persönliche
 Ordnerauswahl; andere Mitglieder behalten den gemeinsamen Projekt-Workspace.
 
@@ -506,9 +517,13 @@ seiner eigenen öffentlichen Adresse.
 ## Was sie bewusst nicht tut { #what-it-deliberately-does-not-do }
 
 - **Kein Navigationswächter.** Ein Link, der den Origin des Servers verlässt,
-  öffnet sich im Fenster, weil ein OAuth-Ablauf - das Verbinden eines MCP-Servers -
-  zur selben Webview zurückkehren muss, damit sein Cookie ankommt. Der Fenstertitel
-  nennt jeden anderen Host, den es zeigt.
+  öffnet sich im Fenster, weil manche OAuth-Abläufe - das Verbinden eines Kontos für
+  ein Terminal - zur selben Webview zurückkehren müssen, damit ihr Cookie ankommt.
+  Der Fenstertitel nennt jeden anderen Host, den es zeigt. Das Verbinden eines
+  MCP-Servers gehört nicht dazu: Seine Zustimmung öffnet sich in Ihrem eigenen
+  Browser, wo Ihre Anmeldungen und Passkeys sind, weil der Callback allein durch
+  seinen `state` authentifiziert wird. Schließen Sie sie dort ab und kehren Sie
+  zurück; der Server erscheint in der App, sobald er autorisiert ist.
 
 - **Kein dauerhafter Zugriff.** Das Verknüpfen des Computers gewährt für sich
   nichts: Ein Run erreicht nur die Ordner, die Sie gewählt haben, in den Modi, die
@@ -709,9 +724,17 @@ Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrü
 
 ## Lokale Routinen { #local-routines }
 
-Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Anschließend bestätigt die Desktop-App nativ deren ID, Organisation, Server, Ordner und Vorgänge. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+Die Ablehnung eines Ersatzcomputers beweist keinen Widerruf auf dem freigegebenen Computer: Er kann einfach offline sein. Der Eigentümer erhält einen deduplizierten Hinweis zum Verbinden oder Prüfen des Zugriffs; Routine und Ereignisdaten warten weiter. Eine Ablehnung der ursprünglich gewählten aktiven Sitzung stoppt die Routine weiterhin zur Prüfung.
 
-**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Erneute Kopplung, Trennung, Abmeldung oder Serverwechsel löscht die Freigaben. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
+Unter Linux prüft die App vor dem Anbieten von Ordnerschreibzugriff oder dem Start eines Sandbox-Befehls, ob bubblewrap `--bind-fd` unterstützt. Fehlende, ungeeignete oder nicht antwortende Builds werden abgewiesen; aktualisieren Sie bubblewrap für diesen Modus.
+
+Die JSON-Datei der Routinefreigaben wird gegen ihren aktuellen SHA-256-Fingerabdruck im Betriebssystem-Schlüsselbund geprüft. Änderungen oder das Wiederherstellen einer Kopie vor dem Widerruf gewähren keinen Zugriff. Ein nicht verfügbarer Schlüsselbund oder eine Abweichung blockiert Routinen. **Upgrade:** ältere Freigaben haben keinen Fingerabdruck und benötigen neue Zustimmung: Computer explizit trennen, erneut koppeln und Routinen prüfen. Derselbe Reset behebt einen unterbrochenen Schreibvorgang; die App vertraut ungeprüften Dateien niemals automatisch.
+
+Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Beim ersten Mal fragt die Desktop-App einmal nativ, ob **alle deine Routinen** in dieser Organisation in diesem Ordner und seinen Unterordnern mit diesen Vorgängen arbeiten dürfen; wähle deinen Benutzerordner für den ganzen Computer.
+
+Jede spätere Routine in diesem Ordner wird ohne Nachfrage gespeichert, und die Erlaubnis gilt auch nach App-Updates und erneuter Anmeldung. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+
+**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Ein Wechsel des Servers oder Kontos löscht die Freigaben; eine Freigabe für eine einzelne Routine aus einer älteren App endet außerdem mit ihrer Sitzung. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
 
 Ist genau der bestätigte Computer vor der Ausführung offline, wartet eine dauerhafte Aktivierung in PostgreSQL. Die Routine zeigt die Anzahl wartender Aktivierungen. Zeitplan- und manuelle Auslösungen werden währenddessen zusammengefasst; unterschiedliche eingehende Ereignisse behalten ihren Kontext und ihre Aktivierungs-ID. Der bestehende Minuten-Worker prüft die Wiederverbindung. Bereitschaftsprüfungen rufen kein Modell auf und verbrauchen keine Fehlstartversuche. Die Zulassung wird mit dem Lauf vor dem ersten Modellaufruf festgeschrieben. Eine gestartete Aktivierung wird nach einem Worker-Absturz nicht automatisch wiederholt; ein ungewisser Datei- oder Befehlsvorgang erzeugt keinen neuen Lauf.
 

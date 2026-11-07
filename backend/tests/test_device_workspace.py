@@ -261,3 +261,18 @@ async def test_native_platform_is_read_from_the_resolved_device(
     call.return_value = {}
     with pytest.raises(WorkspaceUnavailableError, match="did not identify"):
         await workspace.platform()
+
+
+@pytest.mark.parametrize(
+    ("mode", "whole", "expected"),
+    [
+        ("read_only", False, False),
+        ("workspace_write", False, False),
+        ("full_access", False, True),
+        ("full_access", True, True),
+    ],
+)
+def test_native_coding_requires_full_access(mode: LocalMode, whole: bool, expected: bool) -> None:
+    target = LocalTarget(folder="/work", mode=mode, computer_grant=uuid4() if whole else None)
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), target, conversation_id=uuid4())
+    assert workspace.local_coding_allowed is expected

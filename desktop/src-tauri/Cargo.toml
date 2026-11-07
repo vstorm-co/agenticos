@@ -69,3 +69,7 @@ block2 = "=0.6.2"
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+
+# Existing locked libc supplies the async-signal-safe descriptor inheritance call.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "=0.2.189"

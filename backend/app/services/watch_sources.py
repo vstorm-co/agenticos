@@ -49,6 +49,28 @@ def approve_sources(spec: AgentSpec, connection: McpConnection) -> WatchSources:
     )
 
 
+WATCH_CAPABILITIES = frozenset(
+    {
+        "knowledge",
+        "context",
+        "guardrails",
+        "planning",
+        "system_reminders",
+        "tool_output_limits",
+        "compaction",
+    }
+)
+"""What a watch keeps of its agent: reading aids, plus the two that keep each check
+cheap - a long page or result is trimmed before the model reads it, and an
+overgrown history is summarized rather than resent every step."""
+
+WATCH_MAX_STEPS = 30
+"""Model requests one check may make: a ceiling against a runaway check, not a
+working budget. An unbounded check of a Notion workspace ran 40 steps and cost $2;
+a GitHub check needs about 15 with its parallel reads, so 12 stopped it short
+with nothing to show for what it had spent."""
+
+
 def constrain_sources(spec: AgentSpec, approved: WatchSources) -> AgentSpec:
     """A later publication can narrow, but never widen, this watch's source approval."""
     current = _binding(spec, approved.catalog_key)
@@ -61,11 +83,9 @@ def constrain_sources(spec: AgentSpec, approved: WatchSources) -> AgentSpec:
     return spec.model_copy(
         update={
             "capabilities": [
-                binding
-                for binding in spec.capabilities
-                if binding.id
-                in {"knowledge", "context", "guardrails", "planning", "system_reminders"}
+                binding for binding in spec.capabilities if binding.id in WATCH_CAPABILITIES
             ],
+            "max_steps": min(spec.max_steps or WATCH_MAX_STEPS, WATCH_MAX_STEPS),
             "mcp_servers": [
                 current.model_copy(update={"allowed_tools": None if tools is None else list(tools)})
             ],
@@ -89,7 +109,7 @@ def _unattended_reads(spec: AgentSpec, ref: PersonalMcpServerRef) -> None:
     if ref.approval == "all" or any(
         binding.approval == "required" or "required" in binding.tool_approval.values()
         for binding in spec.capabilities
-        if binding.id in {"knowledge", "context", "guardrails", "planning", "system_reminders"}
+        if binding.id in WATCH_CAPABILITIES
     ):
         raise AuthorizationError(
             message="This agent requires interactive approval for watch reads. Review its read approvals before starting an unattended watch."

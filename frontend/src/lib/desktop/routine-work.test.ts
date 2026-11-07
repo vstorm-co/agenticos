@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   allowRoutine,
+  coveredByAllRoutines,
   chooseRoutineFolder,
   listRoutineGrants,
   revokeRoutineGrant,
@@ -106,5 +107,65 @@ it("keeps explicitly requested command access within the granted workspace mode"
   expect(await allowRoutine({ ...request, operations })).toMatchObject({
     mode: "workspace_write",
     operations,
+  });
+});
+
+describe("coveredByAllRoutines", () => {
+  const all = {
+    id: "00000000-0000-4000-8000-000000000001",
+    identity: { origin: "https://example.com", user_id: "u", device_id: "old-session" },
+    organization_id: "o",
+    routine_id: null,
+    name: "All my routines",
+    root: "/Users/person",
+    operations: { read: true as const, write: true, execute: false },
+  };
+  const read = { read: true as const, write: false, execute: false };
+
+  it("reuses it for a folder inside, on the session signed in now", () => {
+    expect(coveredByAllRoutines([all], "now", "/Users/person/notes", read)).toEqual({
+      device_id: "now",
+      folder: "/Users/person/notes",
+      mode: "read_only",
+      routine_grant: all.id,
+      operations: read,
+    });
+  });
+
+  it.each([
+    ["a sibling with the same prefix", "/Users/personal", read],
+    ["a folder outside", "/tmp", read],
+    [
+      "commands it was not given",
+      "/Users/person",
+      { read: true as const, write: true, execute: true },
+    ],
+  ])("does not cover %s", (_case, folder, operations) => {
+    expect(coveredByAllRoutines([all], "now", folder, operations)).toBeNull();
+  });
+
+  it("ignores a grant for one routine", () => {
+    expect(
+      coveredByAllRoutines([{ ...all, routine_id: "r" }], "now", "/Users/person", read),
+    ).toBeNull();
+  });
+
+  it("reuses a grant for a Windows subfolder without replacing its ID", () => {
+    expect(
+      coveredByAllRoutines([{ ...all, root: "C:\\work" }], "now", "C:\\work\\reports", read),
+    ).toMatchObject({
+      device_id: "now",
+      folder: "C:\\work\\reports",
+      routine_grant: all.id,
+    });
+    expect(
+      coveredByAllRoutines([{ ...all, root: "C:\\work" }], "now", "C:\\workshop", read),
+    ).toBeNull();
+  });
+
+  it("treats the root folder as the whole computer", () => {
+    expect(coveredByAllRoutines([{ ...all, root: "/" }], "now", "/srv/data", read)?.folder).toBe(
+      "/srv/data",
+    );
   });
 });

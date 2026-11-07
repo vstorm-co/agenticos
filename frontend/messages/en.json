@@ -2372,8 +2372,9 @@
     "approvalRememberFailed": "Could not forget this approval. Try again.",
     "approvalRememberRetry": "Retry",
     "localAccess": {
+      "continue": "Access granted - please continue.",
       "title": "Where may {agent} work?",
-      "description": "{agent} works on your computer. You are asked once for this agent; change or revoke it later under Chat controls → Work on.",
+      "description": "{agent} needs files on your computer for this request. Your choice is remembered for this agent; change or revoke it later under Chat controls → Work on.",
       "computer": "Whole computer",
       "computerHint": "It may read and change files anywhere your account can, and run commands as you. Your computer asks you to confirm.",
       "folder": "Choose a folder",
@@ -4159,6 +4160,7 @@
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
     "finishConsentThenReturn": "Finish in the tab that opened, then come back - the server appears here once it is authorised.",
+    "finishConsentInBrowser": "Finish signing in in your browser, then come back - the server appears here once it is authorised.",
     "consentTabBlocked": "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
@@ -8887,13 +8889,15 @@
     "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
     "templatesFewer": "Show fewer",
     "local": {
+      "useAllowed": "Use the allowed folder",
+      "allRoutines": "All my routines",
       "label": "Work on",
       "hint": "Each fire works in a folder on your computer through the desktop app, or in the agent's sandbox. A fire waits for the app if it is closed.",
       "elsewhereHint": "Each fire works in this folder on your computer. Change it from the desktop app on that computer.",
       "sandbox": "The agent's sandbox",
       "pick": "Choose a folder…",
       "useSandbox": "Use the sandbox",
-      "routineHint": "Choose a folder and operations. Saving asks this computer to approve this routine only.",
+      "routineHint": "Choose a folder and operations. The first time, this computer asks once to let all your routines work there; later routines in that folder need no approval.",
       "read": "Read",
       "write": "Write",
       "execute": "Run commands",
@@ -10879,7 +10883,8 @@
     "revoked": "Key revoked",
     "couldNotLoad": "Could not load your API keys",
     "emptyTitle": "No API keys yet",
-    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code."
+    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code.",
+    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom."
   },
   "mcpOauth": {
     "title": "{client} wants to act as you",

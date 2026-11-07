@@ -58,6 +58,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+from app.agents.computer_on_use import RequestComputerOnUse
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.deps import AgentDeps
 from app.agents.loop_guard import ToolLoopStopped
@@ -6482,6 +6483,100 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         briefed = build.call_args.args[0].instructions
         assert "has not connected their own Notion" not in briefed
         assert "both called gh" in briefed
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("workspace_kind", "can_ask"),
+        [
+            ("local", True),
+            ("local", False),
+            ("local-sandbox-coding", True),
+            ("local-personal-coding", True),
+            ("local-computer-coding", True),
+            ("local-disabled-coding", True),
+            ("coding-none", True),
+            ("coding-cloud", True),
+            ("coding-disabled", True),
+        ],
+    )
+    async def test_a_computer_workspace_with_none_chosen_is_asked_for_on_use(
+        self, workspace_kind, can_ask
+    ):
+        """A chat that can wait runs without the computer and offers
+        `request_computer_access`; a surface that cannot is refused as before."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        bindings = [CapabilityBindingSpec(id="web_research")]
+        if workspace_kind.startswith("local"):
+            bindings.insert(0, CapabilityBindingSpec(id="sandbox", config={"backend": "local"}))
+            if workspace_kind != "local":
+                runs_on = {
+                    "local-sandbox-coding": "sandbox",
+                    "local-personal-coding": "personal_sandbox",
+                    "local-computer-coding": "this_computer",
+                    "local-disabled-coding": "unused-invalid-value",
+                }[workspace_kind]
+                bindings.insert(
+                    0,
+                    CapabilityBindingSpec(
+                        id="coding_agent",
+                        enabled=workspace_kind != "local-disabled-coding",
+                        config={"runs_on": runs_on},
+                    ),
+                )
+        else:
+            bindings.insert(
+                0,
+                CapabilityBindingSpec(
+                    id="coding_agent", config={"runs_on": "this_computer", "harness": "codex"}
+                ),
+            )
+            if workspace_kind == "coding-cloud":
+                bindings.insert(
+                    0, CapabilityBindingSpec(id="sandbox", config={"backend": "service"})
+                )
+        if workspace_kind == "coding-disabled":
+            bindings[0] = bindings[0].model_copy(update={"enabled": False})
+        spec = AgentSpec(name="Mine", capabilities=bindings)
+
+        with (
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None))
+            if not workspace_kind.startswith("local")
+            else nullcontext(),
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            if not can_ask:
+                with pytest.raises(BadRequestError, match="uses your computer"):
+                    await service.prepare(ctx, agent.id)
+                return
+            await service.prepare(ctx, agent.id, request_computer_access=AsyncMock())
+
+        if workspace_kind == "coding-disabled":
+            assert not build.call_args.kwargs["extra_capabilities"]
+            return
+        (asking,) = build.call_args.kwargs["extra_capabilities"]
+        assert isinstance(asking, RequestComputerOnUse)
+        built_spec = build.call_args.args[0]
+        expected = ["web_research"]
+        if workspace_kind == "coding-cloud":
+            expected.insert(0, "sandbox")
+        elif workspace_kind in {"local-personal-coding", "local-disabled-coding"}:
+            expected.insert(0, "coding_agent")
+        assert [binding.id for binding in built_spec.capabilities] == expected
 
     @pytest.mark.anyio
     async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):

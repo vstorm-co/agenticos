@@ -86,6 +86,7 @@ from app.agents.capabilities.system_reminders import (
 from app.agents.capabilities.tool_search import ConfiguredToolSearch
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.loop_guard import LoopGuard
@@ -478,10 +479,13 @@ def build_agent(
     # Made before the capabilities, because a run reviewer, code mode and
     # `CacheWatch` write onto it.
     recorder = RunRecorder()
-    asking = (
-        frozenset({CONNECT_ACCOUNT})
-        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-        else frozenset()
+    asking = frozenset(
+        name
+        for name, kind in (
+            (CONNECT_ACCOUNT, ConnectOnUse),
+            (REQUEST_COMPUTER_ACCESS, RequestComputerOnUse),
+        )
+        if any(isinstance(extra, kind) for extra in extra_capabilities)
     )
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
