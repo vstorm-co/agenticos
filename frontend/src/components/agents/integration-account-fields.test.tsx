@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { IntegrationAccountFields } from "./integration-account-fields";
@@ -84,4 +84,29 @@ it("shows a publish refusal beside the account field", () => {
     />,
   );
   expect(screen.getByText("Choose an account in this organization")).toBeInTheDocument();
+});
+
+it("submits the unique account name when two personal accounts share a label", () => {
+  accounts.mockReturnValue({
+    accounts: [
+      { id: "one", name: "google-account-one", label: "Work", email: "one@example.com" },
+      { id: "two", name: "google-account-two", label: "Work", email: "two@example.com" },
+    ],
+    isLoading: false,
+    error: null,
+  });
+  const change = vi.fn();
+  render(
+    <IntegrationAccountFields productId="gmail" provider="google" config={{}} onChange={change} />,
+  );
+  const options = screen.getAllByRole("option", { hidden: true });
+  expect(options.map((option) => option.getAttribute("value"))).toEqual([
+    "google-account-one",
+    "google-account-two",
+  ]);
+  expect(options[1]).toHaveTextContent("Work — two@example.com");
+  fireEvent.change(screen.getByLabelText("Personal account name"), {
+    target: { value: "google-account-two" },
+  });
+  expect(change).toHaveBeenCalledWith({ account_name: "google-account-two" });
 });

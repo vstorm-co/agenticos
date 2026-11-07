@@ -14,6 +14,8 @@ Slack: **Create the Slack app** opens a prefilled manifest with this deployment'
 
 ## Alternatives to OAuth
 
+Choosing an application subject requires edit access to its Vault credential, including for personal accounts. Viewing a shared credential does not authorize impersonation. Personal accounts recheck that edit access before every token exchange.
+
 Google supports a Vault `gcp_service_account`, with a subject for Workspace domain-wide delegation. The Workspace administrator must authorize the displayed scopes. A plain service account accesses only resources shared with it; it does not become a personal Gmail account.
 
 Microsoft supports a Vault `entra_app` client secret and application permissions with administrator consent. Configure the mailbox subject for mail/calendar; Teams requires the subject's directory object ID so mentions can be matched without directory-wide read permission. Excel workbook APIs require delegated OAuth. Graph application permissions do not support normal Teams posting; use delegated OAuth for that operation. Application scopes differ from delegated scopes and the wizard displays the appropriate list.
@@ -34,6 +36,8 @@ Each write requires human approval in agent runs, even if a per-tool override re
 
 File nodes accept base64 content, never a server-local path. Word writes accept a title and paragraphs and create a `.docx`. Uploads/downloads are bounded to 20 MB, JSON to 2 MB and extracted text to 100,000 characters. A failed write may already have reached the provider: inspect the remote result before retrying.
 
+Publishing an organization binding verifies the scopes of every enabled tool. With a read-only account, disable write tools before publishing or reconnect with write permissions.
+
 ## Knowledge, triggers and watches
 
 Drive and SharePoint sources can select the same organization connection instead of a separate credential. OneDrive uses the SharePoint connector with the selected drive/folder. Slack sync indexes only selected channels and their threads. The account is revalidated at every sync; private member accounts are not silently spent by a shared knowledge source.
@@ -48,6 +52,8 @@ See [capabilities](reference/capabilities.md), [triggers](triggers.md), [governa
 
 Set a label such as Work when connecting; use the same label for each person’s corresponding account.
 
+Native triggers created through the API require `connection_id`. Filter edits recheck the account, permissions and conversation selection. Each distinct Slack/Teams conversation selection keeps its own cursor and only feeds its associated triggers; one selection can contain up to 20 conversations.
+
 ## Odoo
 
 Connect Odoo 19+ through JSON-2 with the HTTPS origin, database name and a business user's API key. The operator must list the exact host in `ODOO_ALLOWED_HOSTS`; paths, redirects and custom ports are refused. Odoo Online requires a Custom plan for external API access. Install the business modules you intend to use and restrict the user's Odoo ACLs and record rules. Keys expire: rotate them and reconnect the account. Write access is opt-in and every agent write still needs approval.
@@ -57,6 +63,8 @@ Toolbox capabilities cover Contacts, CRM, Sales, Invoicing, Inventory and Projec
 Watches and routine triggers read created/modified records in their selected business area. Each model has an independent `(write_date, id)` cursor; the first check establishes a quiet baseline. Subsequent checks consume at most 100 records per model and retain the remaining backlog. Deletions are not events. Odoo timestamps have second precision, so repeated updates to the same record within one second may coalesce. Knowledge sync indexes only explicitly selected fields through an organization account; capped listings never remove unseen documents.
 
 Odoo sales confirmation, invoice posting and transfer confirmation/reservation/validation have dedicated approval-gated tools. Use these business actions instead of writing a state field. Actions can return a wizard that needs completion in Odoo; read the record afterward before reporting success. Create invoices with an explicit `move_type` (customer, supplier, refund or receipt). Scalar fields and link/set/clear relation IDs are supported. Create or update related records with their own tools; nested ORM mutations and JSON-object field values are refused.
+
+The Odoo cursor also retains a deduplicated snapshot of its timestamp boundary, so a later update to a lower-ID record is read again. Fingerprints cover the returned ID, display name and write date. Snapshots are capped at 2,000 records per model/timestamp; split bulk updates if this limit is exceeded.
 
 ## Exchange Online
 

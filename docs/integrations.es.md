@@ -1,5 +1,5 @@
 ---
-source_sha: "7a39bdbfc81f"
+source_sha: "d6d150584052"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -40,6 +40,8 @@ Toda escritura en ejecuciones de agentes requiere aprobación humana, incluso co
 
 Los nodos de archivo reciben base64, nunca rutas locales del servidor. Word crea `.docx` desde título y párrafos. Subidas/descargas tienen límite de 20 MB, JSON de 2 MB y texto extraído de 100 000 caracteres. Una escritura fallida puede haber llegado: compruebe el resultado remoto antes de repetirla.
 
+La publicación de un vínculo con una cuenta de organización comprueba los permisos de cada herramienta habilitada. Si la cuenta solo permite lectura, desactive las herramientas de escritura antes de publicar o vuelva a conectar con permisos de escritura.
+
 ## Conocimiento, triggers y watches { #knowledge-triggers-and-watches }
 
 Las fuentes Drive y SharePoint seleccionan la misma conexión de organización en vez de credenciales separadas. OneDrive usa el conector SharePoint con unidad/carpeta elegida. Slack indexa solo canales elegidos y sus hilos. Cada sincronización revalida la autorización; una fuente compartida no utiliza cuentas privadas de miembros.
@@ -54,6 +56,8 @@ Consulte [capabilities](reference/capabilities.md), [triggers](triggers.md), [go
 
 Asigne una etiqueta como Trabajo al conectar; use la misma etiqueta para la cuenta correspondiente de cada persona.
 
+Los triggers nativos creados mediante API requieren `connection_id`. Las modificaciones de filtros vuelven a comprobar la cuenta, permisos y conversaciones seleccionadas. Cada selección distinta de conversaciones Slack/Teams conserva su propio cursor y solo alimenta sus triggers asociados; una selección admite hasta 20 conversaciones.
+
 ## Odoo { #odoo }
 
 Conecte Odoo 19+ mediante JSON-2 con el origen HTTPS, la base de datos y la clave API de un usuario de negocio. El operador debe autorizar el host exacto en `ODOO_ALLOWED_HOSTS`; se rechazan rutas, redirecciones y puertos personalizados. Odoo Online requiere un plan Custom para APIs externas. Instale los módulos necesarios y limite los permisos y reglas de registros del usuario. Las claves caducan: rótelas y vuelva a conectar. La escritura es opcional y cada escritura del agente requiere aprobación.
@@ -63,6 +67,8 @@ Las capabilities cubren contactos, CRM, ventas, facturas, inventario y proyectos
 Watches y triggers leen registros nuevos/modificados del área seleccionada. Cada modelo tiene su cursor `(write_date, id)`; la primera lectura establece una base silenciosa. Las siguientes consumen hasta 100 registros por modelo y conservan el resto. Las eliminaciones no son eventos. Los timestamps Odoo tienen precisión de segundos; cambios del mismo registro dentro de un segundo pueden agruparse. La sincronización de conocimiento indexa solo los campos seleccionados mediante una cuenta de organización; listas limitadas nunca eliminan documentos no vistos.
 
 La confirmación de ventas, contabilización de facturas y confirmación/reserva/validación de transferencias tienen herramientas con aprobación. Use estas acciones en vez de escribir el estado. Pueden devolver un asistente que debe completarse en Odoo; lea el registro antes de comunicar éxito. Las facturas requieren `move_type` explícito (cliente, proveedor, abono o recibo). Se admiten campos escalares y vincular/reemplazar/vaciar IDs de relaciones. Cree o edite los registros relacionados con sus propias herramientas; se rechazan mutaciones ORM anidadas y valores de objetos JSON.
+
+El cursor Odoo también conserva una instantánea deduplicada de su límite temporal para releer cambios posteriores de registros con un ID menor. Las huellas incluyen el ID, nombre mostrado y fecha de escritura devueltos. Cada instantánea admite hasta 2000 registros por modelo y marca temporal; divida operaciones masivas si se supera el límite.
 
 ## Exchange Online { #exchange-online }
 

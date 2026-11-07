@@ -1,5 +1,5 @@
 ---
-source_sha: "7a39bdbfc81f"
+source_sha: "d6d150584052"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -40,6 +40,8 @@ Jeder Schreibzugriff in Agentenläufen benötigt menschliche Freigabe, auch bei 
 
 Dateiknoten nehmen Base64-Inhalt an, niemals einen lokalen Serverpfad. Word erstellt `.docx` aus Titel und Absätzen. Upload/Download sind auf 20 MB begrenzt, JSON auf 2 MB und extrahierter Text auf 100.000 Zeichen. Ein fehlgeschlagener Schreibzugriff kann bereits angekommen sein: vor erneutem Senden den Anbieter prüfen.
 
+Die Veröffentlichung einer Organisationskontobindung prüft die Bereiche jedes aktivierten Werkzeugs. Bei einem reinen Lesekonto Schreibwerkzeuge vor der Veröffentlichung deaktivieren oder das Konto mit Schreibrechten neu verbinden.
+
 ## Wissen, Trigger und Watches { #knowledge-triggers-and-watches }
 
 Drive- und SharePoint-Quellen können dieselbe Organisationsverbindung statt separater Zugangsdaten verwenden. OneDrive nutzt den SharePoint-Connector mit gewähltem Laufwerk/Ordner. Slack indexiert nur gewählte Kanäle und Threads. Jede Synchronisierung prüft die Autorisierung erneut; gemeinsame Wissensquellen verwenden keine privaten Mitgliederkonten.
@@ -54,6 +56,8 @@ Siehe [Capabilities](reference/capabilities.md), [Trigger](triggers.md), [Govern
 
 Vergeben Sie beim Verbinden ein Label wie Arbeit; verwenden Sie es für das entsprechende Konto jeder Person.
 
+Native Trigger benötigen beim Erstellen über die API `connection_id`. Filteränderungen prüfen Konto, Rechte und Gesprächsauswahl erneut. Jede eigene Slack-/Teams-Gesprächsauswahl hat einen eigenen Cursor und versorgt nur die zugehörigen Trigger; eine Auswahl kann bis zu 20 Gespräche umfassen.
+
 ## Odoo { #odoo }
 
 Verbinde Odoo 19+ über JSON-2 mit HTTPS-Ursprung, Datenbankname und API-Schlüssel eines Geschäftsbenutzers. Der Betreiber muss den genauen Host in `ODOO_ALLOWED_HOSTS` freigeben; Pfade, Weiterleitungen und eigene Ports werden abgelehnt. Odoo Online benötigt einen Custom-Tarif für externe APIs. Installiere die benötigten Module und beschränke die Odoo-Zugriffsrechte und Datensatzregeln des Benutzers. Schlüssel laufen ab: nach Rotation erneut verbinden. Schreibzugriff ist optional; jeder Agent-Schreibzugriff braucht eine Genehmigung.
@@ -63,6 +67,8 @@ Capabilities decken Kontakte, CRM, Verkauf, Rechnungen, Lager und Projekte ab. S
 Watches und Routine-Trigger lesen neue/geänderte Datensätze ihres Geschäftsbereichs. Jedes Modell hat einen eigenen `(write_date, id)`-Cursor; der erste Abruf setzt eine stille Basis. Weitere Abrufe lesen bis zu 100 Datensätze je Modell und behalten den Rückstand. Löschungen sind keine Ereignisse. Odoo-Zeitstempel haben Sekundenauflösung; mehrere Änderungen eines Datensatzes innerhalb einer Sekunde können zusammenfallen. Wissenssynchronisation indexiert nur ausgewählte Felder über ein Organisationskonto; begrenzte Listen löschen keine ungesehenen Dokumente.
 
 Verkaufsbestätigung, Rechnungsbuchung sowie Bestätigung/Reservierung/Validierung von Transfers haben eigene genehmigungspflichtige Werkzeuge. Nutze diese Geschäftsaktionen statt Statusfelder zu schreiben. Aktionen können einen in Odoo abzuschließenden Assistenten zurückgeben; lies den Datensatz vor einer Erfolgsmeldung erneut. Rechnungen erfordern einen expliziten `move_type` (Kunde, Lieferant, Gutschrift oder Beleg). Skalare Felder und Verknüpfen/Ersetzen/Leeren von Beziehungs-IDs werden unterstützt. Erstelle oder ändere zugehörige Datensätze mit deren eigenen Werkzeugen; verschachtelte ORM-Mutationen und JSON-Objektwerte werden abgelehnt.
+
+Der Odoo-Cursor behält außerdem einen deduplizierten Snapshot seiner Zeitstempelgrenze, damit eine spätere Änderung an einem Datensatz mit kleinerer ID erneut gelesen wird. Fingerabdrücke enthalten die zurückgegebene ID, den Anzeigenamen und das Schreibdatum. Snapshots sind auf 2000 Datensätze je Modell/Zeitstempel begrenzt; bei Überschreitung Massenänderungen aufteilen.
 
 ## Exchange Online { #exchange-online }
 

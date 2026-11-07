@@ -119,14 +119,17 @@ class IntegrationService:
             rows = await mcp_connection_repo.list_accounts(
                 self.db, provider=product.provider, user_id=person_id
             )
-            candidates = [
+            owned = [row for row in rows if account_source_organization(row) == organization_id]
+            named = [
                 row
-                for row in rows
-                if account_source_organization(row) == organization_id
-                and (
-                    not selection.account_name
-                    or selection.account_name in {row.name, row.label, row.account_email}
-                )
+                for row in owned
+                if selection.account_name and row.name == selection.account_name
+            ]
+            candidates = named or [
+                row
+                for row in owned
+                if not selection.account_name
+                or selection.account_name in {row.label, row.account_email}
             ]
             if len(candidates) != 1:
                 raise BadRequestError(

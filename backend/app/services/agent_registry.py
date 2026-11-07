@@ -2053,9 +2053,13 @@ class AgentRegistryService:
                 and config.account == "organization"
             ):
                 try:
-                    await IntegrationService(self.db).binding_account(
-                        PRODUCTS[binding.id], config, ctx
+                    product = PRODUCTS[binding.id]
+                    account = await IntegrationService(self.db).binding_account(
+                        product, config, ctx
                     )
+                    for operation in product.operations:
+                        if f"{product.id}_{operation.id}" not in config.disabled_tools:
+                            IntegrationService.check_operation_scopes(account, product, operation)
                 except (AuthorizationError, BadRequestError, NotFoundError) as exc:
                     problems.merge(
                         _SpecProblems.at(

@@ -246,3 +246,28 @@ async def test_slack_http_success_with_ok_false_is_still_a_failure(monkeypatch):
         await client.execute(
             PRODUCTS["slack"].operations[0], SecretStr("secret"), parameters={}, query={}, body=None
         )
+
+
+@pytest.mark.parametrize("other_label", ["Work", "private"])
+async def test_unique_account_names_take_precedence_over_ambiguous_display_labels(
+    monkeypatch, other_label
+):
+    org, person = uuid4(), uuid4()
+    first = account(name="first", label=other_label, account_source_organization_id=org)
+    selected = account(name="private", label="Work", account_source_organization_id=org)
+    monkeypatch.setattr(
+        "app.services.integrations.service.member_repo.get_active", AsyncMock(return_value=object())
+    )
+    monkeypatch.setattr(
+        "app.services.integrations.service.mcp_connection_repo.list_accounts",
+        AsyncMock(return_value=[first, selected]),
+    )
+    assert (
+        await IntegrationService(AsyncMock()).account(
+            PRODUCTS["gmail"],
+            AccountSelection(account_name="private"),
+            organization_id=org,
+            person_id=person,
+        )
+        is selected
+    )

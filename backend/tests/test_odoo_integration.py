@@ -228,7 +228,20 @@ async def test_feed_baselines_quietly_and_pages_records_by_timestamp_and_id(monk
     read = AsyncMock(
         side_effect=[
             {"result": [{"id": 7, "write_date": "2026-11-07 10:00:00", "display_name": "Acme"}]},
-            {"result": [{"id": 8, "write_date": "2026-11-07 10:00:00", "display_name": "Beta"}]},
+            {"result": [{"id": 7, "write_date": "2026-11-07 10:00:00", "display_name": "Acme"}]},
+            {
+                "result": [
+                    {"id": 7, "write_date": "2026-11-07 10:00:00", "display_name": "Acme"},
+                    {"id": 8, "write_date": "2026-11-07 10:00:00", "display_name": "Beta"},
+                ]
+            },
+            {"result": []},
+            {
+                "result": [
+                    {"id": 7, "write_date": "2026-11-07 10:00:00", "display_name": "Acme"},
+                    {"id": 8, "write_date": "2026-11-07 10:00:00", "display_name": "Beta"},
+                ]
+            },
             {"result": []},
         ]
     )
@@ -237,9 +250,9 @@ async def test_feed_baselines_quietly_and_pages_records_by_timestamp_and_id(monk
     assert baseline.events == []
     changed = await odoo_feed.changes(credential(), "odoo_contacts", baseline.cursor)
     assert changed.events[0].payload["record"]["id"] == 8
-    body = read.await_args_list[1].kwargs["body"]
+    body = read.await_args_list[2].kwargs["body"]
     assert body["limit"] == 100
-    assert body["domain"][-1] == ["id", ">", 7]
+    assert body["domain"] == [["write_date", "=", "2026-11-07 10:00:00"], ["id", ">", 0]]
     quiet = await odoo_feed.changes(credential(), "odoo_contacts", changed.cursor)
     assert quiet.events == [] and quiet.cursor == changed.cursor
 
@@ -272,7 +285,10 @@ async def test_feed_cursors_cannot_change_models_or_skip_validation(cursor):
         {},
         [False],
         [{"id": 1, "write_date": "2026-20-99 00:00:00"}],
-        [{"id": 7, "write_date": "2026-11-07 10:00:00"}],
+        [
+            {"id": 7, "write_date": "2026-11-07 10:00:00"},
+            {"id": 7, "write_date": "2026-11-07 10:00:00"},
+        ],
     ],
 )
 async def test_invalid_or_repeated_feed_rows_never_advance_a_cursor(monkeypatch, rows):
@@ -396,3 +412,144 @@ async def test_nonfinite_json_is_refused_before_an_odoo_request(transport):
             query={},
             body={"values": {"credit_limit": float("nan")}},
         )
+
+
+def _feed_table(monkeypatch: pytest.MonkeyPatch, records: list[dict[str, str | int]]) -> AsyncMock:
+    from pydantic import JsonValue
+
+    async def respond(
+        _credential: OdooCredential,
+        _operation: Operation,
+        *,
+        parameters: dict[str, str],
+        query: dict[str, str],
+        body: dict[str, JsonValue] | None,
+    ) -> dict[str, JsonValue]:
+        assert body is not None
+        selected = list(records)
+        domain = body["domain"]
+        assert isinstance(domain, list)
+        for term in domain:
+            assert isinstance(term, list)
+            field, comparator, value = term
+            assert isinstance(field, str)
+            if comparator == "=":
+                selected = [row for row in selected if row[field] == value]
+            elif isinstance(value, int):
+                selected = [row for row in selected if int(row[field]) > value]
+            else:
+                assert isinstance(value, str)
+                selected = [row for row in selected if str(row[field]) > value]
+        order = body["order"]
+        selected.sort(
+            key=lambda row: (str(row["write_date"]), int(row["id"])),
+            reverse=order == "write_date desc,id desc",
+        )
+        if order == "id asc":
+            selected.sort(key=lambda row: int(row["id"]))
+        offset, limit = body.get("offset", 0), body["limit"]
+        assert isinstance(offset, int) and isinstance(limit, int)
+        return {"result": [dict(row) for row in selected[offset : offset + limit]]}
+
+    read = AsyncMock(side_effect=respond)
+    monkeypatch.setattr(odoo_feed, "execute", read)
+    return read
+
+
+async def test_timestamp_overlap_detects_a_later_lower_id_and_deduplicates_changed_content(
+    monkeypatch,
+):
+    records = [
+        {"id": 3, "write_date": "2026-11-07 09:59:59", "display_name": "Earlier"},
+        {"id": 7, "write_date": "2026-11-07 10:00:00", "display_name": "Latest"},
+    ]
+    _feed_table(monkeypatch, records)
+    baseline = await odoo_feed.changes(credential(), "odoo_contacts", None)
+    records[0]["write_date"] = "2026-11-07 10:00:00"
+    changed = await odoo_feed.changes(credential(), "odoo_contacts", baseline.cursor)
+    assert [e.payload["record"]["id"] for e in changed.events] == [3]
+    quiet = await odoo_feed.changes(credential(), "odoo_contacts", changed.cursor)
+    assert quiet.events == []
+    records[0]["display_name"] = "Renamed in the same second"
+    renamed = await odoo_feed.changes(credential(), "odoo_contacts", quiet.cursor)
+    assert len(renamed.events) == 1 and renamed.events[0].id != changed.events[0].id
+
+
+async def test_overlap_snapshots_keep_a_large_same_second_backlog_bounded_and_quiet(monkeypatch):
+    stamp = "2026-11-07 10:00:00"
+    records = [{"id": 7, "write_date": stamp}]
+    _feed_table(monkeypatch, records)
+    baseline = await odoo_feed.changes(credential(), "odoo_contacts", None)
+    records.extend({"id": i, "write_date": stamp} for i in range(8, 209))
+    cursor, received = baseline.cursor, []
+    for count in (100, 100, 1, 0):
+        read = await odoo_feed.changes(credential(), "odoo_contacts", cursor)
+        assert len(read.events) == count
+        received.extend(event.payload["record"]["id"] for event in read.events)
+        cursor = read.cursor
+    assert received == list(range(8, 209))
+
+
+async def test_newer_timestamps_advance_without_replaying_their_boundary(monkeypatch):
+    records = [{"id": 7, "write_date": "2026-11-07 10:00:00"}]
+    _feed_table(monkeypatch, records)
+    baseline = await odoo_feed.changes(credential(), "odoo_contacts", None)
+    records.extend(
+        [
+            {"id": 2, "write_date": "2026-11-07 10:00:01"},
+            {"id": 3, "write_date": "2026-11-07 10:00:01"},
+            {"id": 1, "write_date": "2026-11-07 10:00:02"},
+        ]
+    )
+    changed = await odoo_feed.changes(credential(), "odoo_contacts", baseline.cursor)
+    assert [event.payload["record"]["id"] for event in changed.events] == [2, 3, 1]
+    assert await odoo_feed.changes(
+        credential(), "odoo_contacts", changed.cursor
+    ) == odoo_feed.Changes(events=[], cursor=changed.cursor)
+
+
+async def test_legacy_cursors_upgrade_without_replaying_old_lower_ids(monkeypatch):
+    records = [{"id": i, "write_date": "2026-11-07 10:00:00"} for i in (3, 7, 8)]
+    _feed_table(monkeypatch, records)
+    cursor = {
+        "product_id": "odoo_contacts",
+        "models": {"res.partner": {"id": 7, "stamp": "2026-11-07 10:00:00"}},
+    }
+    changed = await odoo_feed.changes(credential(), "odoo_contacts", cursor)
+    assert [event.payload["record"]["id"] for event in changed.events] == [8]
+    assert len(changed.cursor["models"]["res.partner"]["seen"]) == 3
+
+
+async def test_an_oversized_timestamp_snapshot_fails_before_becoming_a_baseline(monkeypatch):
+    records = [{"id": i, "write_date": "2026-11-07 10:00:00"} for i in range(1, 2002)]
+    _feed_table(monkeypatch, records)
+    with pytest.raises(ExternalServiceError, match="split bulk updates"):
+        await odoo_feed.changes(credential(), "odoo_contacts", None)
+
+
+@pytest.mark.parametrize(
+    "newer",
+    [
+        [{"id": 1, "write_date": "2026-11-07 10:00:00"}],
+        [
+            {"id": 2, "write_date": "2026-11-07 10:00:02"},
+            {"id": 1, "write_date": "2026-11-07 10:00:01"},
+        ],
+    ],
+)
+async def test_malformed_newer_pages_do_not_advance_a_snapshot_cursor(monkeypatch, newer):
+    monkeypatch.setattr(
+        odoo_feed, "execute", AsyncMock(side_effect=[{"result": []}, {"result": newer}])
+    )
+    cursor = {
+        "product_id": "odoo_contacts",
+        "models": {"res.partner": {"id": 7, "stamp": "2026-11-07 10:00:00", "seen": {}}},
+    }
+    with pytest.raises(ExternalServiceError, match="unordered"):
+        await odoo_feed.changes(credential(), "odoo_contacts", cursor)
+
+
+async def test_a_provider_cannot_exceed_the_requested_baseline_limit(monkeypatch):
+    monkeypatch.setattr(odoo_feed, "execute", AsyncMock(return_value={"result": [{}, {}]}))
+    with pytest.raises(ExternalServiceError, match="invalid change feed"):
+        await odoo_feed.changes(credential(), "odoo_contacts", None)

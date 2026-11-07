@@ -629,3 +629,88 @@ async def test_one_broken_product_does_not_rollback_a_healthy_products_jobs_or_c
     assert store.await_args.kwargs["cursor"] == {"products": {"google": {"resume": "mail"}}}
     assert service.queue_fire.await_count == 1
     assert db.begin_nested.await_count == 2
+
+
+async def test_many_conversation_selections_keep_separate_bounded_feeds_and_admissions(
+    poller, monkeypatch
+):
+    row, rows, service, store, add = poller
+    row.catalog_key = "slack"
+    first = add("slack", {"channels": [f"C{i}" for i in range(11)]})
+    second = add("slack", {"channels": [f"D{i}" for i in range(11)]})
+    read = AsyncMock(
+        return_value=feeds.Changes(
+            events=[feeds.Change(id="message", payload={})], cursor={"position": "next"}
+        )
+    )
+    monkeypatch.setattr(triggers, "changes_since", read)
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 0
+    assert read.await_count == 2
+    assert all(len(call.kwargs["channels"]) <= 20 for call in read.await_args_list)
+    choices = [
+        call.kwargs["source_admissions"] for call in service.prepare_polled_fires.await_args_list
+    ]
+    assert [set(choice) for choice in choices] == [{first.id}, {second.id}]
+    cursor = store.await_args.kwargs["cursor"]["products"]["slack"]
+    assert len(cursor["feeds"]) == 2
+    service.prepare_polled_fires.reset_mock()
+    row.poll_cursor = {"products": {"slack": cursor}}
+    await triggers.poll_account(AsyncMock(info={}), row)
+    assert all(call.kwargs["cursor"] == {"position": "next"} for call in read.await_args_list[-2:])
+
+
+@pytest.mark.parametrize("stored", [{"feeds": []}, {"feeds": {"bad": "position"}}])
+async def test_bad_conversation_cursor_is_refused_before_a_provider_call(
+    poller, monkeypatch, stored
+):
+    import hashlib
+    import json
+
+    row, rows, service, store, add = poller
+    row.catalog_key = "slack"
+    add("slack", {"channels": ["C1"]})
+    if isinstance(stored["feeds"], dict):
+        stored["feeds"] = {hashlib.sha256(json.dumps(("C1",)).encode()).hexdigest(): "position"}
+    read = AsyncMock()
+    monkeypatch.setattr(triggers, "changes_since", read)
+    row.poll_cursor = {"products": {"slack": stored}}
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 0
+    read.assert_not_awaited()
+
+
+@pytest.mark.parametrize("has_previous", [False, True])
+async def test_one_inaccessible_conversation_selection_does_not_stop_another(
+    poller, monkeypatch, has_previous
+):
+    import hashlib
+    import json
+
+    row, rows, service, store, add = poller
+    row.catalog_key = "slack"
+    add("slack", {"channels": ["bad"]})
+    healthy = add("slack", {"channels": ["good"]})
+    bad_key = hashlib.sha256(json.dumps(("bad",)).encode()).hexdigest()
+    row.poll_cursor = {
+        "products": {"slack": {"feeds": {bad_key: {"bad": "1.0"}} if has_previous else {}}}
+    }
+    monkeypatch.setattr(
+        triggers,
+        "changes_since",
+        AsyncMock(
+            side_effect=[
+                BadRequestError(message="Channel inaccessible"),
+                feeds.Changes(
+                    events=[feeds.Change(id="message", payload={})], cursor={"good": "2.0"}
+                ),
+            ]
+        ),
+    )
+    service.prepare_polled_fires.return_value = [
+        SimpleNamespace(trigger_id=healthy.id, event_context="event", source_policy_id=uuid4())
+    ]
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 1
+    assert set(service.prepare_polled_fires.await_args.kwargs["source_admissions"]) == {healthy.id}
+    positions = store.await_args.kwargs["cursor"]["products"]["slack"]["feeds"]
+    assert (bad_key in positions) is has_previous
+    if has_previous:
+        assert positions[bad_key] == {"bad": "1.0"}

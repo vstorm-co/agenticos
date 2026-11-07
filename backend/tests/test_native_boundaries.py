@@ -181,7 +181,7 @@ async def test_agent_publication_checks_org_account_binding_access(monkeypatch, 
 
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
     check = AsyncMock(
-        return_value=object(),
+        return_value=SimpleNamespace(auth_type="odoo", granted_scopes=["odoo:read", "odoo:write"]),
         side_effect=None if available else AuthorizationError(message="not shared"),
     )
     monkeypatch.setattr(IntegrationService, "binding_account", check)
@@ -193,3 +193,32 @@ async def test_agent_publication_checks_org_account_binding_access(monkeypatch, 
     result = await AgentRegistryService(AsyncMock())._binding_problems(ctx, binding)
     assert bool(result.messages) is (enabled and not available)
     assert check.await_count == int(enabled)
+
+
+@pytest.mark.parametrize("disable_writes", [False, True])
+async def test_agent_publication_refuses_enabled_tools_outside_the_selected_accounts_scopes(
+    monkeypatch, disable_writes
+):
+    from app.services.agent_registry import AgentRegistryService
+    from app.services.integrations import PRODUCTS
+
+    row = SimpleNamespace(
+        auth_type="oauth", granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+    )
+    monkeypatch.setattr(IntegrationService, "binding_account", AsyncMock(return_value=row))
+    disabled = (
+        [f"gmail_{op.id}" for op in PRODUCTS["gmail"].operations if op.side_effecting]
+        if disable_writes
+        else []
+    )
+    binding = CapabilityBindingSpec(
+        id="gmail",
+        config={
+            "account": "organization",
+            "connection_id": str(uuid4()),
+            "disabled_tools": disabled,
+        },
+    )
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    result = await AgentRegistryService(AsyncMock())._binding_problems(ctx, binding)
+    assert bool(result.messages) is (not disable_writes)

@@ -1,5 +1,5 @@
 ---
-source_sha: "7a39bdbfc81f"
+source_sha: "d6d150584052"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -40,6 +40,8 @@ Każdy zapis wymaga zatwierdzenia przez człowieka w uruchomieniach agenta, niez
 
 Węzły plikowe przyjmują base64, nigdy lokalną ścieżkę serwera. Word przyjmuje tytuł i akapity i tworzy `.docx`. Upload i download mają limit 20 MB, JSON 2 MB, a wyodrębniony tekst 100 000 znaków. Nieudany zapis mógł dotrzeć do dostawcy: przed ponowieniem sprawdź wynik po jego stronie.
 
+Publikacja powiązania z kontem organizacji sprawdza zakresy każdego włączonego narzędzia. Przy koncie tylko do odczytu wyłącz narzędzia zapisu przed publikacją albo połącz konto ponownie z prawami zapisu.
+
 ## Wiedza, triggery i watche { #knowledge-triggers-and-watches }
 
 Źródła Drive i SharePoint wybierają to samo konto organizacji zamiast osobnego credentiala. OneDrive używa konektora SharePoint z wybranym dyskiem/folderem. Slack indeksuje tylko wybrane kanały i ich wątki. Przy każdej synchronizacji sprawdzana jest autoryzacja konta; wspólna baza wiedzy nie używa po cichu prywatnych kont członków.
@@ -54,6 +56,8 @@ Zobacz [capabilities](reference/capabilities.md), [triggery](triggers.md), [zarz
 
 Przy łączeniu nadaj etykietę, np. Praca; używaj tej samej etykiety dla odpowiedniego konta każdej osoby.
 
+Tworząc natywny trigger przez API, podaj `connection_id`. Edycja filtrów ponownie sprawdza konto, uprawnienia i wybór rozmów. Każdy odrębny wybór rozmów Slack/Teams ma własny kursor i zasila tylko powiązane triggery; jeden wybór może zawierać do 20 rozmów.
+
 ## Odoo { #odoo }
 
 Połącz Odoo 19+ przez JSON-2, podając adres HTTPS, nazwę bazy i klucz API użytkownika biznesowego. Operator musi dodać dokładny host do `ODOO_ALLOWED_HOSTS`; ścieżki, przekierowania i niestandardowe porty są odrzucane. Zewnętrzne API Odoo Online wymaga planu Custom. Zainstaluj używane moduły i ogranicz uprawnienia oraz reguły rekordów użytkownika w Odoo. Klucze wygasają: po rotacji połącz konto ponownie. Zapis jest opcjonalny, a każdy zapis agenta wymaga zatwierdzenia.
@@ -63,6 +67,8 @@ Capabilities obejmują kontakty, CRM, sprzedaż, faktury, magazyn i projekty. Ud
 Watche i triggery rutyn czytają nowe i zmienione rekordy wybranego obszaru. Każdy model ma własny kursor `(write_date, id)`; pierwszy odczyt tworzy cichą bazę. Kolejne odczyty pobierają do 100 rekordów modelu, zachowując pozostałe do następnego przebiegu. Usunięcia nie są zdarzeniami. Znaczniki Odoo mają dokładność sekundy, więc zmiany tego samego rekordu w jednej sekundzie mogą się połączyć. Synchronizacja wiedzy indeksuje wyłącznie wskazane pola przez konto organizacji; niepełne listy nie usuwają niewidocznych dokumentów.
 
 Potwierdzenie sprzedaży, księgowanie faktur oraz potwierdzanie, rezerwacja i zatwierdzanie transferów mają osobne narzędzia wymagające zatwierdzenia. Używaj tych akcji zamiast zmieniać pole stanu. Akcja może zwrócić kreator do dokończenia w Odoo; przed zgłoszeniem sukcesu odczytaj rekord. Tworzenie faktury wymaga jawnego `move_type` (klient, dostawca, korekta lub paragon). Obsługiwane są pola skalarne i dołączanie/zastępowanie/czyszczenie identyfikatorów relacji. Powiązane rekordy twórz i edytuj ich własnymi narzędziami; zagnieżdżone mutacje ORM i wartości pól będące obiektami JSON są odrzucane.
+
+Kursor Odoo zachowuje też deduplikowany snapshot ostatniej sekundy, dzięki czemu ponownie odczytuje późniejszą zmianę rekordu o niższym ID. Odciski obejmują zwrócone ID, nazwę wyświetlaną i datę zapisu. Snapshot mieści do 2000 rekordów modelu z jednym znacznikiem czasu; po przekroczeniu limitu podziel operacje masowe.
 
 ## Exchange Online { #exchange-online }
 

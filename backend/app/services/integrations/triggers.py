@@ -1,9 +1,13 @@
 """Native accounts feed the existing trigger admission, dedupe and transactional job queue."""
 
+import hashlib
+import json
 import logging
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
+from uuid import UUID
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue, SecretStr, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import deferred_savepoint
@@ -20,8 +24,67 @@ logger = logging.getLogger(__name__)
 _CURSOR = TypeAdapter(dict[str, JsonValue])
 
 
+async def _message_reads(
+    key: str,
+    account: McpConnection,
+    token: SecretStr,
+    current: Sequence[AgentTrigger],
+    admitted: Mapping[UUID, UUID],
+    cursor: dict[str, JsonValue] | None,
+) -> tuple[list[tuple[PolledEvents, dict[UUID, UUID]]], dict[str, JsonValue]]:
+    from app.schemas.agent_trigger import IntegrationMessageTriggerConfig
+    from app.services.integrations.teams_feed import changes as teams_changes
+
+    groups: dict[tuple[str, ...], list[AgentTrigger]] = defaultdict(list)
+    for trigger in current:
+        channels = IntegrationMessageTriggerConfig.model_validate(trigger.event_config).channels
+        groups[tuple(sorted(set(channels)))].append(trigger)
+    stored = cursor.get("feeds") if cursor and "feeds" in cursor else None
+    if cursor is not None and "feeds" in cursor and not isinstance(stored, dict):
+        raise BadRequestError(message="The integration conversation cursor is invalid")
+    reads: list[tuple[PolledEvents, dict[UUID, UUID]]] = []
+    state: dict[str, JsonValue] = {}
+    for channels, candidates in groups.items():
+        identity = hashlib.sha256(json.dumps(channels).encode()).hexdigest()
+        previous = stored.get(identity) if isinstance(stored, dict) else cursor
+        if previous is not None and not isinstance(previous, dict):
+            raise BadRequestError(message="The integration conversation cursor is invalid")
+        try:
+            if key == "teams" and account.auth_type == "application":
+                changes = await teams_changes(
+                    token,
+                    previous,
+                    channels=channels,
+                    application=True,
+                    subject=account.account_email,
+                )
+            else:
+                changes = await changes_since(key, token, cursor=previous, channels=channels)
+        except (AppException, PortalError) as exc:
+            logger.warning(
+                "native_conversation_poll_failed",
+                extra={
+                    "connection_id": str(account.id),
+                    "portal_key": key,
+                    "error": type(exc).__name__,
+                },
+            )
+            if previous is not None:
+                state[identity] = previous
+            continue
+        read = PolledEvents(
+            events=tuple(
+                PolledEvent(delivery_id=event.id, payload=event.payload) for event in changes.events
+            ),
+            cursor=changes.cursor,
+        )
+        reads.append((read, {trigger.id: admitted[trigger.id] for trigger in candidates}))
+        state[identity] = changes.cursor
+    return reads, {"feeds": state}
+
+
 async def poll_account(db: AsyncSession, account: McpConnection) -> int:
-    from app.schemas.agent_trigger import IntegrationMessageTriggerConfig, SheetsRowTriggerConfig
+    from app.schemas.agent_trigger import SheetsRowTriggerConfig
     from app.services.agent_trigger import AgentTriggerService
     from app.services.mcp_connection import McpConnectionService, account_source_organization
     from app.services.portal_catalog import get_portal
@@ -59,6 +122,7 @@ async def poll_account(db: AsyncSession, account: McpConnection) -> int:
                     continue
                 old = positions.get(key)
                 cursor = old if isinstance(old, dict) else None
+                partitions: list[tuple[PolledEvents, Mapping[UUID, UUID]]] | None = None
                 if account.catalog_key == "odoo":
                     from app.services.integrations.odoo_feed import changes as odoo_changes
 
@@ -100,38 +164,11 @@ async def poll_account(db: AsyncSession, account: McpConnection) -> int:
                     if token is None:
                         raise BadRequestError(message="Reconnect this native trigger account")
                     if key in {"slack", "teams"}:
-                        channels = tuple(
-                            dict.fromkeys(
-                                channel
-                                for trigger in current
-                                for channel in IntegrationMessageTriggerConfig.model_validate(
-                                    trigger.event_config
-                                ).channels
-                            )
+                        message_reads, conversation_cursor = await _message_reads(
+                            key, account, token, current, admitted, cursor
                         )
-                        if key == "teams" and account.auth_type == "application":
-                            from app.services.integrations.teams_feed import (
-                                changes as teams_changes,
-                            )
-
-                            changes = await teams_changes(
-                                token,
-                                cursor,
-                                channels=channels,
-                                application=True,
-                                subject=account.account_email,
-                            )
-                        else:
-                            changes = await changes_since(
-                                key, token, cursor=cursor, channels=channels
-                            )
-                        read = PolledEvents(
-                            events=tuple(
-                                PolledEvent(delivery_id=event.id, payload=event.payload)
-                                for event in changes.events
-                            ),
-                            cursor=changes.cursor,
-                        )
+                        partitions = [(part, admissions) for part, admissions in message_reads]
+                        read = PolledEvents(events=(), cursor=conversation_cursor)
                     elif key == "google_sheets":
                         state = dict(cursor or {})
                         found: list[PolledEvent] = []
@@ -192,20 +229,23 @@ async def poll_account(db: AsyncSession, account: McpConnection) -> int:
                         read = await adapter.poll(
                             access_token=token.get_secret_value(), cursor=cursor, places=places
                         )
-                decisions = await triggers.prepare_polled_fires(
-                    organization_id=organization_id,
-                    event_source=portal.event_source,
-                    events=read.events,
-                    announced={},
-                    source_admissions=admitted,
-                )
-                for decision in decisions:
-                    await triggers.queue_fire(
-                        decision.trigger_id,
+                group_queued = 0
+                for part, admissions in [(read, admitted)] if partitions is None else partitions:
+                    decisions = await triggers.prepare_polled_fires(
                         organization_id=organization_id,
-                        event_context=decision.event_context,
-                        source_policy_id=decision.source_policy_id,
+                        event_source=portal.event_source,
+                        events=part.events,
+                        announced={},
+                        source_admissions=admissions,
                     )
+                    for decision in decisions:
+                        await triggers.queue_fire(
+                            decision.trigger_id,
+                            organization_id=organization_id,
+                            event_context=decision.event_context,
+                            source_policy_id=decision.source_policy_id,
+                        )
+                    group_queued += len(decisions)
                 next_cursor = _CURSOR.validate_python(read.cursor)
         except (AppException, PortalError) as exc:
             logger.warning(
@@ -217,7 +257,7 @@ async def poll_account(db: AsyncSession, account: McpConnection) -> int:
                 },
             )
             continue
-        queued += len(decisions)
+        queued += group_queued
         positions[key] = next_cursor
     await connections.store_poll_cursor(account, cursor={"products": positions})
     return queued

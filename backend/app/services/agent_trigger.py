@@ -880,6 +880,10 @@ class AgentTriggerService:
                 # is the same unprobeable 404 every org-scoped connection lookup
                 # gives.
                 polled = portal.delivery is portal_catalog.DeliveryMode.POLLING
+                if portal.native_provider is not None and data.connection_id is None:
+                    raise refused_field(
+                        "connection_id", "Choose a connected account for this integration"
+                    )
                 if data.connection_id is not None:
                     # Whichever mechanism connected the portal, since the two live
                     # in the same table under different purposes: a polled grant is
@@ -893,17 +897,9 @@ class AgentTriggerService:
                                 portal_key=portal.key,
                                 channels=tuple(event_config.get("channels") or ()),
                             )
-                            if (
-                                event_source == "slack"
-                                or (
-                                    event_source == "teams"
-                                    and source_account.auth_type != "application"
-                                )
-                            ) and not event_config.get("channels"):
-                                raise refused_field(
-                                    "event_config.channels",
-                                    "Choose the conversations this trigger may read",
-                                )
+                            self._require_native_conversations(
+                                event_source, source_account, event_config
+                            )
                         else:
                             grant = await self.connections.get_org_portal_connection(
                                 ctx, data.connection_id
@@ -1268,6 +1264,23 @@ class AgentTriggerService:
                 ctx, trigger.event_source, changes["event_config"], before=trigger.event_config
             )
 
+        if "event_config" in changes and trigger.portal_key is not None:
+            portal = portal_catalog.get_portal(trigger.portal_key)
+            if portal is not None and portal.native_provider is not None:
+                if trigger.connection_id is None:
+                    raise refused_field(
+                        "connection_id", "Choose a connected account for this integration"
+                    )
+                source_account = await self.connections.get_polled_connection(
+                    ctx,
+                    trigger.connection_id,
+                    portal_key=portal.key,
+                    channels=tuple(changes["event_config"].get("channels") or ()),
+                )
+                self._require_native_conversations(
+                    portal.event_source, source_account, changes["event_config"]
+                )
+
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An
         # event has no cadence, so any cadence field on one is refused here rather
@@ -1411,6 +1424,18 @@ class AgentTriggerService:
                 ) from exc
         if not acting and trigger.local_target is not None:
             changes["local_target"] = None
+
+    @staticmethod
+    def _require_native_conversations(
+        event_source: str, account: McpConnection, config: Mapping[str, object]
+    ) -> None:
+        if (
+            event_source == "slack"
+            or (event_source == "teams" and account.auth_type != "application")
+        ) and not config.get("channels"):
+            raise refused_field(
+                "event_config.channels", "Choose the conversations this trigger may read"
+            )
 
     async def source_options(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID

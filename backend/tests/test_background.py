@@ -9,6 +9,7 @@ log lines rather than return values.
 
 import asyncio
 import logging
+from contextlib import nullcontext
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -366,7 +367,7 @@ async def test_savepoint_handoffs_preserve_outer_work_and_release_only_failed_cl
     async with AsyncSession() as session:
         background.spawn_after_commit(session, record("outer commit"), name="outer commit")
         background.spawn_after_rollback(session, record("outer rollback"), name="outer rollback")
-        try:
+        with pytest.raises(failure) if failure is not None else nullcontext():
             async with background.deferred_savepoint(session):
                 background.spawn_after_commit(session, record("inner commit"), name="inner commit")
                 background.spawn_after_rollback(
@@ -374,8 +375,6 @@ async def test_savepoint_handoffs_preserve_outer_work_and_release_only_failed_cl
                 )
                 if failure is not None:
                     raise failure()
-        except ValueError, asyncio.CancelledError:
-            pass
         await background.drain()
         assert effects == (["inner rollback"] if failure is not None else [])
         background.start_deferred(session)

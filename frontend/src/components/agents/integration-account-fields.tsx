@@ -100,8 +100,8 @@ export function IntegrationAccountFields({
           />
           <datalist id={`${prefix}-names`}>
             {accounts.map((account) => (
-              <option key={account.id} value={account.label || account.email}>
-                {account.email}
+              <option key={account.id} value={account.name || account.email}>
+                {account.label ? `${account.label} — ${account.email}` : account.email}
               </option>
             ))}
           </datalist>
