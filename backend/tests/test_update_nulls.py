@@ -101,6 +101,7 @@ from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
+from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
@@ -170,6 +171,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
+    # Renames goal and maps dismissed to a timestamp; repository tests pin explicit-null behaviour.
+    OnboardingUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,

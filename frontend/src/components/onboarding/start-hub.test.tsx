@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Onboarding } from "@/lib/onboarding-api";
@@ -104,4 +104,72 @@ it("explains an account with no assigned organization", () => {
   env.organizations = [];
   render(<StartHub />);
   expect(screen.getByRole("heading", { name: "Choose your workspace" })).toBeVisible();
+});
+
+it("opens a recorded example while preferences are pending and returns keyboard focus", async () => {
+  let finish: (() => void) | undefined;
+  env.save.mockReturnValue(
+    new Promise<void>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  render(<StartHub />);
+  const [button] = screen.getAllByRole("button", { name: "View example" });
+  if (!button) throw new Error("Missing example action");
+  expect(button).toHaveAccessibleDescription("Turn meeting notes into an action plan");
+  await userEvent.click(button);
+  expect(await screen.findByText("Recorded example result")).toBeVisible();
+  expect(button).toHaveAttribute("aria-busy", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Back to getting started" }));
+  expect(
+    screen.getByRole("heading", { name: "Turn meeting notes into an action plan" }),
+  ).toHaveFocus();
+  await act(async () => {
+    finish?.();
+  });
+  expect(button).toBeEnabled();
+});
+it("keeps the free demonstration available if saving the preference fails", async () => {
+  env.save.mockRejectedValue(new Error("offline"));
+  render(<StartHub />);
+  const [button] = screen.getAllByRole("button", { name: "View example" });
+  if (!button) throw new Error("Missing example action");
+  await userEvent.click(button);
+  expect(await screen.findByText("Recorded example result")).toBeVisible();
+  await waitFor(() => expect(button).toBeEnabled());
+  await userEvent.click(screen.getByRole("button", { name: "Back to getting started" }));
+  expect(button).toHaveFocus();
+  expect(env.push).not.toHaveBeenCalled();
+});
+
+it("does not pull someone back into chat after they leave a pending start", async () => {
+  if (!env.data) throw new Error("missing fixture");
+  env.data.agents = [{ id: "agent", name: "Team assistant" }];
+  let finish: (() => void) | undefined;
+  env.save.mockReturnValue(
+    new Promise<void>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const view = render(<StartHub />);
+  const [button] = screen.getAllByRole("button", { name: "Try this task" });
+  if (!button) throw new Error("Missing task action");
+  await userEvent.click(button);
+  expect(button).toHaveAttribute("aria-busy", "true");
+  view.unmount();
+  await act(async () => {
+    finish?.();
+  });
+  expect(env.push).not.toHaveBeenCalled();
+});
+
+it("names the persisted task rather than implying every preview was saved", () => {
+  if (!env.data) throw new Error("missing fixture");
+  env.data.goal = "compare";
+  render(<StartHub />);
+  expect(
+    screen.getByText(
+      "Saved in this workspace: Compare three offers. You can continue on another device.",
+    ),
+  ).toBeVisible();
 });

@@ -4,27 +4,60 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useStart } from "@/hooks/use-start";
 import { Button } from "@/components/ui";
+import { LoadingState } from "@/components/states";
+import { StartTaskArtwork } from "@/components/onboarding/start-task-artwork";
+import { ArrowRight, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** The dashboard links to the same start as invitations and native apps. */
 export function StartChecklist({ orgId, className }: { orgId: string; className?: string }) {
   const state = useStart();
   const t = useTranslations("start");
+  const frame = cn(
+    "mt-6 flex h-56 flex-col justify-center gap-4 rounded-xl border bg-card p-6 lg:h-[31rem]",
+    className,
+  );
+  if (state.isLoading || state.waitingForScope)
+    return (
+      <section aria-label={t("offerTitle")} className={frame}>
+        <h2 className="font-semibold">{t("offerTitle")}</h2>
+        <LoadingState variant="skeleton-panel" rows={2} />
+      </section>
+    );
+  if (state.error)
+    return (
+      <section aria-label={t("offerTitle")} className={frame}>
+        <h2 className="font-semibold">{t("offerTitle")}</h2>
+        <p role="alert" className="text-muted-foreground text-sm">
+          {t("loadFailed")}
+        </p>
+        <Button variant="outline" onClick={() => void state.refetch()}>
+          <RotateCw size={14} aria-hidden />
+          {t("retry")}
+        </Button>
+      </section>
+    );
   if (
     !state.data ||
-    state.error ||
     state.data.organization_id !== orgId ||
     state.data.dismissed ||
     state.data.has_result
   )
     return null;
   return (
-    <section className={cn("mt-6 space-y-3 rounded-xl border p-5", className)}>
+    <section aria-label={t("offerTitle")} className={frame}>
+      <div className="hidden lg:block">
+        <StartTaskArtwork goal="meeting" />
+      </div>
       <h2 className="font-semibold">{t("offerTitle")}</h2>
       <p className="text-muted-foreground text-sm">{t("offerHint")}</p>
       <div className="flex items-center gap-2">
-        <Link href="/onboarding" className="rounded-lg border px-3 py-2 text-sm">
+        <Link
+          href="/onboarding"
+          className="bg-primary text-primary-foreground inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
+        >
           {t("openStart")}
+          <ArrowRight size={14} aria-hidden />
         </Link>
         <Button
           variant="ghost"

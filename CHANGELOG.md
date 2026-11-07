@@ -38,6 +38,14 @@ Two things are versioned separately from this file and worth knowing about:
   responsive layouts, contextual icons and motion that respects reduced-motion
   preferences. Move focus to explicitly opened recorded examples.
 
+### Fixed
+
+- Keep recorded examples available while a preference save is pending or fails,
+  restore keyboard focus on return, and avoid late chat navigation after leaving
+  the start. Scope pending start operations to their initiating membership.
+- Reserve the dashboard start panel during loading and offer an explicit retry
+  after failed checks, without shifting the adjacent briefing on successful load.
+
 
 ## [1.55.0] - 2026-11-07
 

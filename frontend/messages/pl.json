@@ -13303,7 +13303,7 @@
     "team": "Przygotuj dla zespołu",
     "teamHint": "Przed zaproszeniem sprawdź, czy członek może uruchomić wspólnego agenta i czy adres serwera jest osiągalny z jego komputera. Adres localhost działa tylko u Ciebie.",
     "localTeamWarning": "Ten link używa lokalnego adresu. Osoby na innych komputerach nie będą mogły go użyć. Przed udostępnieniem poproś administratora o osiągalny adres serwera.",
-    "progressSaved": "Wybór został zapisany w tej przestrzeni. Możesz kontynuować na innym urządzeniu.",
+    "progressSaved": "Zapisane w tej przestrzeni: {task}. Możesz kontynuować na innym urządzeniu.",
     "optionalHint": "Zadania tekstowe nie wymagają dostępu do ekranu, mikrofonu, powiadomień ani skrótów. Te opcjonalne funkcje włączysz w razie potrzeby.",
     "invitationFailure": "Nie udało się przyjąć zaproszenia. Mogło wygasnąć, zostać wycofane, być już przyjęte albo dotyczyć innego adresu email. Sprawdź zalogowane konto i w razie potrzeby poproś nadawcę o nowy link.",
     "examples": {
@@ -13335,6 +13335,7 @@
     "loadHint": "Sprawdź połączenie albo wybierz inną przestrzeń, do której należysz. Błąd sprawdzania nie usuwa Twoich danych.",
     "chooseStep": "Wybierz zadanie",
     "editStep": "Dostosuj do siebie",
-    "runStep": "Zobacz rezultat"
+    "runStep": "Zobacz rezultat",
+    "choiceNotSaved": "Nie udało się zapisać wyboru. Spróbuj ponownie."
   }
 }

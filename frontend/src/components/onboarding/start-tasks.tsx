@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Bot,
@@ -8,6 +8,7 @@ import {
   CircleCheck,
   CircleHelp,
   Mail,
+  LoaderCircle,
   RotateCw,
   ShieldCheck,
 } from "lucide-react";
@@ -36,12 +37,26 @@ export function StartTasks({ data }: { data: Onboarding }) {
   const state = useStart();
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const [pendingGoal, setPendingGoal] = useState<StartGoal | null>(null);
   const [demo, setDemo] = useState<StartGoal | null>(null);
   const agent = data.agents.find((item) => item.id === selected) ?? data.agents[0];
   const choose = async (goal: StartGoal) => {
-    await state.save.mutateAsync({ goal });
-    if (agent) router.push(exampleChat(agent.id, goal));
-    else setDemo(goal);
+    if (!agent) setDemo(goal);
+    setPendingGoal(goal);
+    try {
+      await state.save.mutateAsync({ goal });
+      if (agent && active.current) router.push(exampleChat(agent.id, goal));
+    } finally {
+      if (active.current) setPendingGoal(null);
+    }
   };
   return (
     <div className={styles.tasks}>
@@ -83,22 +98,39 @@ export function StartTasks({ data }: { data: Onboarding }) {
               )}
               <StartTaskArtwork goal={goal} />
               <div className={styles.cardBody}>
-                <h2 className={styles.cardTitle}>{t(`examples.${goal}.title`)}</h2>
+                <h2
+                  id={`start-title-${goal}`}
+                  tabIndex={-1}
+                  className={`${styles.cardTitle} focus:outline-none`}
+                >
+                  {t(`examples.${goal}.title`)}
+                </h2>
                 <p className={styles.cardDescription}>{t(`examples.${goal}.description`)}</p>
                 <Button
                   className={styles.cardAction}
                   variant={
                     data.goal === goal || (!data.goal && goal === "meeting") ? "default" : "outline"
                   }
-                  disabled={state.save.isPending}
-                  onClick={() => {
+                  disabled={state.save.isPending || pendingGoal !== null}
+                  aria-busy={pendingGoal === goal}
+                  aria-describedby={`start-title-${goal}`}
+                  onClick={(event) => {
+                    trigger.current = event.currentTarget;
                     void choose(goal).catch(() => {
                       /* The mutation error stays visible below the choices. */
                     });
                   }}
                 >
                   {t(agent ? "tryExample" : "showExample")}
-                  <ArrowRight size={15} aria-hidden />
+                  {pendingGoal === goal ? (
+                    <LoaderCircle
+                      size={15}
+                      className="animate-spin motion-reduce:animate-none"
+                      aria-hidden
+                    />
+                  ) : (
+                    <ArrowRight size={15} aria-hidden />
+                  )}
                 </Button>
               </div>
             </li>
@@ -107,10 +139,22 @@ export function StartTasks({ data }: { data: Onboarding }) {
       </section>
       {state.save.error && (
         <p role="alert" className="text-destructive text-sm">
-          {getErrorMessage(state.save.error, errors)}
+          {t("choiceNotSaved")} {getErrorMessage(state.save.error, errors)}
         </p>
       )}
-      {demo && <StartExample key={demo} goal={demo} onBack={() => setDemo(null)} />}
+      {demo && (
+        <StartExample
+          key={demo}
+          goal={demo}
+          onBack={() => {
+            const target = trigger.current?.disabled
+              ? document.getElementById(`start-title-${demo}`)
+              : trigger.current;
+            setDemo(null);
+            target?.focus();
+          }}
+        />
+      )}
       {!agent &&
         (data.can_prepare ? (
           <StartModel allowAdd={data.can_configure_model} />

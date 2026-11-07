@@ -12889,7 +12889,7 @@
     "team": "Ekibiniz için hazırlayın",
     "teamHint": "Davet etmeden önce bir üyenin ajanı çalıştırabildiğini ve sunucu adresine kendi bilgisayarından erişebildiğini kontrol edin. localhost yalnızca sizin bilgisayarınızda çalışır.",
     "localTeamWarning": "Bu bağlantı yerel adres kullanır. Diğer bilgisayarlarda çalışmaz. Paylaşmadan önce yöneticinizden erişilebilir bir sunucu adresi isteyin.",
-    "progressSaved": "Seçiminiz bu alana kaydedildi. Başka bir cihazda devam edebilirsiniz.",
+    "progressSaved": "Bu çalışma alanında kaydedildi: {task}. Başka bir cihazda devam edebilirsiniz.",
     "optionalHint": "Metin görevleri ekran, mikrofon, bildirim veya kısayol izni gerektirmez. Bu isteğe bağlı özellikleri gerektiğinde açabilirsiniz.",
     "invitationFailure": "Davet kabul edilemedi. Süresi dolmuş, geri alınmış, zaten kabul edilmiş veya başka bir e-posta adresine ait olabilir. Hesabınızı kontrol edin ve gerekirse yeni bağlantı isteyin.",
     "examples": {
@@ -12921,6 +12921,7 @@
     "loadHint": "Bağlantıyı kontrol edin veya üyesi olduğunuz başka bir alan seçin. Başarısız kontrol verilerinizi silmez.",
     "chooseStep": "Görev seçin",
     "editStep": "Kendinize uyarlayın",
-    "runStep": "Sonucu görün"
+    "runStep": "Sonucu görün",
+    "choiceNotSaved": "Seçiminiz kaydedilemedi. Lütfen yeniden deneyin."
   }
 }

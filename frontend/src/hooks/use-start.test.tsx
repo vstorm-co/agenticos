@@ -82,7 +82,7 @@ it("refreshes agents and readiness after explicit preparation", async () => {
   await act(async () => {
     await result.current.prepare.mutateAsync("model");
   });
-  expect(prepareStarter).toHaveBeenCalledWith("model", expect.anything());
+  expect(prepareStarter).toHaveBeenCalledWith("model");
   expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.onboarding.state("user", "org") });
 });
@@ -117,4 +117,61 @@ it("does not request a teammate preview without an active organization", () => {
   const { result } = renderHook(() => useMemberStartPreview("teammate"), { wrapper });
   expect(result.current.fetchStatus).toBe("idle");
   expect(previewMemberStart).not.toHaveBeenCalled();
+});
+
+it("keeps a delayed preference response in the initiating account and organization", async () => {
+  vi.mocked(readOnboarding).mockResolvedValue(sample);
+  let finish: ((state: Onboarding) => void) | undefined;
+  vi.mocked(saveOnboarding).mockReturnValue(
+    new Promise<Onboarding>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const { result, client, rerender } = mount();
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  let pending: Promise<unknown> | undefined;
+  act(() => {
+    pending = result.current.save.mutateAsync({ goal: "meeting" });
+  });
+  await waitFor(() => expect(saveOnboarding).toHaveBeenCalledOnce());
+  scope.user = "another-user";
+  scope.org = "another-org";
+  rerender();
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.save.isPending).toBe(false);
+  const saved: Onboarding = { ...sample, goal: "meeting" };
+  await act(async () => {
+    finish?.(saved);
+    await pending;
+  });
+  expect(client.getQueryData(qk.onboarding.state("user", "org"))).toEqual(saved);
+  expect(client.getQueryData(qk.onboarding.state("another-user", "another-org"))).toEqual(sample);
+});
+it("invalidates the initiating workspace after delayed assistant preparation", async () => {
+  vi.mocked(readOnboarding).mockResolvedValue(sample);
+  let finish: ((agent: { id: string; name: string }) => void) | undefined;
+  vi.mocked(prepareStarter).mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const { result, client, rerender } = mount();
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  let pending: Promise<unknown> | undefined;
+  act(() => {
+    pending = result.current.prepare.mutateAsync("model");
+  });
+  await waitFor(() => expect(prepareStarter).toHaveBeenCalledOnce());
+  scope.org = "another-org";
+  rerender();
+  expect(result.current.prepare.isPending).toBe(false);
+  await act(async () => {
+    finish?.({ id: "agent", name: "Starter" });
+    await pending;
+  });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.onboarding.state("user", "org") });
+  expect(invalidate).not.toHaveBeenCalledWith({
+    queryKey: qk.onboarding.state("user", "another-org"),
+  });
 });

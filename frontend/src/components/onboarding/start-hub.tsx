@@ -117,7 +117,7 @@ export function StartHub() {
         {data.goal && (
           <p className={styles.saved}>
             <Check size={14} aria-hidden />
-            {t("progressSaved")}
+            {t("progressSaved", { task: t(`examples.${data.goal}.title`) })}
           </p>
         )}
         {data.has_result && <StartNextSteps orgId={data.organization_id} />}

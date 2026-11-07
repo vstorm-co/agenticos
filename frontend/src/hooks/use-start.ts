@@ -25,14 +25,16 @@ export function useStart() {
     refetchOnWindowFocus: "always",
   });
   const save = useMutation({
-    mutationFn: (data: StartUpdate) => saveOnboarding(data),
-    onSuccess: (data) => client.setQueryData(key, data),
+    mutationKey: [...key, "save"],
+    mutationFn: async (data: StartUpdate) => ({ key, data: await saveOnboarding(data) }),
+    onSuccess: (saved) => client.setQueryData(saved.key, saved.data),
   });
   const prepare = useMutation({
-    mutationFn: prepareStarter,
-    onSuccess: async () => {
+    mutationKey: [...key, "prepare"],
+    mutationFn: async (modelId: string) => ({ key, agent: await prepareStarter(modelId) }),
+    onSuccess: async (prepared) => {
       await client.invalidateQueries({ queryKey: qk.agents.all() });
-      await client.invalidateQueries({ queryKey: key });
+      await client.invalidateQueries({ queryKey: prepared.key });
     },
   });
   return { ...state, save, prepare, waitingForScope: !user || !org };

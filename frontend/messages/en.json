@@ -13528,7 +13528,7 @@
     "team": "Prepare for your team",
     "teamHint": "Before inviting: check that a member can run the shared agent and that your server address is reachable from their computer. A localhost address works only on your computer.",
     "localTeamWarning": "This link uses a local address. Teammates on other computers cannot use it. Ask your deployment administrator for a reachable server address before sharing.",
-    "progressSaved": "Your choice is saved in this workspace. You can continue on another device.",
+    "progressSaved": "Saved in this workspace: {task}. You can continue on another device.",
     "optionalHint": "Text tasks do not require screen access, microphone, notifications or shortcuts. You can enable these optional features when needed.",
     "invitationFailure": "We couldn't accept this invitation. It may be expired, revoked, already accepted or belong to another email address. Check the account you signed in with and ask the sender for a new link if needed.",
     "examples": {
@@ -13560,6 +13560,7 @@
     "loadHint": "Check the connection or choose another workspace you belong to. A failed check does not remove your data.",
     "chooseStep": "Choose a task",
     "editStep": "Make it yours",
-    "runStep": "See what happens"
+    "runStep": "See what happens",
+    "choiceNotSaved": "Your choice wasn't saved. Please try again."
   }
 }

@@ -13200,7 +13200,7 @@
     "team": "Für Ihr Team vorbereiten",
     "teamHint": "Prüfen Sie vor Einladungen, ob ein Mitglied den Agenten ausführen kann und die Serveradresse von dessen Computer erreichbar ist. localhost funktioniert nur auf Ihrem Computer.",
     "localTeamWarning": "Dieser Link verwendet eine lokale Adresse und ist auf anderen Computern nicht erreichbar. Fragen Sie vor dem Teilen nach einer erreichbaren Serveradresse.",
-    "progressSaved": "Ihre Auswahl ist in diesem Arbeitsbereich gespeichert. Sie können auf einem anderen Gerät fortfahren.",
+    "progressSaved": "In diesem Arbeitsbereich gespeichert: {task}. Sie können auf einem anderen Gerät fortfahren.",
     "optionalHint": "Textaufgaben benötigen weder Bildschirmzugriff noch Mikrofon, Benachrichtigungen oder Tastenkürzel. Diese optionalen Funktionen können Sie bei Bedarf aktivieren.",
     "invitationFailure": "Die Einladung konnte nicht angenommen werden. Sie kann abgelaufen, widerrufen, bereits angenommen oder für eine andere E-Mail-Adresse sein. Prüfen Sie Ihr Konto und bitten Sie gegebenenfalls um einen neuen Link.",
     "examples": {
@@ -13232,6 +13232,7 @@
     "loadHint": "Prüfen Sie die Verbindung oder wählen Sie einen anderen Arbeitsbereich, dem Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten.",
     "chooseStep": "Aufgabe wählen",
     "editStep": "Anpassen",
-    "runStep": "Ergebnis ansehen"
+    "runStep": "Ergebnis ansehen",
+    "choiceNotSaved": "Ihre Auswahl wurde nicht gespeichert. Bitte versuchen Sie es erneut."
   }
 }

@@ -96,6 +96,7 @@ import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
+import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
 import * as voice from "./voice/[[...path]]/route";
 
@@ -204,6 +205,12 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("mounts only the supported start verbs behind session authentication", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(myOnboarding).sort()).toEqual(["GET", "PATCH", "POST"]);
+    const response = await myOnboarding.GET(new NextRequest("http://localhost/api/me/onboarding"));
+    expect(response.status).toBe(401);
+  });
   it.each(MOUNTED)("%s handles every verb", (_name, module) => {
     for (const verb of VERBS) {
       expect(typeof module[verb], verb).toBe("function");

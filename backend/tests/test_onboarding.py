@@ -72,6 +72,8 @@ async def test_empty_patch_preserves_both_preferences(start: StartFixture) -> No
     member.onboarding_dismissed_at = datetime.now(UTC)
     result = await service.update(ctx, OnboardingUpdate())
     assert result.goal == "meeting" and result.dismissed
+    result = await service.update(ctx, OnboardingUpdate(goal=None, dismissed=None))
+    assert result.goal is None and result.dismissed
 
 
 async def test_success_comes_only_from_a_completed_run_and_returns_its_location(
