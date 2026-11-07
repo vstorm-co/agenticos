@@ -10,6 +10,9 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic_ai import Agent, FunctionToolCallEvent, FunctionToolResultEvent
 from pydantic_ai.messages import (
+    AgentInstructionSource,
+    InstructionDeltaPart,
+    InstructionId,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
@@ -21,12 +24,19 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 
+from app.agents.capabilities._registry import READ_SKILL
+from app.agents.capabilities.skills._loader import (
+    SKILL_LOAD_KIND,
+    ReadSkillCallPart,
+    ReadSkillReturnPart,
+)
 from app.agents.ephemeral_media import dump_messages
 from app.agents.tool_errors import (
     TOOL_ERROR_METADATA,
     ControlledToolError,
     ToolErrorEnvelope,
     ToolErrors,
+    tool_error,
 )
 from app.services import transcript
 from app.services.run_stream import RunFrames
@@ -212,6 +222,64 @@ def test_a_partial_run_preserves_the_error_without_waiting_for_terminal_hooks() 
     assert type(part.content) is str
     assert part.metadata == {"kept": True, TOOL_ERROR_METADATA: True}
     assert json.loads(settled_calls_in(messages)[_CALL]) == error
+
+
+def test_a_failed_skill_load_keeps_its_error_and_instruction_codec_after_replay() -> None:
+    """Loader copies must retain error provenance without flattening SDK instruction ids."""
+    call: ToolCallPart[object] = ReadSkillCallPart(tool_call_id="skill-call")
+    call.args = {"id": 7}
+    returned: ToolReturnPart[object] = ReadSkillReturnPart(
+        content={},
+        tool_call_id=call.tool_call_id,
+        outcome="failed",
+        metadata={"kept": True},
+    )
+    content = tool_error(
+        tool=READ_SKILL,
+        code="invalid_arguments",
+        execution="not_started",
+        message="Invalid id: expected a string. No skill was read.",
+        recovery="correct_arguments",
+    )
+    returned.content = content
+    error = ToolErrorEnvelope.model_validate_json(content).model_dump(exclude_none=True)
+    instruction_id = InstructionId(AgentInstructionSource(), name="policy")
+    instruction = InstructionDeltaPart(id=instruction_id, content="Check refund eligibility.")
+    response = ModelResponse(parts=[call])
+    request = ModelRequest(parts=[returned, instruction])
+
+    stored = dump_messages([response, request])
+    restored = ModelMessagesTypeAdapter.validate_python(stored)
+
+    assert response.parts[0] is call
+    assert request.parts[0] is returned
+    assert isinstance(call, ReadSkillCallPart)
+    assert isinstance(returned, ReadSkillReturnPart)
+    assert isinstance(returned.content, ControlledToolError)
+    assert stored[1]["parts"][1]["id"] == "agent:policy"
+    restored_call = restored[0].parts[0]
+    assert type(restored_call) is ToolCallPart
+    assert restored_call.tool_name == READ_SKILL
+    assert restored_call.args == {"id": 7}
+    assert restored_call.tool_kind == SKILL_LOAD_KIND.id
+    restored_return = restored[1].parts[0]
+    # A failed load carries an error rather than the typed success payload, so
+    # the SDK restores the base return while retaining the loader's identity.
+    assert type(restored_return) is ToolReturnPart
+    assert restored_return.tool_name == READ_SKILL
+    assert restored_return.tool_kind == SKILL_LOAD_KIND.id
+    assert restored_return.tool_call_id == call.tool_call_id
+    assert restored_return.outcome == "failed"
+    assert type(restored_return.content) is str
+    assert restored_return.content == content
+    assert restored_return.metadata == {"kept": True, TOOL_ERROR_METADATA: True}
+    restored_instruction = restored[1].parts[1]
+    assert isinstance(restored_instruction, InstructionDeltaPart)
+    assert restored_instruction.id == instruction_id
+    (recorded,) = tool_calls_in(restored)
+    assert recorded.result is not None
+    assert json.loads(recorded.result) == error
+    assert json.loads(settled_calls_in(restored[1:])[call.tool_call_id]) == error
 
 
 @asynccontextmanager
