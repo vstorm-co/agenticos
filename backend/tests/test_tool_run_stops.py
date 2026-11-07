@@ -87,6 +87,7 @@ def _agent(
     return Agent[AgentDeps, str](FunctionModel(respond), capabilities=capabilities), requests
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("kind", ["budget", "guardrail", "loop", "usage"])
 @pytest.mark.parametrize(
     "script",
@@ -121,6 +122,7 @@ async def test_run_stops_escape_tools_and_cannot_be_caught_by_sandbox_code(
     assert effects == []
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_an_ambient_budget_stop_retains_its_scope_and_spend(sandbox: bool) -> None:
     guard = BudgetGuard(limits=[SpendLimit(scope=BudgetScope.GROUP, limit_usd=Decimal("0"))])
@@ -143,6 +145,7 @@ async def test_an_ambient_budget_stop_retains_its_scope_and_spend(sandbox: bool)
     assert effects == []
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_a_configured_tool_result_guardrail_stops_the_run(sandbox: bool) -> None:
     guardrail = build_guardrails(GuardrailsConfig(blocked_keywords_tool="restricted"))
@@ -172,6 +175,7 @@ async def test_a_configured_tool_result_guardrail_stops_the_run(sandbox: bool) -
     assert effects == []
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_the_coding_agents_budget_check_stops_before_starting_its_harness(
     sandbox: bool,
@@ -199,6 +203,7 @@ async def test_the_coding_agents_budget_check_stops_before_starting_its_harness(
     assert requests == [True]
 
 
+@pytest.mark.security
 async def test_code_modes_own_usage_limit_stays_a_run_stop() -> None:
     agent, requests = _agent(script="await record()\nawait record()")
     effects: list[bool] = []
@@ -274,6 +279,7 @@ class _StopAtLifecycle(AbstractCapability[AgentDeps]):
         return await handler(args)
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("stage", ["validation", "before_execute", "after_execute", "wrapper"])
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_run_stops_from_tool_lifecycle_hooks_escape_the_run(
