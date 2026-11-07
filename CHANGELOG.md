@@ -25,6 +25,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).
 
+### Changed
+
+- **API action required:** creating a native integration trigger now requires an explicit `connection_id`. Clients that used an implicit organization default for Gmail, Outlook, file or calendar presets must select and send the account ID; the console already supplies it.
+
 ## [1.55.0] - 2026-11-07
 
 ### Changed

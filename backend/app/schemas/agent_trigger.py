@@ -613,7 +613,10 @@ class TriggerCreate(BaseSchema):
     # defaults and validated server-side against the source the catalog resolves.
     portal_key: str | None = Field(default=None, max_length=64)
     preset_key: str | None = Field(default=None, max_length=64)
-    connection_id: UUID | None = None
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Connected account ID; required for native integration portal triggers.",
+    )
     target: str | None = Field(default=None, max_length=255)
 
     @model_validator(mode="after")
