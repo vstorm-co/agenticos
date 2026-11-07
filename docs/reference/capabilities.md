@@ -53,6 +53,49 @@ register as the organization's default; without one it keeps files only. The web
 browser is pointed at the deployment's browser service
 (`BROWSER_SIGN_IN_CDP_URL`), and left out where there is none.
 
+## Tool errors and recovery
+
+In text runs, validation, unavailable-tool and unexpected execution failures return
+an `error` object with an `id`, `code`, `tool`, `execution`, `message`, `issues` and
+`recovery`. Validation issues name the
+`field`, validation `code` and `expected_type`, with a correction message or example.
+For example, a workflow ID must be a UUID returned by workflow discovery; an array
+of field names must be sent as `["name", "primary_ip"]`, not a comma-separated string.
+
+`execution` is `not_started` when validation or registration rejects the call before
+invocation, `started` when a start is established, and `unknown` when a failure
+leaves the outcome uncertain. A timeout after invocation does not establish that
+the action failed. Check its execution status before retrying.
+
+| Error code | Recovery |
+|---|---|
+| `invalid_arguments` | `correct_arguments`: fix the named field before trying again. |
+| `tool_unavailable` | `rediscover_tools`: find the tools and invocation routes available in this context. |
+| `permission_denied` | `stop`: explain the refusal. |
+| `transient_failure` | `retry` when the outcome is known and another attempt is safe; otherwise `inspect_execution_status`. |
+| `execution_unknown` | `inspect_execution_status`: establish the existing action's outcome first. |
+
+Discovery does not make every returned tool name directly callable. A registration
+failure says the tool is unavailable in the current invocation context; it does
+not establish missing user permission. The runtime supplies a supported route only
+when it can establish one. Recovery instructions tell the agent to follow that
+route, correct specific arguments, and stay with the task: a failed workflow lookup
+does not justify searching the filesystem.
+
+The same structured error reaches the model and saved transcript when an approved
+call resumes. Unexpected exceptions expose a concise explanation and exception type
+where safe; untrusted upstream messages and internal tracebacks stay in server logs.
+Use the error `id` to find the corresponding detailed log entry.
+
+When `run_code` reports a nested tool failure, `cause_tool` and `cause_execution`
+identify that call and whether it started. The error ID and field issues survive
+the sandbox boundary. An unknown outer outcome still requires checking earlier
+actions before replaying the script.
+
+Clearing tool results retains controlled error envelopes, even when the configured
+number of retained results is zero. Summaries and sliding windows can still reduce
+older exchanges.
+
 ## What ships
 
 | id | Name | Category | Tools | Scope | Key | Voice |

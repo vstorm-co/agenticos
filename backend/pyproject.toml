@@ -208,6 +208,8 @@ dependencies = [
     # step declares, before anything downstream reads it (#1789). MIT; already
     # installed through the MCP SDK.
     "jsonschema>=4.23.0",
+    # An explicit registry disables remote reference fetching in MCP schemas.
+    "referencing>=0.37.0",
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.

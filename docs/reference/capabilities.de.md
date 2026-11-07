@@ -61,6 +61,52 @@ die erste Veröffentlichung als Standard der Organisation registrieren; ohne ihn
 hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installation
 (`BROWSER_SIGN_IN_CDP_URL`) und entfällt, wo es keinen gibt.
 
+## Tool-Fehler und Wiederherstellung { #tool-errors-and-recovery }
+
+In Text-Runs liefern Validierungsfehler, nicht verfügbare Tools und unerwartete
+Ausführungsfehler ein `error`-Objekt mit `id`, `code`, `tool`, `execution`, `message`,
+`issues` und `recovery`. Validierungsprobleme nennen
+`field`, den Validierungscode `code` und `expected_type`, mit einer Korrektur oder
+einem Beispiel. Eine Workflow-ID muss eine bei der Workflow-Suche zurückgegebene
+UUID sein; ein Array von Feldnamen wird als `["name", "primary_ip"]` übergeben,
+nicht als durch Kommas getrennte Zeichenfolge.
+
+`execution` ist `not_started`, wenn Validierung oder Registrierung den Aufruf vor
+der Ausführung ablehnt, `started`, wenn der Start feststeht, und `unknown`, wenn
+ein Fehler das Ergebnis ungewiss lässt. Ein Timeout nach dem Aufruf beweist nicht,
+dass die Aktion fehlgeschlagen ist. Prüfe vor einem erneuten Versuch ihren Status.
+
+| Fehlercode | Nächster Schritt |
+|---|---|
+| `invalid_arguments` | `correct_arguments`: Korrigiere das genannte Feld vor einem neuen Versuch. |
+| `tool_unavailable` | `rediscover_tools`: Suche die in diesem Kontext verfügbaren Tools und Aufrufwege. |
+| `permission_denied` | `stop`: Erkläre die Ablehnung. |
+| `transient_failure` | `retry`, wenn das Ergebnis bekannt und ein weiterer Versuch sicher ist; sonst `inspect_execution_status`. |
+| `execution_unknown` | `inspect_execution_status`: Stelle zuerst das Ergebnis der bestehenden Aktion fest. |
+
+Die Suche macht nicht jeden zurückgegebenen Tool-Namen direkt aufrufbar. Ein
+Registrierungsfehler bedeutet, dass das Tool im aktuellen Aufrufkontext nicht
+verfügbar ist; er belegt keine fehlende Benutzerberechtigung. Die Laufzeit nennt
+einen unterstützten Aufrufweg nur, wenn sie ihn feststellen kann. Die Anweisungen
+zur Wiederherstellung verlangen, diesem Weg zu folgen, konkrete Argumente zu
+korrigieren und bei der Aufgabe zu bleiben: Eine fehlgeschlagene Workflow-Suche
+rechtfertigt keine Suche im Dateisystem.
+
+Derselbe strukturierte Fehler erreicht das Modell und das gespeicherte Transkript,
+wenn ein genehmigter Aufruf fortgesetzt wird. Unerwartete Ausnahmen zeigen eine
+knappe Erklärung und den Ausnahmetyp, soweit das sicher ist; nicht vertrauenswürdige
+Meldungen externer Dienste und interne Stacktraces bleiben in den Serverlogs.
+Über die Fehler-`id` findest du den zugehörigen ausführlichen Logeintrag.
+
+Wenn `run_code` einen Fehler eines verschachtelten Tools meldet, benennen `cause_tool`
+und `cause_execution` diesen Aufruf und geben an, ob er gestartet wurde. Fehler-ID
+und Feldprobleme bleiben über die Sandbox-Grenze erhalten. Bei unbekanntem äußerem
+Ergebnis müssen frühere Aktionen vor einer erneuten Skriptausführung geprüft werden.
+
+Beim Leeren von Tool-Ergebnissen bleiben kontrollierte Fehlerstrukturen erhalten,
+auch wenn die konfigurierte Anzahl beibehaltener Ergebnisse null ist.
+Zusammenfassungen und gleitende Fenster können ältere Nachrichten weiterhin kürzen.
+
 ## Was ausgeliefert wird { #what-ships }
 
 | id | Name | Kategorie | Tools | Scope | Schlüssel | Sprachanruf |

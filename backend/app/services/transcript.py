@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
 
 from app.agents.ask_user import parked_status
 from app.agents.ephemeral_media import describe_binary
+from app.agents.tool_errors import controlled_tool_error
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -63,9 +64,9 @@ class RecordedToolCall:
         tool_name: What was called.
         args: What it was called with. Stored because "the agent sent an email"
             is not reviewable and "the agent sent an email to X" is.
-        result: What it returned, or - when it failed - the notice that the
-            model was asked to retry, never the retry text itself
-            (:func:`_result_text`). `None` for a call that never returned - the
+        result: What it returned, or its controlled, actionable error. Untrusted
+            failure text is replaced with a notice (:func:`_result_text`).
+            `None` for a call that never returned - the
             run was parked on it, stopped, or broke before it completed.
     """
 
@@ -78,28 +79,17 @@ class RecordedToolCall:
 def tool_failure_notice(part: ToolReturnPart) -> str:
     """What a failed or retried tool call may tell a reader.
 
-    A retry's content is written by whichever tool raised: `web_search` turns a
-    search provider's failure into a `ModelRetry` built out of the `httpx` or
-    SDK exception it caught, so a broken key put "401 Unauthorized for url
-    'https://api.tavily.com/search'" - an endpoint, a host, and whatever the
-    query string held - in front of everyone watching the run (#681), and on
-    the tool-call row every member who can read the run opens weeks later
-    (#695). An MCP tool's retry is a third party's string entirely, which is
-    why this is one sentence at the two choke points rather than a rule at each
-    raise: `run_stream` sends it in the `tool_result` frame, and
-    :func:`_result_text` below stores it.
+    Controlled error envelopes keep the same correction and error reference the
+    model received. All other failure text remains masked: a provider exception
+    or an MCP server's string may contain credentials in a URL (#681, #695).
+    Validation rejects extra diagnostics and an envelope naming another tool.
 
-    The model still reads the retry whole: Pydantic AI puts the part into the
-    next request itself and nothing here touches that, so the detail that
-    decides whether it retries, switches tack or gives up is unchanged. Only
-    what is shown and stored is trimmed, and the tool's own text stays in the
-    `logger.warning` beside the send or the write.
-
-    The tool's *name* still goes out, because it is what makes the frame worth
-    sending: a card that resolves saying which step failed is the difference
-    from one that spins for ever. A return with an empty upstream tool name
-    still gets a generic notice.
+    Both the live `tool_result` frame and the stored transcript use this function.
+    Neither changes Pydantic AI's model messages or the history saved for resume.
     """
+    envelope = controlled_tool_error(part)
+    if envelope is not None:
+        return envelope.model_dump_json(exclude_none=True)
     called = f"The {part.tool_name} call" if part.tool_name else "A tool call"
     retry = " and the model was asked to try again" if part.outcome == "retried" else ""
     return f"{called} failed{retry}. The server log has the full error."
@@ -133,14 +123,9 @@ def tool_result_text(content: Any) -> str:
 def _result_text(part: ToolReturnPart) -> str:
     """What the row stores as the call's outcome.
 
-    A return is the tool's own answer and is stored whole. A retry's content is
-    written by whatever raised - `web_search` builds one out of the vendor
-    exception it caught, failing endpoint and query string included, and an MCP
-    tool's is a third party's string entirely - so the row holds the same
-    sentence the `tool_result` frame sends (#681) and the text itself goes to
-    the log beside the write, where run history read weeks later cannot reach
-    it (#695). The model is untouched either way: Pydantic AI carries the part
-    into the next request itself, and this function only decides what is stored.
+    Successful output is stored whole. Failures retain a validated controlled
+    error envelope, or the same safe notice the live frame sends. Arbitrary
+    vendor diagnostics go only to the log. Model messages remain untouched.
     """
     if part.outcome in ERROR_OUTCOMES:
         logger.warning(

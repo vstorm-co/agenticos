@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Tool failures now keep actionable structured details through model continuation, approval resume and saved transcripts: field validation and correction examples, execution disposition, recovery guidance and an error ID that identifies the detailed server log. Unknown tool names report unavailable registration rather than missing permission, and agents check uncertain execution outcomes before retrying.
+
 ## [1.56.1] - 2026-11-07
 
 ### Fixed

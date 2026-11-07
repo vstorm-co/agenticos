@@ -100,6 +100,8 @@ from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
+from app.agents.tool_errors import ToolErrors
+from app.agents.tool_recovery import ToolRecovery
 from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
     AnswerUnknownTools,
@@ -496,6 +498,8 @@ def build_agent(
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
         CountedRepair(tally=repairs),
+        ToolErrors(),
+        ToolRecovery(),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -519,7 +523,7 @@ def build_agent(
         # switched (#2301). A call is told by its text twin instead.
         *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
         *extra_capabilities,
-        *(() if voice is None else (AnswerUnknownTools(),)),
+        AnswerUnknownTools(structured=voice is None),
         *(
             ()
             if call is None
