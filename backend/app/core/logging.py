@@ -278,6 +278,16 @@ def _escape_line_breakers(value: str) -> str:
     )
 
 
+def _console_level(record: logging.LogRecord) -> bool:
+    """DB_ECHO explicitly enables SQL independently of application verbosity."""
+    threshold = logging.getLevelNamesMapping()[settings.LOG_LEVEL]
+    if settings.DB_ECHO and (
+        record.name == "sqlalchemy.engine" or record.name.startswith("sqlalchemy.engine.")
+    ):
+        threshold = logging.INFO
+    return record.levelno >= threshold
+
+
 def setup_logging() -> None:
     """Emit application logs to stderr and redact PII in every process.
 
@@ -321,10 +331,8 @@ def setup_logging() -> None:
         console = logging.StreamHandler()
         console.name = "agenticos.console"
         console.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        console.addFilter(_console_level)
         root.addHandler(console)
-    for handler in root.handlers:
-        if handler.name == "agenticos.console":
-            handler.setLevel(settings.LOG_LEVEL)
     logging.getLogger("sqlalchemy.engine").setLevel(
         logging.INFO if settings.DB_ECHO else logging.WARNING
     )

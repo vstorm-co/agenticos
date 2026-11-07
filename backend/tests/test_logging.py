@@ -658,6 +658,7 @@ setup_logging()
 assert (existing in logging.getLogger().handlers) == (os.environ['EXISTING_HANDLER'] == 'true')
 assert sum(h.name == 'agenticos.console' for h in logging.getLogger().handlers) == 1
 logger = logging.getLogger('app.runtime')
+logger.setLevel(logging.DEBUG)
 logger.debug('debug marker')
 logger.info('info marker')
 try:
@@ -696,7 +697,8 @@ logging.getLogger('httpcore2').debug('HTTPX2 transport payload')
     assert "HTTPX2 transport payload" not in result.stderr
 
 
-def test_sql_debugging_uses_one_redacted_stderr_sink() -> None:
+@pytest.mark.parametrize("level", ["INFO", "WARNING", "ERROR", "CRITICAL"])
+def test_sql_debugging_uses_one_redacted_stderr_sink(level: str) -> None:
     result = subprocess.run(
         [
             sys.executable,
@@ -709,7 +711,7 @@ for configured in (engine, vector_engine, agent_vector_engine):
     configured.sync_engine.logger.info('SQL marker for user@example.com')
 """,
         ],
-        env={**os.environ, "LOG_LEVEL": "INFO", "DB_ECHO": "true"},
+        env={**os.environ, "LOG_LEVEL": level, "DB_ECHO": "true"},
         timeout=20,
         capture_output=True,
         text=True,
@@ -718,4 +720,40 @@ for configured in (engine, vector_engine, agent_vector_engine):
     assert result.stdout == ""
     assert result.stderr.count("SQL marker") == 3
     assert result.stderr.count("[EMAIL_REDACTED]") == 3
+    assert "user@example.com" not in result.stderr
+
+
+def test_alembic_preserves_application_logging() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import io
+import logging
+from alembic.config import Config
+from alembic.runtime.environment import EnvironmentContext
+from alembic.script import ScriptDirectory
+from app.core.logging import setup_logging
+setup_logging()
+logger = logging.getLogger('app.migration')
+def migrations(revision, context):
+    logger.info('migration marker for user@example.com')
+    return []
+config = Config('alembic.ini', output_buffer=io.StringIO())
+script = ScriptDirectory.from_config(config)
+with EnvironmentContext(config, script, as_sql=True, fn=migrations):
+    script.run_env()
+""",
+        ],
+        env={**os.environ, "LOG_LEVEL": "INFO", "DB_ECHO": "false"},
+        timeout=20,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout == ""
+    assert result.stderr.count("migration marker") == 1
+    assert "INFO app.migration:" in result.stderr
+    assert "[EMAIL_REDACTED]" in result.stderr
     assert "user@example.com" not in result.stderr
