@@ -524,6 +524,22 @@ class TestWhichFilesAFrameMayAttach:
         assert records[0].__dict__["rejected_count"] == 3
         assert "untrusted" not in caplog.text
 
+    async def test_valid_file_ids_reach_the_turn_in_order_without_rejection_logs(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        session = _session(_embed(allow_files=True))
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        with (
+            caplog.at_level(logging.INFO, logger=MODULE),
+            patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)) as turn,
+        ):
+            await session.handle(
+                {"type": "message", "text": "look", "file_ids": [str(ids[0]), ids[1].hex]}
+            )
+        turn.assert_awaited_once_with("look", ids)
+        assert _kinds(session) == ["complete"]
+        assert not [record for record in caplog.records if record.name == MODULE]
+
     async def test_a_frame_naming_more_than_the_cap_is_refused_whole(self) -> None:
         session = _session(_embed(allow_files=True))
 
