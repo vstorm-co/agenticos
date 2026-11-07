@@ -2592,3 +2592,28 @@ async def test_a_delegate_consent_target_enables_the_sandboxless_root_before_wor
     assert sandbox_config(prepared.opened.call_args.args[0]) is not None
     assert prepared.built("local-child")["resources"][WORKSPACE_RESOURCE] is device
     assert sandbox_config(root) is None
+
+
+@pytest.mark.parametrize("coding", [False, True])
+async def test_an_unattended_local_delegate_has_no_human_consent_callback(coding: bool):
+    child_id = uuid.uuid4()
+    version = _version(
+        child_id,
+        AgentSpec(
+            name="Local child",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="coding_agent" if coding else "sandbox",
+                    config={"runs_on": "this_computer"} if coding else {"backend": "local"},
+                )
+            ],
+        ),
+    )
+    prepared = await _prepare(
+        _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)]),
+        versions={version.id: version},
+    )
+    assert prepared.runtime.subagents[0].workspace == ("none" if coding else "own")
+    built = prepared.built("local-child")
+    assert not any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+    assert WORKSPACE_RESOURCE not in built["resources"]
