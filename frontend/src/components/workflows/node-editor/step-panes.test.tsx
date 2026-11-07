@@ -681,3 +681,84 @@ describe("OutputPane admits a test from the entry that reaches the step", () => 
     );
   });
 });
+
+describe("OutputPane refuses a test once its entry no longer reaches the step", () => {
+  it("refuses a write step confirmed after its entry was disconnected", async () => {
+    const graph = line();
+    seed(graph);
+    const target = graph.nodes[1] as NodeInstance;
+    const { rerender } = render(
+      <OutputPane
+        workflowId="wf"
+        catalog={[WRITER]}
+        graph={graph}
+        node={target}
+        definition={WRITER}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(mutate).not.toHaveBeenCalled();
+
+    // The step is disconnected from its entry while the confirmation is open.
+    rerender(
+      <OutputPane
+        workflowId="wf"
+        catalog={[WRITER]}
+        graph={{ ...graph, edges: [] }}
+        node={target}
+        definition={WRITER}
+      />,
+    );
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Test step" }).at(-1) as HTMLElement,
+    );
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("refuses an input submitted after its entry was disconnected", async () => {
+    const trigger = {
+      ...node("t", "trigger.manual"),
+      config: { input_schema: { type: "object" } },
+    };
+    const graph: WorkflowGraph = {
+      entry_node_id: "t",
+      nodes: [trigger, node("b", "test.step")],
+      edges: [edge("e", "t", "out", "b", "in")],
+      bindings: [],
+      scopes: [],
+    };
+    seed(graph);
+    const target = graph.nodes[1] as NodeInstance;
+    const { rerender } = render(
+      <OutputPane
+        workflowId="wf"
+        catalog={[MANUAL, STEP]}
+        graph={graph}
+        node={target}
+        definition={STEP}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    // The step is disconnected from its entry while the dialog is open.
+    rerender(
+      <OutputPane
+        workflowId="wf"
+        catalog={[MANUAL, STEP]}
+        graph={{ ...graph, edges: [] }}
+        node={target}
+        definition={STEP}
+      />,
+    );
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Start a run" }),
+    );
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});

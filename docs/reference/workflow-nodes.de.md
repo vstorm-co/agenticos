@@ -1,5 +1,5 @@
 ---
-source_sha: "be32d7b712ae"
+source_sha: "35ee6786770a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -88,8 +88,17 @@ Der Vertrag unterstützt verschachtelte Objekte, Arrays aus Objekten, `enum`,
 (`minItems` und `maxItems`) und `additionalProperties`. Verwende Definitionen mit
 `$defs` und lokalen `$ref`-Referenzen erneut. Referenzen müssen innerhalb desselben
 Dokuments aufgelöst werden; externe Referenzen werden abgelehnt und nie abgerufen.
-Die Eingabe bleibt ein JSON-Objekt; ein benutzerdefiniertes Python-Modell oder ein
-bestimmtes Framework des Aufrufers ist nicht erforderlich.
+Ein benutzerdefiniertes Python-Modell oder ein bestimmtes Framework des Aufrufers
+ist nicht erforderlich.
+
+Die Workflow-Eingabe ist immer ein JSON-Objekt. Die Veröffentlichung lehnt einen
+Vertrag ab, wenn seine ausdrücklichen Wurzelbeschränkungen durch `type`, `const`,
+`enum`, statische lokale `$ref` oder `allOf`/`anyOf`/`oneOf` beweisen, dass kein
+Objekt ihn erfüllen kann. Diese konservative Kompatibilitätsprüfung ist kein
+allgemeiner Erfüllbarkeitsnachweis: Beschränkungen mit `not`, Bedingungen oder
+`$dynamicRef` können unentschieden bleiben und werden beim Annehmen eines Runs
+gegen die tatsächliche Eingabe geprüft. Teilschemas für primitive Werte und
+Arrays innerhalb von Objekteigenschaften bleiben unterstützt.
 
 Diese Trigger-Konfiguration nimmt einen Kunden und mindestens eine
 Bestellposition an:

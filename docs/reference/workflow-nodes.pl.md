@@ -1,5 +1,5 @@
 ---
-source_sha: "be32d7b712ae"
+source_sha: "35ee6786770a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -82,9 +82,18 @@ Kontrakt obsługuje zagnieżdżone obiekty, tablice obiektów, `enum`, `required
 długości ciągów znaków (`minLength` i `maxLength`), długości tablic (`minItems` i
 `maxItems`) oraz `additionalProperties`. Używaj ponownie definicji przez `$defs`
 i lokalne referencje `$ref`. Referencje muszą wskazywać na ten sam dokument;
-referencje zewnętrzne są odrzucane i nigdy nie są pobierane. Wejście pozostaje
-obiektem JSON; nie wymaga modelu Python zdefiniowanego przez użytkownika ani
-konkretnego frameworka wywołującego.
+referencje zewnętrzne są odrzucane i nigdy nie są pobierane. Kontrakt nie wymaga
+modelu Python zdefiniowanego przez użytkownika ani konkretnego frameworka
+wywołującego.
+
+Wejście workflow jest zawsze obiektem JSON. Publikacja odrzuca kontrakt, gdy jego
+jawne ograniczenia `type`, `const`, `enum`, statyczne lokalne `$ref` lub
+`allOf`/`anyOf`/`oneOf` na poziomie głównym dowodzą, że żaden obiekt nie może go
+spełnić. To zachowawcze sprawdzenie zgodności, a nie ogólny dowód spełnialności
+schematu: ograniczenia z `not`, warunkami lub `$dynamicRef` mogą pozostać
+nierozstrzygnięte i są sprawdzane względem rzeczywistego wejścia przy przyjęciu
+runu. Podschematy wartości prostych i tablic we właściwościach obiektu nadal są
+obsługiwane.
 
 Umieść tę konfigurację w wyzwalaczu, aby przyjmował klienta i co najmniej jedną
 pozycję zamówienia:

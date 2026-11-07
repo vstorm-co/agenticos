@@ -301,6 +301,81 @@ def test_schema_looking_values_inside_instance_annotations_are_not_references() 
     assert input_problems(config, {"value": {"$ref": "https://example.com/instance-data"}}) == []
 
 
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "array"},
+        {"type": ["string", "null"]},
+        {"const": []},
+        {"enum": ["text", 2, None, []]},
+        {"$defs": {"rows": {"type": "array"}}, "$ref": "#/$defs/rows"},
+        {"$defs": {"never": False}, "$ref": "#/$defs/never"},
+        {"$defs": {"value": {"type": "object"}}, "$ref": "#/$defs/value", "type": "array"},
+        {"$defs": {"value": {"type": "array"}}, "$ref": "#/$defs/value", "type": "object"},
+        {"allOf": [{"type": "object"}, {"type": "array"}]},
+        {"allOf": [False]},
+        {"anyOf": [{"type": "array"}, {"type": "null"}]},
+        {"oneOf": [{"type": "number"}, {"type": "boolean"}]},
+        {
+            "$defs": {"rows": {"type": "array"}},
+            "allOf": [{"$ref": "#/$defs/rows"}],
+        },
+    ],
+)
+def test_root_constraints_that_rule_out_json_objects_are_refused(
+    schema: dict[str, JsonValue],
+) -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema=schema)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {},
+        {"type": "object"},
+        {"type": ["object", "null"]},
+        {"const": {"name": "Ada"}},
+        {"enum": [None, {"name": "Ada"}]},
+        {"$defs": {"value": {"type": "object"}}, "$ref": "#/$defs/value"},
+        {"$defs": {"unused": {"type": "array"}}},
+        {"properties": {"rows": {"type": "array", "items": {"type": "integer"}}}},
+        {"properties": {"child": {"$ref": "#"}}},
+        {"allOf": [True, {"type": "object"}]},
+        {"anyOf": [{"type": "array"}, {"type": "object"}]},
+        {"oneOf": [False, {"type": "object"}]},
+        {"if": {"type": "array"}},
+        {"then": {"type": "array"}},
+        {"else": {"type": "array"}},
+        {
+            "if": {"required": ["kind"]},
+            "then": {"required": ["name"]},
+            "else": {"required": ["title"]},
+        },
+        {"not": {"required": ["excluded"]}},
+        {
+            "$defs": {"dynamic": {"$dynamicAnchor": "value", "type": "array"}},
+            "$dynamicRef": "#value",
+        },
+    ],
+)
+def test_root_object_compatibility_preserves_open_composed_and_recursive_contracts(
+    schema: dict[str, JsonValue],
+) -> None:
+    assert TriggerInputConfig(input_schema=schema).input_schema == schema
+
+
+def test_reused_reference_branches_are_classified_without_expanding_their_paths() -> None:
+    definitions: dict[str, JsonValue] = {"leaf": {"type": "object"}}
+    reference = "#/$defs/leaf"
+    for index in range(30):
+        name = f"branch_{index}"
+        definitions[name] = {"allOf": [{"$ref": reference}, {"$ref": reference}]}
+        reference = f"#/$defs/{name}"
+    schema: dict[str, JsonValue] = {"$defs": definitions, "$ref": reference}
+    assert TriggerInputConfig(input_schema=schema).input_schema == schema
+
+
 def test_discovery_keeps_legacy_fields_and_untyped_contracts() -> None:
     assert effective_input_schema(TriggerInputConfig()) == {"type": "object"}
     assert TriggerInputConfig.model_validate({}).input_schema is None

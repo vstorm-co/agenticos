@@ -75,8 +75,16 @@ The contract supports nested objects, arrays of objects, `enum`, `required`,
 string lengths (`minLength` and `maxLength`), array lengths (`minItems` and
 `maxItems`) and `additionalProperties`. Reuse definitions with `$defs` and local
 `$ref` references. References must resolve inside the same document; external
-references are refused and never fetched. The input remains a JSON object, and
-no user-defined Python model or caller framework is needed.
+references are refused and never fetched. No user-defined Python model or caller
+framework is needed.
+
+Workflow input is always a JSON object. Publication rejects a contract when its
+explicit root `type`, `const`, `enum`, static local `$ref`, or
+`allOf`/`anyOf`/`oneOf` constraints prove that no object can satisfy it. This
+conservative compatibility check is not a general proof that a schema is
+satisfiable: restrictions involving `not`, conditionals or `$dynamicRef` can
+remain undecided and are checked against actual input at admission. Primitive
+and array subschemas remain supported inside object properties.
 
 Put this configuration on a trigger to accept a customer and one or more order
 lines:

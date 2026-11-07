@@ -220,7 +220,17 @@ class TestPublish:
         return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
 
     @pytest.mark.parametrize(
-        "schema", [{"$id": 12}, {"$ref": "#/$defs/missing"}, {"type": "unknown"}]
+        "schema",
+        [
+            {"$id": 12},
+            {"$ref": "#/$defs/missing"},
+            {"type": "unknown"},
+            {"type": "array"},
+            {
+                "$defs": {"rows": {"type": "array"}},
+                "allOf": [{"$ref": "#/$defs/rows"}],
+            },
+        ],
     )
     async def test_invalid_json_schema_is_a_field_refusal_at_publication(
         self, mock_db_session, schema: dict[str, object]

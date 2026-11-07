@@ -12,9 +12,9 @@ them (`input_problems`), and the `out` port carries a `payload` typed by them
 (`ports_for`), so a binding to `payload.seats` is checked against its target's
 type at publish rather than when the run reaches it.
 
-`input_schema` instead accepts a portable JSON Schema Draft 2020-12 contract,
-including nested objects and local references. Admission validates it directly;
-its payload port stays open for path bindings without generating Python models.
+`input_schema` instead accepts a portable JSON Schema Draft 2020-12 contract
+for a JSON object, including nested arrays and local references. Admission validates
+it directly; its payload port stays open for path bindings without generating Python models.
 """
 
 import re
@@ -60,7 +60,7 @@ class TriggerInputConfig(BaseModel):
     fields: list[InputField] = Field(default_factory=list, max_length=MAX_FIELDS)
     input_schema: InputSchema | None = Field(
         default=None,
-        description="JSON Schema Draft 2020-12 input contract; references must be local to this document",
+        description="JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document",
     )
 
     @field_validator("input_schema")

@@ -169,12 +169,52 @@ def _checked_schema(contents: Schema) -> Mapping[str, JsonValue] | None:
     return contents
 
 
+def _object_possible(
+    schema: Mapping[str, JsonValue] | bool,
+    possible: Mapping[int, bool],
+    reference: int | None,
+) -> bool:
+    """Conservative object compatibility from already classified dependencies.
+
+    Type/value restrictions, static references and compositions can prove that
+    objects are excluded. Other constraints remain unknown; this is not a
+    schema satisfiability check, and dynamic references retain their runtime scope.
+    """
+    if isinstance(schema, bool):
+        return schema
+    declared = schema.get("type")
+    if isinstance(declared, str):
+        if declared != "object":
+            return False
+    elif isinstance(declared, list) and "object" not in declared:
+        return False
+    if "const" in schema and not isinstance(schema["const"], dict):
+        return False
+    choices = schema.get("enum")
+    if isinstance(choices, list) and not any(isinstance(choice, dict) for choice in choices):
+        return False
+    if reference is not None and not possible[reference]:
+        return False
+    for keyword in ("allOf", "anyOf", "oneOf"):
+        alternatives = schema.get(keyword)
+        if isinstance(alternatives, list):
+            compatibility = (possible[id(child)] for child in alternatives)
+            if keyword == "allOf":
+                if not all(compatibility):
+                    return False
+            elif not any(compatibility):
+                return False
+    return True
+
+
 def check_input_schema(schema: InputSchema) -> None:
     """Refuse invalid dialects, unresolved/external references and endless ref loops.
 
     References may use JSON Pointers or anchors within the supplied document.
     Recursive object/array definitions are supported; a reference cycle that
     evaluates the same input value indefinitely is refused before publication.
+    Root constraints that explicitly exclude JSON objects are refused through
+    a conservative compatibility check, without proving arbitrary satisfiability.
     """
     if _too_deep(schema):
         raise ValueError("Input schema exceeds the maximum nesting depth")
@@ -184,8 +224,9 @@ def check_input_schema(schema: InputSchema) -> None:
         raise ValueError(f"Input schema may take at most {MAX_SCHEMA_BYTES} bytes") from None
     # Registry construction reads $id immediately, before reference traversal.
     _checked_schema(schema)
-    visited: set[int] = set()
+    checked: dict[int, Mapping[str, JsonValue] | bool] = {}
     connections: dict[int, set[int]] = {}
+    references: dict[int, int] = {}
     resource = DRAFT202012.create_resource(schema)
     resolver = Registry().resolver_with_root(resource)
     pending: list[tuple[Resource[Schema], Resolver[Schema]]] = [(resource, resolver)]
@@ -193,11 +234,11 @@ def check_input_schema(schema: InputSchema) -> None:
         current, current_resolver = pending.pop()
         contents = current.contents
         key = id(contents)
-        if key in visited:
+        if key in checked:
             continue
-        visited.add(key)
         connections[key] = set()
         contents = _checked_schema(contents)
+        checked[key] = contents if contents is not None else bool(current.contents)
         if contents is None:
             continue
         for keyword in ("$ref", "$dynamicRef"):
@@ -211,18 +252,24 @@ def check_input_schema(schema: InputSchema) -> None:
             except Unresolvable:
                 raise ValueError("Input schema contains an unresolved local reference") from None
             connections[key].add(id(resolved.contents))
+            if keyword == "$ref":
+                references[key] = id(resolved.contents)
             pending.append((DRAFT202012.create_resource(resolved.contents), resolved.resolver))
         for child, same_value in _subschemas(contents):
             child_resource = DRAFT202012.create_resource(child)
             if same_value:
                 connections[key].add(id(child))
             pending.append((child_resource, current_resolver.in_subresource(child_resource)))
+    possible: dict[int, bool] = {}
     try:
-        TopologicalSorter(connections).prepare()
+        for key in TopologicalSorter(connections).static_order():
+            possible[key] = _object_possible(checked[key], possible, references.get(key))
     except CycleError:
         raise ValueError(
             "Input schema contains a reference cycle that does not descend into input"
         ) from None
+    if not possible[id(schema)]:
+        raise ValueError("Workflow input schema must allow a JSON object")
 
 
 def _message(error: ValidationError) -> str:

@@ -1,5 +1,5 @@
 ---
-source_sha: "be32d7b712ae"
+source_sha: "35ee6786770a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -84,9 +84,18 @@ El contrato admite objetos anidados, arrays de objetos, `enum`, `required`,
 longitudes de cadenas (`minLength` y `maxLength`), longitudes de arrays (`minItems`
 y `maxItems`) y `additionalProperties`. Reutiliza definiciones con `$defs` y
 referencias `$ref` locales. Las referencias deben resolverse dentro del mismo
-documento; las referencias externas se rechazan y nunca se descargan. La entrada
-sigue siendo un objeto JSON y no requiere modelos Python definidos por el usuario
-ni un framework concreto para quien llama.
+documento; las referencias externas se rechazan y nunca se descargan. No se
+requieren modelos Python definidos por el usuario ni un framework concreto para
+quien llama.
+
+La entrada del workflow siempre es un objeto JSON. Publicar rechaza un contrato
+cuando sus restricciones explícitas de raíz mediante `type`, `const`, `enum`,
+`$ref` locales estáticas o `allOf`/`anyOf`/`oneOf` demuestran que ningún objeto
+puede cumplirlo. Esta comprobación conservadora de compatibilidad no es una
+prueba general de que el esquema sea satisfacible: las restricciones con `not`,
+condiciones o `$dynamicRef` pueden quedar sin resolver y se comprueban contra
+la entrada real al admitir el run. Se siguen admitiendo subesquemas de valores
+primitivos y arrays dentro de las propiedades de objetos.
 
 Esta configuración del trigger acepta un cliente y una o más líneas de pedido:
 
