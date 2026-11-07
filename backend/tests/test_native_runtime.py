@@ -405,6 +405,7 @@ async def test_credentials_are_spent_only_by_the_declared_surface(monkeypatch, m
     execute = AsyncMock(return_value={"ok": True})
     monkeypatch.setattr("app.services.integrations.client.execute", execute)
     if method == "source":
+        row.granted_scopes.append("https://www.googleapis.com/auth/drive.readonly")
         if missing:
             with pytest.raises(AuthorizationError):
                 await service.source_token(

@@ -200,3 +200,39 @@ async def test_odoo_shared_tools_use_authority_before_unsealing_the_key(monkeypa
         organization_id=org, connection_id=identifier, provider="odoo"
     )
     assert token.credential == credential and token.connection_id == identifier
+
+
+async def test_knowledge_sync_cannot_spend_unselected_default_application_roles(monkeypatch):
+    from app.core.exceptions import BadRequestError
+    from app.services.integrations import IntegrationService
+    from app.services.mcp_connection import McpConnectionService
+    from app.services.sync_source import SyncSourceService
+
+    org, person, identifier = uuid4(), uuid4(), uuid4()
+    row = McpConnection(
+        id=identifier,
+        scope="org",
+        organization_id=org,
+        catalog_key="microsoft",
+        auth_type="application",
+        granted_scopes=["Mail.Read"],
+    )
+    opened = AsyncMock()
+    monkeypatch.setattr(McpConnectionService, "integration_access_token", opened)
+    service = IntegrationService(AsyncMock())
+    monkeypatch.setattr(service, "account", AsyncMock(return_value=row))
+    with pytest.raises(AuthorizationError, match="knowledge product"):
+        await service.source_token(
+            organization_id=org, connection_id=identifier, provider="microsoft"
+        )
+    opened.assert_not_awaited()
+    monkeypatch.setattr(IntegrationService, "binding_account", AsyncMock(return_value=row))
+    ctx = AuthContext(user_id=person, organization_id=org, role="builder")
+    with pytest.raises(BadRequestError, match="knowledge product"):
+        await SyncSourceService(AsyncMock())._checked_account(
+            {"connection_id": str(identifier)}, "sharepoint", None, ctx
+        )
+    row.granted_scopes = ["Files.Read.All"]
+    await SyncSourceService(AsyncMock())._checked_account(
+        {"connection_id": str(identifier)}, "sharepoint", None, ctx
+    )

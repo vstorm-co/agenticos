@@ -353,7 +353,12 @@ class SyncSourceService:
             raise refused_field(
                 "config.connection_id", "This source cannot use a connected account"
             )
-        from app.services.integrations import IntegrationService, AccountSelection, PRODUCTS
+        from app.services.integrations import (
+            IntegrationService,
+            AccountSelection,
+            PRODUCTS,
+            can_read_feed,
+        )
 
         try:
             connection_id = UUID(str(connection))
@@ -369,9 +374,14 @@ class SyncSourceService:
                 "odoo": "odoo_contacts",
             }[provider]
         ]
-        await IntegrationService(self.db).binding_account(
+        account = await IntegrationService(self.db).binding_account(
             product, AccountSelection(account="organization", connection_id=connection_id), ctx
         )
+        if not can_read_feed(account, product.id):
+            raise refused_field(
+                "config.connection_id",
+                "Reconnect the account with this knowledge product's read permissions",
+            )
 
     async def _checked_secret(
         self, secret_id: UUID | None, connector_type: str, ctx: AuthContext

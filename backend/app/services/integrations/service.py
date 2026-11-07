@@ -174,6 +174,10 @@ class IntegrationService:
             organization_id=organization_id,
             person_id=None,
         )
+        if not can_read_feed(row, product.id):
+            raise AuthorizationError(
+                message="Reconnect this account with the knowledge product's read permissions"
+            )
         if provider == "odoo":
             credential = McpConnectionService(self.db).integration_odoo_credential(
                 row, organization_id=organization_id
