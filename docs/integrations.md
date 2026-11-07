@@ -14,6 +14,8 @@ Slack: **Create the Slack app** opens a prefilled manifest with this deployment'
 
 ## Alternatives to OAuth
 
+Choosing an application subject requires edit access to its Vault credential, including for personal accounts. Viewing a shared credential does not authorize impersonation. Personal accounts recheck that edit access before every token exchange.
+
 Google supports a Vault `gcp_service_account`, with a subject for Workspace domain-wide delegation. The Workspace administrator must authorize the displayed scopes. A plain service account accesses only resources shared with it; it does not become a personal Gmail account.
 
 Microsoft supports a Vault `entra_app` client secret and application permissions with administrator consent. Configure the mailbox subject for mail/calendar; Teams requires the subject's directory object ID so mentions can be matched without directory-wide read permission. Excel workbook APIs require delegated OAuth. Graph application permissions do not support normal Teams posting; use delegated OAuth for that operation. Application scopes differ from delegated scopes and the wizard displays the appropriate list.

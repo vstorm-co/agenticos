@@ -1,5 +1,5 @@
 ---
-source_sha: "267d8df1cde3"
+source_sha: "7a39bdbfc81f"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -17,6 +17,8 @@ Microsoft: zarejestruj aplikację Entra, wybierz typy kont i tenant, dodaj przek
 Slack: **Utwórz aplikację Slack** otwiera manifest z callbackiem wdrożenia i zakresami użytkownika do odczytu. Przed zapisem dodaj zakresy zapisu, ponownie zainstaluj aplikację i udziel zgody. Zapisz `slack_oauth_app`. Możesz wykorzystać istniejącą aplikację bota kanałowego, dodając callback i zakresy użytkownika. Nadal obowiązują limity aplikacji workspace i zgoda administratora. Przełącznik **Agents → MCP Server** jest potrzebny tylko przy osobnym użyciu hostowanego MCP Slacka.
 
 ## Alternatywy dla OAuth { #alternatives-to-oauth }
+
+Wybór tożsamości konta aplikacyjnego wymaga prawa edycji jego credentiala w Vault, także dla kont osobistych. Sam odczyt współdzielonego credentiala nie upoważnia do działania jako inna osoba. Konto osobiste sprawdza prawo edycji przed każdą wymianą tokenu.
 
 Google obsługuje `gcp_service_account` z Vault i subject dla delegacji domenowej Workspace. Administrator Workspace musi autoryzować wyświetlone zakresy. Samo konto serwisowe czyta tylko udostępnione mu zasoby; nie staje się osobistym kontem Gmail.
 

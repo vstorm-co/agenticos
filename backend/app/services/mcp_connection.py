@@ -2130,7 +2130,11 @@ class McpConnectionService:
         from app.services.integrations import PRODUCTS, application_scopes
 
         expected = SecretKind.GCP_SERVICE_ACCOUNT if provider == "google" else SecretKind.ENTRA_APP
-        row = await OrganizationSecretService(self.db).get_usable(ctx, secret_id, kind=expected)
+        # Choosing an application subject can impersonate any provider user.
+        # Viewing a shared credential is not permission to delegate that authority.
+        row = await OrganizationSecretService(self.db).get_usable(
+            ctx, secret_id, kind=expected, perm=Perm.SECRETS_EDIT
+        )
         selected = [PRODUCTS[key] for key in products if key in PRODUCTS]
         if (
             not selected
@@ -2684,6 +2688,7 @@ class McpConnectionService:
                         kind=SecretKind.GCP_SERVICE_ACCOUNT
                         if payload.provider == "google_service_account"
                         else SecretKind.ENTRA_APP,
+                        perm=Perm.SECRETS_EDIT,
                     )
                 except NotFoundError:
                     return False

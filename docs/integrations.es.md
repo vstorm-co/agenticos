@@ -1,5 +1,5 @@
 ---
-source_sha: "267d8df1cde3"
+source_sha: "7a39bdbfc81f"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -17,6 +17,8 @@ Microsoft: registre una app Entra, elija tipos de cuenta y tenant, añada una re
 Slack: **Crear la app de Slack** abre un manifiesto con el callback y permisos de lectura de usuario. Añada permisos de escritura antes de escribir y reinstale/autorice. Guarde `slack_oauth_app` y complete el consentimiento. Puede reutilizar la app del bot de canales añadiendo el callback y permisos de usuario. Siguen vigentes los límites de apps del workspace y la aprobación del administrador. **Agents → MCP Server** solo es necesario al usar por separado el MCP alojado de Slack.
 
 ## Alternativas a OAuth { #alternatives-to-oauth }
+
+Elegir la identidad de una cuenta de aplicación requiere permiso de edición de su credencial en Vault, también para cuentas personales. Ver una credencial compartida no autoriza la suplantación. Las cuentas personales comprueban ese permiso antes de cada intercambio de tokens.
 
 Google admite `gcp_service_account` de Vault con un subject para delegación de dominio Workspace. El administrador Workspace debe autorizar los scopes mostrados. Una cuenta de servicio normal solo accede a recursos compartidos con ella; no se convierte en una cuenta Gmail personal.
 

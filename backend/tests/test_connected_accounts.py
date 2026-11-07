@@ -16,7 +16,7 @@ import pytest
 
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import GoogleOAuthAppSecret
 from app.core.vault import seal
 from app.db.models.mcp_connection import McpConnection
@@ -1162,6 +1162,7 @@ async def test_revoking_a_personal_application_credentials_grant_stops_future_to
         label="Work",
         for_organization=False,
     )
+    assert usable.await_args.kwargs["perm"] == Perm.SECRETS_EDIT
     usable.side_effect = NotFoundError(message="Secret not found")
     exchange.reset_mock()
     assert await service.integration_access_token(row, organization_id=ctx.organization_id) is None
@@ -1272,3 +1273,56 @@ async def test_disconnecting_an_old_account_without_a_source_organization_still_
     repo.get_account = AsyncMock(return_value=row)
     await McpConnectionService(AsyncMock()).delete_account(ctx, row.id, for_organization=False)
     repo.delete.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "provider,products,subject",
+    [
+        ("google", ["gmail"], "victim@example.com"),
+        ("microsoft", ["outlook_mail"], "victim@example.com"),
+        ("microsoft", ["teams"], "00000000-0000-0000-0000-000000000001"),
+    ],
+)
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_viewing_an_application_credential_cannot_authorize_an_arbitrary_subject(
+    ctx, native_repo, monkeypatch, provider, products, subject, for_organization
+):
+    from app.core.secret_kinds import SecretKind
+    from app.db.models.organization_secret import OrganizationSecret
+    from app.services import organization_secret as secrets_module
+    from app.services.access import SECRET
+
+    member = AuthContext(user_id=ctx.user_id, organization_id=ctx.organization_id, role="member")
+    credential = OrganizationSecret(
+        id=SOURCE_SECRET,
+        organization_id=ctx.organization_id,
+        created_by_user_id=uuid4(),
+        name="Shared automation",
+        visibility="org",
+        kind=(
+            SecretKind.GCP_SERVICE_ACCOUNT if provider == "google" else SecretKind.ENTRA_APP
+        ).value,
+    )
+    monkeypatch.setattr(
+        secrets_module.organization_secret_repo, "get", AsyncMock(return_value=credential)
+    )
+    permission = AsyncMock(return_value=False)
+    monkeypatch.setattr(secrets_module, "resolve_access", permission)
+    exchange = AsyncMock()
+    monkeypatch.setattr(secrets_module.OrganizationSecretService, "integration_token", exchange)
+    with pytest.raises(NotFoundError):
+        await McpConnectionService(AsyncMock()).connect_application_account(
+            member,
+            provider=provider,
+            secret_id=SOURCE_SECRET,
+            subject=subject,
+            products=products,
+            write=True,
+            label="Victim",
+            for_organization=for_organization,
+        )
+    assert permission.await_args.args[3] == Perm.SECRETS_EDIT
+    assert permission.await_args.kwargs["resource_type"] == SECRET
+    exchange.assert_not_awaited()
+    native_repo.create.assert_not_awaited()
+    native_repo.create_org_scoped.assert_not_awaited()

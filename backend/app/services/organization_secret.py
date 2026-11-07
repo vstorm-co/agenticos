@@ -679,15 +679,20 @@ class OrganizationSecretService:
         raise NotFoundError(message="The integration credential belongs to another provider")
 
     async def get_usable(
-        self, ctx: AuthContext, secret_id: UUID, *, kind: SecretKind
+        self,
+        ctx: AuthContext,
+        secret_id: UUID,
+        *,
+        kind: SecretKind,
+        perm: Perm = Perm.SECRETS_VIEW,
     ) -> OrganizationSecret:
-        """A secret of `kind` the caller may see, for naming on something that sends it.
+        """A secret of `kind` the caller may bind with the requested authority.
 
         Raises:
             NotFoundError: If the caller may not see it, or it is another kind - the
                 two read alike, as everywhere secrets are referenced.
         """
-        secret = await self._get(ctx, secret_id)
+        secret = await self._get(ctx, secret_id, perm=perm)
         if secret.kind != kind.value:
             raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
         return secret

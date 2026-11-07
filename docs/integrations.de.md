@@ -1,5 +1,5 @@
 ---
-source_sha: "267d8df1cde3"
+source_sha: "7a39bdbfc81f"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -17,6 +17,8 @@ Microsoft: Entra-App registrieren, Kontotypen und Tenant wählen, Web-Weiterleit
 Slack: **Slack-App erstellen** öffnet ein Manifest mit Callback und Benutzer-Leserechten. Für Schreibzugriff die Rechte ergänzen und neu installieren/autorisieren. `slack_oauth_app` speichern und Zustimmung abschließen. Eine bestehende Channel-Bot-App kann durch Benutzerrechte und Callback ergänzt werden. Workspace-App-Limits und Administratorfreigaben bleiben bestehen. **Agents → MCP Server** wird nur für den separat verwendeten gehosteten Slack-MCP-Server benötigt.
 
 ## Alternativen zu OAuth { #alternatives-to-oauth }
+
+Die Wahl der Anwendungsidentität erfordert Bearbeitungszugriff auf ihren Vault-Zugang, auch bei persönlichen Konten. Lesezugriff auf einen geteilten Zugang erlaubt keine Identitätsübernahme. Persönliche Konten prüfen diesen Bearbeitungszugriff vor jedem Tokenaustausch erneut.
 
 Google unterstützt `gcp_service_account` aus dem Vault und ein Subject für die domänenweite Workspace-Delegierung. Der Workspace-Administrator muss die angezeigten Scopes freigeben. Ein normales Dienstkonto erreicht nur freigegebene Ressourcen und wird nicht zu einem persönlichen Gmail-Konto.
 
