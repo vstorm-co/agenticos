@@ -26,6 +26,14 @@ Two things are versioned separately from this file and worth knowing about:
   server namespaces or individual exposed tools visible from the first request.
   Existing configurations keep their MCP-only deferral behavior.
 
+## [1.53.0] - 2026-11-07
+
+### Fixed
+
+- Public embed messages now spend a per-connection allowance before attachment parsing, reject lists above three file IDs before inspecting them, and aggregate invalid IDs into one bounded log entry without their values. Malformed frames cannot spend the allowance shared with other anonymous visitors. This prevents malformed frames from amplifying the newly enabled application logs.
+
+- API, worker, ingestion children and CLI now emit timestamped, redacted application logs to stderr, with `LOG_LEVEL=INFO` by default. SQL queries and HTTP transport chatter stay quiet; Logfire console spans are opt-in with `LOGFIRE_CONSOLE=true` in every environment. (#2771)
+
 ## [1.52.0] - 2026-11-06
 
 ### Fixed
@@ -20529,7 +20537,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...HEAD
+[1.53.0]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...v1.51.0
 [1.50.2]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...v1.50.2

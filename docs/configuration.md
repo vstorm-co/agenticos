@@ -647,12 +647,17 @@ the model — inherits the mode. One limit
 before relying on it: attaching that instrumentation is best-effort, and a
 failure is logged while the run continues.
 
-With `ENVIRONMENT=production` no span is printed to the console. Logfire's console
-exporter writes one line per SQL and Redis call, about forty per request, into a
-container log nobody can query. So in production a span exists only where the
-token sends it, and with no token a slow request leaves no trace at all.
-`agenticos cmd doctor` reports that as its `tracing` line. Elsewhere the console
-keeps printing spans for whoever is watching the server.
+Application logs from the API, worker, ingestion children and CLI go to stderr
+with a timestamp, level and logger name. They work without a Logfire token and
+are visible through `docker compose logs -f`. `LOG_LEVEL` defaults to `INFO`;
+set it to `DEBUG`, `WARNING`, `ERROR` or `CRITICAL` to adjust verbosity. Existing
+PII and credential redaction also covers exception tracebacks.
+
+SQL query logging stays off unless `DB_ECHO=true`. HTTP transport INFO/DEBUG
+messages are suppressed. Logfire spans are also off on the console by default
+in every environment; set `LOGFIRE_CONSOLE=true` to print them while debugging.
+This does not change trace export to Logfire. Without a token, spans are not
+exported; `agenticos cmd doctor` reports that in its `tracing` line.
 
 Give each deployment its own `LOGFIRE_ENVIRONMENT`, such as `local` on a laptop
 and `production` on the server. One project can then hold both and still keep
@@ -660,6 +665,8 @@ them apart.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Application log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `LOGFIRE_CONSOLE` | `false` | Print Logfire spans to the console for debugging |
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Service name in Logfire dashboard |
 | `LOGFIRE_ENVIRONMENT` | `development` | Environment tag |

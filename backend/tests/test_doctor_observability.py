@@ -71,31 +71,28 @@ class TestTracing:
 
         assert _tracing() == ("healthy", "Logfire, environment production")
 
-    def test_no_token_says_nothing_is_traced(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize("console", [False, True])
+    def test_no_token_reports_missing_export_even_with_console_spans(
+        self, monkeypatch: pytest.MonkeyPatch, console: bool
+    ) -> None:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
+        monkeypatch.setattr(settings, "LOGFIRE_CONSOLE", console)
 
         status, detail = _tracing()
 
         assert status == "unconfigured"
-        assert "LOGFIRE_TOKEN" in detail
+        assert detail == "LOGFIRE_TOKEN is unset - no request, query or run is exported to Logfire"
 
 
 class TestTheConsoleExporter:
-    def test_production_prints_no_spans(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """About forty span lines per request buried every real error in the
-        container log, where nobody could query them."""
-        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-        with patch("app.core.logfire_setup.logfire") as logfire:
-            setup_logfire()
-
-        assert logfire.configure.call_args.kwargs["console"] is False
-
-    @pytest.mark.parametrize("environment", ["local", "development", "staging"])
-    def test_elsewhere_the_console_keeps_logfires_default(
-        self, monkeypatch: pytest.MonkeyPatch, environment: str
+    @pytest.mark.parametrize("environment", ["local", "development", "staging", "production"])
+    @pytest.mark.parametrize("enabled", [False, True])
+    def test_console_spans_require_explicit_opt_in(
+        self, monkeypatch: pytest.MonkeyPatch, environment: str, enabled: bool
     ) -> None:
         monkeypatch.setattr(settings, "ENVIRONMENT", environment)
+        monkeypatch.setattr(settings, "LOGFIRE_CONSOLE", enabled)
         with patch("app.core.logfire_setup.logfire") as logfire:
             setup_logfire()
 
-        assert logfire.configure.call_args.kwargs["console"] is None
+        assert logfire.configure.call_args.kwargs["console"] is (None if enabled else False)

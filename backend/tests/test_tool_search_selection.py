@@ -279,6 +279,7 @@ async def test_mcp_tool_exclusions_use_the_fully_prefixed_and_fitted_name(prefix
     assert await _visible_names(built) == {visible, "search_tools"}
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("approved", [False, True])
 async def test_discovered_renamed_capability_tool_keeps_its_approval_and_executes(
     approved: bool,
@@ -352,6 +353,7 @@ async def test_discovered_renamed_capability_tool_keeps_its_approval_and_execute
         assert "was not performed" in returned.content
 
 
+@pytest.mark.security
 async def test_discovered_mcp_tool_retains_approval_metadata_and_dispatches_to_its_server() -> None:
     calls: list[str] = []
     requested: list[ApprovalRequest] = []
