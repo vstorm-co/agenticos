@@ -230,7 +230,7 @@ async def drawn_picture(
         # drawing; and one that cannot be drawn here leaves an earlier chart to go.
         if call.renderer_name in VISUAL_TOOLS and call.result.startswith(DREW):
             picture = await visual_render.picture_of_turn(
-                [(c.tool_call_id, c.tool_name, c.args, c.result) for c in called],
+                [(c.tool_call_id, c.renderer_name or "", c.args, c.result) for c in called],
                 organization_id=organization_id,
                 conversation_id=conversation_id,
             )
