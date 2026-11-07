@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- API, worker, ingestion children and CLI now emit timestamped, redacted application logs to stderr, with `LOG_LEVEL=INFO` by default. SQL queries and HTTP transport chatter stay quiet; Logfire console spans are opt-in with `LOGFIRE_CONSOLE=true` in every environment. (#2771)
+
 ## [1.52.0] - 2026-11-06
 
 ### Fixed

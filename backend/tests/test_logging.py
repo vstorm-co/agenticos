@@ -13,7 +13,10 @@ import copy
 import io
 import logging
 import logging.config
+import os
 import secrets
+import subprocess
+import sys
 from collections.abc import Iterator
 from datetime import timedelta
 from unittest.mock import patch
@@ -625,3 +628,65 @@ def test_signed_discord_download_queries_do_not_escape_through_exception_logs(
     assert "query-signature" not in emitted
     assert redact_secret_paths(url) == path + "?[REDACTED]"
     assert redact_secret_paths(path + "?[REDACTED]") == path + "?[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    ("level", "visible", "hidden"),
+    [
+        ("INFO", ["info marker", "failure marker"], ["debug marker"]),
+        ("DEBUG", ["debug marker", "info marker", "failure marker"], []),
+        ("ERROR", ["failure marker"], ["debug marker", "info marker"]),
+    ],
+)
+@pytest.mark.parametrize("existing_handler", [False, True])
+def test_fresh_process_emits_application_logs_to_stderr(
+    level: str, visible: list[str], hidden: list[str], existing_handler: bool
+) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import logging
+import os
+from app.core.logging import setup_logging
+existing = logging.NullHandler()
+if os.environ['EXISTING_HANDLER'] == 'true':
+    logging.getLogger().addHandler(existing)
+setup_logging()
+setup_logging()
+assert (existing in logging.getLogger().handlers) == (os.environ['EXISTING_HANDLER'] == 'true')
+assert sum(h.name == 'agenticos.console' for h in logging.getLogger().handlers) == 1
+logger = logging.getLogger('app.runtime')
+logger.debug('debug marker')
+logger.info('info marker')
+try:
+    raise RuntimeError('provider failed for user@example.com')
+except RuntimeError:
+    logger.exception('failure marker')
+logging.getLogger('sqlalchemy.engine.Engine').info('SELECT private_column')
+logging.getLogger('httpx').info('HTTP Request payload')
+""",
+        ],
+        env={
+            **os.environ,
+            "LOG_LEVEL": level,
+            "DB_ECHO": "false",
+            "EXISTING_HANDLER": str(existing_handler).lower(),
+        },
+        timeout=20,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout == ""
+    for marker in visible:
+        assert result.stderr.count(marker) == 1
+    for marker in hidden:
+        assert marker not in result.stderr
+    assert "ERROR app.runtime" in result.stderr
+    assert "RuntimeError" in result.stderr
+    assert "[EMAIL_REDACTED]" in result.stderr
+    assert "user@example.com" not in result.stderr
+    assert "SELECT private_column" not in result.stderr
+    assert "HTTP Request payload" not in result.stderr
