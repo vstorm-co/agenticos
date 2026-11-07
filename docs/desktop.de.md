@@ -1,5 +1,5 @@
 ---
-source_sha: "ba8ea4e650e2"
+source_sha: "0c67e0493dda"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -723,6 +723,8 @@ Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält 
 Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrückthalten des Kurzbefehls. Sprachgespräche verwenden dieselben Steuerelemente wie der Chat, mit dem konfigurierten Transport des ausgewählten Agenten, Untertiteln, Freigaben und Fragen. Gesprochene Beiträge werden in der Unterhaltung gespeichert. Textversand und Diktat warten während eines Anrufs. Ein Tab- oder Agentenwechsel beendet den Anruf und gibt das Mikrofon frei.
 
 ## Lokale Routinen { #local-routines }
+
+Unter Linux prüft die App vor dem Anbieten von Ordnerschreibzugriff oder dem Start eines Sandbox-Befehls, ob bubblewrap `--bind-fd` unterstützt. Fehlende, ungeeignete oder nicht antwortende Builds werden abgewiesen; aktualisieren Sie bubblewrap für diesen Modus.
 
 Die JSON-Datei der Routinefreigaben wird gegen ihren aktuellen SHA-256-Fingerabdruck im Betriebssystem-Schlüsselbund geprüft. Änderungen oder das Wiederherstellen einer Kopie vor dem Widerruf gewähren keinen Zugriff. Ein nicht verfügbarer Schlüsselbund oder eine Abweichung blockiert Routinen. **Upgrade:** ältere Freigaben haben keinen Fingerabdruck und benötigen neue Zustimmung: Computer explizit trennen, erneut koppeln und Routinen prüfen. Derselbe Reset behebt einen unterbrochenen Schreibvorgang; die App vertraut ungeprüften Dateien niemals automatisch.
 

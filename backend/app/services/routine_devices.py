@@ -197,11 +197,13 @@ async def follow_signed_in_session(
         return
     previous_intent = activation_intent(trigger)
     refused = False
+    transient = False
     for device in await device_hub.connected(user_id):
         moved = local.model_copy(update={"device_id": device.session_id})
         try:
             await ready(db, ctx, moved)
         except RoutineDeviceOffline:
+            transient = True
             continue
         except RoutineLocalConsentRequired:
             refused = True
@@ -228,7 +230,7 @@ async def follow_signed_in_session(
         )
         await db.flush()
         return
-    if refused:
+    if refused and not transient:
         raise RoutineLocalConsentRequired(
             message="Connected computers refused this routine's grant; review its folder permission"
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "ba8ea4e650e2"
+source_sha: "0c67e0493dda"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -685,6 +685,8 @@ Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje
 Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok istniejącego skrótu przytrzymywanego. Połączenia głosowe korzystają z tych samych kontrolek co chat: konfiguracji wybranego agenta, napisów, zatwierdzeń i pytań. Wypowiedziane tury zapisują się w rozmowie. Wysyłanie tekstu i dyktowanie czekają podczas połączenia. Przejście do innej zakładki lub zmiana agenta kończy połączenie i zwalnia mikrofon.
 
 ## Rutyny lokalne { #local-routines }
+
+Na Linuxie aplikacja sprawdza, czy zainstalowany bubblewrap udostępnia `--bind-fd`, zanim zaoferuje zapis w folderze lub uruchomi komendę w sandboxie. Brak programu, nieobsługiwana albo nieodpowiadająca wersja oznacza odmowę; zaktualizuj bubblewrap, aby włączyć ten tryb.
 
 JSON zgód procedur jest weryfikowany względem aktualnego skrótu SHA-256 w systemowym keychainie. Edycja pliku ani przywrócenie kopii sprzed cofnięcia zgody nie nadaje dostępu. Niedostępny keychain lub niezgodność blokuje procedury. **Aktualizacja:** starsze zgody nie mają skrótu i wymagają ponownego zatwierdzenia: jawnie odłącz komputer, powiąż go ponownie i przejrzyj procedury. Ten sam reset naprawia przerwany zapis zgód; aplikacja nigdy automatycznie nie ufa niezweryfikowanemu plikowi.
 

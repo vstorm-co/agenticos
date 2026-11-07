@@ -390,6 +390,30 @@ class TestFollowingTheSignedInSession:
         assert trigger.local_target["device_id"] == str(second.session_id)
         assert probe.await_count == 2
 
+    @pytest.mark.parametrize("offline_first", [False, True])
+    async def test_a_transient_candidate_preserves_waiting_despite_another_refusal(
+        self, monkeypatch, offline_first
+    ):
+        trigger = self._trigger(target())
+        before = trigger.local_target
+        monkeypatch.setattr(module.session_repo, "active_device", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            device_hub,
+            "connected",
+            AsyncMock(return_value=[self._device(uuid4()), self._device(uuid4())]),
+        )
+        outcomes = [
+            module.RoutineLocalConsentRequired("wrong computer"),
+            module.RoutineDeviceOffline("disconnected"),
+        ]
+        probe = AsyncMock(side_effect=list(reversed(outcomes)) if offline_first else outcomes)
+        monkeypatch.setattr(module, "ready", probe)
+        db = AsyncMock()
+        await module.follow_signed_in_session(db, trigger, self._context(trigger))
+        assert trigger.local_target == before
+        assert probe.await_count == 2
+        db.flush.assert_not_awaited()
+
     async def test_no_session_is_saved_without_its_native_grant(self, monkeypatch):
         trigger = self._trigger(target())
         before = trigger.local_target

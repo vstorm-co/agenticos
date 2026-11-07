@@ -1284,6 +1284,7 @@ export function useChat(options: UseChatOptions = {}) {
             (request) => !decidedApprovalIdsRef.current.has(request.id),
           );
           if (actionable.length === 0) break;
+          continueAfterComputerRef.current = null;
           offeredApprovalBatchesRef.current.add(
             JSON.stringify([run_id, actionable.map((request) => request.tool_call_id).sort()]),
           );

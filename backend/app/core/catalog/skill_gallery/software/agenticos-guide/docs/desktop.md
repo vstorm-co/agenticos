@@ -674,6 +674,8 @@ Quick Ask has a microphone button for click-to-start dictation as well as hold-t
 
 ## Local routines { #local-routines }
 
+On Linux the app checks that the installed bubblewrap advertises `--bind-fd` before offering folder writes or starting a sandboxed command. Missing, unsupported or unresponsive builds are refused; upgrade bubblewrap to enable this mode.
+
 Routine permission JSON is verified against its current SHA-256 fingerprint in the operating system keychain. Editing it or restoring a copy made before revocation cannot grant access. An unavailable keychain or a mismatch blocks routine access. **Upgrade:** older routine grants have no fingerprint and require fresh approval: explicitly unlink the computer, link it again and review its routines. The same reset recovers an interrupted permission write; the app never trusts an unverified store automatically.
 
 Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine. The first time, the desktop app asks once, natively, to let **all your routines** in this organization work in that folder and the folders inside it, with those operations; choose your home folder for the whole computer.

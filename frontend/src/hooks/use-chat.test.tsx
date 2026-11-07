@@ -6819,30 +6819,42 @@ describe("useChat - computer access continues only its successful turn", () => {
     ).toHaveLength(1);
   });
 
-  it.each(["stop", "server-stop", "error", "failed-run", "disconnect", "navigation", "declined"])(
-    "does not continue after %s",
-    async (termination) => {
-      const { result, rerender } = asking();
-      act(() => result.current.sendComputerAccessResponse(termination !== "declined"));
-      if (termination === "stop") act(() => result.current.stopGeneration());
-      if (termination === "error") receive("error", { message: "Failed" });
-      if (termination === "failed-run")
-        receive("message_saved", { message_id: "failed", run_id: "r-1", run_status: "failed" });
-      if (termination === "disconnect") {
-        socket.isConnected = false;
-        rerender();
-      }
-      if (termination === "navigation")
-        act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
-      receive("complete", { stopped: termination === "server-stop" });
-      receive("session_ready", {});
-      await act(async () => {});
-      expect(result.current.queuedMessages).toHaveLength(0);
-      expect(
-        sent.mock.calls.filter(([frame]) => frame.message === "Access granted - please continue."),
-      ).toHaveLength(0);
-    },
-  );
+  it.each([
+    "stop",
+    "server-stop",
+    "error",
+    "failed-run",
+    "disconnect",
+    "navigation",
+    "declined",
+    "approval",
+  ])("does not continue after %s", async (termination) => {
+    const { result, rerender } = asking();
+    act(() => result.current.sendComputerAccessResponse(termination !== "declined"));
+    if (termination === "stop") act(() => result.current.stopGeneration());
+    if (termination === "error") receive("error", { message: "Failed" });
+    if (termination === "approval")
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+        review_configs: [],
+      });
+    if (termination === "failed-run")
+      receive("message_saved", { message_id: "failed", run_id: "r-1", run_status: "failed" });
+    if (termination === "disconnect") {
+      socket.isConnected = false;
+      rerender();
+    }
+    if (termination === "navigation")
+      act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    receive("complete", { stopped: termination === "server-stop" });
+    receive("session_ready", {});
+    await act(async () => {});
+    expect(result.current.queuedMessages).toHaveLength(0);
+    expect(
+      sent.mock.calls.filter(([frame]) => frame.message === "Access granted - please continue."),
+    ).toHaveLength(0);
+  });
 
   it("ignores a native answer returned after Stop", () => {
     const { result } = asking();

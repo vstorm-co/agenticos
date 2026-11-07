@@ -73,7 +73,7 @@ fn io_refusal(error: &std::io::Error, path: &str) -> Refusal {
 /// The modes this computer can offer, as it tells the server.
 pub fn modes() -> Vec<&'static str> {
     let mut modes = vec!["read_only"];
-    if cfg!(target_os = "macos") || (cfg!(target_os = "linux") && which("bwrap").is_some()) {
+    if cfg!(target_os = "macos") || (cfg!(target_os = "linux") && descriptor_bwrap().is_some()) {
         modes.push("workspace_write");
     }
     modes.push("full_access");
@@ -86,6 +86,50 @@ fn which(program: &str) -> Option<PathBuf> {
             .map(|dir| dir.join(program))
             .find(|candidate| candidate.is_file())
     })
+}
+
+/// Check the installed build, including distributor backports, rather than
+/// accepting every executable named bubblewrap or guessing from its version.
+fn descriptor_bwrap() -> Option<PathBuf> {
+    which("bwrap").filter(|path| supports_descriptor_binds(path))
+}
+
+fn supports_descriptor_binds(path: &Path) -> bool {
+    use std::io::Read;
+    use std::time::{Duration, Instant};
+
+    let Ok(mut child) = std::process::Command::new(path)
+        .arg("--help")
+        .env_clear()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if !status.success() {
+                    return false;
+                }
+                let Some(stdout) = child.stdout.take() else {
+                    return false;
+                };
+                let mut help = String::new();
+                return stdout.take(32 * 1024).read_to_string(&mut help).is_ok()
+                    && help.split_whitespace().any(|word| word == "--bind-fd");
+            }
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
+    }
 }
 
 fn validate_mode(mode: Mode) -> Result<(), String> {
@@ -826,10 +870,10 @@ fn sandboxed(
     }
     #[cfg(target_os = "linux")]
     {
-        let bwrap = which("bwrap").ok_or_else(|| {
+        let bwrap = descriptor_bwrap().ok_or_else(|| {
             Refusal::new(
                 "denied",
-                "Writing in a folder needs bubblewrap on Linux; install it, or use full access.",
+                "Writing in a folder needs bubblewrap with --bind-fd support on Linux; upgrade it, or use full access.",
             )
         })?;
         let mut command = tokio::process::Command::new(bwrap);
@@ -1333,5 +1377,27 @@ mod tests {
         assert_eq!(shell_quote("ls"), "ls");
         assert_eq!(shell_quote("a b"), "'a b'");
         assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn descriptor_bind_probe_rejects_unsupported_failing_missing_and_hung_builds() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = folder();
+        let binary = root.join("bwrap");
+        assert!(!supports_descriptor_binds(&binary));
+        for (script, expected) in [
+            ("#!/bin/sh\nprintf '%s\\n' '--bind SRC DEST'\n", false),
+            ("#!/bin/sh\nprintf '%s\\n' '--bind-fd FD DEST'\n", true),
+            ("#!/bin/sh\nprintf '%s\\n' '--bind-fd FD DEST'\nexit 1\n", false),
+            ("#!/bin/sh\nexec sleep 5\n", false),
+        ] {
+            std::fs::write(&binary, script).unwrap();
+            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let started = std::time::Instant::now();
+            assert_eq!(supports_descriptor_binds(&binary), expected);
+            assert!(started.elapsed() < std::time::Duration::from_secs(4));
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
