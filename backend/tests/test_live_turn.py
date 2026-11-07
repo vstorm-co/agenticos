@@ -210,6 +210,22 @@ class TestKeepingATurn:
             await live_turn.publish(turn, kind, {})
         assert store.lists.get(turn.key("trace"), []) == []
 
+    async def test_a_parked_question_is_not_broadcast_to_other_conversation_readers(
+        self, store: _Store
+    ) -> None:
+        """Only the run's person may answer; other readers recover its saved
+        waiting step when the turn ends, rather than receiving its private card."""
+        turn = await _begin()
+
+        await live_turn.publish(
+            turn,
+            "user_question_required",
+            {"run_id": str(uuid4()), "questions": [{"tool_call_id": "ask-1", "questions": []}]},
+        )
+
+        assert store.lists.get(turn.key("trace"), []) == []
+        assert store.published == []
+
     async def test_a_browses_pictures_are_announced_and_never_kept(self, store: _Store) -> None:
         """A screenshot a twelfth of a second, kept, filled Redis on one long
         browse; a follower arriving mid-browse just gets the next one."""

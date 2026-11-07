@@ -1593,6 +1593,7 @@ class ConversationService:
         data: ToolCallCreate,
         *,
         parked: bool = False,
+        awaiting_answer: bool = False,
         mcp_connection_id: UUID | None = None,
         presentation_kind: Literal["draft"] | None = None,
     ) -> ToolCall:
@@ -1602,7 +1603,8 @@ class ConversationService:
         reason `MessageCreate` carries no `run_id`: the schema is bindable from
         a request body, and whether a call is awaiting a person is the runner's
         fact, not a caller's claim - as is `mcp_connection_id`, the organization
-        MCP connection that served the call.
+        MCP connection that served the call. `awaiting_answer` distinguishes
+        parked questions from approvals without relying on an exposed tool name.
         """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
@@ -1612,7 +1614,9 @@ class ConversationService:
             tool_name=data.tool_name,
             args=data.args,
             started_at=data.started_at or datetime.now(UTC),
-            status=parked_status(data.tool_name) if parked else "running",
+            status=parked_status(data.tool_name, awaiting_answer=awaiting_answer)
+            if parked
+            else "running",
             mcp_connection_id=mcp_connection_id,
             presentation_kind=presentation_kind,
         )

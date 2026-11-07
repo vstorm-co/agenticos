@@ -25,6 +25,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).
 
+## [1.54.1] - 2026-11-07
+
+### Fixed
+
+- Chat questions are saved before their answer card appears. Switching chats or reopening the conversation restores the unanswered card and answering continues the same run, instead of leaving the agent waiting on a connection with no visible form. Chat answers retain the live question channel so delegates can ask follow-up questions during the continuation.
+
+## [1.54.0] - 2026-11-07
+
+### Added
+
 - Tool search can defer eligible tools from enabled capabilities as well as bound
   MCP servers. Choose either group or both, and keep whole capabilities, MCP
   server namespaces or individual exposed tools visible from the first request.
@@ -20541,7 +20551,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...HEAD
+[1.54.1]: https://github.com/vstorm-co/agenticos/compare/v1.54.0...v1.54.1
+[1.54.0]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...v1.51.0

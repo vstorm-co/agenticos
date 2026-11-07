@@ -361,9 +361,11 @@ class ChatTurn:
     """
 
     questions: tuple[str, ...] = ()
-    """The `ask_user_question` calls this turn parked on, by tool call id - asked
-    of somebody who left before answering (#2064). Their steps are stored waiting,
-    and answering them continues the run."""
+    """The `ask_user_question` calls this turn awaits, by tool call id.
+
+    Their steps are stored waiting before the surface offers the question card,
+    and answering them continues the run, including after a reload (#2064).
+    """
 
     summarized_history: list[dict[str, Any]] | None = None
     """The history a summary reduced this turn to, or `None` if none ran.
