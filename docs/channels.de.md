@@ -1,5 +1,5 @@
 ---
-source_sha: "f895c76f1a38"
+source_sha: "3e73e19e71e6"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -275,6 +275,11 @@ sequenceDiagram
 Das ist das ganze eingehende Vokabular, dazu `context` (was die Seite über den
 Besucher sagt) und `file_ids` (was er angehängt hat, auf einer Seite, die Dateien
 annimmt).
+
+Jeder `message`-Frame zählt zum Nachrichtenlimit des Besuchers, auch wenn er
+leer oder fehlerhaft ist. Ein Frame darf höchstens drei Datei-IDs enthalten;
+längere Listen werden vor dem Parsen abgelehnt. Ungültige IDs in einer begrenzten
+Liste werden verworfen und einmal zusammengefasst ohne ihre Werte protokolliert.
 
 **Es enthält bewusst nicht die drei Felder, die der Frame des Dashboards
 trägt:** den Agent, das Modellprofil und die Umgebung.

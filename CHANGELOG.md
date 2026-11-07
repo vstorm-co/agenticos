@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Public embed messages now spend the visitor allowance before attachment parsing, reject lists above three file IDs before inspecting them, and aggregate invalid IDs into one bounded log entry without their values. This prevents malformed frames from amplifying the newly enabled application logs.
+
 - API, worker, ingestion children and CLI now emit timestamped, redacted application logs to stderr, with `LOG_LEVEL=INFO` by default. SQL queries and HTTP transport chatter stay quiet; Logfire console spans are opt-in with `LOGFIRE_CONSOLE=true` in every environment. (#2771)
 
 ## [1.52.0] - 2026-11-06

@@ -218,7 +218,7 @@ WS_INTERNAL_ERROR = 1011
 _CONTINUITY_KEY = re.compile(r"^[0-9a-f]{32,64}$")
 
 
-def _attached_ids(value: Any) -> list[UUID]:
+def _attached_ids(value: object) -> list[UUID]:
     """The file ids a frame names, dropping anything that is not one.
 
     Dropped rather than refused, for the reason a malformed continuity key is:
@@ -226,14 +226,20 @@ def _attached_ids(value: Any) -> list[UUID]:
     losing the question that came with it. A value that is not a list at all is no
     attachments, which is what every client that sends nothing produces.
     """
-    if not isinstance(value, list):
+    if not isinstance(value, list) or len(value) > MAX_FILES_PER_TURN:
         return []
     ids: list[UUID] = []
+    rejected = 0
     for entry in value:
+        if not isinstance(entry, str) or len(entry) > 36:
+            rejected += 1
+            continue
         try:
-            ids.append(UUID(str(entry)))
+            ids.append(UUID(entry))
         except ValueError:
-            logger.info("embed_file_id_rejected")
+            rejected += 1
+    if rejected:
+        logger.info("embed_file_ids_rejected", extra={"rejected_count": rejected})
     return ids
 
 
@@ -491,6 +497,12 @@ class EmbedSession:
         if frame.get("type") != "message":
             return
 
+        # Invalid and empty messages spend the allowance too: otherwise a public
+        # socket can parse and log arbitrary input without ever reaching the limit.
+        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
+            await self._emit("error", {"message": "You are sending messages too quickly."})
+            return
+
         # Whatever the page said about this visitor, kept for the block below.
         # Every frame carries it rather than a handshake doing so once: a
         # single-page application changes what it knows about somebody without
@@ -500,23 +512,20 @@ class EmbedSession:
         if isinstance(supplied, dict):
             self._supplied = supplied
 
-        attached = _attached_ids(frame.get("file_ids"))
-        if len(attached) > MAX_FILES_PER_TURN:
+        file_ids = frame.get("file_ids")
+        if isinstance(file_ids, list) and len(file_ids) > MAX_FILES_PER_TURN:
             await self._emit(
                 "error",
                 {"message": f"You can attach up to {MAX_FILES_PER_TURN} files to one message."},
             )
             return
+        attached = _attached_ids(file_ids)
 
         text = str(frame.get("text") or "").strip()
         if not text and not attached:
             return
         if len(text) > MAX_MESSAGE_CHARS:
             await self._emit("error", {"message": "That message is too long. Try a shorter one."})
-            return
-
-        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
-            await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 
         unanswered = await self._turn_frames(text, attached)
