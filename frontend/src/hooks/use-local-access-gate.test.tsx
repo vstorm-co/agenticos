@@ -340,6 +340,17 @@ describe("useComputerAccessOnUse", () => {
     expect(useWorkOnStore.getState().agentTargetFor(local.id)).toEqual(whole);
   });
 
+  it("discards a native answer after the organization changes in a draft chat", async () => {
+    useConversationStore.setState({ currentConversationId: null });
+    const { respond, view, props } = onUse(local);
+    view.rerender({ ...props, pending: { reason: "Read project" } });
+    await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+    useOrgStore.setState({ activeOrgId: "other" });
+    await act(async () => useLocalAccessStore.getState().answer(whole));
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
+    expect(useWorkOnStore.getState().agentTargetFor(local.id)).toBeNull();
+  });
+
   it("does not remember a legacy whole-computer choice for the agent", async () => {
     const { respond, view, props } = onUse(local);
     view.rerender({ ...props, pending: { reason: "x" } });

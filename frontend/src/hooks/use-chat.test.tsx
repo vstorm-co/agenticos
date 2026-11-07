@@ -6912,3 +6912,26 @@ it("continues with the folder granted during the requesting turn", async () => {
     useWorkOnStore.setState({ byConversation: {}, draft: null });
   }
 });
+
+it("pins computer consent and continuation to the requesting agent across picker changes", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useAgentSelectionStore.getState().select("agent-1");
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Read files"));
+  receive("model_request_start", {});
+  act(() => useAgentSelectionStore.getState().select("agent-2"));
+  receive("computer_access", { reason: "Read project", agent_id: "agent-1" });
+  expect(result.current.pendingComputerAccess?.agent_id).toBe("agent-1");
+  act(() => result.current.sendComputerAccessResponse(true));
+  receive("complete", {});
+  receive("session_ready", {});
+  await waitFor(() =>
+    expect(sent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Access granted - please continue.",
+        agent_id: "agent-1",
+      }),
+    ),
+  );
+  expect(useAgentSelectionStore.getState().selectedAgentId).toBe("agent-2");
+});

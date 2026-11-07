@@ -17,7 +17,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.services.agent_environment import AgentEnvironmentService
 
@@ -315,7 +315,9 @@ class TestPromoteAndRename:
 
         from app.services.agent_registry import AgentRegistryService
 
-        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset())
+        ctx = replace(
+            _ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.PERSONAL_CONSENT})
+        )
         agent = _agent()
         with patch("app.services.agent_registry.current_impersonator", return_value=None):
             await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)

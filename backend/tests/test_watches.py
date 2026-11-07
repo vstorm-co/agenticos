@@ -29,7 +29,7 @@ from app.core.exceptions import (
     NotFoundError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.watch import Watch, WatchAttemptStatus
 from app.main import app
@@ -300,6 +300,11 @@ class TestPersonalConsent:
         "ctx",
         [
             replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=True),
+            replace(
+                _ctx(),
+                api_key_id=uuid.uuid4(),
+                key_scopes=frozenset({Perm.AGENTS_RUN, Perm.RUNS_VIEW}),
+            ),
             replace(_ctx(), key_scopes=frozenset()),
             replace(_ctx(), subject_is_publisher_fallback=True),
             replace(_ctx(), fired_as_creator="schedule"),
@@ -313,6 +318,7 @@ class TestPersonalConsent:
         ],
         ids=[
             "run-credential",
+            "ordinary-key",
             "key-scopes",
             "publisher",
             "schedule",
@@ -350,7 +356,9 @@ class TestPersonalConsent:
                 key_internal=True,
                 source_conversation_id=uuid.uuid4(),
             ),
-            "own-key": replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset()),
+            "own-key": replace(
+                _ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.PERSONAL_CONSENT})
+            ),
         }[through]
         WatchService._require_personal_consent(ctx)
 

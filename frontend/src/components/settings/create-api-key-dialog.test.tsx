@@ -12,7 +12,7 @@ vi.mock("@/components/public-config/public-config-provider", () => ({
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 
 const CATALOG: ApiKeyScopeCatalog = {
-  scopes: ["agents:view", "collections:view", "collections:edit"],
+  scopes: ["agents:view", "collections:view", "collections:edit", "personal:consent"],
   presets: [
     { id: "read_only", scopes: ["agents:view", "collections:view"] },
     { id: "knowledge_ingest", scopes: ["collections:view", "collections:edit"] },
@@ -118,4 +118,16 @@ describe("CreateApiKeyDialog", () => {
 
     expect(screen.getAllByRole("checkbox")).toHaveLength(1);
   });
+});
+
+it("requires explicit Custom opt-in for personal consent", async () => {
+  const { onCreate } = open();
+  expect(screen.getByText(/Personal consent is excluded from presets/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Name"), "Personal routines");
+  await pick("Access", "Custom");
+  const consent = screen.getByRole("checkbox", { name: "personal:consent" });
+  expect(consent).not.toBeChecked();
+  await userEvent.click(consent);
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ scopes: ["personal:consent"] }));
 });

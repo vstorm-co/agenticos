@@ -77,4 +77,5 @@ export const Perm = {
   tablesCreate: "tables:create",
   apiKeysCreate: "api_keys:create",
   apiKeysManage: "api_keys:manage",
+  personalConsent: "personal:consent",
 } as const satisfies Record<string, Permission>;

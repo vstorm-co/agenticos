@@ -10754,7 +10754,8 @@
     "revoked": "Schlüssel widerrufen",
     "couldNotLoad": "Ihre API-Schlüssel konnten nicht geladen werden",
     "emptyTitle": "Noch keine API-Schlüssel",
-    "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen."
+    "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen.",
+    "personalConsentWhy": "Persönliche Zustimmung ist nicht in den Voreinstellungen enthalten. Damit dieser Schlüssel oder diese App Routinen und Watches mit Ihren persönlichen Verbindungen und Daten genehmigen darf, wählen Sie personal:consent unter Benutzerdefiniert."
   },
   "mcpOauth": {
     "title": "{client} möchte in Ihrem Namen handeln",

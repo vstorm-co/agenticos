@@ -23,6 +23,7 @@ from app.schemas.local_target import LocalTarget
 from app.services.routine_actions import activation_intent
 from app.services.routine_devices import (
     RoutineActivationObsolete,
+    RoutineDeviceOffline,
     RoutineLocalConsentRequired,
     admit_activation,
 )
@@ -212,12 +213,12 @@ async def test_other_tenant_cannot_admit_or_consume_the_wait(db: AsyncSession) -
     assert (await repo.get(db, activation)).status == "waiting"
 
 
-async def test_revoked_device_never_uses_cached_presence_to_admit(db: AsyncSession) -> None:
+async def test_ended_device_waits_without_using_cached_presence_to_admit(db: AsyncSession) -> None:
     w = await world(db)
     activation = await park(db, w)
     w.device.is_active = False
     await db.flush()
-    with pytest.raises(RoutineLocalConsentRequired):
+    with pytest.raises(RoutineDeviceOffline):
         await admit_activation(db, replace(w.ctx, routine_activation_id=activation))
     assert (await repo.get(db, activation)).status == "waiting"
 
@@ -547,7 +548,7 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
     from app.services import agent_trigger as module
     from app.services.agent_runner import AgentRunnerService
     from app.services.agent_trigger import AgentTriggerService
-    from app.services.routine_devices import RoutineDeviceOffline, RoutineLocalConsentRequired
+    from app.services.routine_devices import RoutineDeviceOffline
 
     w = await world(db)
     activation = await park(db, w)
@@ -750,9 +751,11 @@ async def test_rebinding_preserves_matching_event_payloads_and_refuses_stale_aut
 
 
 @pytest.mark.security
+@pytest.mark.parametrize("connected", [False, True])
 async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
+    connected: bool,
 ) -> None:
     from unittest.mock import AsyncMock
 
@@ -776,13 +779,18 @@ async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
         platform="macos",
         capabilities=Capabilities(routine_grants=True),
     )
-    monkeypatch.setattr(module.device_hub, "connected", AsyncMock(return_value=[device]))
+    monkeypatch.setattr(
+        module.device_hub, "connected", AsyncMock(return_value=[device] if connected else [])
+    )
     queue = AsyncMock(return_value=uuid4())
     monkeypatch.setattr(service, "queue_fire", queue)
-    assert await service.resume_device_waits() == 1
-    queue.assert_awaited_once_with(
-        w.trigger.id, organization_id=w.ctx.organization_id, activation_id=activation
-    )
+    assert await service.resume_device_waits() == int(connected)
+    if connected:
+        queue.assert_awaited_once_with(
+            w.trigger.id, organization_id=w.ctx.organization_id, activation_id=activation
+        )
+    else:
+        queue.assert_not_awaited()
     saved = await repo.get(db, activation)
     assert saved is not None
     assert saved.status == "waiting" and saved.event_context == "event waiting for the new session"

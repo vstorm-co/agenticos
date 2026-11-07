@@ -1,5 +1,5 @@
 ---
-source_sha: "b1ff2ffb62e7"
+source_sha: "6528e1399b97"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1177,6 +1177,8 @@ Połączenie działa jako członek, który wydał klucz, w granicach uprawnień 
 Każde narzędzie to wywołanie [publicznego API](api.md) tym kluczem, więc jest
 odrzucane, limitowane i audytowane dokładnie tak jak to samo żądanie po HTTP;
 odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
 | Narzędzie | Wymaga |
 |---|---|

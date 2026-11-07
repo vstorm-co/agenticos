@@ -2106,17 +2106,8 @@ class AgentTriggerService:
                 for device in await device_hub.connected(wait.user_id)
             )
             if session_ended and not can_rebind:
-                await self._disable(trigger, reason="local_device_disconnected")
-                await NotificationService(self.db).routine_blocked(
-                    organization_id=trigger.organization_id,
-                    owner_user_id=wait.user_id,
-                    routine_id=trigger.id,
-                    routine_kind="trigger",
-                    reason="run",
-                    name=trigger.name or agent.name,
-                    detail="Its device session was disconnected. Link the computer and review its folder permission again.",
-                    observed_at=datetime.now(UTC),
-                )
+                # A missing session is not a revoked native grant. A reconnecting
+                # desktop may still hold the person's all-routines consent.
                 continue
             if wait.last_job_id is not None:
                 job = await background_job_repo.get(self.db, wait.last_job_id)

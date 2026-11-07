@@ -698,7 +698,9 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
     from app.db.models.watch import Watch
     from app.services.watches import WatchService
 
-    key, organization = await _owner_key(db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW)
+    key, organization = await _owner_key(
+        db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW, Perm.PERSONAL_CONSENT
+    )
     organization.proactive_watches_enabled = True
     agent = Agent(
         organization_id=organization.id,
@@ -729,6 +731,13 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
         ctx, agent_id=agent.id, conversation_id=conversation.id
     )
     assert private_key is not None
+    ordinary_key = await ApiKeyService(db).create(
+        ctx,
+        ApiKeyCreate(
+            name="ordinary",
+            scopes=[Perm.AGENTS_RUN.value, Perm.AGENTS_VIEW.value, Perm.RUNS_VIEW.value],
+        ),
+    )
     await db.commit()
     args = {
         "agent_id": str(agent.id),
@@ -750,6 +759,9 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
             )
         ),
     ):
+        async with _connected(ordinary_key.key) as session:
+            refused = await session.call_tool("create_watch", args)
+        assert refused.is_error
         async with _connected(key) as session:
             own_key_watch = await session.call_tool("create_watch", {**args, "title": "My key"})
         assert not own_key_watch.is_error, own_key_watch

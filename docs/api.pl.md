@@ -1,5 +1,5 @@
 ---
-source_sha: "051c0d1f170f"
+source_sha: "d16e0fc14054"
 ---
 
 # API HTTP { #the-http-api }
@@ -60,6 +60,8 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
 **Pracę, która działa jako ty, ustawiasz też kluczem, który sam wydałeś.** Klucz,
 który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworzyć i

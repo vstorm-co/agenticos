@@ -235,7 +235,17 @@ class TestRequireDependency:
     ("changes", "in_person"),
     [
         ({}, True),
-        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset()}, True),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset()}, False),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset({Perm.PERSONAL_CONSENT})}, True),
+        ({"api_key_id": uuid.uuid4()}, False),
+        (
+            {
+                "api_key_id": uuid.uuid4(),
+                "key_scopes": frozenset({Perm.PERSONAL_CONSENT}),
+                "role": "viewer",
+            },
+            False,
+        ),
         ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset(), "key_internal": True}, False),
         (
             {
@@ -253,7 +263,10 @@ class TestRequireDependency:
     ],
     ids=[
         "session",
-        "own-key",
+        "ordinary-key",
+        "consent-key",
+        "missing-scopes",
+        "narrowed-role",
         "run-credential",
         "private-chat",
         "resumed-scopes",
@@ -264,6 +277,6 @@ class TestRequireDependency:
     ],
 )
 def test_acts_in_person_is_the_person_or_a_key_they_issued(changes, in_person) -> None:
-    """A key or MCP token the person issued is them; an agent's credential is not."""
+    """Standing consent needs its explicit key scope; a private chat keeps its live authority."""
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
     assert dataclasses.replace(ctx, **changes).acts_in_person is in_person

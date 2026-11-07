@@ -1707,3 +1707,31 @@ describe("opening a saved chat", () => {
     expect(view.container.querySelector(".chat-empty-state")).toBeNull();
   });
 });
+
+it("resolves an access request against the requesting agent even after the picker changes", async () => {
+  const base = get.getMockImplementation()!;
+  get.mockImplementation((url: string) =>
+    url === "/agents"
+      ? Promise.resolve({
+          items: [
+            {
+              id: "asking-agent",
+              slug: "asking-agent",
+              name: "Asking agent",
+              status: "published",
+              local_workspace: true,
+            },
+            { id: "other-agent", slug: "other-agent", name: "Other agent", status: "published" },
+          ],
+          total: 2,
+        })
+      : base(url),
+  );
+  useAgentSelectionStore.setState({ selectedAgentId: "other-agent" });
+  mount();
+  await waitFor(() => expect(get).toHaveBeenCalledWith("/agents", expect.anything()));
+  receive("computer_access", { reason: "Read files", agent_id: "asking-agent" });
+  await waitFor(() =>
+    expect(socket.send).toHaveBeenCalledWith({ type: "computer_access_response", granted: false }),
+  );
+});

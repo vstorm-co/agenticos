@@ -54,7 +54,11 @@ async def test_conversation_key_scopes_preserve_session_access(operation: str, c
     )
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
     app.dependency_overrides[deps.get_conversation_service] = lambda: service
-    app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+
+    def database_session() -> MagicMock:
+        return MagicMock()
+
+    app.dependency_overrides[deps.get_db_session] = database_session
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             path = f"{settings.API_V1_STR}/conversations"

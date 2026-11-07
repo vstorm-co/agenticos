@@ -627,13 +627,21 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     ),
     (
         "update_proactivity_settings",
-        {"watch_min_minutes": 20, "briefing_hour": 10, "monthly_limit_usd": "30"},
+        {
+            "watch_min_minutes": 20,
+            "briefing_hour": 10,
+            "monthly_limit_usd": "30",
+            "briefing_enabled": True,
+            "briefing_days": [0, 2],
+        },
         (
             "PATCH",
             f"/orgs/{ORG}",
             {
                 "json": {
                     "proactive_watch_min_minutes": 20,
+                    "proactive_enabled": True,
+                    "proactive_days": [0, 2],
                     "proactive_hour": 10,
                     "proactive_timing": "fixed",
                     "proactive_limit_usd": "30",

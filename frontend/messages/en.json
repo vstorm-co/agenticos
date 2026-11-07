@@ -10875,7 +10875,8 @@
     "revoked": "Key revoked",
     "couldNotLoad": "Could not load your API keys",
     "emptyTitle": "No API keys yet",
-    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code."
+    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code.",
+    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom."
   },
   "mcpOauth": {
     "title": "{client} wants to act as you",

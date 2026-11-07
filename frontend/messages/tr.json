@@ -9992,7 +9992,8 @@
     "revoked": "Anahtar iptal edildi",
     "couldNotLoad": "API anahtarlarınız yüklenemedi",
     "emptyTitle": "Henüz API anahtarı yok",
-    "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun."
+    "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun.",
+    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin."
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",

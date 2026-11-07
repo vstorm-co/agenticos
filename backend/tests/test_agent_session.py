@@ -1881,6 +1881,36 @@ class TestAskingForTheComputer:
         assert await waiting is True
         assert session._computer_future is None
 
+    async def test_the_prompt_identifies_the_requesting_agent(self):
+        session = _session()
+        session._turn_agent_id = uuid4()
+        asked = _next_frame(session)
+        waiting = asyncio.create_task(session._request_computer_access(self._ASK))
+        await _wait(asked)
+        assert _sent_events(session)[0][1]["agent_id"] == str(session._turn_agent_id)
+        await session.handle_frame({"type": "computer_access_response", "granted": False})
+        assert await waiting is False
+
+    @pytest.mark.parametrize("state", ["closed", "detached", "send_failed"])
+    async def test_a_departed_client_cannot_leave_a_prompt_waiting(self, state: str):
+        session = _session()
+        session._closed = state == "closed"
+        session._question_detached = state == "detached"
+        with patch.object(session, "_emit", new=AsyncMock(return_value=False)) as emit:
+            assert await session._request_computer_access(self._ASK) is False
+        assert session._computer_future is None
+        assert emit.await_count == int(state == "send_failed")
+
+    @pytest.mark.security
+    async def test_a_revoked_session_cannot_grant_computer_access(self):
+        session = _session()
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        session._computer_future = future
+        with patch.object(session, "_reauthorize", new=AsyncMock(return_value=False)):
+            await session.handle_frame({"type": "computer_access_response", "granted": True})
+        assert not future.done()
+        future.cancel()
+
     @pytest.mark.parametrize("answer", [False, None, "yes"])
     async def test_anything_but_a_plain_yes_is_a_decline(self, answer: object):
         session = _session()

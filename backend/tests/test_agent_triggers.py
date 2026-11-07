@@ -1371,7 +1371,8 @@ class TestFiring:
         assert audit.call_args.kwargs["details"]["reason"] == "creator_cannot_run_agent"
         runner_cls.assert_not_called()
 
-    async def test_a_trigger_on_a_non_runnable_agent_is_disabled_not_retried(self):
+    @pytest.mark.parametrize("deleted", [False, True])
+    async def test_a_trigger_on_a_non_runnable_agent_is_disabled_not_retried(self, deleted: bool):
         """A draft, archived or version-withdrawn agent makes `execute` raise
         `BadRequestError` from `get_runnable_spec`. Left active, every cadence would
         dispatch another run that fails there; it disables instead, the same verdict
@@ -1391,10 +1392,21 @@ class TestFiring:
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             runner = runner_cls.return_value
-            runner.execute = AsyncMock(side_effect=BadRequestError(message="not runnable"))
+
+            async def refuse(*args: object, **kwargs: object) -> None:
+                if deleted:
+                    repo.get_by_id.return_value = None
+                raise BadRequestError(message="not runnable")
+
+            runner.execute = AsyncMock(side_effect=refuse)
             with patch("app.services.agent_trigger.NotificationService") as notices:
                 notices.return_value.routine_blocked = AsyncMock()
                 await service.fire(trigger.id)
+        if deleted:
+            audit.assert_not_awaited()
+            notices.return_value.routine_blocked.assert_not_awaited()
+            service.db.rollback.assert_awaited()
+            return
         assert trigger.is_active is False
         assert audit.call_args.kwargs["details"]["reason"] == "agent_not_runnable"
         # The run preparation flushed is rolled back rather than left `running`, and
@@ -4150,7 +4162,7 @@ class TestRunningAsTheCreator:
         assert repo.create.call_args.kwargs["overlap"] == stored
 
     @pytest.mark.security
-    @pytest.mark.parametrize("through", ["run_credential", "impersonation"])
+    @pytest.mark.parametrize("through", ["run_credential", "ordinary_key", "impersonation"])
     async def test_nobody_turns_it_on_for_someone_through_an_agent_or_their_session(self, through):
         """An agent's run credential outside the person's private chat may be following
         text nobody vetted, and an administrator acting as somebody binds no identity
@@ -4162,9 +4174,10 @@ class TestRunningAsTheCreator:
                 organization_id=_ORG,
                 role=OrgRoleName.OWNER,
                 api_key_id=uuid.uuid4(),
-                key_internal=True,
+                key_internal=through == "run_credential",
+                key_scopes=frozenset({Perm.AGENTS_RUN, Perm.AGENTS_VIEW, Perm.RUNS_VIEW}),
             )
-            if through == "run_credential"
+            if through in {"run_credential", "ordinary_key"}
             else _ctx()
         )
         acting_admin = uuid.uuid4() if through == "impersonation" else None
@@ -4181,7 +4194,7 @@ class TestRunningAsTheCreator:
 
     @pytest.mark.security
     async def test_the_person_turns_it_on_through_a_key_they_issued(self):
-        """A key or MCP token the person issued is the person acting, as their session is."""
+        """A key needs explicit personal consent in addition to its ordinary run scopes."""
         agent = _agent()
         service = _service(agent)
         ctx = AuthContext(
@@ -4189,7 +4202,7 @@ class TestRunningAsTheCreator:
             organization_id=_ORG,
             role=OrgRoleName.OWNER,
             api_key_id=uuid.uuid4(),
-            key_scopes=frozenset({Perm.AGENTS_RUN, Perm.AGENTS_VIEW}),
+            key_scopes=frozenset({Perm.AGENTS_RUN, Perm.AGENTS_VIEW, Perm.PERSONAL_CONSENT}),
         )
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,

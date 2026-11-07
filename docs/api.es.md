@@ -1,5 +1,5 @@
 ---
-source_sha: "051c0d1f170f"
+source_sha: "d16e0fc14054"
 ---
 
 # La API HTTP { #the-http-api }
@@ -62,6 +62,8 @@ búsqueda en sus conversaciones anteriores, ni los sitios en los que el navegado
 guarda sus inicios de sesión, ni el espacio de trabajo del sandbox ligado al
 usuario. Quien tiene la clave es un script, no esa persona, así que el run
 responde como en un widget público.
+
+Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
 
 **El trabajo que actúa como tú también lo configuras con una clave que emitiste
 tú.** Una clave que creaste, o el token de un cliente MCP que autorizaste, puede

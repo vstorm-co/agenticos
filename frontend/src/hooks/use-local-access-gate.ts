@@ -137,10 +137,15 @@ export async function askForComputer(
   agent: Agent,
   conversationId: string | null,
 ): Promise<LocalTarget | null> {
+  const owner = accountScope();
   const target = await useLocalAccessStore
     .getState()
     .request({ id: agent.id, name: agent.name, coding: !!agent.local_coding_agent });
-  if (target === null || useConversationStore.getState().currentConversationId !== conversationId)
+  if (
+    target === null ||
+    owner !== accountScope() ||
+    useConversationStore.getState().currentConversationId !== conversationId
+  )
     return null;
   const store = useWorkOnStore.getState();
   if (!target.computer_grant || target.computer_grant_agent === agent.id)

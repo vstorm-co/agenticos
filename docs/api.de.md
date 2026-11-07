@@ -1,5 +1,5 @@
 ---
-source_sha: "051c0d1f170f"
+source_sha: "d16e0fc14054"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -65,6 +65,8 @@ Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihr
 Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
 Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
 auf einem öffentlichen Widget.
+
+Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
 
 **Arbeit, die als Sie handelt, richten Sie auch mit einem selbst ausgestellten
 Schlüssel ein.** Ein Schlüssel, den Sie erstellt haben, oder das Token eines

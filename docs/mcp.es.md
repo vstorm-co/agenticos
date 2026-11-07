@@ -1,5 +1,5 @@
 ---
-source_sha: "b1ff2ffb62e7"
+source_sha: "6528e1399b97"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1212,6 +1212,8 @@ la clave. Cada herramienta es una llamada a la [API pública](api.md) con esa
 clave, así que se rechaza, se limita y se audita exactamente igual que la misma
 petición por HTTP; un rechazo vuelve como error de la herramienta nombrando el
 permiso que faltaba.
+
+Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
 
 | Herramienta | Necesita |
 |---|---|

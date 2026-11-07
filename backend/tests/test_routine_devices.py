@@ -131,10 +131,10 @@ async def test_ready_binds_all_identity_dimensions_without_model_or_filesystem_e
     }
 
 
-async def test_revocation_in_postgres_wins_over_cached_online_presence(admission) -> None:
+async def test_ended_session_waits_without_using_cached_online_presence(admission) -> None:
     local, ctx, session, presence, call, _ = admission
     session.return_value = None
-    with pytest.raises(module.RoutineLocalConsentRequired):
+    with pytest.raises(module.RoutineDeviceOffline):
         await module.ready(AsyncMock(), ctx, local)
     presence.assert_not_awaited()
     call.assert_not_awaited()

@@ -1,5 +1,5 @@
 ---
-source_sha: "b1ff2ffb62e7"
+source_sha: "6528e1399b97"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1231,6 +1231,8 @@ innerhalb der Berechtigungen des Schlüssels. Jedes Tool ist ein Aufruf der
 [öffentlichen API](api.md) mit diesem Schlüssel und wird daher genau so abgelehnt,
 begrenzt und auditiert wie dieselbe Anfrage über HTTP; eine Ablehnung kommt als
 Tool-Fehler zurück, der die fehlende Berechtigung nennt.
+
+Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
 
 | Tool | Braucht |
 |---|---|

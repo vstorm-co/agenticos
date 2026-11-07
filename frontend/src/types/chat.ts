@@ -25,6 +25,8 @@ export interface ChatMessageFile {
  */
 export interface QueuedMessage {
   id: string;
+  /** A continuation keeps its requesting agent; undefined follows the current picker. */
+  agentId?: string | null;
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
@@ -865,6 +867,8 @@ export interface PersonalServiceGap {
  */
 export interface ComputerAccessRequest {
   reason: string;
+  /** The requesting turn's agent, including when the picker changes while it runs. */
+  agent_id?: string | null;
 }
 
 export interface ConnectionRequest {

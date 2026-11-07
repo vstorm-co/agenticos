@@ -497,7 +497,10 @@ export function ChatContainer({
   useComputerAccessOnUse({
     pending: pendingComputerAccess,
     respond: sendComputerAccessResponse,
-    agent: selectedAgent,
+    agent:
+      pendingComputerAccess?.agent_id === undefined
+        ? selectedAgent
+        : agents.find((agent) => agent.id === pendingComputerAccess.agent_id),
   });
 
   // A message addressed to a workflow goes to it instead of the agent: the

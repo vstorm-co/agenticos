@@ -69,9 +69,7 @@ async def admit_activation(db: AsyncSession, ctx: AuthContext) -> None:
         )
         is None
     ):
-        raise RoutineLocalConsentRequired(
-            message="This routine's device was disconnected; review it again"
-        )
+        raise RoutineDeviceOffline(message="Waiting for this routine's signed-in computer")
     if not await device_wait_repo.settle(db, activation_id=wait.id, status="started"):
         raise RoutineActivationObsolete(message="This device activation already settled")
 
@@ -109,8 +107,8 @@ async def ready(db: AsyncSession, ctx: AuthContext, local: LocalTarget) -> devic
         )
         is None
     ):
-        raise RoutineLocalConsentRequired(
-            message="This routine's device session was disconnected; link and approve it again",
+        raise RoutineDeviceOffline(
+            message="Waiting for a signed-in computer to confirm this routine's folder permission",
             details={"routine_id": scope.routine_id},
         )
     device = await device_hub.wait_for(scope.user_id, scope.device_id, timeout=0)

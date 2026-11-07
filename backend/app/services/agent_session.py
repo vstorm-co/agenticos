@@ -1432,10 +1432,16 @@ class AgentSession:
         that goes away answers false.
         """
         async with self._ask_lock:
+            if self._closed or self._question_detached:
+                return False
             waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
             self._computer_future = waiting
             try:
-                await self._emit("computer_access", {"reason": request.reason})
+                payload = {"reason": request.reason}
+                if self._turn_agent_id is not None:
+                    payload["agent_id"] = str(self._turn_agent_id)
+                if not await self._emit("computer_access", payload):
+                    return False
                 return await waiting
             finally:
                 self._computer_future = None
