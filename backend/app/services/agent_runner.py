@@ -461,14 +461,31 @@ def _computer_requirements(spec: AgentSpec) -> tuple[bool, bool]:
 
 
 def _defer_computer_access(
-    spec: AgentSpec, *, callback: ComputerAccessCallback | None, device_available: bool
+    spec: AgentSpec,
+    *,
+    callback: ComputerAccessCallback | None,
+    device_available: bool,
+    coding_available: bool,
 ) -> tuple[AgentSpec, RequestComputerOnUse | None]:
     local_workspace, local_coding = _computer_requirements(spec)
-    if callback is None or device_available or not (local_workspace or local_coding):
+    missing_workspace = local_workspace and not device_available
+    missing_coding = local_coding and not coding_available
+    if callback is None or not (missing_workspace or missing_coding):
         return spec, None
     return (
-        _without_computer_tools(spec, sandbox_missing=local_workspace),
-        RequestComputerOnUse(request_access=callback, coding=local_coding),
+        _without_computer_tools(spec, sandbox_missing=missing_workspace),
+        RequestComputerOnUse(request_access=callback, coding=missing_coding),
+    )
+
+
+def _coding_available(resources: Mapping[str, object]) -> bool:
+    from app.services.device_hub import DeviceWorkspace
+
+    workspace = resources.get(WORKSPACE_RESOURCE)
+    return (
+        isinstance(workspace, Workspace)
+        and isinstance(workspace.backend, DeviceWorkspace)
+        and workspace.backend.local_coding_allowed
     )
 
 
@@ -2828,6 +2845,7 @@ def _delegate_builder(
             delegation.render_variables(spec),
             callback=delegation.request_computer_access,
             device_available=bool(delegation.computer_resources),
+            coding_available=_coding_available(delegation.computer_resources),
         )
         own_resources = dict(resources)
         if any(_computer_requirements(spec)):
@@ -4196,7 +4214,10 @@ class AgentRunnerService:
         )
         spec, computer_on_use = _defer_computer_access(
             spec,
-            callback=request_computer_access if local is None else None,
+            callback=request_computer_access,
+            coding_available=_coding_available(
+                {WORKSPACE_RESOURCE: workspace.workspace} if workspace is not None else {}
+            ),
             device_available=bool(
                 _computer_resources({WORKSPACE_RESOURCE: workspace.workspace})
                 if workspace is not None

@@ -6935,3 +6935,28 @@ it("pins computer consent and continuation to the requesting agent across picker
   );
   expect(useAgentSelectionStore.getState().selectedAgentId).toBe("agent-2");
 });
+
+it("keeps the first granted computer continuation when a later delegate declines", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useAgentSelectionStore.getState().select("agent-1");
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Delegate local work"));
+  receive("model_request_start", {});
+  receive("computer_access", { reason: "First delegate", agent_id: "agent-1" });
+  act(() => result.current.sendComputerAccessResponse(true));
+  receive("computer_access", { reason: "Second delegate", agent_id: "agent-1" });
+  act(() => result.current.sendComputerAccessResponse(false));
+  receive("complete", {});
+  receive("session_ready", {});
+  await waitFor(() =>
+    expect(sent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Access granted - please continue.",
+        agent_id: "agent-1",
+      }),
+    ),
+  );
+  expect(
+    sent.mock.calls.filter(([frame]) => frame.message === "Access granted - please continue."),
+  ).toHaveLength(1);
+});

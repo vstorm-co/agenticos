@@ -2867,9 +2867,11 @@ export function useChat(options: UseChatOptions = {}) {
       setPendingComputerAccess(null);
       computerRequestRef.current = null;
       awaitingComputerRef.current = false;
-      continueAfterComputerRef.current = granted
-        ? { agentId: pendingComputerAccess?.agent_id ?? turnAgentIdRef.current }
-        : null;
+      if (granted && continueAfterComputerRef.current === null) {
+        continueAfterComputerRef.current = {
+          agentId: pendingComputerAccess?.agent_id ?? turnAgentIdRef.current,
+        };
+      }
       sendMessage({ type: "computer_access_response", granted });
     },
     [isConnected, sendMessage, pendingComputerAccess],

@@ -64,6 +64,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.schemas.local_target import LocalTarget
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID, AgentRegistryService
 from app.services.agent_runner import (
     AdmittedAs,
@@ -2508,7 +2509,9 @@ async def test_nested_local_delegates_use_the_approved_root_device_not_the_cloud
         ),
     )
     device = MagicMock(spec=Workspace)
-    device.backend = MagicMock(spec=DeviceWorkspace)
+    device.backend = DeviceWorkspace(
+        uuid.uuid4(), uuid.uuid4(), LocalTarget(folder="/approved", mode="full_access")
+    )
     prepared = await _prepare(
         _delegating(
             subagents=[SubagentRef(agent_id=middle_id, agent_version_id=middle.id)], max_depth=2
@@ -2525,3 +2528,37 @@ async def test_nested_local_delegates_use_the_approved_root_device_not_the_cloud
     assert not any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
     nested = middle_built["resources"][SUBAGENT_RUNTIME_RESOURCE]
     assert nested.subagents[0].workspace is device
+
+
+@pytest.mark.parametrize("mode", ["read_only", "workspace_write"])
+async def test_a_coding_delegate_can_upgrade_an_existing_restricted_folder(mode):
+    child_id = uuid.uuid4()
+    child = AgentSpec(
+        name="Coder",
+        instructions="Work locally",
+        capabilities=[
+            CapabilityBindingSpec(id="coding_agent", config={"runs_on": "this_computer"})
+        ],
+    )
+    version = _version(child_id, child)
+    device = MagicMock(spec=Workspace)
+    device.backend = DeviceWorkspace(
+        uuid.uuid4(), uuid.uuid4(), LocalTarget(folder="/approved", mode=mode)
+    )
+    consent = AsyncMock(return_value=True)
+    prepared = await _prepare(
+        _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)]),
+        versions={version.id: version},
+        workspace=device,
+        request_computer_access=consent,
+    )
+    built = prepared.built("coder")
+    assert not built["spec"].capabilities
+    [capability] = [
+        cap for cap in built["extra_capabilities"] if isinstance(cap, RequestComputerOnUse)
+    ]
+    await capability._request(MagicMock(), "Run the coding delegate")
+    consent.assert_awaited_once_with(
+        ComputerAccessRequest(reason="Run the coding delegate", coding=True)
+    )
+    assert prepared.runtime.subagents[0].workspace is device
