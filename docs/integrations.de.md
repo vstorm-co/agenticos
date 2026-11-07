@@ -1,5 +1,5 @@
 ---
-source_sha: "8f017c44c86c"
+source_sha: "1e8100e20e65"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -39,6 +39,8 @@ Vor dem Speichern eines Slack-Triggers, Watches oder einer Wissensquelle prüft 
 Google: Gmail (Suche, Lesen, Labels, Entwurf/Versand), Calendar (Termine und Verfügbarkeit), Drive (Suche, Metadaten, Lesen, Upload und Kopien), Docs, Sheets und Slides (Lesen/Erstellen/Ändern). Sheets bietet Bereiche, angehängte Zeilen und Zelländerungen.
 
 Microsoft: Outlook-Mail, Calendar, OneDrive/SharePoint-Dateien, Excel, Word-Dokumente sowie Teams-Chats und -Kanäle. Slack bietet Suche, eigene Erwähnungen, Verlauf/Threads, Kanäle/Benutzer, Nachschlagen, Beiträge/Antworten, DMs und Reaktionen. IMAP liest und sucht, ohne Nachrichten als gelesen zu markieren.
+
+Verbundene Drive-, SharePoint- und Slack-Leser beziehen vor jeder Provideranfrage das Token des autorisierten Kontos erneut. Lange Synchronisierungen können OAuth dadurch erneuern, ohne Refresh-Secrets in der Connector-Konfiguration zu speichern. Der Entzug der Eingabekontofreigabe stoppt auch natives Trigger-Polling vor dem Tokenzugriff. Microsoft-Dateitrigger erkennen eigene Änderungen von Anwendungskonten anhand des konfigurierten Benutzers und der Anwendungs-ID; der standardmäßige Eigenänderungsfilter unterdrückt sie.
 
 **personal** wählt das Konto der aktuellen Person nach exaktem Namen, Label oder Adresse. Ein leerer Name funktioniert nur bei genau einem Treffer. Persönliche Werkzeuge benötigen einen privaten Chat und aktive Organisationsmitgliedschaft. Für gemeinsame Automatisierung **organization** und Verbindungs-ID wählen. Ein Agent leiht kein Konto eines anderen Mitglieds aus.
 

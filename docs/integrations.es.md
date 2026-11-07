@@ -1,5 +1,5 @@
 ---
-source_sha: "8f017c44c86c"
+source_sha: "1e8100e20e65"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -39,6 +39,8 @@ Antes de guardar un trigger, watch o fuente de conocimiento Slack, AgenticOS com
 Google: Gmail (búsqueda, lectura, etiquetas, borradores/envío), Calendar (eventos y disponibilidad), Drive (búsqueda, metadatos, lectura, subida y copia), Docs, Sheets y Slides (lectura/creación/edición). Sheets incluye rangos, añadir filas y actualizar celdas.
 
 Microsoft: correo Outlook, Calendar, archivos OneDrive/SharePoint, Excel, documentos Word y chats/canales Teams. Slack ofrece búsqueda, mis menciones, historial/hilos, canales/usuarios, consultas, publicaciones/respuestas, DM y reacciones. IMAP busca y lee sin marcar mensajes como leídos.
+
+Los lectores conectados de Drive, SharePoint y Slack vuelven a obtener el token de la cuenta autorizada antes de cada petición al proveedor. Una sincronización larga puede renovar OAuth sin guardar secretos de renovación en la configuración del conector. Revocar el permiso de la cuenta de entrada también detiene el sondeo de triggers nativos antes de abrir el token. Los triggers de archivos Microsoft reconocen cambios propios de cuentas de aplicación por el usuario configurado y el ID de aplicación; el filtro predeterminado los omite.
 
 Seleccione **personal** para resolver la cuenta de la persona actual por nombre, etiqueta o dirección exactos. El nombre vacío solo funciona con una coincidencia. Las herramientas personales requieren conversación privada y pertenencia actual a la organización. Para automatizaciones compartidas use **organization** y el ID de conexión. Nunca se toma la cuenta de otro miembro.
 

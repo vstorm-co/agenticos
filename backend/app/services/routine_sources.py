@@ -507,6 +507,18 @@ class RoutineSourceService:
                 self.db, trigger.connection_id, fresh=True
             )
             if (
+                connection is not None
+                and connection.purpose == "account"
+                and connection.scope == "org"
+            ):
+                from app.services.integrations.authority import authorize
+
+                # The input account can differ from all capability accounts above.
+                try:
+                    await authorize(self.db, connection, ctx)
+                except AuthorizationError:
+                    connection = None
+            if (
                 connection is None
                 or not (
                     connection.organization_id == ctx.organization_id

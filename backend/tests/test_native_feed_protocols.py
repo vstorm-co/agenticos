@@ -404,3 +404,34 @@ async def test_sheets_baseline_includes_rows_populated_outside_column_a(monkeypa
     from urllib.parse import unquote
 
     assert unquote(read.await_args.args[0].url).endswith("'Sheet1'!A:ZZ")
+
+
+async def test_channel_delta_events_keep_the_selected_target_for_trigger_filtering(monkeypatch):
+    target = "channel/team/channel"
+    path = "https://graph.microsoft.com/v1.0/teams/team/channels/channel/messages/delta"
+    call = AsyncMock(
+        return_value={
+            "value": [
+                {"id": "new", "lastModifiedDateTime": "now", "body": {"content": "New message"}}
+            ],
+            "@odata.deltaLink": path + "?$deltatoken=two",
+        }
+    )
+    monkeypatch.setattr(teams_feed.client, "execute", call)
+    read = await teams_feed.changes(
+        TOKEN,
+        {target: {"link": path + "?$deltatoken=one", "baseline": False}},
+        channels=(target,),
+        application=True,
+        subject="directory-user",
+    )
+    assert len(read.events) == 1 and read.events[0].payload["channel"] == target
+    assert event_matches(
+        "teams", config={"channels": [target]}, headers={}, payload=read.events[0].payload
+    )
+    assert not event_matches(
+        "teams",
+        config={"channels": ["channel/team/other"]},
+        headers={},
+        payload=read.events[0].payload,
+    )

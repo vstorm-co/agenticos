@@ -110,9 +110,7 @@ class GoogleDriveConnector(BaseSyncConnector):
                 deleted, or the secret is not a service account.
         """
         if isinstance(credential, AccountToken) and credential.provider == "google":
-            from google.oauth2.credentials import Credentials
-
-            return DriveClient(Credentials(token=credential.api_key.get_secret_value()))
+            return DriveClient(lambda: credential.token_from_thread().get_secret_value())
         if credential is None:
             raise BadRequestError(
                 message=(

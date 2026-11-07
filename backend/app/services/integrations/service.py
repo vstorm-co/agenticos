@@ -1,11 +1,21 @@
 """Resolve a product's approved account before spending its credential."""
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from typing import ClassVar, Literal, Self
 from urllib.parse import quote
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    PrivateAttr,
+    SecretStr,
+    model_validator,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
@@ -27,6 +37,32 @@ class AccountToken(ApiKeySecret):
 
     connection_id: UUID
     provider: Literal["google", "microsoft", "slack", "odoo"]
+    _renew: Callable[[], Awaitable[SecretStr]] | None = PrivateAttr(default=None)
+    _sync_renew: Callable[[], SecretStr] | None = PrivateAttr(default=None)
+
+    def bind_renewal(self, renew: Callable[[], Awaitable[SecretStr]]) -> None:
+        """Attach job-local authority checks; callbacks never enter stored config."""
+        loop = asyncio.get_running_loop()
+        self._renew = renew
+
+        async def current() -> SecretStr:
+            return await renew()
+
+        def from_thread() -> SecretStr:
+            future = asyncio.run_coroutine_threadsafe(current(), loop)
+            try:
+                return future.result(timeout=60)
+            except BaseException:
+                future.cancel()
+                raise
+
+        self._sync_renew = from_thread
+
+    async def current_token(self) -> SecretStr:
+        return await self._renew() if self._renew else self.api_key
+
+    def token_from_thread(self) -> SecretStr:
+        return self._sync_renew() if self._sync_renew else self.api_key
 
 
 class OdooAccountToken(AccountToken):

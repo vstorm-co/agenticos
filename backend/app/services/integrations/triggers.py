@@ -220,7 +220,10 @@ async def poll_account(db: AsyncSession, account: McpConnection) -> int:
                                     subject=account.account_email
                                 )
                             else:
-                                adapter = MicrosoftFilesPortalAdapter(subject=account.account_email)
+                                adapter = MicrosoftFilesPortalAdapter(
+                                    subject=account.account_email,
+                                    application_id=connections.integration_application_id(account),
+                                )
                         places = await triggers.polled_places(
                             organization_id=organization_id,
                             event_source=portal.event_source,

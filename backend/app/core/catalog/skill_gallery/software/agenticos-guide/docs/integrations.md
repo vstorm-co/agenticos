@@ -48,6 +48,8 @@ Publishing an organization binding verifies the scopes of every enabled tool. Wi
 
 Drive and SharePoint sources can select the same organization connection instead of a separate credential. OneDrive uses the SharePoint connector with the selected drive/folder. Slack sync indexes only selected channels and their threads. The account is revalidated at every sync; private member accounts are not silently spent by a shared knowledge source.
 
+Connected Drive, SharePoint and Slack readers reacquire the authorized account token before each provider request, so a long sync can renew OAuth credentials without retaining refresh secrets in connector configuration. Revoking the input account grant also stops native trigger polling before opening the token. Microsoft application file triggers identify edits by the configured subject and application ID; their default own-change filter suppresses those edits.
+
 Routine triggers reuse the existing transactional queue, deduplication and approved-source policy. Gmail/Outlook filters, calendar leads and file changes work on native accounts. Slack adds channel messages, mentions and DMs; Teams adds messages and mentions; IMAP adds new mail. Sheets tracks **appended rows** in a selected spreadsheet and sheet, baselining the last occupied row across columns A:ZZ; row insertion/deletion and edits to existing rows are not append events.
 
 A watch selects one personal connection and product, with only a fixed read-only change tool. Enable that product on the agent first. Slack conversations and delegated Teams chats must be selected in the capability. Teams channels use `channel/team-id/channel-id`; an app-only Teams feed with no conversations reads all chats of its configured subject.

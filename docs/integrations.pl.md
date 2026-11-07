@@ -1,5 +1,5 @@
 ---
-source_sha: "8f017c44c86c"
+source_sha: "1e8100e20e65"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -39,6 +39,8 @@ Przed zapisaniem triggera, watcha lub źródła wiedzy Slack AgenticOS sprawdza 
 Produkty Google: Gmail (wyszukiwanie, odczyt, etykiety, szkice i wysyłka), Calendar (wydarzenia i dostępność), Drive (wyszukiwanie, metadane, odczyt, upload i kopie), Docs, Sheets i Slides (odczyt, tworzenie i edycja). Sheets obejmuje zakresy, dopisywanie wierszy i aktualizację komórek.
 
 Produkty Microsoft: Outlook mail, Calendar, pliki OneDrive/SharePoint, Excel, dokumenty Word oraz rozmowy i kanały Teams. Slack oferuje wyszukiwanie, wzmianki o mnie, historię i wątki, kanały i użytkowników, publikację, odpowiedzi, DM i reakcje. IMAP wyszukuje i czyta wiadomości bez oznaczania ich jako przeczytane.
+
+Czytniki Drive, SharePoint i Slack pobierają token uprawnionego konta przed każdym żądaniem do dostawcy. Długi sync może dzięki temu odnowić OAuth bez przechowywania sekretów odświeżania w konfiguracji konektora. Cofnięcie grantu do konta wejściowego zatrzymuje też polling natywnych triggerów przed otwarciem tokenu. Triggery plików Microsoft rozpoznają własne edycje konta aplikacyjnego po skonfigurowanym użytkowniku i identyfikatorze aplikacji; domyślny filtr je pomija.
 
 Wybierz **personal**, aby użyć konta aktualnej osoby po dokładnej nazwie, etykiecie lub adresie. Pusta nazwa działa tylko przy jednym pasującym koncie. Narzędzia osobiste wymagają prywatnej rozmowy i aktualnego członkostwa w organizacji. Dla wspólnych automatyzacji wybierz **organization** i ID połączenia. Capability nie pożycza konta innego członka.
 

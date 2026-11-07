@@ -324,6 +324,7 @@ async def test_entra_app_uses_its_tenant_and_default_application_roles(monkeypat
     )
     grant = await app_auth.microsoft_token(app)
     assert grant.access_token == token and grant.granted_scopes == frozenset({"Files.Read.All"})
+    assert grant.application_id == app.client_id
     assert (
         exchange.await_args.args[0]
         == "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000001/oauth2/v2.0/token"
@@ -662,3 +663,195 @@ async def test_slack_conversation_validation_keeps_outages_explicit(transport, f
     else:
         with pytest.raises(ExternalServiceError, match="try again"):
             await slack_oauth.validate_conversations(TOKEN, ("C1",))
+
+
+@pytest.mark.parametrize(
+    "subject", [None, "user-directory-id", "USER-DIRECTORY-ID", "person@example.com"]
+)
+async def test_app_file_changes_mark_own_application_and_subject_edits_before_filtering(
+    transport, subject
+):
+    from datetime import UTC, datetime
+
+    from app.services.portals.microsoft_files import MicrosoftFilesPortalAdapter
+    from app.services.trigger_events import event_matches
+
+    def item(identifier, editor):
+        return {
+            "id": identifier,
+            "name": "report.txt",
+            "file": {"mimeType": "text/plain"},
+            "createdDateTime": "2026-11-07T08:00:00Z",
+            "lastModifiedDateTime": "2026-11-07T09:00:00Z",
+            "lastModifiedBy": editor,
+            "parentReference": {"path": "/drive/root:"},
+        }
+
+    transport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "value": [
+                    item("app-own", {"application": {"id": "application-id"}}),
+                    item(
+                        "user-own",
+                        {"user": {"id": "user-directory-id", "email": "person@example.com"}},
+                    ),
+                    item(
+                        "other",
+                        {"application": {"id": "other-app"}, "user": {"id": "another-user"}},
+                    ),
+                ],
+                "@odata.deltaLink": "https://graph.microsoft.com/v1.0/drives/drive/root/delta?token=next",
+            },
+        )
+    )
+    adapter = MicrosoftFilesPortalAdapter(subject=subject, application_id="APPLICATION-ID")
+    baseline = await adapter.poll(access_token="private", cursor=None)
+    assert baseline.cursor["application_id"] == "APPLICATION-ID"
+    assert baseline.cursor["user_id"] == subject
+    cursor = {
+        **baseline.cursor,
+        "places": {
+            "": {
+                "drive_id": "drive",
+                "link": "https://graph.microsoft.com/v1.0/drives/drive/root/delta?token=old",
+            }
+        },
+    }
+    read = await adapter.poll(
+        access_token="private", cursor=cursor, places={"": datetime(2026, 11, 7, tzinfo=UTC)}
+    )
+    own = {event.payload["file_id"]: event.payload["by_account"] for event in read.events}
+    assert own == {"app-own": True, "user-own": subject is not None, "other": False}
+    event = next(event for event in read.events if event.payload["file_id"] == "app-own")
+    assert not event_matches("microsoft_files", config={}, headers={}, payload=event.payload)
+    assert event_matches(
+        "microsoft_files", config={"include_own_changes": True}, headers={}, payload=event.payload
+    )
+
+
+async def test_long_drive_listing_reacquires_a_connected_account_token_for_each_page(monkeypatch):
+    from app.services.integrations import AccountToken
+    from app.services.rag.connectors import google_drive
+    from app.services.rag.drive_api import DriveClient
+
+    account = AccountToken(connection_id=uuid4(), provider="google", api_key="expired-token")
+    renew = AsyncMock(side_effect=[SecretStr("first-token"), SecretStr("renewed-token")])
+    account.bind_renewal(renew)
+    seen = []
+
+    def respond(request):
+        seen.append(request.headers["authorization"])
+        return httpx.Response(
+            200,
+            json={"files": [{"id": "last", "name": "report.txt"}]}
+            if len(seen) == 2
+            else {"files": [], "nextPageToken": "next"},
+        )
+
+    monkeypatch.setattr(
+        google_drive,
+        "DriveClient",
+        lambda credential: DriveClient(
+            credential,
+            httpx.Client(
+                base_url="https://www.googleapis.com/drive/v3",
+                transport=httpx.MockTransport(respond),
+            ),
+        ),
+    )
+    listing = await google_drive.GoogleDriveConnector().list_files(
+        {"connection_id": str(account.connection_id), "folder_id": "folder"}, account
+    )
+    assert [file.id for file in listing.files] == ["last"]
+    assert seen == ["Bearer first-token", "Bearer renewed-token"]
+    assert renew.await_count == 2
+    assert "_renew" not in account.model_dump()
+
+
+async def test_long_sharepoint_reads_reacquire_connected_grants_and_preserve_revocation():
+    from app.core.exceptions import AuthorizationError
+    from app.services.integrations import AccountToken
+    from app.services.rag.connectors.sharepoint import _Graph
+
+    account = AccountToken(connection_id=uuid4(), provider="microsoft", api_key="expired-token")
+    renew = AsyncMock(
+        side_effect=[
+            SecretStr("first-token"),
+            SecretStr("renewed-token"),
+            AuthorizationError(message="Account revoked"),
+        ]
+    )
+    account.bind_renewal(renew)
+    seen = []
+
+    def respond(request):
+        seen.append(request.headers["authorization"])
+        return httpx.Response(200, json={"value": []})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        graph = _Graph(account, http, 0)
+        await graph.get(
+            "https://graph.microsoft.com/v1.0/drives/drive/root/children", what="folder"
+        )
+        await graph.get(
+            "https://graph.microsoft.com/v1.0/drives/drive/root/children", what="folder"
+        )
+        with pytest.raises(AuthorizationError, match="revoked"):
+            await graph.get(
+                "https://graph.microsoft.com/v1.0/drives/drive/root/children", what="folder"
+            )
+    assert seen == ["Bearer first-token", "Bearer renewed-token"]
+
+
+async def test_a_drive_thread_propagates_grant_refusal_and_unbound_tokens_keep_their_value():
+    import asyncio
+
+    from app.core.exceptions import AuthorizationError
+    from app.services.integrations import AccountToken
+
+    account = AccountToken(connection_id=uuid4(), provider="google", api_key="private-token")
+    assert (
+        await account.current_token() == account.token_from_thread() == SecretStr("private-token")
+    )
+    account.bind_renewal(AsyncMock(side_effect=AuthorizationError(message="Account revoked")))
+    with pytest.raises(AuthorizationError, match="revoked"):
+        await asyncio.to_thread(account.token_from_thread)
+
+
+async def test_source_account_renewals_use_fresh_short_database_sessions(monkeypatch):
+    from contextlib import asynccontextmanager
+
+    from app.services.integrations import AccountToken, IntegrationService
+    from app.worker.tasks import rag_tasks
+
+    sessions = []
+
+    @asynccontextmanager
+    async def database():
+        session = object()
+        sessions.append(session)
+        yield session
+
+    monkeypatch.setattr(rag_tasks, "get_worker_db_context", database)
+    first = AccountToken(connection_id=uuid4(), provider="google", api_key="first-token")
+    grant = AsyncMock(
+        side_effect=[first, first.model_copy(update={"api_key": SecretStr("renewed-token")})]
+    )
+    monkeypatch.setattr(IntegrationService, "source_token", grant)
+    organization = uuid4()
+    account = await rag_tasks._refreshable_source_account(
+        organization_id=organization, connection_id=first.connection_id, provider="google"
+    )
+    assert await account.current_token() == SecretStr("renewed-token")
+    assert len(sessions) == 2 and sessions[0] is not sessions[1]
+    assert all(
+        call.kwargs
+        == {
+            "organization_id": organization,
+            "connection_id": first.connection_id,
+            "provider": "google",
+        }
+        for call in grant.await_args_list
+    )

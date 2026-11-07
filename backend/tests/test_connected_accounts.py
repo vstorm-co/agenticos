@@ -1463,6 +1463,7 @@ async def test_entra_actual_roles_do_not_override_the_local_read_only_choice(
             return_value=ApplicationGrant(
                 access_token=SecretStr("private-token"),
                 granted_scopes=frozenset({role, "Mail.Send"}),
+                application_id="00000000-0000-0000-0000-000000000001",
             )
         ),
     )
@@ -1477,6 +1478,10 @@ async def test_entra_actual_roles_do_not_override_the_local_read_only_choice(
         for_organization=False,
     )
     assert row.granted_scopes == [role]
+    assert (
+        McpConnectionService.integration_application_id(row)
+        == "00000000-0000-0000-0000-000000000001"
+    )
     product = PRODUCTS["microsoft_files"]
     read = next(op for op in product.operations if not op.side_effecting)
     change = next(op for op in product.operations if op.side_effecting)
@@ -1608,3 +1613,21 @@ async def test_native_slack_trigger_cannot_bind_an_unreadable_selected_history(
     await IntegrationService(AsyncMock()).validate_feed_selection(
         row, (), organization_id=ctx.organization_id
     )
+
+
+@pytest.mark.parametrize("application_id", [None, "application-client-id"])
+async def test_file_trigger_application_identity_is_sealed_and_requires_reconnect_when_absent(
+    application_id,
+):
+    from app.core.exceptions import BadRequestError
+
+    row = _account(auth_type="application")
+    row.oauth_payload = _sealed(row, _payload(integration_application_id=application_id))
+    if application_id:
+        assert McpConnectionService.integration_application_id(row) == application_id
+    else:
+        with pytest.raises(BadRequestError, match="Reconnect"):
+            McpConnectionService.integration_application_id(row)
+    row.oauth_payload = None
+    with pytest.raises(BadRequestError, match="Reconnect"):
+        McpConnectionService.integration_application_id(row)

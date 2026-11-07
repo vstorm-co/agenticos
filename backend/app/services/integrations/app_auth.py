@@ -28,6 +28,7 @@ class AccessToken(BaseModel):
 class ApplicationGrant:
     access_token: SecretStr
     granted_scopes: frozenset[str]
+    application_id: str | None = None
 
 
 class _MicrosoftRoles(BaseModel):
@@ -124,4 +125,4 @@ async def microsoft_token(app: EntraAppSecret) -> ApplicationGrant:
         raise AuthorizationError(
             message="Microsoft granted no application roles; grant Graph permissions and administrator consent in Entra"
         )
-    return ApplicationGrant(access_token=token, granted_scopes=roles)
+    return ApplicationGrant(access_token=token, granted_scopes=roles, application_id=app.client_id)

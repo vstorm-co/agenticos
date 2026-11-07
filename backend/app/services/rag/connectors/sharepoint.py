@@ -500,7 +500,7 @@ class _Graph:
             ExternalServiceError: Entra stayed unavailable.
         """
         if isinstance(self._credential, AccountToken):
-            return self._credential.api_key.get_secret_value()
+            return (await self._credential.current_token()).get_secret_value()
         if self._token is not None and time.monotonic() < self._token_expires_at:
             return self._token
         credential = self._credential

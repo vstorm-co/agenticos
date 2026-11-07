@@ -222,3 +222,54 @@ async def test_agent_publication_refuses_enabled_tools_outside_the_selected_acco
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
     result = await AgentRegistryService(AsyncMock())._binding_problems(ctx, binding)
     assert bool(result.messages) is (not disable_writes)
+
+
+async def test_revoking_the_trigger_input_grant_blocks_polling_even_without_a_capability_binding(
+    monkeypatch,
+):
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.integrations import authority
+    from app.services.routine_sources import RoutineSourcesRequired
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="builder")
+    native = source(ctx, scope="org", organization_id=ctx.organization_id, user_id=None)
+    # The trigger's account need not also occur in the agent's capabilities.
+    spec = AgentSpec(name="Handle incoming record changes")
+    trigger = AgentTrigger(
+        id=uuid4(),
+        agent_id=uuid4(),
+        organization_id=ctx.organization_id,
+        created_by_user_id=ctx.user_id,
+        trigger_type="event",
+        event_source="odoo",
+        event_config={"product_id": "odoo_contacts"},
+        connection_id=native.id,
+        runs_as_creator=True,
+    )
+    service = routine_sources.RoutineSourceService(AsyncMock())
+    service.agents.get_runnable_spec = AsyncMock(return_value=(MagicMock(), spec, uuid4()))
+    monkeypatch.setattr(
+        routine_sources.mcp_connection_repo, "get_by_id", AsyncMock(return_value=native)
+    )
+    monkeypatch.setattr("app.services.mcp_connection.account_client_identity", lambda row: None)
+    granted = AsyncMock(return_value=True)
+    monkeypatch.setattr(authority, "resolve_access", granted)
+    snapshot = await service.snapshot(ctx, trigger)
+    trigger.approved_sources = snapshot.policy.model_dump(mode="json")
+    assert snapshot.policy.input_connection_id == native.id and not snapshot.unavailable
+    assert (
+        await service.require_current(ctx, trigger, expected_id=snapshot.policy.id)
+        == snapshot.policy
+    )
+    granted.return_value = False
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=snapshot.policy.id)
+    assert granted.await_args.args[2] is native
+    assert granted.await_args.args[3].value == "mcp:manage"
+    poller = AgentTriggerService(AsyncMock())
+    poller.sources = service
+    monkeypatch.setattr(poller, "_creator_context", AsyncMock(return_value=ctx))
+    token = AsyncMock()
+    monkeypatch.setattr(McpConnectionService, "integration_access_token", token)
+    assert not await poller._polled_source_current(trigger, native)
+    token.assert_not_awaited()

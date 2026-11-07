@@ -41,7 +41,10 @@ async def changes(
         if target.startswith("channel/"):
             read = await _channel_delta(token, old.get(target), path)
             positions[target] = read.cursor
-            found.extend(read.events)
+            found.extend(
+                Change(id=event.id, payload={**event.payload, "channel": target})
+                for event in read.events
+            )
             continue
         if application:
             raise BadRequestError(

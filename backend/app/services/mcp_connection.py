@@ -2177,6 +2177,7 @@ class McpConnectionService:
             }
         )
         secrets_service = OrganizationSecretService(self.db)
+        application_id = None
         if provider == "microsoft":
             grant = await secrets_service.integration_grant(
                 organization_id=ctx.organization_id,
@@ -2192,6 +2193,7 @@ class McpConnectionService:
                 if write or not op.side_effecting
                 for role in application_scopes(p.id, op)
             }
+            application_id = grant.application_id
             scopes = sorted(grant.granted_scopes & allowed)
             if not scopes:
                 raise AuthorizationError(
@@ -2218,6 +2220,7 @@ class McpConnectionService:
             redirect_uri="",
             provider=source,
             integration_subject=subject,
+            integration_application_id=application_id,
             integration_write_enabled=write,
             account_source_organization_id=ctx.organization_id,
             account_source_secret_id=row.id,
@@ -2728,6 +2731,15 @@ class McpConnectionService:
             )
             == payload.account_source_generation
         )
+
+    @staticmethod
+    def integration_application_id(account: McpConnection) -> str:
+        payload = _decode_payload(account, account.oauth_payload)
+        if payload is None or payload.integration_application_id is None:
+            raise BadRequestError(
+                message="Reconnect this application account to identify its file edits"
+            )
+        return payload.integration_application_id
 
     @staticmethod
     def application_writes_enabled(account: McpConnection) -> bool:

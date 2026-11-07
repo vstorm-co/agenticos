@@ -342,7 +342,12 @@ async def test_application_triggers_keep_the_subject_in_the_reused_graph_adapter
     }[key]
     chosen = []
 
-    def adapter(*, subject):
+    monkeypatch.setattr(
+        McpConnectionService, "integration_application_id", lambda self, account: "application-id"
+    )
+
+    def adapter(*, subject, application_id=None):
+        assert application_id == ("application-id" if key == "microsoft_files" else None)
         chosen.append(subject)
         return SimpleNamespace(poll=AsyncMock(return_value=PolledEvents(events=(), cursor={})))
 

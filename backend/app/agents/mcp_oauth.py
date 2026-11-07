@@ -288,6 +288,7 @@ class McpOAuthPayload(BaseModel):
     integration_mail: ImapCredential | None = None
     integration_odoo: OdooCredential | None = None
     integration_subject: str | None = None
+    integration_application_id: str | None = None
     # Older application payloads already narrowed their scopes to the chosen writes.
     # New grants retain the explicit choice separately from the provider's roles.
     integration_write_enabled: bool = True

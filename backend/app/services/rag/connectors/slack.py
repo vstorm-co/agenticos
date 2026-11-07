@@ -79,12 +79,12 @@ _MAX_PAGES = 50
 _MAX_TEXT_BYTES = 20_000_000
 
 
-def _token(credential: StorableSecret | None) -> SecretStr:
+async def _token(credential: StorableSecret | None) -> SecretStr:
     if not isinstance(credential, AccountToken) or credential.provider != "slack":
         raise BadRequestError(
             message="Choose an organization connected Slack account for this knowledge source"
         )
-    return credential.api_key
+    return await credential.current_token()
 
 
 class SlackConnector(BaseSyncConnector):
@@ -107,7 +107,7 @@ class SlackConnector(BaseSyncConnector):
         self, config: ConnectorConfig, credential: StorableSecret | None
     ) -> RemoteListing:
         selected = SlackKnowledgeConfig.model_validate(config)
-        token = _token(credential)
+        await _token(credential)
         files: list[RemoteFile] = []
         complete = True
         for channel in dict.fromkeys(selected.channels):
@@ -117,7 +117,9 @@ class SlackConnector(BaseSyncConnector):
                 query = {"channel": channel, "limit": "200"}
                 if cursor:
                     query["cursor"] = cursor
-                result = await execute(_HISTORY, token, parameters={}, query=query, body=None)
+                result = await execute(
+                    _HISTORY, await _token(credential), parameters={}, query=query, body=None
+                )
                 page = _page(result)
                 for message in page.messages:
                     thread = message.thread_ts or message.ts
@@ -166,7 +168,7 @@ class SlackConnector(BaseSyncConnector):
             raise BadRequestError(
                 message="This Slack thread is outside the source's selected conversations"
             )
-        token = _token(credential)
+        await _token(credential)
         cursor = ""
         parts = [f"# Slack conversation {channel}, thread {timestamp}\n"]
         size = len(parts[0].encode())
@@ -174,7 +176,9 @@ class SlackConnector(BaseSyncConnector):
             query = {"channel": channel, "ts": timestamp, "limit": "200"}
             if cursor:
                 query["cursor"] = cursor
-            result = await execute(_REPLIES, token, parameters={}, query=query, body=None)
+            result = await execute(
+                _REPLIES, await _token(credential), parameters={}, query=query, body=None
+            )
             page = _page(result)
             additions = [
                 f"## {message.user} · {message.ts}\n\n{message.text}\n" for message in page.messages
