@@ -2036,6 +2036,18 @@ class AgentTriggerService:
                             continue
                 if not await self._claim(trigger.id, event.delivery_id):
                     continue
+                if not (await rate_limit.trigger_delivery_allowed(trigger.id)).allowed:
+                    spawn_after_commit(
+                        self.db,
+                        trigger_dedupe.release_event_delivery(
+                            trigger_id=trigger.id, delivery_id=event.delivery_id
+                        ),
+                        name="release a throttled trigger delivery claim",
+                    )
+                    logger.warning(
+                        "trigger_delivery_rate_limited", extra={"trigger_id": str(trigger.id)}
+                    )
+                    continue
                 if file_key is not None and announced is not None:
                     announced[file_key] = datetime.now(UTC).isoformat()
                 decisions.append(

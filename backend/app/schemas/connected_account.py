@@ -27,11 +27,13 @@ class ConnectedAccountRead(BaseSchema):
     scopes: list[str]
     owner: Literal["personal", "organization"]
     needs_reconnect: bool
-    """Its grant stopped working - revoked, expired - and it has to be connected again."""
+    """Its grant expired, was revoked, or lost its source credential and must be reconnected."""
     created_at: datetime
 
     @classmethod
-    def from_model(cls, account: McpConnection) -> ConnectedAccountRead:
+    def from_model(
+        cls, account: McpConnection, *, needs_reconnect: bool = False
+    ) -> ConnectedAccountRead:
         return cls(
             id=account.id,
             name=account.name,
@@ -48,7 +50,9 @@ class ConnectedAccountRead(BaseSchema):
             email=account.account_email or account.label or account.name,
             scopes=sorted(account.granted_scopes or ()),
             owner="organization" if account.scope == "org" else "personal",
-            needs_reconnect=not account.account_authorized or account.authorization_expired,
+            needs_reconnect=needs_reconnect
+            or not account.account_authorized
+            or account.authorization_expired,
             created_at=account.created_at,
         )
 

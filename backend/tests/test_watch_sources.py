@@ -404,3 +404,52 @@ def test_native_watch_refuses_organization_accounts_wrong_names_and_unselected_s
     spec.capabilities.append(CapabilityBindingSpec(id="slack", config=config))
     with pytest.raises(AuthorizationError):
         approve_sources(spec, connection)
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "missing",
+        "approval",
+        "disabled_read",
+        "read_approval",
+        "provider",
+        "scope",
+        "name",
+        "organization",
+    ],
+)
+def test_native_watch_refuses_every_unapproved_read_boundary(refusal):
+    connection = _connection()
+    connection.purpose, connection.catalog_key, connection.label = "account", "google", "Work"
+    connection.granted_scopes = ["https://www.googleapis.com/auth/gmail.readonly"]
+    spec = _spec()
+    binding = CapabilityBindingSpec(id="gmail", config={"account_name": "Work"})
+    if refusal != "missing":
+        spec.capabilities.append(binding)
+    if refusal == "approval":
+        binding.approval = "required"
+    if refusal == "disabled_read":
+        binding.config["disabled_tools"] = ["gmail_search_threads"]
+    if refusal == "read_approval":
+        binding.tool_approval["gmail_search_threads"] = "required"
+    if refusal == "provider":
+        connection.catalog_key = "slack"
+    if refusal == "scope":
+        connection.granted_scopes = []
+    if refusal == "name":
+        binding.config["account_name"] = "Other"
+    if refusal == "organization":
+        binding.config["account"] = "organization"
+    with pytest.raises(AuthorizationError):
+        approve_sources(spec, connection, product_id="gmail")
+
+
+def test_a_slack_watch_requires_selected_conversations_even_with_history_permissions():
+    connection = _connection()
+    connection.purpose, connection.catalog_key = "account", "slack"
+    connection.granted_scopes = ["channels:history"]
+    spec = _spec()
+    spec.capabilities.append(CapabilityBindingSpec(id="slack"))
+    with pytest.raises(AuthorizationError, match="conversations"):
+        approve_sources(spec, connection, product_id="slack")

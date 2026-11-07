@@ -237,13 +237,14 @@ async def _ensure_trigger_dedupe() -> None:
     worker process.
     """
     from app.clients.redis import RedisClient
-    from app.services import trigger_dedupe
+    from app.services import rate_limit, trigger_dedupe
 
     if trigger_dedupe.is_configured():
         return
     client = RedisClient()
     await client.connect()
     trigger_dedupe.configure(client)
+    rate_limit.configure(client)
 
 
 async def sweep_sandbox_operations() -> None:

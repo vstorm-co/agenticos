@@ -66,6 +66,7 @@ def handler_for(
 
 def check_for(
     product_id: str,
+    operation_id: str,
 ) -> Callable[[AsyncSession, AuthContext, BaseModel], Awaitable[list[tuple[str, str]]]]:
     async def check(
         db: AsyncSession, auth: AuthContext, config: BaseModel
@@ -73,7 +74,10 @@ def check_for(
         if not isinstance(config, AccountSelection):
             return [("account", "Choose an integration account")]
         try:
-            await IntegrationService(db).binding_account(PRODUCTS[product_id], config, auth)
+            product = PRODUCTS[product_id]
+            account = await IntegrationService(db).binding_account(product, config, auth)
+            operation = next(op for op in product.operations if op.id == operation_id)
+            IntegrationService.check_operation_scopes(account, product, operation)
         except AppException as exc:
             return [("account", exc.message)]
         return []

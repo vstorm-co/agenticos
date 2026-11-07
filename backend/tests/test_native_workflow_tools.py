@@ -1,6 +1,7 @@
 """Every surface keeps the run principal and uses the same operation service."""
 
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -88,9 +89,18 @@ async def test_workflow_provider_refusal_is_a_nonbypassable_node_failure(native_
 
 
 async def test_publish_checks_the_account_without_spending_its_credential(monkeypatch):
-    check = nodes.check_for("gmail")
+    check = nodes.check_for("gmail", "search_threads")
     ctx = dispatch().auth
-    account = AsyncMock(return_value=object())
+    account = AsyncMock(
+        return_value=SimpleNamespace(
+            auth_type="oauth", granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+        )
+    )
+    from app.services.mcp_connection import McpConnectionService
+
+    monkeypatch.setattr(
+        McpConnectionService, "account_needs_reconnect", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(IntegrationService, "account", account)
     assert await check(AsyncMock(), ctx, AccountSelection()) == []
     assert account.await_args.kwargs["person_id"] == ctx.user_id
@@ -136,3 +146,14 @@ async def test_a_disabled_product_tool_is_absent_from_the_runtime():
         "gmail", AccountSelection(disabled_tools=["gmail_search_threads"])
     )
     assert "gmail_search_threads" not in toolset.tools
+
+
+async def test_workflow_publish_refuses_write_operations_on_a_read_only_account(monkeypatch):
+    account = SimpleNamespace(
+        auth_type="oauth", granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+    )
+    monkeypatch.setattr(IntegrationService, "binding_account", AsyncMock(return_value=account))
+    check = nodes.check_for("gmail", "send_message")
+    assert await check(AsyncMock(), dispatch().auth, AccountSelection()) == [
+        ("account", "Reconnect this account with the permissions this operation requires")
+    ]

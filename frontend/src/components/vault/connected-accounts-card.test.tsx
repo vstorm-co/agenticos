@@ -10,6 +10,13 @@ import { ConnectedAccountsCard } from "./connected-accounts-card";
  */
 
 const hook = vi.fn();
+vi.mock("@/components/vault/odoo-setup-dialog", () => ({
+  OdooSetupDialog: ({ onClose }: { onClose: () => void }) => (
+    <div role="dialog">
+      <button onClick={onClose}>Close Odoo</button>
+    </div>
+  ),
+}));
 vi.mock("@/components/vault/imap-setup-dialog", () => ({
   ImapSetupDialog: ({ onClose }: { onClose: () => void }) => (
     <div role="dialog">
@@ -149,5 +156,15 @@ it("opens IMAP setup from its provider tab and closes it", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Connect IMAP account" }));
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Close IMAP" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("opens Odoo setup from its provider tab and closes it", async () => {
+  render(<ConnectedAccountsCard owner="personal" canManage />);
+  await userEvent.click(screen.getByRole("button", { name: "Odoo" }));
+  expect(hook).toHaveBeenLastCalledWith("personal", { provider: "odoo" });
+  await userEvent.click(screen.getByRole("button", { name: "Connect Odoo account" }));
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Close Odoo" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

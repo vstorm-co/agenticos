@@ -24,6 +24,10 @@ const words = (key: string, values?: Record<string, string>): string => {
   );
 };
 
+vi.mock("@/hooks/use-connected-accounts", () => ({
+  useConnectedAccounts: () => ({ accounts: [], isLoading: false, error: null }),
+}));
+
 const KNOWLEDGE: CapabilityCatalogEntry = {
   recommended: null,
   id: "knowledge",
@@ -1028,5 +1032,27 @@ it("switches native tools individually while retaining the selected account", as
   await userEvent.click(screen.getByRole("switch", { name: "Enable gmail_search_threads" }));
   expect(change).toHaveBeenLastCalledWith(
     expect.objectContaining({ config: { account_name: "Work", disabled_tools: [] } }),
+  );
+});
+
+it("edits the personal account alias through native capability settings", async () => {
+  const definition: CapabilityCatalogEntry = {
+    ...KNOWLEDGE,
+    id: "gmail",
+    category: "integrations",
+    tools: [],
+    config_schema: { "x-integration-provider": "google", type: "object", properties: {} },
+  };
+  const change = vi.fn();
+  render(
+    <CapabilitySettings
+      catalog={[definition]}
+      selected={[binding("gmail", { config: {} })]}
+      onChange={change}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText("Personal account name"), "W");
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({ id: "gmail", config: { account_name: "W" } }),
   );
 });

@@ -2,7 +2,8 @@
 
 A mount bound to "each person's own account" reads the account of whoever is
 talking to the agent, so these are a person's to connect and disconnect, with no
-organization permission: they act on nobody else's data.
+organization permission. Application accounts additionally require edit authority
+over their Vault credential because the chosen subject can act as another user.
 """
 
 from typing import Any
@@ -31,7 +32,15 @@ async def list_my_accounts(service: McpConnectionSvc, ctx: Auth, provider: str =
     """The caller's connected accounts, oldest first."""
     accounts = await service.list_accounts(ctx, for_organization=False, provider=provider)
     return ConnectedAccountList(
-        items=[ConnectedAccountRead.from_model(account) for account in accounts],
+        items=[
+            ConnectedAccountRead.from_model(
+                account,
+                needs_reconnect=await service.account_needs_reconnect(
+                    account, organization_id=ctx.organization_id
+                ),
+            )
+            for account in accounts
+        ],
         total=len(accounts),
     )
 

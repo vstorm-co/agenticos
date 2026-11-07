@@ -36,7 +36,15 @@ async def list_org_accounts(service: McpConnectionSvc, ctx: Auth, provider: str 
     """The organization's connected accounts, oldest first."""
     accounts = await service.list_accounts(ctx, for_organization=True, provider=provider)
     return ConnectedAccountList(
-        items=[ConnectedAccountRead.from_model(account) for account in accounts],
+        items=[
+            ConnectedAccountRead.from_model(
+                account,
+                needs_reconnect=await service.account_needs_reconnect(
+                    account, organization_id=ctx.organization_id
+                ),
+            )
+            for account in accounts
+        ],
         total=len(accounts),
     )
 

@@ -32,6 +32,6 @@ for product in PRODUCTS.values():
                 effect_kind="write" if operation.side_effecting else "read",
                 retry_guarantee="none" if operation.side_effecting else "idempotent",
                 handler=handler_for(product.id, operation.id),
-                resource_check=check_for(product.id),
+                resource_check=check_for(product.id, operation.id),
             )
         )

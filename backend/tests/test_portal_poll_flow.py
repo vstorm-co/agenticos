@@ -1086,3 +1086,24 @@ async def test_revoking_one_account_never_stops_another_accounts_triggers(monkey
         == 1
     )
     assert stopped.await_args.args[0] is rows[0]
+
+
+async def test_worker_polling_configures_dedupe_and_delivery_limits_with_one_redis_client(
+    monkeypatch,
+):
+    from app.services import rate_limit, trigger_dedupe
+    from app.worker.tasks import trigger_tasks
+
+    client = SimpleNamespace(connect=AsyncMock())
+    factory = MagicMock(return_value=client)
+    monkeypatch.setattr("app.clients.redis.RedisClient", factory)
+    monkeypatch.setattr(trigger_dedupe, "is_configured", MagicMock(side_effect=[False, True]))
+    dedupe, limits = MagicMock(), MagicMock()
+    monkeypatch.setattr(trigger_dedupe, "configure", dedupe)
+    monkeypatch.setattr(rate_limit, "configure", limits)
+    await trigger_tasks._ensure_trigger_dedupe()
+    await trigger_tasks._ensure_trigger_dedupe()
+    factory.assert_called_once_with()
+    client.connect.assert_awaited_once()
+    dedupe.assert_called_once_with(client)
+    limits.assert_called_once_with(client)

@@ -55,6 +55,12 @@ export function useConnectedAccounts(
       ),
     enabled,
   });
+  const refreshAccounts = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+      queryClient.invalidateQueries({ queryKey: qk.portals.catalog() }),
+    ]);
+  };
   const connect = useMutation({
     mutationFn: async ({
       returnTo,
@@ -78,7 +84,7 @@ export function useConnectedAccounts(
       label: string;
       write: boolean;
     }) => apiClient.post(`${PREFIX[owner]}/odoo`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onSuccess: refreshAccounts,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   const connectImap = useMutation({
@@ -92,7 +98,7 @@ export function useConnectedAccounts(
       };
       label: string;
     }) => apiClient.post(`${PREFIX[owner]}/imap`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onSuccess: refreshAccounts,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   const connectApplication = useMutation({
@@ -104,18 +110,18 @@ export function useConnectedAccounts(
       write: boolean;
       label: string;
     }) => apiClient.post(`${PREFIX[owner]}/application`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onSuccess: refreshAccounts,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   const connectToken = useMutation({
     mutationFn: (data: { token: string; label: string }) =>
       apiClient.post(`${PREFIX[owner]}/slack/token`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onSuccess: refreshAccounts,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   const disconnect = useMutation({
     mutationFn: (id: string) => apiClient.delete(`${PREFIX[owner]}/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onSuccess: refreshAccounts,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   return {

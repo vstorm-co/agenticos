@@ -2142,6 +2142,10 @@ class McpConnectionService:
             or any(p.provider != provider for p in selected)
         ):
             raise BadRequestError(message="Choose products belonging to this integration provider")
+        if provider == "google" and any(p.id == "gmail" for p in selected) and not subject:
+            raise BadRequestError(
+                message="A Gmail service account needs the mailbox user to impersonate"
+            )
         if provider == "microsoft" and any(p.id == "excel" for p in selected):
             raise BadRequestError(
                 message="Excel tools require delegated OAuth; Graph does not provide equivalent app-only access"
@@ -2697,6 +2701,19 @@ class McpConnectionService:
                 self.db, payload.account_source_secret_id, organization_id=organization_id
             )
             == payload.account_source_generation
+        )
+
+    async def account_needs_reconnect(
+        self, account: McpConnection, *, organization_id: UUID
+    ) -> bool:
+        """Check stored authorization and its source generation without a provider call."""
+        if not account.account_authorized or account.authorization_expired:
+            return True
+        if account.auth_type not in {"oauth", "application"}:
+            return False
+        payload = _decode_payload(account, account.oauth_payload)
+        return payload is None or not await self._account_source_current(
+            account, payload, organization_id
         )
 
     async def integration_access_token(
@@ -3427,6 +3444,8 @@ class McpConnectionService:
                 AccountSelection(account="organization", connection_id=row.id),
                 ctx,
             )
+        if await self.account_needs_reconnect(row, organization_id=ctx.organization_id):
+            raise BadRequestError(message="Reconnect this native trigger account")
         if not can_read_feed(row, product_id, channels):
             raise BadRequestError(
                 message="Reconnect this account with the selected product's read permissions"

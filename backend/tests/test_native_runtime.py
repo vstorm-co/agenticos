@@ -283,7 +283,7 @@ async def test_native_polling_queues_before_recording_the_consumed_position(
         )
     )
     monkeypatch.setattr(triggers, "get_adapter", lambda key: adapter)
-    queued = await poll_account(AsyncMock(), row)
+    queued = await poll_account(AsyncMock(info={}), row)
     assert queued == 1
     assert (
         service.queue_fire.await_args.kwargs["source_policy_id"]
@@ -300,7 +300,7 @@ async def test_polling_never_reads_unapproved_or_disabled_triggers(poller):
     add("slack", {"channels": ["C1"]})
     service.polled_source_admissions.return_value = {}
     rows.append(AgentTrigger(id=uuid4(), is_active=False, portal_key="slack"))
-    assert await triggers.poll_account(AsyncMock(), row) == 0
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 0
     service.prepare_polled_fires.assert_not_awaited()
     assert store.await_args.kwargs["cursor"] == {"products": {}}
 
@@ -317,7 +317,7 @@ async def test_a_failed_queue_leaves_the_source_position_unwritten(poller, monke
     ]
     service.queue_fire.side_effect = RuntimeError("transaction failed")
     with pytest.raises(RuntimeError):
-        await triggers.poll_account(AsyncMock(), row)
+        await triggers.poll_account(AsyncMock(info={}), row)
     store.assert_not_awaited()
 
 
@@ -325,7 +325,7 @@ async def test_orphan_personal_account_cannot_be_polled(poller):
     row, rows, service, store, add = poller
     row.account_source_organization_id = None
     with pytest.raises(BadRequestError):
-        await triggers.poll_account(AsyncMock(), row)
+        await triggers.poll_account(AsyncMock(info={}), row)
 
 
 @pytest.mark.parametrize("key", ["microsoft", "outlook_calendar", "microsoft_files"])
@@ -347,7 +347,7 @@ async def test_application_triggers_keep_the_subject_in_the_reused_graph_adapter
         return SimpleNamespace(poll=AsyncMock(return_value=PolledEvents(events=(), cursor={})))
 
     monkeypatch.setattr(f"app.services.portals.{module}.{cls}", adapter)
-    await triggers.poll_account(AsyncMock(), row)
+    await triggers.poll_account(AsyncMock(info={}), row)
     assert chosen == [row.account_email]
 
 
@@ -518,7 +518,7 @@ async def test_my_mentions_requires_identity_and_a_fixed_query(monkeypatch, iden
 async def test_nonpolling_portals_are_never_read_by_native_poller(poller, key):
     row, rows, service, store, add = poller
     add(key, {})
-    assert await triggers.poll_account(AsyncMock(), row) == 0
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 0
     service.polled_source_admissions.assert_not_awaited()
 
 
@@ -529,9 +529,8 @@ async def test_native_poller_refuses_a_revoked_token(poller, monkeypatch):
     monkeypatch.setattr(
         McpConnectionService, "integration_access_token", AsyncMock(return_value=None)
     )
-    with pytest.raises(BadRequestError):
-        await triggers.poll_account(AsyncMock(), row)
-    store.assert_not_awaited()
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 0
+    assert store.await_args.kwargs["cursor"] == {"products": {}}
 
 
 async def test_native_poller_reuses_the_same_application_teams_feed(poller, monkeypatch):
@@ -542,7 +541,7 @@ async def test_native_poller_reuses_the_same_application_teams_feed(poller, monk
     add("teams", {})
     feed = AsyncMock(return_value=feeds.Changes(cursor={"link": "delta"}))
     monkeypatch.setattr(teams_feed, "changes", feed)
-    await triggers.poll_account(AsyncMock(), row)
+    await triggers.poll_account(AsyncMock(info={}), row)
     assert feed.await_args.kwargs == {
         "channels": (),
         "application": True,
@@ -554,9 +553,8 @@ async def test_native_poller_refuses_a_missing_provider_adapter(poller, monkeypa
     row, rows, service, store, add = poller
     add("google", {})
     monkeypatch.setattr(triggers, "get_adapter", lambda key: None)
-    with pytest.raises(BadRequestError):
-        await triggers.poll_account(AsyncMock(), row)
-    store.assert_not_awaited()
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 0
+    assert store.await_args.kwargs["cursor"] == {"products": {}}
 
 
 async def test_poller_never_sends_one_providers_token_to_another(poller, monkeypatch):
@@ -565,7 +563,7 @@ async def test_poller_never_sends_one_providers_token_to_another(poller, monkeyp
     token = AsyncMock()
     monkeypatch.setattr(McpConnectionService, "integration_access_token", token)
     with pytest.raises(BadRequestError, match="another integration provider"):
-        await triggers.poll_account(AsyncMock(), row)
+        await triggers.poll_account(AsyncMock(info={}), row)
     token.assert_not_awaited()
     store.assert_not_awaited()
 
@@ -600,8 +598,34 @@ async def test_odoo_watch_and_trigger_share_the_bounded_record_feed(
     account, rows, service, store, add = poller
     account.catalog_key, account.auth_type = "odoo", "odoo"
     add("odoo_contacts", {"product_id": "odoo_contacts"})
-    await triggers.poll_account(AsyncMock(), account)
+    await triggers.poll_account(AsyncMock(info={}), account)
     assert read.await_args.args[:2] == (credential, "odoo_contacts")
     assert (
         store.await_args.kwargs["cursor"]["products"]["odoo_contacts"] == receipt.integration_cursor
     )
+
+
+async def test_one_broken_product_does_not_rollback_a_healthy_products_jobs_or_cursor(
+    poller, monkeypatch
+):
+    row, rows, service, store, add = poller
+    healthy = add("google", {})
+    add("google_sheets", {"spreadsheet_id": "deleted-book", "sheet_name": "Sheet1"})
+    service.prepare_polled_fires.return_value = [
+        SimpleNamespace(trigger_id=healthy.id, event_context="new mail", source_policy_id=uuid4())
+    ]
+    monkeypatch.setattr(
+        triggers,
+        "get_adapter",
+        lambda _: SimpleNamespace(
+            poll=AsyncMock(return_value=PolledEvents(events=(), cursor={"resume": "mail"}))
+        ),
+    )
+    monkeypatch.setattr(
+        triggers, "rows_since", AsyncMock(side_effect=BadRequestError(message="Deleted sheet"))
+    )
+    db = AsyncMock(info={})
+    assert await triggers.poll_account(db, row) == 1
+    assert store.await_args.kwargs["cursor"] == {"products": {"google": {"resume": "mail"}}}
+    assert service.queue_fire.await_count == 1
+    assert db.begin_nested.await_count == 2

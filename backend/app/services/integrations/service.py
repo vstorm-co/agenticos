@@ -143,13 +143,32 @@ class IntegrationService:
         self, product: Product, selection: AccountSelection, ctx: AuthContext
     ) -> McpConnection:
         from app.services.integrations.authority import authorize
+        from app.services.mcp_connection import McpConnectionService
 
         account = await self.account(
             product, selection, organization_id=ctx.organization_id, person_id=ctx.user_id
         )
         if selection.account == "organization":
             await authorize(self.db, account, ctx)
+        if await McpConnectionService(self.db).account_needs_reconnect(
+            account, organization_id=ctx.organization_id
+        ):
+            raise AuthorizationError(message="Reconnect this integration account before binding it")
         return account
+
+    @staticmethod
+    def check_operation_scopes(
+        account: McpConnection, product: Product, operation: Operation
+    ) -> None:
+        allowed_scopes = (
+            application_scopes(product.id, operation)
+            if account.auth_type == "application" and product.provider == "microsoft"
+            else operation.scopes
+        )
+        if not set(allowed_scopes).intersection(account.granted_scopes or ()):
+            raise AuthorizationError(
+                message="Reconnect this account with the permissions this operation requires"
+            )
 
     async def source_token(
         self,
@@ -230,15 +249,7 @@ class IntegrationService:
                 workflow_run_id=workflow_run_id,
             )
             await authorize(self.db, account, author)
-        allowed_scopes = (
-            application_scopes(product_id, operation)
-            if account.auth_type == "application" and product.provider == "microsoft"
-            else operation.scopes
-        )
-        if not set(allowed_scopes).intersection(account.granted_scopes or ()):
-            raise AuthorizationError(
-                message="Reconnect this account with the permissions this operation requires"
-            )
+        self.check_operation_scopes(account, product, operation)
         if product.provider == "odoo":
             from app.services.integrations.odoo import execute
 

@@ -5212,3 +5212,37 @@ async def test_odoo_trigger_business_area_cannot_drift_from_its_reader():
     }
     with pytest.raises(BadRequestError, match="business area"):
         service._validated_event_config(trigger, {"product_id": "odoo_sales"})
+
+
+async def test_polled_deliveries_enforce_the_trigger_allowance_and_release_throttled_claims():
+    from app.core import background
+    from app.services.portals import PolledEvent
+    from app.services.rate_limit import Decision
+
+    trigger = _event_trigger(event_source="gmail", event_config={})
+    service = _service()
+    service._claim = AsyncMock(return_value=True)
+    with (
+        patch("app.services.agent_trigger.spawn_after_commit", background.spawn_after_commit),
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.list_active_for_event_source",
+            AsyncMock(return_value=[trigger]),
+        ),
+        patch(
+            "app.services.agent_trigger.rate_limit.trigger_delivery_allowed",
+            AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=60, metered=True)),
+        ) as allowance,
+        patch(
+            "app.services.agent_trigger.trigger_dedupe.release_event_delivery", AsyncMock()
+        ) as release,
+    ):
+        decisions = await service.prepare_polled_fires(
+            organization_id=_ORG,
+            event_source="gmail",
+            events=[PolledEvent(delivery_id="busy-inbox", payload={})],
+        )
+        assert decisions == []
+        allowance.assert_awaited_once_with(trigger.id)
+        background.start_deferred(service.db)
+        await background.drain()
+        release.assert_awaited_once_with(trigger_id=trigger.id, delivery_id="busy-inbox")

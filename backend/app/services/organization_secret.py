@@ -689,7 +689,7 @@ class OrganizationSecretService:
         """A secret of `kind` the caller may bind with the requested authority.
 
         Raises:
-            NotFoundError: If the caller may not see it, or it is another kind - the
+            NotFoundError: If the caller lacks the requested authority, or it is another kind - the
                 two read alike, as everywhere secrets are referenced.
         """
         secret = await self._get(ctx, secret_id, perm=perm)

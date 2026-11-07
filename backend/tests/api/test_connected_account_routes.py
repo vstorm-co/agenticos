@@ -45,6 +45,7 @@ def _account() -> McpConnection:
 @pytest.fixture
 def service() -> MagicMock:
     stub = MagicMock()
+    stub.account_needs_reconnect = AsyncMock(return_value=False)
     stub.list_accounts = AsyncMock(return_value=[_account()])
     stub.account_start = AsyncMock(return_value="https://accounts.google.com/o/oauth2/v2/auth?x=1")
     stub.delete_account = AsyncMock(return_value=None)
@@ -330,3 +331,11 @@ async def test_odoo_org_api_requires_connection_management(viewer, service):
             },
         )
     assert result.status_code == 403
+
+
+async def test_a_rotated_source_credential_is_reported_as_needing_reconnect(owner, service):
+    service.account_needs_reconnect.return_value = True
+    async with owner() as client:
+        response = await client.get(_url("/me/connected-accounts"))
+    assert response.status_code == 200
+    assert response.json()["items"][0]["needs_reconnect"] is True

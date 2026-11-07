@@ -4,11 +4,13 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useConnectedAccounts } from "./use-connected-accounts";
+import { qk } from "@/lib/query-keys";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
+const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
 const toastError = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 const remember = vi.fn();
@@ -164,6 +166,7 @@ it.each(["connectToken", "connectApplication", "connectImap", "connectOdoo"] as 
       connectOdoo: "odoo",
     }[method];
     expect(apiClient.post).toHaveBeenCalledWith(`/connected-accounts/${suffix}`, data[method]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.portals.catalog() });
     vi.mocked(apiClient.post).mockRejectedValue(new Error("Credential refused"));
     await act(async () => {
       await expect(connect()).rejects.toThrow("Credential refused");

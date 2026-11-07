@@ -33,6 +33,8 @@ import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
+import * as connectedAccounts from "./connected-accounts/[[...path]]/route";
+import * as myConnectedAccounts from "./me/connected-accounts/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
@@ -254,6 +256,18 @@ it("coding accounts forwards only credential operations and requires a session",
   expect(Object.keys(codingAccounts).sort()).toEqual(["DELETE", "GET", "PATCH", "POST"]);
   const response = await codingAccounts.GET(
     new NextRequest("http://localhost:3000/api/coding-accounts"),
+  );
+  expect(response.status).toBe(401);
+});
+
+it.each([
+  ["connected-accounts", connectedAccounts],
+  ["me/connected-accounts", myConnectedAccounts],
+] as const)("mounts the account wizard and lifecycle proxy at %s", async (name, route) => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(route).sort()).toEqual(["DELETE", "GET", "POST"]);
+  const response = await route.GET(
+    new NextRequest(`http://localhost:3000/api/${name}/setup/google`),
   );
   expect(response.status).toBe(401);
 });

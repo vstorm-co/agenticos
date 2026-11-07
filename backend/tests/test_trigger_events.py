@@ -801,3 +801,18 @@ def test_a_plain_sender_fragment_narrows_the_address(source, fragment, matches):
         )
         is matches
     )
+
+
+def test_odoo_changes_only_match_the_selected_business_area():
+    assert trigger_events.event_matches(
+        "odoo",
+        headers={},
+        payload={"product_id": "odoo_projects"},
+        config={"product_id": "odoo_projects"},
+    )
+    assert not trigger_events.event_matches(
+        "odoo",
+        headers={},
+        payload={"product_id": "odoo_inventory"},
+        config={"product_id": "odoo_projects"},
+    )
