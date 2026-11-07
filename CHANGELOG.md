@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.54.0] - 2026-11-07
+
 ### Added
 
 - Tool search can defer eligible tools from enabled capabilities as well as bound
@@ -20537,7 +20539,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.54.0...HEAD
+[1.54.0]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...v1.51.0
