@@ -156,6 +156,7 @@ def test_framework_text_preserves_a_skill_id_containing_the_old_tool_name():
     assert _skill_message("unrecognized error", skill_id) == "unrecognized error"
 
 
+@pytest.mark.security
 async def test_old_pending_approval_resumes_with_the_same_call_id_and_arguments():
     from unittest.mock import AsyncMock
 
@@ -218,6 +219,7 @@ async def test_other_tools_still_execute_after_loading():
     ).output == "done"
 
 
+@pytest.mark.security
 def test_old_approval_policy_names_the_new_loader():
     from app.agents.capabilities import load_builtins
     from app.agents.capabilities.approval import approval_required_tools, approval_tool_ids
@@ -232,6 +234,7 @@ def test_old_approval_policy_names_the_new_loader():
     assert approval_tool_ids(spec)["read_skill"] == "load_capability"
 
 
+@pytest.mark.security
 async def test_a_remembered_skill_cannot_bypass_fresh_approval():
     from pydantic_ai.messages import CapabilityLoadDeltaPart, ModelRequest
 
@@ -264,6 +267,7 @@ async def test_a_remembered_skill_cannot_bypass_fresh_approval():
     assert result.output == "refused"
 
 
+@pytest.mark.security
 async def test_supporting_files_stay_separate_and_require_reading_the_skill():
     from types import SimpleNamespace
 
