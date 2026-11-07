@@ -159,6 +159,7 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  enableMcpToolSearch,
   withContextFiles,
   withSkills,
   withVisuals,
@@ -1756,7 +1757,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   connections={mcpConnections}
                   personalConnections={myMcpConnections}
                   onEnableToolSearch={() =>
-                    update({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+                    update({ capabilities: enableMcpToolSearch(spec.capabilities) })
                   }
                   disabled={!canEdit}
                 />

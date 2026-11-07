@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Tool search can defer eligible tools from enabled capabilities as well as bound
+  MCP servers. Choose either group or both, and keep whole capabilities, MCP
+  server namespaces or individual exposed tools visible from the first request.
+  Existing configurations keep their MCP-only deferral behavior.
+
 ## [1.52.0] - 2026-11-06
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-source_sha: "af48402946ea"
+source_sha: "bff40c5750b6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2804,6 +2804,11 @@ esquema que el modelo paga en cada turno, la llame alguna vez o no.
 |---|---|---|
 | `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignorado por la búsqueda nativa |
+| `defer_capabilities` | `false` | diferir herramientas de función aptas de las capabilities habilitadas |
+| `defer_mcp_servers` | `true` | diferir herramientas de los servidores MCP vinculados |
+| `exclude_capabilities` | `[]` | identificadores de capabilities cuyas herramientas siguen visibles |
+| `exclude_mcp_servers` | `[]` | prefijos normalizados de herramientas MCP cuyas herramientas siguen visibles |
+| `exclude_tools` | `[]` | nombres expuestos de herramientas que siguen visibles, tras añadir el prefijo y renombrar |
 
 **`local_bm25`** ordena localmente identificadores, descripciones y esquemas de argumentos en cualquier proveedor. Usa rareza de términos y normalización de longitud, favorece identificadores y devuelve solo herramientas autorizadas coincidentes. No llama a modelos ni embeddings. Sigue aplicándose el límite de resultados.
 
@@ -2817,20 +2822,38 @@ esquema que el modelo paga en cada turno, la llame alguna vez o no.
   coste en tiempo de ejecución que el autor acepta al nombrar uno; `auto` no falla
   nunca así.
 
-**Activarla es lo que difiere los toolsets MCP.** La capability y el diferido son las
-dos mitades de una sola decisión: el `ToolSearch` de la biblioteca es inerte si no hay
-nada diferido, y una herramienta diferida sin una búsqueda que la encuentre es una
-herramienta que el modelo no puede llamar nunca. Así que vincular `tool_search` es lo
-que marca los toolsets de los servidores conectados para carga diferida; las
-herramientas propias del registro siguen visibles, por ser pocas y elegidas por agent.
-Un agent que no la vincule no paga nada y ve todas las herramientas como antes.
+**Elige qué grupos de herramientas diferir.** Los valores predeterminados
+conservan el comportamiento de los specs existentes: las herramientas MCP se
+difieren y las de capabilities siguen visibles. Activa `defer_capabilities` para
+diferir también las herramientas de función aptas de las capabilities
+habilitadas. Desactiva `defer_mcp_servers` para diferir solo las herramientas de
+capabilities, o activa ambos grupos juntos. Un agent sin búsqueda de herramientas
+ve sus herramientas como antes.
+
+**Las exclusiones mantienen herramientas visibles desde la primera petición.**
+Indica identificadores de capabilities en `exclude_capabilities`, espacios de
+nombres completos de herramientas MCP en `exclude_mcp_servers`, o nombres finales
+expuestos en `exclude_tools`. Una conexión llamada `github-work` usa el espacio
+de nombres `github_work`; una vinculación personal usa el espacio de nombres real
+de la cuenta, normalmente la clave del catálogo, como `notion`. Varias cuentas
+personales pueden tener espacios de nombres distintos. Para una herramienta MCP
+individual, incluye su prefijo, como `github_work_search`, y usa el nombre que
+aplique el renombrado de la vinculación. Las exclusiones afectan a la visibilidad;
+las listas permitidas de conexión y vinculación siguen controlando el acceso.
+
+Las herramientas nativas del provider y los hooks de capabilities siguen activos.
+Los skills conservan su propio descubrimiento mediante `load_capability`. La voz
+en tiempo real no usa el diferido de la búsqueda de herramientas. Si todas las
+herramientas siguen visibles, la búsqueda no tiene un catálogo diferido que descubrir.
 
 **El Builder avisa cuando merece la pena.** En cuanto las vinculaciones MCP de un
 agent suman más de 30 herramientas - según la lista permitida de cada vinculación o,
 si no la tiene, según lo que su servidor listó en la última comprobación -, la
-pestaña MCP muestra un aviso con una estimación aproximada de tokens y un botón que
-vincula la búsqueda de herramientas. Nunca la vincula por sí solo: el diferido cambia
-lo que ve el modelo, así que la decisión es de quien edita.
+pestaña MCP muestra un aviso con una estimación aproximada de tokens y un botón
+que activa la búsqueda de herramientas MCP. Añade la búsqueda de herramientas o
+activa el diferido MCP en la configuración existente, conservando las exclusiones
+y los ajustes de capabilities. Nunca activa el diferido por sí solo: cambia lo
+que ve el modelo, así que la decisión es de quien edita.
 
 **El diferido cambia lo que ve el modelo, nunca la identidad de una herramienta.** Una
 herramienta MCP descubierta llega con su nombre real con prefijo, así que la
@@ -2838,7 +2861,7 @@ herramienta MCP descubierta llega con su nombre real con prefijo, así que la
 renombrado de una vinculación sigue alcanzándola; `ToolSearch` se sitúa en la capa más
 externa, leyendo los nombres que un renombrado ya aplicó.
 
-**No necesita contabilización.** Las dos estrategias locales se ejecutan en Python y
+**No necesita contabilización.** Las estrategias locales se ejecutan en Python y
 no gastan tokens; la búsqueda nativa se ejecuta dentro de la propia petición del
 provider, cuyo uso ya contabiliza el [guardián de budget](../governance.md); y las
 idas y vueltas del descubrimiento son peticiones corrientes al modelo que envuelve ese

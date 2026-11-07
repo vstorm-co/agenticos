@@ -27,7 +27,6 @@ from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
     ReinjectSystemPrompt,
-    ToolSearch,
 )
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
@@ -83,6 +82,7 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
+from app.agents.capabilities.tool_search import ConfiguredToolSearch
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
@@ -669,29 +669,18 @@ def _defer_for_tool_search(
     configured: list[AbstractCapability[Any]],
     extra_toolsets: list[AbstractToolset[Any]],
 ) -> list[AbstractToolset[Any]]:
-    """Hide the MCP toolsets behind tool search when the agent enabled it.
+    """Pair configured function-tool and MCP deferral with the agent's search.
 
-    The two are paired here or not at all. `ToolSearch` is inert with nothing
-    deferred, and a deferred tool with no `ToolSearch` to find it is a tool the
-    model can never call - so deferring a toolset without the capability, or
-    binding the capability without deferring anything, is each half of a broken
-    agent. Binding `tool_search` is what asks for both.
-
-    MCP is the target the capability exists for. An agent may bind an arbitrary
-    number of servers, and every tool's schema is context the model pays for on
-    every request until it searches for one instead; `extra_toolsets` is exactly
-    those servers. The registry's own tools stay visible - they are few, chosen
-    per agent, and cheap to carry.
-
-    Deferring changes what the model *sees*, never a tool's identity: a
-    discovered MCP tool arrives under its real prefixed name, so the approval
-    gate still pairs on it and a binding's rename still reaches it. `ToolSearch`
-    also sits outermost, so it reads the names a rename already applied rather
-    than the ones underneath.
+    Only registry-built capability ids are eligible. Surface-added capabilities
+    stay visible, and the realtime path bypasses this pairing altogether.
     """
-    if not any(isinstance(capability, ToolSearch) for capability in configured):
-        return extra_toolsets
-    return [toolset.defer_loading() for toolset in extra_toolsets]
+    for capability in configured:
+        if isinstance(capability, ConfiguredToolSearch):
+            capability.capability_ids = frozenset(
+                item.id for item in configured if item.id is not None
+            )
+            return [capability.defer_toolset(toolset) for toolset in extra_toolsets]
+    return extra_toolsets
 
 
 def _as_decimal(value: float) -> Decimal:
