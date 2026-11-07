@@ -674,13 +674,16 @@ async def test_device_wait_sweep_never_replays_or_spends_model_work_before_readi
     assert count == (1 if change == "online" else 0)
     if change in {"changed", "cancelled"}:
         assert wait.status == "cancelled" and wait.event_context is None
-    elif change in {"creator_left", "agent_revoked", "device_gone", "three_failures"}:
+    elif change in {"creator_left", "agent_revoked", "three_failures"}:
         assert not w.trigger.is_active
         if change == "three_failures":
             assert wait.status == "failed"
     else:
         assert wait.status == "waiting"
         assert wait.admission_failures == (1 if change in {"missing_job", "dead"} else 0)
+        if change == "device_gone":
+            assert w.trigger.is_active
+            assert wait.event_context == "Private event"
     if change in {
         "queued",
         "running",
