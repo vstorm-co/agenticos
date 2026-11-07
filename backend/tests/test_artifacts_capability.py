@@ -598,7 +598,7 @@ class TestSendingTheModelToTheGuide:
     async def test_the_first_whole_page_is_steered_to_load_the_guide(self) -> None:
         with (
             patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish,
-            pytest.raises(ModelRetry, match="load_capability"),
+            pytest.raises(ModelRetry, match="read_skill"),
         ):
             await _tool()(_guided_ctx(), name="r", content=_page("<p>x</p>"))
         publish.assert_not_awaited()
@@ -620,7 +620,7 @@ class TestSendingTheModelToTheGuide:
         publish.assert_awaited_once()
         parsed = parse_published_artifact(result)
         assert parsed is not None and parsed.warning is not None
-        assert f"`load_capability` (id `{PAGES_GUIDE}`)" in parsed.warning
+        assert f"`read_skill` (id `{PAGES_GUIDE}`)" in parsed.warning
 
     @pytest.mark.parametrize(
         "guide",
