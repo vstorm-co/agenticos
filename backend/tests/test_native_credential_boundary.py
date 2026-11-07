@@ -14,7 +14,7 @@ from app.services import organization_secret as secrets
 from app.services.integrations import ApplicationGrant
 from app.services.organization_secret import OrganizationSecretService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize("provider", ["google", "microsoft"])
