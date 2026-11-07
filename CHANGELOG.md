@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Chat questions are saved before their answer card appears. Switching chats or reopening the conversation restores the unanswered card and answering continues the same run, instead of leaving the agent waiting on a connection with no visible form. Chat answers retain the live question channel so delegates can ask follow-up questions during the continuation.
+
 ## [1.54.0] - 2026-11-07
 
 ### Added

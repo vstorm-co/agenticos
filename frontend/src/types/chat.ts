@@ -291,6 +291,8 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "user_question_required"
+  | "run_answer_result"
   | "steer_applied"
   | "steer_unapplied"
   | "connect_account"

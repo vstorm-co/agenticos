@@ -2,9 +2,9 @@
 
 A run asked in a chat is the chat's. When a person settles its last pending call
 somewhere else, this service queues the continuation for after the decision
-commits, as them, and the answer is posted to the chat. The browser's own Resume
-and answer still run inline in the request, so their response is unchanged, and
-post to the chat once they have committed.
+commits, as them, and the answer is posted to the chat. HTTP resume and answer
+requests run inline and post to the chat once they commit. The socket uses the
+same result builder while retaining its live question channels.
 
 Lock order, on every decision for a channel-surface run (a key's included): the
 run row, then the approval row. The chat's press takes them in that order too.
@@ -26,6 +26,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent_run import CHANNEL_SURFACES, AgentRun, ApprovalStatus, ToolApproval
 from app.repositories import agent_run_repo, channel_prompt_repo
 from app.repositories.channel_prompt import SettledBy
+from app.schemas.agent import AgentRunResult, RunStep, SettledCall, SettledDelegation
 from app.services.agent_runner import AgentRunnerService, RunSegment
 from app.services.approvals import ApprovalService
 from app.services.channels.continuation import continue_in_chat
@@ -171,3 +172,57 @@ class ParkedRunService:
         await channel_prompt_repo.settle_open(self.db, run_id=run_id, by=by)
         segment = await step(queue_segment(self.db, destination, inherited))
         return Continued(segment, True)
+
+
+async def run_result(
+    service: AgentRunnerService,
+    ctx: AuthContext,
+    segment: RunSegment,
+    *,
+    continues_in_chat: bool = False,
+) -> AgentRunResult:
+    """The continuation, with what it did and what it is waiting on now."""
+    run = segment.run
+    return AgentRunResult(
+        run_id=run.id,
+        # The conversation the continuation wrote to, so an API caller resuming
+        # a run it did not start in a conversation can continue the thread.
+        conversation_id=run.conversation_id,
+        output=segment.output,
+        structured=segment.structured,
+        status=run.status,
+        cost_usd=run.cost_usd,
+        cost_is_partial=run.cost_is_partial,
+        input_tokens=run.input_tokens,
+        output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens,
+        cache_write_tokens=run.cache_write_tokens,
+        # The continuation's own steps let HTTP callers draw its progress and
+        # socket callers reconcile streamed calls with their persisted results.
+        steps=[
+            RunStep(
+                tool_call_id=call.tool_call_id,
+                tool_name=call.tool_name,
+                args=call.args,
+                result=call.result,
+            )
+            for call in segment.tool_calls
+        ],
+        # And what the approved call - or the answered question - returned. It
+        # belongs to a step the caller drew before the run parked, so it updates
+        # that step rather than adding one.
+        settled=[
+            SettledCall(tool_call_id=tool_call_id, result=result)
+            for tool_call_id, result in segment.settled.items()
+        ],
+        delegations=[
+            SettledDelegation(task_id=delegation.task_id, status=delegation.status)
+            for delegation in segment.delegations
+        ],
+        # Empty unless the continuation stopped again, which it does whenever the
+        # agent reaches a second gated call or asks a second question. Without
+        # them a caller was told the run is still waiting and given nothing to do.
+        parked=await service.parked_calls(ctx, run),
+        questions=await service.parked_questions(ctx, run),
+        continues_in_chat=continues_in_chat,
+    )
