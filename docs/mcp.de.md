@@ -1,5 +1,5 @@
 ---
-source_sha: "7a4618e328b7"
+source_sha: "276f8e90ab5e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -202,6 +202,13 @@ Eine Connection, die noch niemand geprüft hat, hat keinen Katalog anzubieten, u
 die Auswahl sagt das und verweist auf die Server-Seite, wo eine Connection geprüft
 wird. Ein Binding, das bereits Tools benennt, zeigt diese, sodass sichtbar bleibt,
 woran es gebunden ist, und weiter eingegrenzt werden kann.
+
+Mit [Tool-Suche](reference/capabilities.md#tool-search) bleiben geeignete MCP-Tools
+verborgen, bis der Agent danach sucht. In den Einstellungen können Sie MCP-Tools,
+Capability-Tools oder beide zurückstellen und ausgewählte Server-Namensräume oder
+einzelne Tools ab der ersten Anfrage sichtbar halten. Diese Ausnahmen ändern,
+wann ein Tool-Schema angezeigt wird; die Allowlists von Connection und Binding
+entscheiden weiterhin, ob das Tool verfügbar ist.
 
 ### Welche Aufrufe auf eine Person warten { #which-calls-wait-for-a-person }
 

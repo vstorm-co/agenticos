@@ -14,7 +14,7 @@ import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
-import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
@@ -1345,10 +1345,10 @@ export function useChat(options: UseChatOptions = {}) {
           if (pending === null || pending.requestId !== result.request_id) break;
           pendingRunAnswerRef.current = null;
           if ("result" in result) pending.resolve(result.result);
-          else
-            pending.reject(
-              new ApiError(result.error.status, result.error.message, { error: result.error }),
-            );
+          else {
+            const body = { error: result.error };
+            pending.reject(new ApiError(result.error.status, parseErrorMessage(body), body));
+          }
           break;
         }
 

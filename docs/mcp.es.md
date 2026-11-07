@@ -1,5 +1,5 @@
 ---
-source_sha: "7a4618e328b7"
+source_sha: "276f8e90ab5e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -199,6 +199,14 @@ Una conexión que nadie ha sondeado todavía no tiene catálogo que ofrecer, y e
 selector lo dice y apunta a la página de servidores, que es donde se comprueba una
 conexión. Una vinculación que ya nombra herramientas muestra esas, así que aquello
 a lo que está vinculada sigue visible y todavía se puede estrechar.
+
+Con la [búsqueda de herramientas](reference/capabilities.md#tool-search), las
+herramientas MCP aptas permanecen ocultas hasta que el agent las busca. Sus
+ajustes permiten diferir herramientas MCP, herramientas de capabilities o ambas,
+y mantener visibles desde la primera petición los espacios de nombres de
+servidores o las herramientas individuales que elijas. Estas exclusiones cambian
+cuándo se muestra el esquema de una herramienta; las listas permitidas de conexión
+y vinculación siguen decidiendo si está disponible.
 
 ### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
 

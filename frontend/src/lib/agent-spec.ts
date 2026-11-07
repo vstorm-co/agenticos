@@ -168,6 +168,15 @@ export function withCapability(
   ];
 }
 
+/** Enable MCP deferral while preserving existing Tool search settings and exclusions. */
+export function enableMcpToolSearch(bindings: CapabilityBindingSpec[]): CapabilityBindingSpec[] {
+  return withCapability(bindings, "tool_search", true).map((binding) =>
+    binding.id === "tool_search"
+      ? { ...binding, enabled: true, config: { ...binding.config, defer_mcp_servers: true } }
+      : binding,
+  );
+}
+
 /**
  * Bind skills, and the capability that can read them, as one decision.
  *

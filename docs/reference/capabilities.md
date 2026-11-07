@@ -2628,6 +2628,11 @@ it ever calls it.
 |---|---|---|
 | `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignored by native search |
+| `defer_capabilities` | `false` | defer eligible function tools from enabled capabilities |
+| `defer_mcp_servers` | `true` | defer tools from bound MCP servers |
+| `exclude_capabilities` | `[]` | capability IDs whose tools stay visible |
+| `exclude_mcp_servers` | `[]` | normalized MCP tool prefixes whose tools stay visible |
+| `exclude_tools` | `[]` | exposed tool names that stay visible, after prefixing and renaming |
 
 **`local_bm25`** ranks tool identifiers, descriptions and argument schemas locally, on every provider. It uses term rarity and length normalization, favors identifier matches, returns only matching authorized tools, and makes no embedding or model call. The result limit still applies.
 
@@ -2639,26 +2644,40 @@ it ever calls it.
   model is resolved separately from the spec, so this is a run-time cost the author
   accepts by naming one — `auto` never fails this way.
 
-**Enabling it is what defers the MCP toolsets.** The capability and the deferral
-are two halves of one decision: the library's `ToolSearch` is inert with nothing
-deferred, and a deferred tool with no search to find it is a tool the model can
-never call. So binding `tool_search` is what marks the connected servers'
-toolsets for deferred loading — the registry's own tools stay visible, being few
-and chosen per agent. An agent that does not bind it pays nothing and sees every
-tool as before.
+**Choose which tool groups to defer.** The defaults preserve existing specs:
+MCP tools are deferred and capability tools stay visible. Enable
+`defer_capabilities` to defer eligible function tools from enabled capabilities
+too. Disable `defer_mcp_servers` to defer only capability tools, or enable both
+groups together. An agent without Tool search sees its tools as before.
+
+**Exclusions keep tools visible from the first request.** Name capability IDs in
+`exclude_capabilities`, whole MCP tool namespaces in `exclude_mcp_servers`, or
+final exposed tool names in `exclude_tools`. A connection named `github-work`
+uses the namespace `github_work`; a personal binding uses its actual account
+namespace, commonly the catalog key such as `notion`. Multiple personal accounts
+can have different namespaces. For an individual MCP tool, include its prefix,
+such as `github_work_search`, and use any name applied by a binding's rename.
+Exclusions affect visibility; connection and binding allowlists still control
+access.
+
+Provider-native built-ins and capability hooks stay active. Skills retain their
+own discovery through `load_capability`. Realtime voice does not use Tool search
+deferral. If every tool stays visible, search has no deferred catalog to discover.
 
 **The Builder says when it is worth it.** Once an agent's MCP bindings add up to
 more than 30 tools - each binding's own allowlist, or else what its server listed
 at its last check - the MCP tab shows a notice with a rough token estimate and a
-button that binds Tool search. It never binds it by itself: deferral changes what
-the model sees, so it stays the editor's decision.
+button that enables MCP tool search. It adds Tool search or enables MCP deferral
+in its existing configuration, preserving exclusions and capability settings.
+It never enables deferral by itself: this changes what the model sees, so it
+stays the editor's decision.
 
 **Deferral changes what the model sees, never a tool's identity.** A discovered
 MCP tool arrives under its real prefixed name, so the [approval gate](#what-a-binding-may-change)
 still pairs on it and a binding's rename still reaches it; `ToolSearch` sits
 outermost, reading the names a rename already applied.
 
-**It needs no metering.** The two local strategies run in Python and spend no
+**It needs no metering.** The local strategies run in Python and spend no
 tokens; native search runs inside the provider's own request, whose usage the
 [budget guard](../governance.md) already meters; and the discovery round-trips are
 ordinary model requests the same guard wraps. The one shape that would escape it —

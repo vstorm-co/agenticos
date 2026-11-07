@@ -1,5 +1,5 @@
 ---
-source_sha: "c3061d36ef27"
+source_sha: "0f3dca8ab414"
 ---
 
 # Konfiguracja { #configuration }
@@ -657,13 +657,18 @@ w trakcie runu przez model — dziedziczy tryb. Jedno
 ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
 best-effort, a błąd jest logowany, gdy run trwa dalej.
 
-Przy `ENVIRONMENT=production` żaden span nie trafia na konsolę. Eksporter
-konsolowy Logfire wypisuje jedną linię na każde wywołanie SQL i Redisa, około
-czterdziestu na zapytanie, do logu kontenera, którego nikt nie przeszuka. W
-produkcji span istnieje więc tylko tam, dokąd wysyła go token, a bez tokenu wolne
-zapytanie nie zostawia żadnego śladu. `agenticos cmd doctor` zgłasza to w linii
-`tracing`. W innych środowiskach konsola dalej wypisuje spany dla tego, kto patrzy
-na serwer.
+Logi aplikacji z API, workera, procesów ingestujących i CLI trafiają na stderr
+ze znacznikiem czasu, poziomem i nazwą loggera. Działają bez tokenu Logfire i są
+widoczne przez `docker compose logs -f`. `LOG_LEVEL` domyślnie wynosi `INFO`;
+ustaw `DEBUG`, `WARNING`, `ERROR` lub `CRITICAL`, aby zmienić szczegółowość.
+Redakcja danych osobowych i poświadczeń obejmuje także tracebacki wyjątków.
+
+Logowanie zapytań SQL pozostaje wyłączone, dopóki nie ustawisz `DB_ECHO=true`.
+Komunikaty INFO/DEBUG transportu HTTP są wyciszone. Spany Logfire domyślnie nie
+trafiają na konsolę w żadnym środowisku; ustaw `LOGFIRE_CONSOLE=true`, aby je
+wypisywać podczas debugowania. Nie zmienia to eksportu trace'ów do Logfire.
+Bez tokenu spany nie są eksportowane; `agenticos cmd doctor` zgłasza to w linii
+`tracing`.
 
 Daj każdemu wdrożeniu własne `LOGFIRE_ENVIRONMENT`, na przykład `local` na
 laptopie i `production` na serwerze. Jeden projekt może wtedy trzymać oba i nadal
@@ -671,6 +676,8 @@ je rozróżniać.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Poziom logów aplikacji: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `LOGFIRE_CONSOLE` | `false` | Wypisuj spany Logfire na konsolę podczas debugowania |
 | `LOGFIRE_TOKEN` | (none) | Token Pydantic Logfire. Zdobądź go na https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Nazwa usługi na dashboardzie Logfire |
 | `LOGFIRE_ENVIRONMENT` | `development` | Etykieta środowiska |

@@ -10,13 +10,28 @@ vi.mock("@/hooks", () => ({
   usePlatformMcpTools: (options?: { enabled?: boolean }) => platformTools(options),
 }));
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import type { AgentSpec } from "@/types/agents";
+import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 
 const tools = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ name: `tool_${i}`, description: "", read_only: true }));
 
 function connection(toolCount: number): OrgMcpConnectionRecord {
   return { id: "o1", last_tools: tools(toolCount) } as OrgMcpConnectionRecord;
+}
+
+function searchBinding(
+  config: Record<string, unknown> = {},
+  enabled = true,
+): CapabilityBindingSpec {
+  return {
+    id: "tool_search",
+    config,
+    enabled,
+    approval: "default",
+    tool_approval: {},
+    tool_overrides: {},
+    secret_id: null,
+  };
 }
 
 function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
@@ -47,7 +62,7 @@ describe("McpToolLoadNotice", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("45 tools");
     expect(screen.getByRole("status")).toHaveTextContent("18,000 tokens");
-    await userEvent.click(screen.getByRole("button", { name: "Turn on Tool search" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enable MCP tool search" }));
     expect(enable).toHaveBeenCalledOnce();
   });
 
@@ -68,7 +83,46 @@ describe("McpToolLoadNotice", () => {
     const { container } = render(
       <McpToolLoadNotice
         spec={spec({
-          capabilities: [{ id: "tool_search", config: {} }] as AgentSpec["capabilities"],
+          capabilities: [searchBinding()],
+        })}
+        connections={[connection(80)]}
+        personalConnections={[]}
+        onEnableToolSearch={vi.fn()}
+      />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each([
+    { enabled: false, config: {} },
+    { enabled: true, config: { defer_capabilities: true, defer_mcp_servers: false } },
+  ])("still warns when MCP deferral is inactive: %j", (binding) => {
+    render(
+      <McpToolLoadNotice
+        spec={spec({
+          capabilities: [searchBinding(binding.config, binding.enabled)],
+        })}
+        connections={[connection(45)]}
+        personalConnections={[]}
+        onEnableToolSearch={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("45 tools");
+  });
+
+  it("respects explicit exclusions when MCP deferral is already enabled", () => {
+    const { container } = render(
+      <McpToolLoadNotice
+        spec={spec({
+          capabilities: [
+            searchBinding({
+              defer_mcp_servers: true,
+              exclude_mcp_servers: ["github_work"],
+              exclude_tools: ["github_work_list_issues"],
+            }),
+          ],
         })}
         connections={[connection(80)]}
         personalConnections={[]}
@@ -90,7 +144,7 @@ describe("McpToolLoadNotice", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Turn on Tool search" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enable MCP tool search" })).toBeDisabled();
   });
 
   it("counts the platform's own server, every tool of it", () => {
