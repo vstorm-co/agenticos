@@ -1,5 +1,5 @@
 ---
-source_sha: "05ebd788836e"
+source_sha: "17a6e7ec37a0"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -720,9 +720,11 @@ Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrü
 
 ## Lokale Routinen { #local-routines }
 
-Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Anschließend bestätigt die Desktop-App nativ deren ID, Organisation, Server, Ordner und Vorgänge. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Beim ersten Mal fragt die Desktop-App einmal nativ, ob **alle deine Routinen** in dieser Organisation in diesem Ordner und seinen Unterordnern mit diesen Vorgängen arbeiten dürfen; wähle deinen Benutzerordner für den ganzen Computer.
 
-**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Erneute Kopplung, Trennung, Abmeldung oder Serverwechsel löscht die Freigaben. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
+Jede spätere Routine in diesem Ordner wird ohne Nachfrage gespeichert, und die Erlaubnis gilt auch nach App-Updates und erneuter Anmeldung. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+
+**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Ein Wechsel des Servers oder Kontos löscht die Freigaben; eine Freigabe für eine einzelne Routine aus einer älteren App endet außerdem mit ihrer Sitzung. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
 
 Ist genau der bestätigte Computer vor der Ausführung offline, wartet eine dauerhafte Aktivierung in PostgreSQL. Die Routine zeigt die Anzahl wartender Aktivierungen. Zeitplan- und manuelle Auslösungen werden währenddessen zusammengefasst; unterschiedliche eingehende Ereignisse behalten ihren Kontext und ihre Aktivierungs-ID. Der bestehende Minuten-Worker prüft die Wiederverbindung. Bereitschaftsprüfungen rufen kein Modell auf und verbrauchen keine Fehlstartversuche. Die Zulassung wird mit dem Lauf vor dem ersten Modellaufruf festgeschrieben. Eine gestartete Aktivierung wird nach einem Worker-Absturz nicht automatisch wiederholt; ein ungewisser Datei- oder Befehlsvorgang erzeugt keinen neuen Lauf.
 

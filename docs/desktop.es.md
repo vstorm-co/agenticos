@@ -1,5 +1,5 @@
 ---
-source_sha: "05ebd788836e"
+source_sha: "17a6e7ec37a0"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -708,9 +708,11 @@ Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, ade
 
 ## Rutinas locales { #local-routines }
 
-Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada; después la aplicación de escritorio pide confirmación nativa para su ID, organización, servidor, carpeta y operaciones. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada. La primera vez, la aplicación de escritorio pregunta una vez, de forma nativa, si **todas tus rutinas** de esta organización pueden trabajar en esa carpeta y sus subcarpetas con esas operaciones; elige tu carpeta personal para todo el ordenador.
 
-**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Volver a vincular, desvincular, cerrar sesión o cambiar de servidor elimina estos permisos. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
+Cada rutina posterior en esa carpeta se guarda sin preguntar, y el permiso se mantiene tras actualizar la aplicación y volver a iniciar sesión. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+
+**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Cambiar de servidor o de cuenta elimina estos permisos; un permiso para una sola rutina, concedido por una aplicación anterior, también termina con su sesión. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
 
 Si el ordenador concreto autorizado está desconectado antes de ejecutar, una activación duradera espera en PostgreSQL. La fila de la rutina muestra cuántas esperan. Las activaciones programadas y manuales se agrupan mientras esperan; los eventos entrantes distintos conservan su contexto e ID de activación. El worker existente comprueba la reconexión cada minuto. Las comprobaciones de disponibilidad no llaman al modelo ni consumen intentos de inicio fallidos. La admisión se confirma con la ejecución antes de la primera llamada al modelo. Una activación iniciada no se repite automáticamente tras una caída del worker; una operación de archivo o comando incierta no genera otra ejecución.
 

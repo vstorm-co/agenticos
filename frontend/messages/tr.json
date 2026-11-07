@@ -10498,6 +10498,8 @@
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {
+      "useAllowed": "İzin verilen klasörü kullan",
+      "allRoutines": "Tüm rutinlerim",
       "label": "Üzerinde çalış",
       "hint": "Her çalışma, masaüstü uygulaması aracılığıyla bilgisayarınızdaki bir klasörde veya agent’ın sandbox’ında gerçekleşir. Uygulama kapalıysa çalışma uygulamanın açılmasını bekler.",
       "elsewhereHint": "Her çalışma bilgisayarınızdaki bu klasörde gerçekleşir. Bunu o bilgisayardaki masaüstü uygulamasından değiştirin.",

@@ -10,6 +10,7 @@ const native = vi.hoisted(() => ({
   supportsWrites: true,
   device: "device",
   pick: vi.fn(),
+  grants: [] as unknown[],
 }));
 vi.mock("@/hooks/use-routine-local-work", () => ({
   useRoutineLocalWork: () => ({
@@ -17,6 +18,7 @@ vi.mock("@/hooks/use-routine-local-work", () => ({
     supportsWrites: native.supportsWrites,
     identity: { device_id: native.device },
     pick: { isPending: false, mutate: native.pick },
+    grants: { data: native.grants },
   }),
 }));
 const target: LocalTarget = {
@@ -31,6 +33,7 @@ beforeEach(() => {
   native.supportsWrites = true;
   native.device = "device";
   native.pick.mockReset();
+  native.grants = [];
 });
 it("requires new consent when writes are removed and clears command access too", async () => {
   const onChange = vi.fn();
@@ -103,4 +106,24 @@ it("keeps write and command selection disabled on a read-only native sandbox", (
   render(<LocalTargetField value={target} onChange={vi.fn()} visible />);
   expect(screen.getByRole("checkbox", { name: "Write" })).toBeDisabled();
   expect(screen.getByRole("checkbox", { name: "Run commands" })).toBeDisabled();
+});
+
+it("offers the folder already allowed for every routine, without asking", async () => {
+  native.grants = [
+    {
+      id: "all",
+      routine_id: null,
+      root: "/Users/person",
+      operations: { read: true, write: true, execute: false },
+    },
+  ];
+  const onChange = vi.fn();
+  render(<LocalTargetField value={null} onChange={onChange} visible />);
+  await userEvent.click(screen.getByRole("button", { name: "Use the allowed folder" }));
+  expect(onChange).toHaveBeenCalledWith({
+    folder: "/Users/person",
+    device_id: "device",
+    mode: "workspace_write",
+    operations: { read: true, write: true, execute: false },
+  });
 });

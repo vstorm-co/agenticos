@@ -134,6 +134,7 @@ from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
     RoutineLocalConsentRequired,
+    follow_signed_in_session,
     local_scope,
 )
 from app.services.routine_devices import ready as local_device_ready
@@ -2596,6 +2597,7 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
+        await follow_signed_in_session(self.db, trigger)
         waiting = await device_wait_repo.get(self.db, activation_id)
         intent = activation_intent(trigger)
         if waiting is not None:
