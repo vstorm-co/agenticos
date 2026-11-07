@@ -78,6 +78,7 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.skills._loader import SkillLoader
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
@@ -406,6 +407,10 @@ def build_agent(
             ),
         )
     )
+    if any(binding.enabled and binding.capability_id == "skills" for binding in bindings) and (
+        resources or {}
+    ).get("skills"):
+        configured.append(SkillLoader())
     if voice is not None:
         configured = voice_configured(configured)
 

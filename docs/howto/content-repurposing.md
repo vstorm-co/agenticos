@@ -149,7 +149,7 @@ model's own claim about length.
 !!! example "Recorded on v0.0.504, 25 September 2026"
 
     Model: Claude Sonnet 4.6 through OpenRouter. The agent called
-    `load_capability` for `brand-voice`, then answered directly with all three
+    `read_skill` for `brand-voice`, then answered directly with all three
     posts. The X post ran 185 characters. The LinkedIn post ran 113 words and
     the newsletter blurb 50 words, both inside their limits. No banned phrase
     appeared in any post. Every number in all three posts — 25%, 12s to 9s,

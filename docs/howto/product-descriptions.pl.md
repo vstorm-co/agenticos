@@ -1,5 +1,5 @@
 ---
-source_sha: "07eb2e5baba3"
+source_sha: "19a5f7f5ada4"
 title: "Napisz opisy produktów z pliku katalogu"
 description: "Załącz mały syntetyczny products.csv i niech agent napisze po jednym opisie oferty na wiersz, oznaczając wiersz bez wymaganego atrybutu, zamiast go wymyślać."
 ---
@@ -107,7 +107,7 @@ Najpierw sprawdź FW-104. Brakujący atrybut uzupełniony po cichu to dokładnie
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
 - **Dla FW-104 zostaje wymyślony materiał albo wymiar.** Sekcja „Never” skilla jest ignorowana. Powtórz to polecenie w polu instrukcji samego agenta, a nie tylko w skillu.
-- **Agent wywołuje `load_capability` z błędnym id i tura kończy się błędem.** Zdarzyło się to podczas weryfikacji na 0.0.508, gdy wpis z galerii instalował się jako `Product description writer`: model dwa razy napisał zamiast tego id z myślnikami, a tura zakończyła się `UnexpectedModelBehavior` zamiast zwykłej odmowy. Od 0.0.509 skille z galerii instalują się pod tą nazwą z myślnikami, a nazwa nowego skilla musi składać się z małych liter, cyfr i myślników ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Skill zainstalowany wcześniej zachowuje starą nazwę: zainstaluj go ponownie z galerii i przypisz nowy.
+- **Agent wywołuje `read_skill` z błędnym id i tura kończy się błędem.** Zdarzyło się to podczas weryfikacji na 0.0.508, gdy wpis z galerii instalował się jako `Product description writer`: model dwa razy napisał zamiast tego id z myślnikami, a tura zakończyła się `UnexpectedModelBehavior` zamiast zwykłej odmowy. Od 0.0.509 skille z galerii instalują się pod tą nazwą z myślnikami, a nazwa nowego skilla musi składać się z małych liter, cyfr i myślników ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Skill zainstalowany wcześniej zachowuje starą nazwę: zainstaluj go ponownie z galerii i przypisz nowy.
 - **Brakuje informacji o rozmiarze przy rzeczy do noszenia.** Zapytaj, który atrybut sekcja „Always include” skilla wymienia dla tego wiersza. Brak informacji o rozmiarze to przyczyna zwrotów, której skill ma zapobiegać.
 - **Odpowiedź pomija wiersz.** Poproś o liczbę wierszy, zanim zaufasz tabeli: pięć wierszy na wejściu, pięć opisów na wyjściu.
 

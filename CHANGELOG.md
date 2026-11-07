@@ -30,6 +30,16 @@ Two things are versioned separately from this file and worth knowing about:
   Raw-schema validation runs in an isolated process with bounded resources and
   diagnostics. Step tests use the contract of the entry that reaches the tested step.
 
+## [1.56.1] - 2026-11-07
+
+### Fixed
+
+- **Skills use skill-specific names.** Models open a skill with `read_skill`
+  from an “available skills” catalog; `read_skill_resource` still reads its
+  supporting files. Native deferred loading, approval policies and saved
+  conversation histories remain compatible, including existing `load_capability`
+  approval keys and histories.
+
 ## [1.56.0] - 2026-11-07
 
 ### Added
@@ -20580,7 +20590,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...HEAD
+[1.56.1]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...v1.56.1
 [1.56.0]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...v1.55.0
 [1.54.1]: https://github.com/vstorm-co/agenticos/compare/v1.54.0...v1.54.1
