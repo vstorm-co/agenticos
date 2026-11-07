@@ -1,5 +1,5 @@
 ---
-source_sha: "af48402946ea"
+source_sha: "0f5f9ee0e642"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2945,6 +2945,11 @@ jedem Zug bezahlt, ob es es jemals aufruft oder nicht.
 |---|---|---|
 | `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, von der nativen Suche ignoriert |
+| `defer_capabilities` | `false` | geeignete Funktionstools aktivierter Capabilities zurückstellen |
+| `defer_mcp_servers` | `true` | Tools gebundener MCP-Server zurückstellen |
+| `exclude_capabilities` | `[]` | Capability-IDs, deren Tools sichtbar bleiben |
+| `exclude_mcp_servers` | `[]` | normalisierte MCP-Tool-Präfixe, deren Tools sichtbar bleiben |
+| `exclude_tools` | `[]` | sichtbare Tool-Namen nach Präfix und Umbenennung, die sichtbar bleiben |
 
 **`local_bm25`** bewertet Werkzeugkennungen, Beschreibungen und Argumentschemata lokal bei jedem Provider. Seltenheit und Textlänge beeinflussen die Rangfolge, Kennungen werden bevorzugt. Nur passende autorisierte Werkzeuge werden zurückgegeben, ohne Modell- oder Embedding-Aufruf. Die Ergebnisgrenze gilt weiterhin.
 
@@ -2957,21 +2962,37 @@ jedem Zug bezahlt, ob es es jemals aufruft oder nicht.
   eine Laufzeitkosten, die der Autor akzeptiert, indem er einen benennt — `auto`
   scheitert nie auf diese Weise.
 
-**Sie einzuschalten, ist das, was die MCP-Toolsets zurückstellt.** Die Capability
-und die Zurückstellung sind zwei Hälften einer Entscheidung: Das `ToolSearch` der
-Bibliothek ist ohne Zurückgestelltes wirkungslos, und ein zurückgestelltes Tool
-ohne eine Suche, die es findet, ist ein Tool, das das Modell nie aufrufen kann.
-`tool_search` zu binden ist also das, was die Toolsets der verbundenen Server zum
-zurückgestellten Laden markiert — die Tools der Registry selbst bleiben sichtbar,
-da sie wenige und pro Agent gewählt sind. Ein Agent, der es nicht bindet, zahlt
-nichts und sieht jedes Tool wie zuvor.
+**Wählen Sie die zurückzustellenden Tool-Gruppen.** Die Standardwerte bewahren das
+Verhalten bestehender Specs: MCP-Tools werden zurückgestellt, Capability-Tools
+bleiben sichtbar. Aktivieren Sie `defer_capabilities`, um auch geeignete
+Funktionstools aktivierter Capabilities zurückzustellen. Deaktivieren Sie
+`defer_mcp_servers`, um nur Capability-Tools zurückzustellen, oder aktivieren Sie
+beide Gruppen gemeinsam. Ein Agent ohne Tool-Suche sieht seine Tools wie zuvor.
+
+**Ausnahmen halten Tools ab der ersten Anfrage sichtbar.** Tragen Sie
+Capability-IDs in `exclude_capabilities`, ganze MCP-Tool-Namensräume in
+`exclude_mcp_servers` oder die endgültig angebotenen Tool-Namen in `exclude_tools`
+ein. Eine Connection namens `github-work` nutzt den Namensraum `github_work`;
+ein persönliches Binding nutzt den tatsächlichen Namensraum des Kontos, häufig
+den Katalogschlüssel wie `notion`. Mehrere persönliche Konten können verschiedene
+Namensräume haben. Geben Sie für ein einzelnes MCP-Tool sein Präfix an, etwa
+`github_work_search`, und verwenden Sie den durch ein Binding umbenannten Namen.
+Ausnahmen beeinflussen die Sichtbarkeit; die Allowlists von Connection und
+Binding kontrollieren weiterhin den Zugriff.
+
+Native Tools des Providers und Capability-Hooks bleiben aktiv. Skills behalten
+ihre eigene Entdeckung über `load_capability`. Echtzeit-Sprachgespräche nutzen
+keine Zurückstellung durch Tool-Suche. Bleibt jedes Tool sichtbar, gibt es für
+die Suche keinen zurückgestellten Katalog zu entdecken.
 
 **Der Builder sagt, wann es sich lohnt.** Sobald die MCP-Bindungen eines Agenten
 zusammen mehr als 30 Tools ergeben - nach der eigenen Positivliste jeder Bindung,
 sonst nach dem, was ihr Server bei der letzten Prüfung gelistet hat -, zeigt der
-MCP-Tab einen Hinweis mit einer groben Token-Schätzung und eine Schaltfläche, die
-die Tool-Suche bindet. Von selbst bindet er sie nie: Die Zurückstellung ändert,
-was das Modell sieht, also bleibt es die Entscheidung der bearbeitenden Person.
+MCP-Tab einen Hinweis mit einer groben Token-Schätzung und eine Schaltfläche zum
+Aktivieren der MCP-Tool-Suche. Sie fügt die Tool-Suche hinzu oder aktiviert die
+MCP-Zurückstellung in der bestehenden Konfiguration und bewahrt dabei Ausnahmen
+und Capability-Einstellungen. Von selbst aktiviert er die Zurückstellung nie:
+Sie ändert, was das Modell sieht, also bleibt es die Entscheidung des Bearbeiters.
 
 **Die Zurückstellung ändert, was das Modell sieht, nie die Identität eines Tools.**
 Ein gefundenes MCP-Tool kommt unter seinem echten, präfigierten Namen an, sodass
@@ -2979,7 +3000,7 @@ das [Genehmigungs-Gate](#what-a-binding-may-change) weiterhin darauf passt und d
 Umbenennung einer Bindung es weiterhin erreicht; `ToolSearch` sitzt ganz außen und
 liest die Namen, die eine Umbenennung bereits angewandt hat.
 
-**Sie braucht keine Erfassung.** Die beiden lokalen Strategien laufen in Python und
+**Sie braucht keine Erfassung.** Die lokalen Strategien laufen in Python und
 geben keine Tokens aus; die native Suche läuft innerhalb der Anfrage des Providers
 selbst, deren Verbrauch der [Budget-Guard](../governance.md) bereits erfasst; und
 die Runden zur Entdeckung sind gewöhnliche Modellanfragen, die derselbe Guard
@@ -3195,13 +3216,16 @@ jedem neuen Agent und jeder Vorlage standardmäßig aktiv und lässt sich abscha
 Wo noch niemand antworten kann — ein Zeitplan, ein Webhook, die API —, erfährt der
 Agent, dass die Person abgelehnt hat.
 
-Eine unbeantwortete Frage beendet die Arbeit des Agents nicht endgültig. Verlässt
-die Person die offene Karte, parkt der Run darauf — im Run-Verlauf als **Wartet
-auf eine Antwort** — und die Karte kehrt zurück, sobald sie die Unterhaltung
-wieder öffnet, auf jedem Gerät. Die Antwort setzt den Run dort fort, wo er
-stehen blieb. Antworten kann nur die gefragte Person, über
-`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` liest die Karte
-zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
+Im Konsolenchat speichert der Run seine Fragen und pausiert, bevor die Karte
+erscheint — im Run-Verlauf als **Wartet auf eine Antwort**. Ein Chatwechsel,
+Neuladen oder das Öffnen der Unterhaltung auf einem anderen Gerät stellt die
+unbeantwortete Karte wieder her. Die Konsole sendet Antworten über ihre aktive
+Chatverbindung, damit ein delegierter Agent während der Fortsetzung weitere
+Fragen stellen kann. Ohne Verbindung wartet die Karte auf die Wiederverbindung.
+
+Antworten kann nur die gefragte Person. API-Clients können
+`POST /runs/{run_id}/answers` verwenden; `GET /runs/{run_id}/questions` liest die
+Karte zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
 

@@ -259,7 +259,41 @@ describe("McpBindingsEditor", () => {
     act(() => state.enableSearch?.());
 
     expect(onChange).toHaveBeenCalledWith({
-      capabilities: [expect.objectContaining({ id: "tool_search" })],
+      capabilities: [
+        expect.objectContaining({
+          id: "tool_search",
+          enabled: true,
+          config: { defer_mcp_servers: true },
+        }),
+      ],
+    });
+  });
+
+  it("enables MCP deferral from the notice without resetting a capability-only configuration", () => {
+    const onChange = vi.fn();
+    const search = {
+      id: "tool_search",
+      enabled: true,
+      approval: "default",
+      tool_approval: {},
+      tool_overrides: {},
+      secret_id: null,
+      config: {
+        defer_capabilities: true,
+        defer_mcp_servers: false,
+        exclude_capabilities: ["knowledge"],
+        exclude_mcp_servers: ["github_work"],
+        exclude_tools: ["renamed_search"],
+      },
+    } satisfies AgentSpec["capabilities"][number];
+    render(
+      <McpBindingsEditor spec={{ ...specWith([]), capabilities: [search] }} onChange={onChange} />,
+    );
+
+    act(() => state.enableSearch?.());
+
+    expect(onChange).toHaveBeenCalledWith({
+      capabilities: [{ ...search, config: { ...search.config, defer_mcp_servers: true } }],
     });
   });
 });

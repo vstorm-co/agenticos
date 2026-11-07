@@ -256,6 +256,7 @@ class TranscriptService:
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
+        question_tool_call_ids: Collection[str] = (),
         model_label: str | None = None,
         context_used_tokens: int | None = None,
         mcp_origins: Mapping[str, UUID] | None = None,
@@ -316,6 +317,9 @@ class TranscriptService:
         settles it with what the call returned, and an expiry settles it with
         the timeout notice (:meth:`ApprovalService._settle_expired_run`).
 
+        `question_tool_call_ids` names calls awaiting an answer instead of an
+        approval, including questions renamed by the agent's tool overrides.
+
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
         either to a failed write would be the worst possible trade, and the run
@@ -366,6 +370,7 @@ class TranscriptService:
                         answer=answer,
                         tool_calls=tool_calls,
                         parked=parked,
+                        question_tool_call_ids=question_tool_call_ids,
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
                         mcp_origins=mcp_origins or {},
@@ -443,6 +448,7 @@ class TranscriptService:
         answer: str,
         tool_calls: Sequence[RecordedToolCall],
         parked: Collection[str],
+        question_tool_call_ids: Collection[str],
         model_label: str | None,
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
@@ -495,7 +501,13 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
-                status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
+                status=(
+                    parked_status(
+                        call.tool_name, awaiting_answer=call.tool_call_id in question_tool_call_ids
+                    )
+                    if call.tool_call_id in parked or call.tool_call_id in question_tool_call_ids
+                    else "running"
+                ),
                 mcp_connection_id=mcp_origins.get(call.tool_name),
                 presentation_kind="draft" if call.tool_name in draft_tools else None,
             )

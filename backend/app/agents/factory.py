@@ -27,7 +27,6 @@ from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
     ReinjectSystemPrompt,
-    ToolSearch,
 )
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
@@ -38,6 +37,7 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
+from app.agents.capabilities import CapabilityBinding
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._overrides import ToolOverrides
@@ -83,6 +83,7 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
+from app.agents.capabilities.tool_search import ConfiguredToolSearch
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
@@ -592,7 +593,7 @@ def build_agent(
         toolsets=(
             (extra_toolsets or [])
             if voice is not None
-            else _defer_for_tool_search(configured, extra_toolsets or [])
+            else _defer_for_tool_search(configured, extra_toolsets or [], bindings=bindings)
         ),
     )
 
@@ -668,30 +669,30 @@ def _input_screen(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
 def _defer_for_tool_search(
     configured: list[AbstractCapability[Any]],
     extra_toolsets: list[AbstractToolset[Any]],
+    *,
+    bindings: list[CapabilityBinding],
 ) -> list[AbstractToolset[Any]]:
-    """Hide the MCP toolsets behind tool search when the agent enabled it.
+    """Pair configured function-tool and MCP deferral with the agent's search.
 
-    The two are paired here or not at all. `ToolSearch` is inert with nothing
-    deferred, and a deferred tool with no `ToolSearch` to find it is a tool the
-    model can never call - so deferring a toolset without the capability, or
-    binding the capability without deferring anything, is each half of a broken
-    agent. Binding `tool_search` is what asks for both.
-
-    MCP is the target the capability exists for. An agent may bind an arbitrary
-    number of servers, and every tool's schema is context the model pays for on
-    every request until it searches for one instead; `extra_toolsets` is exactly
-    those servers. The registry's own tools stay visible - they are few, chosen
-    per agent, and cheap to carry.
-
-    Deferring changes what the model *sees*, never a tool's identity: a
-    discovered MCP tool arrives under its real prefixed name, so the approval
-    gate still pairs on it and a binding's rename still reaches it. `ToolSearch`
-    also sits outermost, so it reads the names a rename already applied rather
-    than the ones underneath.
+    Select registered tools by their binding's effective names: a composed
+    capability's tools may carry anonymous child ids generated per run.
+    Surface-added tools stay visible; realtime bypasses this pairing altogether.
     """
-    if not any(isinstance(capability, ToolSearch) for capability in configured):
-        return extra_toolsets
-    return [toolset.defer_loading() for toolset in extra_toolsets]
+    for capability in configured:
+        if isinstance(capability, ConfiguredToolSearch):
+            configured_ids = {item.id for item in configured}
+            capability.capability_tool_names = frozenset(
+                tool.name
+                for binding in bindings
+                if binding.enabled
+                and binding.capability_id in configured_ids
+                and binding.capability_id not in capability.exclude_capabilities
+                for tool in capability_def(binding.capability_id).effective_tools(
+                    binding.tool_overrides
+                )
+            )
+            return [capability.defer_toolset(toolset) for toolset in extra_toolsets]
+    return extra_toolsets
 
 
 def _as_decimal(value: float) -> Decimal:

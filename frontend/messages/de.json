@@ -5618,7 +5618,7 @@
       "inCategoryUse": "Bereits verwendete Kategorien",
       "inTagUse": "Bereits verwendete Tags",
       "mcpToolLoad": "Diese MCP-Server geben dem Modell bei jeder Anfrage {count} Werkzeuge - etwa {tokens, number} Tokens, bevor jemand etwas schreibt, und mehr Werkzeuge, als ein Modell gut auseinanderhält. Die Tool-Suche hält sie zurück, bis der Agent eines nachschlägt.",
-      "mcpToolLoadEnable": "Tool-Suche einschalten",
+      "mcpToolLoadEnable": "MCP-Tool-Suche einschalten",
       "agentDescriptionLabel": "Beschreibung",
       "agentNameLabel": "Name",
       "agentNameRequired": "Ein Agent braucht einen Namen.",
@@ -11145,7 +11145,7 @@
     "tool_search": {
       "name": "Tool-Suche",
       "does": "Ein Agent mit vielen Tools findet das richtige, wenn er es braucht, statt jedes Mal alle zu lesen.",
-      "example1": "Ein Agent, der mit mehreren MCP-Servern mit Dutzenden Tools verbunden ist",
+      "example1": "Ein Agent mit vielen aktivierten Capabilities und gebundenen MCP-Servern",
       "needs": "Nichts weiter.",
       "never": "Fügt nie ein Tool hinzu; blendet Tools nur aus, bis der Agent eines sucht."
     },
@@ -11667,6 +11667,26 @@
       "max_results": {
         "title": "Treffer pro Suche",
         "description": "Wie viele Treffer die lokale Suche liefert; bei nativer Suche ignoriert."
+      },
+      "defer_capabilities": {
+        "title": "Capability-Tools verzögert laden",
+        "description": "Geeignete Tools aktivierter Capabilities ausblenden, bis der Agent sie sucht. Ausgeschaltet bleiben Capability-Tools sichtbar."
+      },
+      "defer_mcp_servers": {
+        "title": "MCP-Tools verzögert laden",
+        "description": "Geeignete Tools gebundener MCP-Server ausblenden, bis der Agent sie sucht. Ausgeschaltet bleiben MCP-Tools sichtbar."
+      },
+      "exclude_capabilities": {
+        "title": "Immer sichtbare Capabilities",
+        "description": "Kommagetrennte Capability-IDs, deren Tools sichtbar bleiben, etwa knowledge oder visuals. Diese Capabilities müssen weiterhin aktiviert sein."
+      },
+      "exclude_mcp_servers": {
+        "title": "Immer sichtbare MCP-Server",
+        "description": "Kommagetrennte Namensraum-Präfixe der MCP-Tools, die sichtbar bleiben, etwa github_work oder agenticos. Das Präfix vor dem Tool-Namen verwenden und Bindestriche durch Unterstriche ersetzen."
+      },
+      "exclude_tools": {
+        "title": "Immer sichtbare Tools",
+        "description": "Kommagetrennte Tool-Namen, wie sie das Modell sieht, die sichtbar bleiben sollen. Umbenannte Capability-Tools und vollständige MCP-Tool-Namen mit Präfix verwenden, etwa github_work_list_issues."
       }
     },
     "web_fetch": {

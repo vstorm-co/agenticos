@@ -7,7 +7,7 @@ import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
 import { QuickAsk } from "./quick-ask";
 import type { Mentionable } from "@/types/mention";
-import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
+import type { ToolCall, PendingApproval, Decision, QueuedMessage, AskUserQuestion } from "@/types";
 
 const env = vi.hoisted(() => ({
   visualControls: false,
@@ -27,6 +27,8 @@ const env = vi.hoisted(() => ({
     isStopping: false,
     stopGeneration: vi.fn(),
     pendingApproval: null as PendingApproval | null,
+    pendingQuestions: null as AskUserQuestion[] | null,
+    sendAskUserResponses: vi.fn(),
     sendResumeDecisions: vi.fn(),
     queuedMessages: [] as QueuedMessage[],
     cancelQueued: vi.fn(),
@@ -178,6 +180,7 @@ beforeEach(() => {
   env.chat.isProcessing = false;
   env.chat.isConnected = true;
   env.chat.pendingApproval = null;
+  env.chat.pendingQuestions = null;
   env.chat.queuedMessages = [];
   env.listeners.clear();
   env.dictation.engine = "server";
@@ -187,6 +190,17 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("QuickAsk question answers", () => {
+  it("disables question answers while disconnected", async () => {
+    env.chat.isConnected = false;
+    env.chat.pendingQuestions = [
+      { question: "How formal?", options: [{ label: "Casual" }], allowCustom: true },
+    ];
+    render(<QuickAsk initialConversationId="c" />);
+    expect(await screen.findByRole("button", { name: /Casual/ })).toBeDisabled();
+  });
+});
 
 describe("QuickAsk", () => {
   it("asks on Enter, and keeps Shift+Enter for a new line", async () => {

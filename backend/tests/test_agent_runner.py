@@ -69,6 +69,7 @@ from app.agents.spec import (
     PersonalMcpServerRef,
 )
 from app.agents.steering import SteeringInbox
+from app.agents.subagent_events import SubagentTextDelta
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.agents.tool_repair import RepairTally
 from app.core.audit import set_impersonator
@@ -88,6 +89,7 @@ from app.services.agent_runner import (
     ASIDE_PREFIX,
     AgentRunnerService,
     ApprovalChannel,
+    LiveRunSurface,
     ParkedApproval,
     PausedRunState,
     PersonalServiceGap,
@@ -3609,6 +3611,29 @@ class TestParking:
         assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
 
     @pytest.mark.anyio
+    async def test_a_renamed_parked_question_reaches_the_transcript_with_its_identity(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        call = ToolCallPart("clarify", _QUESTIONS, tool_call_id="ask-1")
+        messages = [ModelResponse(parts=[call])]
+        result = MagicMock(
+            output=DeferredToolRequests(calls=[call], metadata={"ask-1": {"kind": "ask_user"}})
+        )
+        result.all_messages = MagicMock(return_value=messages)
+        result.new_messages = MagicMock(return_value=messages)
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "choose a tone")
+
+        assert record.await_args.kwargs["question_tool_call_ids"] == ["ask-1"]
+        assert record.await_args.kwargs["tool_calls"][0].tool_name == "clarify"
+
+    @pytest.mark.anyio
     @pytest.mark.parametrize(
         ("status", "kept"),
         [
@@ -3828,7 +3853,7 @@ class TestResume:
         self.stream_emit = AsyncMock()
 
         @asynccontextmanager
-        async def traced(_prepared):
+        async def traced(_prepared, *, live_surface=None):
             yield RunFrames(emit=self.stream_emit)
 
         if stream_receipt:
@@ -6697,11 +6722,13 @@ _QUESTIONS = {
 }
 
 
-def _asked_state(*, questions: list[str] | None = None) -> dict[str, Any]:
+def _asked_state(
+    *, questions: list[str] | None = None, tool_name: str = "ask_user_question"
+) -> dict[str, Any]:
     """A run parked on one `ask_user_question` call, as `_classify_output` stores it."""
     messages = [
         ModelRequest(parts=[UserPromptPart("draft the reply")]),
-        ModelResponse(parts=[ToolCallPart("ask_user_question", _QUESTIONS, tool_call_id="ask-1")]),
+        ModelResponse(parts=[ToolCallPart(tool_name, _QUESTIONS, tool_call_id="ask-1")]),
     ]
     return {
         "messages": ModelMessagesTypeAdapter.dump_python(messages, mode="json"),
@@ -6778,6 +6805,22 @@ class TestParkedQuestions:
     async def test_an_answer_continues_the_run_with_what_was_picked(self):
         resume = await self._answer({"ask-1": [{"selected": ["Casual"]}]})
 
+        assert resume.call_args.kwargs["answers"] == {"ask-1": {"Tone": ["Casual"]}}
+
+    @pytest.mark.anyio
+    async def test_a_renamed_question_can_be_read_and_answered_after_reload(self):
+        state = _asked_state(tool_name="clarify")
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=state,
+            user_id=_THE_ASKER,
+        )
+
+        [card] = await AgentRunnerService(_db()).parked_questions(self._asker(), run)
+        resume = await self._answer({"ask-1": [{"selected": ["Casual"]}]}, paused_state=state)
+
+        assert card.tool_call_id == "ask-1"
+        assert card.questions[0].question == "How formal should the reply be?"
         assert resume.call_args.kwargs["answers"] == {"ask-1": {"Tone": ["Casual"]}}
 
     @pytest.mark.anyio
@@ -9117,3 +9160,191 @@ async def test_web_container_preparation_exposes_only_the_initiators_personal_ex
             await build.call_args.kwargs["request_approval"](request), ApprovalGranted
         )
     remembered.assert_awaited_once()
+
+
+@pytest.mark.anyio
+class TestLiveQuestionContinuation:
+    @pytest.fixture
+    def continuation(self):
+        """The replay path, with assembly and model execution at their tested boundaries."""
+        ctx = _ctx()
+        run = _parked_run(
+            user_id=ctx.user_id,
+            surface=RunSurface.WEB.value,
+            conversation_id=uuid.uuid4(),
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {"can_ask_questions": True},
+            },
+        )
+        prepared = _prepared(conversation_id=run.conversation_id)
+        prepared.run = run
+        prepared.built.deps = AgentDeps()
+        service = AgentRunnerService(_db())
+        execute = AsyncMock(
+            return_value=RunSegment(output="continued", run=run, tool_calls=[], settled={})
+        )
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                service,
+                "_parked_spec",
+                AsyncMock(return_value=(MagicMock(), AgentSpec(name="Clerk"))),
+            ),
+            patch.object(service, "_assemble", AsyncMock(return_value=prepared)) as assemble,
+            patch.object(service, "_run", execute),
+            patch("app.services.live_turn.begin", AsyncMock(return_value=None)),
+            patch("app.services.chat_room.turn_begun", AsyncMock()),
+        ):
+            yield service, ctx, run, prepared, assemble
+
+    def _surface(self) -> LiveRunSurface:
+        from pydantic_ai_harness.ask_user import AskUserResponse
+
+        return LiveRunSurface(
+            ask_user=AsyncMock(return_value="euros"),
+            ask_questions=AsyncMock(return_value=AskUserResponse(cancelled=True)),
+            emit=AsyncMock(),
+        )
+
+    async def test_the_continuation_keeps_live_channels_when_it_clones_a_delegate(
+        self, continuation
+    ):
+        from pydantic_ai_harness.ask_user import AskUserRequest
+
+        service, ctx, run, prepared, _assemble = continuation
+        surface = self._surface()
+
+        await service.resume(ctx, run.id, live_surface=surface)
+
+        child = prepared.deps.clone_for_subagent(max_depth=0)
+        assert child.ask_user is not None and child.ask_questions is not None
+        assert await child.ask_user("Which currency?", []) == "euros"
+        assert (await child.ask_questions(AskUserRequest(questions=()))).cancelled
+        assert prepared.deps.parks_questions is False
+
+    async def test_an_http_continuation_keeps_its_existing_no_live_delegate_channels(
+        self, continuation
+    ):
+        service, ctx, run, prepared, _assemble = continuation
+
+        await service.resume(ctx, run.id)
+
+        child = prepared.deps.clone_for_subagent(max_depth=0)
+        assert prepared.deps.ask_questions is park_the_question
+        assert prepared.deps.parks_questions is True
+        assert child.ask_user is None
+        assert child.ask_questions is None
+        assert prepared.deps.subagent_events is None
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "refusal",
+        ["other_owner", "api_surface", "api_key", "no_channel", "public_origin", "publisher"],
+    )
+    async def test_live_channels_cannot_widen_the_runs_original_authority(
+        self, continuation, refusal
+    ):
+        service, ctx, run, _prepared_run, assemble = continuation
+        if refusal == "other_owner":
+            run.user_id = uuid.uuid4()
+        elif refusal == "api_surface":
+            run.surface = RunSurface.API.value
+        elif refusal == "api_key":
+            ctx = replace(ctx, api_key_id=uuid.uuid4())
+        elif refusal == "no_channel":
+            run.paused_state["admitted_as"]["can_ask_questions"] = False
+        elif refusal == "public_origin":
+            run.paused_state["admitted_as"]["public_origin"] = True
+        else:
+            run.paused_state["admitted_as"]["subject_is_publisher_fallback"] = True
+
+        with pytest.raises(AuthorizationError):
+            await service.resume(ctx, run.id, live_surface=self._surface())
+
+        assemble.assert_not_awaited()
+        assert run.status == RunStatus.AWAITING_APPROVAL.value
+
+    async def test_an_older_web_pause_can_restore_its_original_live_channels(self, continuation):
+        service, ctx, run, prepared, _assemble = continuation
+        run.paused_state.pop("admitted_as")
+
+        await service.resume(ctx, run.id, live_surface=self._surface())
+
+        assert prepared.deps.clone_for_subagent(max_depth=0).ask_user is not None
+
+    @pytest.mark.parametrize("redis_available", [True, False])
+    async def test_main_and_delegate_frames_reach_the_socket_and_shared_trace_once(
+        self, redis_available
+    ):
+        from app.services import live_turn
+
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.run.surface = RunSurface.WEB.value
+        prepared.run.user_id = uuid.uuid4()
+        prepared.built.deps = AgentDeps()
+        emit = AsyncMock()
+        surface = replace(self._surface(), emit=emit)
+        turn = object() if redis_available else None
+        event = SubagentTextDelta(
+            task_id="child-1", subagent="researcher", depth=0, delta="Found it"
+        )
+        with (
+            patch.object(live_turn, "begin", AsyncMock(return_value=turn)),
+            patch.object(live_turn, "publish", AsyncMock()) as publish,
+            patch.object(live_turn, "end", AsyncMock()) as end,
+            patch("app.services.chat_room.turn_begun", AsyncMock()),
+        ):
+            async with AgentRunnerService(_db())._resume_stream(
+                prepared, live_surface=surface
+            ) as frames:
+                assert frames is not None
+                await frames.emit("text_delta", {"content": "Working"})
+                assert prepared.deps.subagent_events is not None
+                await prepared.deps.subagent_events(event)
+
+        delivered = [call.args for call in emit.await_args_list]
+        assert [kind for kind, _payload in delivered] == [
+            "background_task_turn",
+            "model_request_start",
+            "text_delta",
+            "subagent_text_delta",
+        ]
+        assert delivered[-1][1] == event.model_dump(mode="json")
+        if redis_available:
+            assert [(call.args[1], call.args[2]) for call in publish.await_args_list] == delivered
+            end.assert_awaited_once_with(turn)
+        else:
+            publish.assert_not_awaited()
+            end.assert_not_awaited()
+
+    @pytest.mark.parametrize("failure", ["before_stream", "cancelled"])
+    async def test_a_trace_closes_even_if_the_live_continuation_never_finishes(self, failure):
+        from app.services import live_turn
+
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.run.surface = RunSurface.WEB.value
+        prepared.run.user_id = None
+        emit = AsyncMock(
+            side_effect=RuntimeError("socket write failed") if failure == "before_stream" else None
+        )
+        surface = replace(self._surface(), emit=emit)
+        turn = object()
+        with (
+            patch.object(live_turn, "begin", AsyncMock(return_value=turn)),
+            patch.object(live_turn, "publish", AsyncMock()),
+            patch.object(live_turn, "end", AsyncMock()) as end,
+            pytest.raises(RuntimeError if failure == "before_stream" else asyncio.CancelledError),
+        ):
+            async with AgentRunnerService(_db())._resume_stream(prepared, live_surface=surface):
+                raise asyncio.CancelledError
+
+        end.assert_awaited_once_with(turn)
