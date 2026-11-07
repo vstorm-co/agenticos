@@ -689,7 +689,8 @@ class TestOpeningAndClosing:
 
         with pytest.raises(BadRequestError, match="uses your computer"):
             await service.open(spec, ctx=_ctx(), identity=_identity())
-        assert await service.open(spec, ctx=_ctx(), identity=_identity(), defer_local=True) is None
+        opened = await service.open(spec, ctx=_ctx(), identity=_identity(), defer_local=True)
+        assert opened is None
 
     async def test_a_run_scoped_state_workspace_needs_no_row(self, monkeypatch, mock_db_session):
         created = AsyncMock()

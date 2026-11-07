@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CapabilitySettings } from "./capability-settings";
@@ -11,6 +11,7 @@ import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
 import { providerMarkIn } from "@/test-utils/brand-marks";
+import en from "../../../messages/en.json";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -942,4 +943,117 @@ it("offers an optional Keenable key without making keyless search look invalid",
   await userEvent.click(screen.getByLabelText("Secret"));
   await userEvent.click(screen.getByRole("option", { name: /Keenable API key/ }));
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-1" }));
+});
+
+describe("Tool search settings", () => {
+  // The backend's schema drives these controls; its registry tests keep field
+  // copy synchronized with the catalog. No dedicated form may drop an option.
+  const TOOL_SEARCH: CapabilityCatalogEntry = {
+    ...WEATHER,
+    id: "tool_search",
+    name: "Tool search",
+    tools: [],
+    requires_secret: null,
+    config_schema: {
+      type: "object",
+      properties: {
+        defer_capabilities: { type: "boolean", default: false },
+        defer_mcp_servers: { type: "boolean", default: true },
+        exclude_capabilities: { type: "array", items: { type: "string" }, default: [] },
+        exclude_mcp_servers: { type: "array", items: { type: "string" }, default: [] },
+        exclude_tools: { type: "array", items: { type: "string" }, default: [] },
+      },
+    },
+  };
+  const copy = en.capabilityConfig.tool_search;
+
+  it("preserves MCP-only defaults without writing configuration on mount", () => {
+    const onChange = vi.fn();
+    mount(binding({ id: "tool_search" }), { definition: TOOL_SEARCH, onChange });
+
+    expect(screen.getByRole("switch", { name: copy.defer_capabilities.title })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: copy.defer_mcp_servers.title })).toBeChecked();
+    expect(screen.getByLabelText(copy.exclude_capabilities.title)).toHaveValue("");
+    expect(screen.getByLabelText(copy.exclude_mcp_servers.title)).toHaveValue("");
+    expect(screen.getByLabelText(copy.exclude_tools.title)).toHaveValue("");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("saves independent source switches and exclusions in the capability binding", async () => {
+    const saved = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState(binding({ id: "tool_search" }));
+      return (
+        <CapabilitySettings
+          catalog={[TOOL_SEARCH]}
+          selected={[value]}
+          onChange={(next) => {
+            saved(next);
+            setValue(next);
+          }}
+        />
+      );
+    }
+    render(<Editor />, { wrapper });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("switch", { name: copy.defer_capabilities.title }));
+    await user.click(screen.getByRole("switch", { name: copy.defer_mcp_servers.title }));
+    await user.type(screen.getByLabelText(copy.exclude_capabilities.title), "knowledge, visuals");
+    await user.type(
+      screen.getByLabelText(copy.exclude_mcp_servers.title),
+      "github_work, agenticos",
+    );
+    await user.type(
+      screen.getByLabelText(copy.exclude_tools.title),
+      "renamed_search, github_work_list",
+    );
+
+    expect(saved).toHaveBeenLastCalledWith(
+      binding({
+        id: "tool_search",
+        config: {
+          defer_capabilities: true,
+          defer_mcp_servers: false,
+          exclude_capabilities: ["knowledge", "visuals"],
+          exclude_mcp_servers: ["github_work", "agenticos"],
+          exclude_tools: ["renamed_search", "github_work_list"],
+        },
+      }),
+    );
+    await user.clear(screen.getByLabelText(copy.exclude_tools.title));
+    expect(saved).toHaveBeenLastCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ exclude_tools: undefined }) }),
+    );
+  });
+
+  it("shows stored exclusions and keeps every setting disabled in a read-only spec", () => {
+    const onChange = vi.fn();
+    mount(
+      binding({
+        id: "tool_search",
+        config: {
+          defer_capabilities: true,
+          defer_mcp_servers: false,
+          exclude_capabilities: ["knowledge"],
+          exclude_mcp_servers: ["github_work"],
+          exclude_tools: ["renamed_search", "github_work_list"],
+        },
+      }),
+      { definition: TOOL_SEARCH, onChange, disabled: true },
+    );
+
+    expect(screen.getByRole("switch", { name: copy.defer_capabilities.title })).toBeChecked();
+    expect(screen.getByRole("switch", { name: copy.defer_mcp_servers.title })).not.toBeChecked();
+    expect(screen.getByLabelText(copy.exclude_capabilities.title)).toHaveValue("knowledge");
+    expect(screen.getByLabelText(copy.exclude_mcp_servers.title)).toHaveValue("github_work");
+    expect(screen.getByLabelText(copy.exclude_tools.title)).toHaveValue(
+      "renamed_search, github_work_list",
+    );
+    for (const field of Object.values(copy)) {
+      if (field === copy.strategy || field === copy.max_results) continue;
+      expect(screen.getByLabelText(field.title)).toBeDisabled();
+    }
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

@@ -319,19 +319,18 @@ it("respects an already-open project's cloud workspace", () => {
 });
 
 describe("useComputerAccessOnUse", () => {
-  function onUse(agent: Agent | undefined, idle = false) {
+  function onUse(agent: Agent | undefined) {
     const respond = vi.fn();
-    const send = vi.fn();
-    const props = { pending: null as ComputerAccessRequest | null, idle, agent };
+    const props = { pending: null as ComputerAccessRequest | null, agent };
     const view = renderHook(
-      (current: typeof props) => useComputerAccessOnUse({ ...current, respond, send }),
+      (current: typeof props) => useComputerAccessOnUse({ ...current, respond }),
       { initialProps: props },
     );
-    return { respond, send, view, props };
+    return { respond, view, props };
   }
 
-  it("asks, remembers the choice, releases the run and continues once the turn ends", async () => {
-    const { respond, send, view, props } = onUse(local);
+  it("asks, remembers the choice and releases the requesting run", async () => {
+    const { respond, view, props } = onUse(local);
     const asked = { reason: "Read README" };
     view.rerender({ ...props, pending: asked });
     await waitFor(() => expect(useLocalAccessStore.getState().asking?.id).toBe(local.id));
@@ -339,9 +338,6 @@ describe("useComputerAccessOnUse", () => {
     await waitFor(() => expect(respond).toHaveBeenCalledWith(true));
     expect(useWorkOnStore.getState().targetFor("chat")).toEqual(whole);
     expect(useWorkOnStore.getState().agentTargetFor(local.id)).toEqual(whole);
-    expect(send).not.toHaveBeenCalled();
-    view.rerender({ ...props, pending: asked, idle: true });
-    expect(send).toHaveBeenCalledWith("Access granted - please continue.");
   });
 
   it("does not remember a legacy whole-computer choice for the agent", async () => {
@@ -355,25 +351,21 @@ describe("useComputerAccessOnUse", () => {
   });
 
   it("tells the run when the person declines, and continues nothing", async () => {
-    const { respond, send, view, props } = onUse(local);
+    const { respond, view, props } = onUse(local);
     view.rerender({ ...props, pending: { reason: "x" } });
     await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
     await act(async () => useLocalAccessStore.getState().answer(null));
     await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
-    view.rerender({ ...props, pending: { reason: "x" }, idle: true });
-    expect(send).not.toHaveBeenCalled();
   });
 
   it("does not continue in a chat the person left while choosing", async () => {
-    const { respond, send, view, props } = onUse(local);
+    const { respond, view, props } = onUse(local);
     const asked = { reason: "x" };
     view.rerender({ ...props, pending: asked });
     await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
     useConversationStore.setState({ currentConversationId: "elsewhere" });
     await act(async () => useLocalAccessStore.getState().answer(whole));
     await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
-    view.rerender({ ...props, pending: asked, idle: true });
-    expect(send).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -305,8 +305,8 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
                 "Routine access cannot use full-computer or a different folder mode",
             ));
         }
-        crate::routine_access::check(app, &scope, &root, op).map_err(|error| Refusal::new("denied", error))?;
-        let root = PathBuf::from(root);
+        let root =
+            crate::routine_access::check(app, &scope, &root, op).map_err(|error| Refusal::new("denied", error))?;
         return match op {
             "shell.run" => shell(app, &root, mode, args, false).await,
             _ => files(op, &root, mode, args).await,

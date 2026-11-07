@@ -166,14 +166,16 @@ async def ready(db: AsyncSession, ctx: AuthContext, local: LocalTarget) -> devic
     return device
 
 
-async def follow_signed_in_session(db: AsyncSession, trigger: AgentTrigger) -> None:
+async def follow_signed_in_session(
+    db: AsyncSession, trigger: AgentTrigger, ctx: AuthContext
+) -> None:
     """Point a routine's computer at the person's current desktop session.
 
     A routine remembers the session its folder was approved on. Signing in to the
     app again starts a new one, and the routine would wait on a session that is
     gone. When that session has ended and the person's app is connected now, the
-    routine moves to the newest connected session. Whether it may work there is
-    still the app's decision: a permission for every routine of the person
+    routine moves to a connected session that confirms its grant. Whether it may
+    work there is still the app's decision: a permission for every routine of the person
     survives a new sign-in, a permission for one routine does not, and that
     routine is then blocked for review as before.
     """
@@ -186,14 +188,41 @@ async def follow_signed_in_session(db: AsyncSession, trigger: AgentTrigger) -> N
     user_id = trigger.created_by_user_id
     if local.routine_grant is None or local.device_id is None or user_id is None:
         return
+    if (
+        ctx.user_id != user_id
+        or ctx.organization_id != trigger.organization_id
+        or ctx.routine_id != trigger.id
+    ):
+        raise AuthorizationError(message="Only this routine's owner can rebind its computer")
     now = datetime.now(UTC)
     if await session_repo.active_device(db, session_id=local.device_id, user_id=user_id, now=now):
         return
+    previous_intent = activation_intent(trigger)
     for device in await device_hub.connected(user_id):
-        if await session_repo.active_device(
-            db, session_id=device.session_id, user_id=user_id, now=now
+        moved = local.model_copy(update={"device_id": device.session_id})
+        try:
+            await ready(db, ctx, moved)
+        except RoutineDeviceOffline, RoutineLocalConsentRequired:
+            continue
+        locked = await agent_trigger_repo.get(
+            db, trigger.id, organization_id=trigger.organization_id, for_update=True
+        )
+        if (
+            locked is None
+            or locked.created_by_user_id != user_id
+            or not locked.runs_as_creator
+            or activation_intent(locked) != previous_intent
         ):
-            moved = local.model_copy(update={"device_id": device.session_id})
-            trigger.local_target = moved.model_dump(mode="json")
-            await db.flush()
             return
+        locked.local_target = moved.model_dump(mode="json")
+        await device_wait_repo.rebind_device(
+            db,
+            trigger_id=locked.id,
+            user_id=user_id,
+            previous_device_id=local.device_id,
+            device_id=device.session_id,
+            previous_intent=previous_intent,
+            intent=activation_intent(locked),
+        )
+        await db.flush()
+        return

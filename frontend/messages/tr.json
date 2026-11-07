@@ -3158,7 +3158,7 @@
       "inCategoryUse": "Kullanımdaki kategoriler",
       "inTagUse": "Kullanımdaki etiketler",
       "mcpToolLoad": "Bu MCP sunucuları her istekte modele {count} araç sunar; kullanıcı yazmaya başlamadan önce yaklaşık {tokens, number} token ve modelin iyi seçemeyeceği kadar çok araç anlamına gelir. Tool search, agent arayana kadar bu araçları görünümden kaldırır.",
-      "mcpToolLoadEnable": "Tool search özelliğini aç",
+      "mcpToolLoadEnable": "MCP tool aramasını etkinleştir",
       "agentDescriptionLabel": "Açıklama",
       "agentNameLabel": "Ad",
       "agentNameRequired": "Agentın adı olmalı.",
@@ -5275,6 +5275,26 @@
       "max_results": {
         "title": "Arama başına eşleşme",
         "description": "Yerel aramanın döndüreceği eşleşme sayısı; native search'te kullanılmaz."
+      },
+      "defer_capabilities": {
+        "title": "Capability tool’larını ertele",
+        "description": "Etkin capability’lerin uygun tool’larını agent arayana kadar gizler. Kapatıldığında capability tool’ları görünür kalır."
+      },
+      "defer_mcp_servers": {
+        "title": "MCP tool’larını ertele",
+        "description": "Bağlı MCP server’ların uygun tool’larını agent arayana kadar gizler. Kapatıldığında MCP tool’ları görünür kalır."
+      },
+      "exclude_capabilities": {
+        "title": "Her zaman görünür capability’ler",
+        "description": "Tool’ları görünür kalacak capability kimliklerini virgülle ayırın; ör. knowledge veya visuals. Bu capability’lerin yine de etkin olması gerekir."
+      },
+      "exclude_mcp_servers": {
+        "title": "Her zaman görünür MCP server’lar",
+        "description": "Tool’ları görünür kalacak MCP tool ad alanı öneklerini virgülle ayırın; ör. github_work veya agenticos. Tool adından önceki öneki kullanın ve kısa çizgileri alt çizgiyle değiştirin."
+      },
+      "exclude_tools": {
+        "title": "Her zaman görünür tool’lar",
+        "description": "Görünür kalacak tool’ların modelin gördüğü adlarını virgülle ayırın. Yeniden adlandırılan capability tool adlarını ve tam önekli MCP tool adlarını kullanın; ör. github_work_list_issues."
       }
     },
     "web_fetch": {
@@ -5661,7 +5681,7 @@
     "tool_search": {
       "name": "Tool arama",
       "does": "Çok sayıda tool'u olan Agent'ın her seferinde tümünü okumak yerine ihtiyacı olduğunda doğru tool'u bulmasını sağlar.",
-      "example1": "Düzinelerce tool'u olan birkaç MCP server'a bağlı Agent",
+      "example1": "Çok sayıda etkin capability’si ve bağlı MCP server’ı olan Agent",
       "needs": "Ek bir şey gerekmez.",
       "never": "Tool eklemez; Agent arayana kadar tool'ları gizler."
     },

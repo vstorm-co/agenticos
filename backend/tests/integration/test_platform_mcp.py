@@ -740,8 +740,6 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
     async with _connected(key) as session:
         listed = await session.call_tool("list_watches", {})
         assert not listed.is_error and _content(listed)["total"] == 0
-        refused = await session.call_tool("create_watch", args)
-        assert refused.is_error and "own consent" in str(refused.content)
     with patch.object(
         WatchService,
         "_selected_spec",
@@ -752,6 +750,15 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
             )
         ),
     ):
+        async with _connected(key) as session:
+            own_key_watch = await session.call_tool("create_watch", {**args, "title": "My key"})
+        assert not own_key_watch.is_error, own_key_watch
+        own_saved = await db.get(Watch, uuid.UUID(_content(own_key_watch)["id"]))
+        assert own_saved is not None and own_saved.source_conversation_id is not None
+        own_source = await db.get(Conversation, own_saved.source_conversation_id)
+        assert own_source is not None and own_source.id != conversation.id
+        assert own_source.user_id == organization.created_by_user_id
+        assert own_source.organization_id == organization.id
         async with _connected(private_key) as session:
             created = await session.call_tool("create_watch", args)
     assert not created.is_error, created

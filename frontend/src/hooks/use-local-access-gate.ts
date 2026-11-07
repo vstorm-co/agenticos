@@ -151,8 +151,8 @@ export async function askForComputer(
 
 /**
  * Answer a run that paused on `computer_access`: ask the person, remember their
- * choice for the agent and the chat, release the run, and - once its turn has
- * ended - send the turn that continues with their files.
+ * choice for the agent and the chat, and release the run. The chat owns any
+ * continuation so only the successful requesting turn can start it.
  *
  * Outside the desktop app there is no computer to grant, so the run is told at once.
  */
@@ -160,18 +160,13 @@ export function useComputerAccessOnUse({
   pending,
   respond,
   agent,
-  idle,
-  send,
 }: {
   pending: ComputerAccessRequest | null;
   respond: (granted: boolean) => void;
   agent: Agent | undefined;
-  idle: boolean;
-  send: (content: string) => unknown;
 }): void {
   const desktop = isDesktopShell(useShell());
   const t = useTranslations("chat.localAccess");
-  const continueIn = useRef<string | null | undefined>(undefined);
   const asked = useRef<ComputerAccessRequest | null>(null);
   useEffect(() => {
     if (pending === null || asked.current === pending) return;
@@ -183,7 +178,6 @@ export function useComputerAccessOnUse({
     const conversationId = useConversationStore.getState().currentConversationId;
     askForComputer(agent, conversationId)
       .then((target) => {
-        if (target !== null) continueIn.current = conversationId;
         respond(target !== null);
       })
       .catch((error: unknown) => {
@@ -192,11 +186,4 @@ export function useComputerAccessOnUse({
         respond(false);
       });
   }, [pending, desktop, agent, respond, t]);
-  useEffect(() => {
-    if (!idle || continueIn.current === undefined) return;
-    const conversationId = continueIn.current;
-    continueIn.current = undefined;
-    if (useConversationStore.getState().currentConversationId === conversationId)
-      send(t("continue"));
-  }, [idle, send, t]);
 }

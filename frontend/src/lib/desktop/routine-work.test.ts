@@ -150,6 +150,19 @@ describe("coveredByAllRoutines", () => {
     ).toBeNull();
   });
 
+  it("reuses a grant for a Windows subfolder without replacing its ID", () => {
+    expect(
+      coveredByAllRoutines([{ ...all, root: "C:\\work" }], "now", "C:\\work\\reports", read),
+    ).toMatchObject({
+      device_id: "now",
+      folder: "C:\\work\\reports",
+      routine_grant: all.id,
+    });
+    expect(
+      coveredByAllRoutines([{ ...all, root: "C:\\work" }], "now", "C:\\workshop", read),
+    ).toBeNull();
+  });
+
   it("treats the root folder as the whole computer", () => {
     expect(coveredByAllRoutines([{ ...all, root: "/" }], "now", "/srv/data", read)?.folder).toBe(
       "/srv/data",

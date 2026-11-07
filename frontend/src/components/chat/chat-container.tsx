@@ -498,8 +498,6 @@ export function ChatContainer({
     pending: pendingComputerAccess,
     respond: sendComputerAccessResponse,
     agent: selectedAgent,
-    idle: !isProcessing,
-    send: sendMessage,
   });
 
   // A message addressed to a workflow goes to it instead of the agent: the

@@ -692,3 +692,98 @@ async def test_device_wait_sweep_never_replays_or_spends_model_work_before_readi
         "three_failures",
     }:
         online.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_rebinding_preserves_matching_event_payloads_and_refuses_stale_authority(
+    db: AsyncSession,
+) -> None:
+    w = await world(db, event=True)
+    first = await park(db, w, context="first event")
+    second = await park(db, w, context="second event")
+    edited = await park(db, w, context="event from an old edit")
+    terminal = await park(db, w, context="already started")
+    stale = await repo.get(db, edited)
+    assert stale is not None
+    stale.intent_hash = "previous routine configuration"
+    await repo.settle(db, activation_id=terminal, status="started")
+    await db.flush()
+    replacement = Session(
+        user_id=w.user.id,
+        refresh_token_hash=str(uuid4()),
+        app_platform="macos",
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    db.add(replacement)
+    await db.flush()
+    locked = await agent_trigger_repo.get(
+        db, w.trigger.id, organization_id=w.trigger.organization_id, for_update=True
+    )
+    assert locked is not None
+    previous = activation_intent(locked)
+    local = LocalTarget.model_validate(locked.local_target)
+    locked.local_target = local.model_copy(update={"device_id": replacement.id}).model_dump(
+        mode="json"
+    )
+    current = activation_intent(locked)
+    await repo.rebind_device(
+        db,
+        trigger_id=locked.id,
+        user_id=w.user.id,
+        previous_device_id=w.device.id,
+        device_id=replacement.id,
+        previous_intent=previous,
+        intent=current,
+    )
+    for activation, payload in ((first, "first event"), (second, "second event")):
+        moved = await repo.get(db, activation)
+        assert moved is not None
+        assert (moved.device_id, moved.intent_hash, moved.event_context, moved.status) == (
+            replacement.id,
+            current,
+            payload,
+            "waiting",
+        )
+    for activation in (edited, terminal):
+        unchanged = await repo.get(db, activation)
+        assert unchanged is not None and unchanged.device_id == w.device.id
+
+
+@pytest.mark.security
+async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services import agent_trigger as module
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.device_hub import Device
+    from app.services.device_hub._protocol import Capabilities
+
+    w = await world(db, event=True)
+    activation = await park(db, w, context="event waiting for the new session")
+    w.device.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db.flush()
+    service = AgentTriggerService(db)
+    monkeypatch.setattr(service, "_creator_context", AsyncMock(return_value=w.ctx))
+    monkeypatch.setattr(
+        service.agents, "get", AsyncMock(return_value=await db.get(Agent, w.trigger.agent_id))
+    )
+    device = Device(
+        user_id=w.user.id,
+        session_id=uuid4(),
+        platform="macos",
+        capabilities=Capabilities(routine_grants=True),
+    )
+    monkeypatch.setattr(module.device_hub, "connected", AsyncMock(return_value=[device]))
+    queue = AsyncMock(return_value=uuid4())
+    monkeypatch.setattr(service, "queue_fire", queue)
+    assert await service.resume_device_waits() == 1
+    queue.assert_awaited_once_with(
+        w.trigger.id, organization_id=w.ctx.organization_id, activation_id=activation
+    )
+    saved = await repo.get(db, activation)
+    assert saved is not None
+    assert saved.status == "waiting" and saved.event_context == "event waiting for the new session"
+    assert w.trigger.is_active

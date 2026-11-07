@@ -282,7 +282,7 @@ pub fn context(args: &Map<String, Value>) -> Result<WorkContext, String> {
         .map_err(|_| "The server must supply a current local-work context; update API and workers".into())
 }
 
-pub fn check(app: &AppHandle, scope: &RoutineScope, root: &str, op: &str) -> Result<(), String> {
+pub fn check(app: &AppHandle, scope: &RoutineScope, root: &str, op: &str) -> Result<PathBuf, String> {
     let identity = crate::device::identity(app)?;
     let state = app.state::<Access>();
     let _guard = state

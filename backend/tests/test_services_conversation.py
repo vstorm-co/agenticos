@@ -16,6 +16,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import conversation_repo
 from app.repositories.conversation import RunOutcome
+from app.schemas.conversation import ToolCallCreate
 from app.services.conversation import ConversationService
 from app.services.message_history import REFUSED_TURN
 
@@ -1853,6 +1854,21 @@ class TestConversationServiceToolCalls:
             written = mock_repo.create_tool_call.call_args.kwargs
             assert written["status"] == "awaiting_approval"
             assert written["mcp_connection_id"] == connection_id
+
+    @pytest.mark.anyio
+    async def test_a_renamed_question_is_stored_awaiting_its_answer(
+        self, service: ConversationService
+    ) -> None:
+        msg_id = uuid4()
+        data = ToolCallCreate(tool_call_id="ask-1", tool_name="clarify", args={})
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.get_message_by_id = AsyncMock(return_value=MockMessage(id=msg_id))
+            repo.create_tool_call = AsyncMock()
+
+            await service.start_tool_call(msg_id, data, parked=True, awaiting_answer=True)
+
+        assert repo.create_tool_call.await_args.kwargs["tool_name"] == "clarify"
+        assert repo.create_tool_call.await_args.kwargs["status"] == "awaiting_answer"
 
     @pytest.mark.anyio
     async def test_start_tool_call_verifies_message_exists(self, service: ConversationService):

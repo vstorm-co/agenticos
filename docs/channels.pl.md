@@ -1,5 +1,5 @@
 ---
-source_sha: "f895c76f1a38"
+source_sha: "939263497b24"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -260,6 +260,13 @@ sequenceDiagram
 
 To całe słownictwo przychodzące, plus `context` (co strona mówi o odwiedzającym)
 i `file_ids` (co załączył, na stronie, która przyjmuje pliki).
+
+Każda ramka `message` wlicza się do limitu połączenia, także pusta lub
+niepoprawna. Poprawne wiadomości zużywają dodatkowo dotychczasowy limit
+odwiedzającego; błędne dane nie wyczerpują puli współdzielonej z innymi anonimowymi
+odwiedzającymi. Ramka może zawierać najwyżej trzy identyfikatory plików; dłuższa
+lista jest odrzucana przed parsowaniem. Niepoprawne identyfikatory w krótkiej liście
+są pomijane i zapisywane jako jeden zbiorczy log bez ich wartości.
 
 **Celowo nie obejmuje trzech pól, które niesie własna ramka dashboardu:** agenta,
 profilu modelu i środowiska.

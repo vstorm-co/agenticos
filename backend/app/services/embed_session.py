@@ -218,7 +218,7 @@ WS_INTERNAL_ERROR = 1011
 _CONTINUITY_KEY = re.compile(r"^[0-9a-f]{32,64}$")
 
 
-def _attached_ids(value: Any) -> list[UUID]:
+def _attached_ids(value: object) -> list[UUID]:
     """The file ids a frame names, dropping anything that is not one.
 
     Dropped rather than refused, for the reason a malformed continuity key is:
@@ -226,14 +226,20 @@ def _attached_ids(value: Any) -> list[UUID]:
     losing the question that came with it. A value that is not a list at all is no
     attachments, which is what every client that sends nothing produces.
     """
-    if not isinstance(value, list):
+    if not isinstance(value, list) or len(value) > MAX_FILES_PER_TURN:
         return []
     ids: list[UUID] = []
+    rejected = 0
     for entry in value:
+        if not isinstance(entry, str) or len(entry) > 36:
+            rejected += 1
+            continue
         try:
-            ids.append(UUID(str(entry)))
+            ids.append(UUID(entry))
         except ValueError:
-            logger.info("embed_file_id_rejected")
+            rejected += 1
+    if rejected:
+        logger.info("embed_file_ids_rejected", extra={"rejected_count": rejected})
     return ids
 
 
@@ -379,15 +385,21 @@ def _no_answer(run: AgentRun) -> str:
     return "Sorry, I could not produce an answer to that. Please try again."
 
 
-def _allowed(key: tuple[str, str], limit: int) -> bool:
-    count, started = _buckets.get(key, (0, 0.0))
+def _allowed(
+    key: tuple[str, str],
+    limit: int,
+    *,
+    buckets: dict[tuple[str, str], tuple[int, float]] | None = None,
+) -> bool:
+    store = _buckets if buckets is None else buckets
+    count, started = store.get(key, (0, 0.0))
     now = time.monotonic()
     if now - started > _WINDOW_SECONDS:
-        _buckets[key] = (1, now)
+        store[key] = (1, now)
         return True
     if count >= limit:
         return False
-    _buckets[key] = (count + 1, started)
+    store[key] = (count + 1, started)
     return True
 
 
@@ -410,6 +422,7 @@ class EmbedSession:
         # and pretending otherwise (per socket) would make the limit free to
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
+        self._frame_buckets: dict[tuple[str, str], tuple[int, float]] = {}
         self.websocket = websocket
         self.visitor_key = visitor_key
         # Resolved once at admission rather than per frame: it is read off the row
@@ -491,6 +504,13 @@ class EmbedSession:
         if frame.get("type") != "message":
             return
 
+        # Bound malformed input on this connection before parsing. It must not
+        # spend the visitor bucket anonymous sessions share with other visitors.
+        key = (str(self.embed.id), self.visitor)
+        if not _allowed(key, self.embed.rate_limit_per_minute, buckets=self._frame_buckets):
+            await self._emit("error", {"message": "You are sending messages too quickly."})
+            return
+
         # Whatever the page said about this visitor, kept for the block below.
         # Every frame carries it rather than a handshake doing so once: a
         # single-page application changes what it knows about somebody without
@@ -500,13 +520,14 @@ class EmbedSession:
         if isinstance(supplied, dict):
             self._supplied = supplied
 
-        attached = _attached_ids(frame.get("file_ids"))
-        if len(attached) > MAX_FILES_PER_TURN:
+        file_ids = frame.get("file_ids")
+        if isinstance(file_ids, list) and len(file_ids) > MAX_FILES_PER_TURN:
             await self._emit(
                 "error",
                 {"message": f"You can attach up to {MAX_FILES_PER_TURN} files to one message."},
             )
             return
+        attached = _attached_ids(file_ids)
 
         text = str(frame.get("text") or "").strip()
         if not text and not attached:
@@ -515,7 +536,7 @@ class EmbedSession:
             await self._emit("error", {"message": "That message is too long. Try a shorter one."})
             return
 
-        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
+        if not _allowed(key, self.embed.rate_limit_per_minute):
             await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 

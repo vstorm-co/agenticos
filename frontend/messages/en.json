@@ -4807,6 +4807,10 @@
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
+      "organization-switcher": {
+        "title": "Choose your organization",
+        "body": "The name here is the organization you're working in. Open the menu to switch organizations, manage them or create another. Agents, knowledge and activity follow your selection."
+      },
       "notification-bell": {
         "title": "Stay in the loop",
         "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
@@ -6338,7 +6342,7 @@
       "inCategoryUse": "Categories already in use",
       "inTagUse": "Tags already in use",
       "mcpToolLoad": "These MCP servers give the model {count} tools on every request - roughly {tokens, number} tokens before anyone types, and more tools than a model chooses between well. Tool search keeps them out of the way until the agent looks one up.",
-      "mcpToolLoadEnable": "Turn on Tool search",
+      "mcpToolLoadEnable": "Enable MCP tool search",
       "agentDescriptionLabel": "Description",
       "agentNameLabel": "Name",
       "agentNameRequired": "An agent needs a name.",
@@ -8227,6 +8231,9 @@
     "loading": "Loading"
   },
   "teams": {
+    "organizationLabel": "Organization",
+    "organizationSwitcher": "Switch organization, current: {name}",
+    "selectOrganization": "Select organization",
     "acmeCom": "acme.com",
     "approvalWaiver": "Waiving approvals in chat",
     "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",
@@ -11263,7 +11270,7 @@
     "tool_search": {
       "name": "Tool search",
       "does": "Lets an agent with many tools find the right one when it needs it, instead of reading all of them every time.",
-      "example1": "An agent connected to several MCP servers with dozens of tools",
+      "example1": "An agent with many enabled capabilities and bound MCP servers",
       "needs": "Nothing extra.",
       "never": "Never adds a tool; it only hides tools until the agent looks for one."
     },
@@ -11785,6 +11792,26 @@
       "max_results": {
         "title": "Matches per search",
         "description": "How many matches the local search returns; ignored for native search."
+      },
+      "defer_capabilities": {
+        "title": "Defer capability tools",
+        "description": "Hide eligible tools from enabled capabilities until the agent searches for them. Off keeps capability tools visible."
+      },
+      "defer_mcp_servers": {
+        "title": "Defer MCP tools",
+        "description": "Hide eligible tools from bound MCP servers until the agent searches for them. Off keeps MCP tools visible."
+      },
+      "exclude_capabilities": {
+        "title": "Always-visible capabilities",
+        "description": "Comma-separated capability IDs whose tools stay visible, such as knowledge or visuals. These capabilities must still be enabled."
+      },
+      "exclude_mcp_servers": {
+        "title": "Always-visible MCP servers",
+        "description": "Comma-separated MCP tool namespace prefixes whose tools stay visible, such as github_work or agenticos. Use the prefix before the tool name, with hyphens replaced by underscores."
+      },
+      "exclude_tools": {
+        "title": "Always-visible tools",
+        "description": "Comma-separated model-facing tool names to keep visible. Use renamed capability tool names and fully prefixed MCP tool names, such as github_work_list_issues."
       }
     },
     "web_fetch": {

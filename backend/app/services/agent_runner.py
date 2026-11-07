@@ -87,7 +87,7 @@ from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApp
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 from pydantic_ai.workspaces import Workspace
-from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
+from pydantic_ai_harness.ask_user import DECLINED, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.guardrails import GuardrailResult
 from sqlalchemy.exc import SQLAlchemyError
@@ -96,9 +96,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import prompt_variables
 from app.agents.a2a_delegate import a2a_delegate
 from app.agents.ask_user import (
+    QUESTION_DEFERRED_KIND,
     QuestionItem,
     answers_to_response,
     park_the_question,
+    question_request,
     wire_questions,
 )
 from app.agents.audience import (
@@ -142,6 +144,7 @@ from app.agents.capabilities.channel_tools import (
 from app.agents.capabilities.coding_agent import (
     CODING_AGENT_ID,
     LOCAL_CODING_PREFERENCES,
+    CodingAgentConfig,
     CodingPreferences,
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
@@ -184,7 +187,7 @@ from app.agents.connect_on_use import (
     ConnectOnUse,
     PendingService,
 )
-from app.agents.deps import AgentDeps, CompactionSink
+from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import AgentOutput, BuiltAgent, answer_text, build_agent
 from app.agents.failures import run_failure_summary
@@ -211,6 +214,7 @@ from app.agents.spec import (
     trace_content_block,
 )
 from app.agents.steering import SteeringInbox
+from app.agents.subagent_events import SubagentEvent
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegateWorkspace,
@@ -1807,7 +1811,11 @@ def _classify_output(
     """
     if isinstance(result.output, DeferredToolRequests):
         questions = [
-            call.tool_call_id for call in result.output.calls if call.tool_name == ASK_USER_TOOL
+            call.tool_call_id
+            for call in result.output.calls
+            if call.tool_name == ASK_USER_TOOL
+            or result.output.metadata.get(call.tool_call_id, {}).get("kind")
+            == QUESTION_DEFERRED_KIND
         ]
         paused = PausedRunState(
             messages=dump_messages(result.all_messages()),
@@ -1835,6 +1843,20 @@ the web chat forwards every event to a socket, a chat platform edits one post
 every second or so - and the settle path around it is unchanged, so a streamed
 run is metered exactly like one that was waited for.
 """
+
+
+@dataclass(frozen=True)
+class LiveRunSurface:
+    """Trusted channels of the socket continuing its person's web run.
+
+    Main-agent question callbacks still defer; delegates retain the socket's
+    live question channels. `emit` sends only to the socket: the runner owns
+    the continuation's shared Redis trace.
+    """
+
+    ask_user: AskUserCallback
+    ask_questions: QuestionsCallback
+    emit: Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -4100,12 +4122,22 @@ class AgentRunnerService:
             defer_local=request_computer_access is not None and routine is None,
         )
         computer_on_use = None
-        if workspace is None and local is None and request_computer_access is not None:
+        if local is None and request_computer_access is not None:
             from app.services.sandbox_workspace import sandbox_config
 
             config = sandbox_config(spec)
-            if config is not None and config.backend == "local":
+            local_coding = any(
+                binding.id == CODING_AGENT_ID
+                and binding.enabled
+                and CodingAgentConfig.model_validate(binding.config).runs_on == "this_computer"
+                for binding in spec.capabilities
+            )
+            local_workspace_missing = (
+                workspace is None and config is not None and config.backend == "local"
+            )
+            if local_workspace_missing:
                 spec = _without_sandbox(spec)
+            if local_coding or local_workspace_missing:
                 computer_on_use = RequestComputerOnUse(request_access=request_computer_access)
         if existing_run is None and ctx.routine_activation_id is not None:
             from app.services.routine_devices import admit_activation
@@ -6453,10 +6485,12 @@ class AgentRunnerService:
         ]
 
     @asynccontextmanager
-    async def _resume_stream(self, prepared: PreparedRun) -> AsyncGenerator[RunFrames | None]:
+    async def _resume_stream(
+        self, prepared: PreparedRun, *, live_surface: LiveRunSurface | None = None
+    ) -> AsyncGenerator[RunFrames | None]:
         """Publish web continuations through the same trace as socket turns.
 
-        The HTTP response still owns the final result. Room subscribers can watch
+        The initiating surface owns the final result. Room subscribers can watch
         progress immediately and reattach after navigation; ending the trace only
         after `_run` settles makes their transcript refresh read committed rows.
         """
@@ -6469,12 +6503,22 @@ class AgentRunnerService:
             return
         conversation_id = str(run.conversation_id)
         turn = await live_turn.begin(conversation_id)
-        if turn is None:
+        if turn is None and live_surface is None:
             yield None
             return
 
         async def emit(kind: str, payload: dict[str, Any]) -> None:
-            await live_turn.publish(turn, kind, payload)
+            if live_surface is not None:
+                await live_surface.emit(kind, payload)
+            if turn is not None:
+                await live_turn.publish(turn, kind, payload)
+
+        if live_surface is not None:
+
+            async def narrate(event: SubagentEvent) -> None:
+                await emit(event.kind, event.model_dump(mode="json"))
+
+            prepared.built.deps.subagent_events = narrate
 
         try:
             await emit(
@@ -6492,7 +6536,8 @@ class AgentRunnerService:
             await emit("model_request_start", {})
             yield RunFrames(emit=emit)
         finally:
-            await live_turn.end(turn)
+            if turn is not None:
+                await live_turn.end(turn)
 
     async def resume(
         self,
@@ -6502,6 +6547,7 @@ class AgentRunnerService:
         answers: Mapping[str, object] | None = None,
         run_limit_usd: Decimal | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
+        live_surface: LiveRunSurface | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
 
@@ -6516,6 +6562,11 @@ class AgentRunnerService:
         Runs the *version the run was parked on*, not whatever is published now:
         the stored conversation was produced by that spec, and continuing it
         under a different one would answer a question nobody asked.
+
+        `live_surface` supplies trusted socket channels only for a web run
+        continued by its owner. Without it, the continuation has no live person
+        to answer delegates. The caller owns socket authentication and access
+        to the conversation; the runner retains the shared trace and accounting.
 
         A run parked *inside a delegation* is continued the same way one level
         further in: the delegate's own conversation and the verdicts on the calls it
@@ -6552,6 +6603,12 @@ class AgentRunnerService:
         )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        if live_surface is not None and (
+            run.surface != RunSurface.WEB.value
+            or run.user_id != ctx.user_id
+            or ctx.api_key_id is not None
+        ):
+            raise AuthorizationError(message="Continue this web run from its owner's chat session")
         if run.status not in (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value):
             raise BadRequestError(
                 message="This run is not waiting for approval",
@@ -6568,6 +6625,21 @@ class AgentRunnerService:
                 details={"run_id": str(run_id)},
             )
         state = PausedRunState.model_validate(run.paused_state)
+        can_ask = state.admitted_as.can_ask_questions or (
+            "can_ask_questions" not in state.admitted_as.model_fields_set
+            and run.surface == RunSurface.WEB.value
+            and run.conversation_id is not None
+            and run.user_id is not None
+            and not state.admitted_as.public_origin
+        )
+        if live_surface is not None and (
+            not can_ask
+            or state.admitted_as.public_origin
+            or state.admitted_as.subject_is_publisher_fallback
+        ):
+            raise AuthorizationError(
+                message="This run was not admitted with a live question channel"
+            )
         ceiling = state.run_limit_usd
         if run_limit_usd is not None:
             ceiling = run_limit_usd if ceiling is None else min(ceiling, run_limit_usd)
@@ -6708,16 +6780,13 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
-        can_ask = state.admitted_as.can_ask_questions or (
-            "can_ask_questions" not in state.admitted_as.model_fields_set
-            and run.surface == RunSurface.WEB.value
-            and run.conversation_id is not None
-            and run.user_id is not None
-            and not state.admitted_as.public_origin
-        )
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
+        if live_surface is not None:
+            prepared.built.deps.ask_user = live_surface.ask_user
+            prepared.built.deps.ask_questions = live_surface.ask_questions
+            prepared.built.deps.parks_questions = False
         prepared.built.deps.shows_drafts = _draws_drafts(run, state)
 
         # Out of the queue once the build has succeeded, and before anything is
@@ -6745,7 +6814,7 @@ class AgentRunnerService:
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
-            async with self._resume_stream(prepared) as frames:
+            async with self._resume_stream(prepared, live_surface=live_surface) as frames:
                 segment = await self._run(
                     prepared,
                     # A resume continues the approved call without another user turn.
@@ -6767,6 +6836,13 @@ class AgentRunnerService:
                         },
                     )
                 return segment
+        except asyncio.CancelledError:
+            # Cancellation may arrive while the trace opens, before `_run`
+            # takes responsibility for terminal accounting and workspace cleanup.
+            if run.status == RunStatus.RUNNING.value:
+                await self.finish(prepared, status=RunStatus.CANCELLED, paused_state=None)
+                await self.db.commit()
+            raise
         except Exception as exc:
             # The continuation raised. `_run` has recorded the run terminal and
             # committed before re-raising, so this re-raise carries the failure to
@@ -7029,6 +7105,7 @@ class AgentRunnerService:
         responses: Mapping[str, list[Any]],
         *,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
+        live_surface: LiveRunSurface | None = None,
     ) -> RunSegment:
         """Answer the questions a run parked on, and continue it (#2064).
 
@@ -7071,7 +7148,7 @@ class AgentRunnerService:
                 details={"tool_call_ids": unknown},
             )
         asked = {
-            tool_call_id: AskUserRequest.from_tool_call(call)
+            tool_call_id: question_request(call)
             for tool_call_id, call in _question_calls(state).items()
         }
         results: dict[str, object] = {
@@ -7083,7 +7160,9 @@ class AgentRunnerService:
             else DECLINED
             for tool_call_id in state.questions
         }
-        return await self.resume(ctx, run_id, answers=results, on_segment=on_segment)
+        return await self.resume(
+            ctx, run_id, answers=results, on_segment=on_segment, live_surface=live_surface
+        )
 
     async def parked_questions(self, ctx: AuthContext, run: AgentRun) -> list[ParkedQuestion]:
         """The questions this run is waiting on the caller to answer, right now.
@@ -7104,7 +7183,7 @@ class AgentRunnerService:
                 tool_call_id=tool_call_id,
                 questions=[
                     QuestionItem.model_validate(item)
-                    for item in wire_questions(AskUserRequest.from_tool_call(call))
+                    for item in wire_questions(question_request(call))
                 ],
             )
             for tool_call_id, call in _question_calls(state).items()
@@ -7467,6 +7546,7 @@ class AgentRunnerService:
                     # So the step the run stopped on reads "awaiting approval" when
                     # the conversation is read back, not as a call that ran (#601).
                     parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
+                    question_tool_call_ids=paused.questions if paused else (),
                     model_label=prepared.built.model_label,
                     mcp_origins=prepared.mcp_origins,
                     draft_tools=draft_tool_names(prepared.spec),

@@ -84,7 +84,12 @@ function targetFor(
 
 function within(folder: string, root: string): boolean {
   const parent = root.replace(/[\\/]+$/, "");
-  return folder === parent || parent === "" || folder.startsWith(`${parent}/`);
+  return (
+    folder === parent ||
+    parent === "" ||
+    folder.startsWith(`${parent}/`) ||
+    folder.startsWith(`${parent}\\`)
+  );
 }
 
 /**

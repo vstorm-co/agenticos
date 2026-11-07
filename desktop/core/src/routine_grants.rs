@@ -1,8 +1,11 @@
 //! Persistent local authority is narrower than an interactive folder grant.
 //!
-//! Each consent belongs to one paired device session, person, server,
-//! organization and routine. Replacing a consent creates a fresh ID; a queued
-//! or parked run cannot borrow the replacement.
+//! Each consent belongs to a person, server and organization on this computer.
+//! One-routine grants also bind the paired session; all-routine grants survive
+//! that person's new sessions. Replacing a consent creates a fresh ID; queued
+//! or parked work cannot borrow the replacement.
+
+use std::path::{Path, PathBuf};
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -139,13 +142,15 @@ pub struct RoutineGrant {
 }
 
 impl RoutineGrant {
+    /// Return the authorized operation root. All-routine descendants are resolved
+    /// before comparison; execute against this path rather than the supplied alias.
     pub fn authorize(
         &self,
         identity: &DeviceIdentity,
         scope: &RoutineScope,
         root: &str,
         op: &str,
-    ) -> Result<(), &'static str> {
+    ) -> Result<PathBuf, &'static str> {
         self.operations.validate()?;
         scope.operations.validate()?;
         // A grant for every routine is the person's, on this computer, wherever
@@ -157,11 +162,22 @@ impl RoutineGrant {
                 self.identity.origin == identity.origin && self.identity.user_id == identity.user_id
             }
         };
-        let routine_matches = self.routine_id.is_none_or(|id| id == scope.routine_id);
-        let root_matches = match self.routine_id {
-            Some(_) => self.root == root,
-            None => within(root, &self.root),
+        let routine_matches = self.routine_id.map_or(true, |id| id == scope.routine_id);
+        let authorized_root = if self.routine_id.is_none() {
+            let parent = Path::new(&self.root)
+                .canonicalize()
+                .map_err(|_| "The approved routine folder is unavailable")?;
+            let requested = Path::new(root)
+                .canonicalize()
+                .map_err(|_| "The requested routine folder is unavailable")?;
+            if !parent.is_dir() || !requested.is_dir() || !requested.starts_with(&parent) {
+                return Err("The routine folder is outside its approved folder");
+            }
+            requested
+        } else {
+            PathBuf::from(root)
         };
+        let root_matches = self.routine_id.is_none() || self.root == root;
         if self.id != scope.grant_id
             || !same_person
             || scope.user_id != identity.user_id
@@ -176,23 +192,30 @@ impl RoutineGrant {
                 "This routine has no current consent for that folder operation on this device",
             );
         }
-        Ok(())
+        Ok(authorized_root)
     }
-}
-
-/// Whether `root` is `parent` or a folder inside it, by whole path segments.
-fn within(root: &str, parent: &str) -> bool {
-    let parent = parent.trim_end_matches(['/', '\\']);
-    root == parent
-        || parent.is_empty()
-        || root
-            .strip_prefix(parent)
-            .is_some_and(|rest| rest.starts_with('/') || rest.starts_with('\\'))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestFolder(PathBuf);
+
+    impl TestFolder {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("routine-grants-{}", Uuid::new_v4()));
+            std::fs::create_dir_all(root.join("reports/q3")).unwrap();
+            std::fs::create_dir_all(root.join("outside")).unwrap();
+            Self(root.canonicalize().unwrap())
+        }
+    }
+
+    impl Drop for TestFolder {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 
     fn granted() -> (RoutineGrant, RoutineScope) {
         let identity = DeviceIdentity {
@@ -270,6 +293,9 @@ mod tests {
     fn a_grant_for_every_routine_covers_its_folder_and_survives_a_new_session() {
         let (mut grant, scope) = granted();
         grant.routine_id = None;
+        let folder = TestFolder::new();
+        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
+        let child = folder.0.join("reports/q3");
         let other_routine = RoutineScope {
             routine_id: Uuid::new_v4(),
             ..scope.clone()
@@ -278,7 +304,7 @@ mod tests {
             .authorize(
                 &grant.identity,
                 &other_routine,
-                "/work/reports/q3",
+                child.to_str().unwrap(),
                 "fs.read"
             )
             .is_ok());
@@ -317,6 +343,67 @@ mod tests {
             };
             assert!(grant.authorize(&identity, &scope, root, "fs.read").is_err());
         }
+    }
+
+    #[test]
+    fn all_routine_roots_cannot_escape_through_parent_components() {
+        let folder = TestFolder::new();
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
+        let escape = Path::new(&grant.root).join("../outside");
+        assert!(grant
+            .authorize(
+                &grant.identity,
+                &scope,
+                escape.to_str().unwrap(),
+                "shell.run"
+            )
+            .is_err());
+        let missing = Path::new(&grant.root).join("missing");
+        assert!(grant
+            .authorize(
+                &grant.identity,
+                &scope,
+                missing.to_str().unwrap(),
+                "fs.read"
+            )
+            .is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn all_routine_roots_resolve_symlinks_and_return_the_authorized_path() {
+        use std::os::unix::fs::symlink;
+
+        let folder = TestFolder::new();
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
+        let escape = Path::new(&grant.root).join("escape");
+        symlink(folder.0.join("outside"), &escape).unwrap();
+        assert!(grant
+            .authorize(
+                &grant.identity,
+                &scope,
+                escape.to_str().unwrap(),
+                "shell.run"
+            )
+            .is_err());
+        let alias = Path::new(&grant.root).join("alias");
+        let child = folder.0.join("reports/q3");
+        symlink(&child, &alias).unwrap();
+        assert_eq!(
+            grant
+                .authorize(
+                    &grant.identity,
+                    &scope,
+                    alias.to_str().unwrap(),
+                    "shell.run"
+                )
+                .unwrap(),
+            child
+        );
     }
 
     #[test]

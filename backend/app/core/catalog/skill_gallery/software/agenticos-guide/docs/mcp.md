@@ -185,6 +185,12 @@ says so and points at the servers page, which is where a connection is checked.
 A binding that already names tools shows those, so what it is bound to stays
 visible and can still be narrowed.
 
+With [Tool search](reference/capabilities.md#tool-search), eligible MCP tools are
+hidden until the agent searches for them. Its settings let you defer MCP tools,
+capability tools or both, and keep selected server namespaces or individual tools
+visible from the first request. These exclusions change when a tool's schema is
+shown; the connection and binding allowlists still decide whether it is available.
+
 ### Which calls wait for a person
 
 Every binding has an `approval` policy for its server's tools. The default,

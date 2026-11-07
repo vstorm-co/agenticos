@@ -16,6 +16,7 @@ from app.api.deps import (
     ProjectSvc,
     VisualSvc,
     WorkspaceSvc,
+    key_needs,
     require,
 )
 from app.api.public_api import PUBLIC
@@ -106,7 +107,7 @@ async def get_shared_conversation(
 @router.get(
     "",
     response_model=ConversationList,
-    dependencies=[PUBLIC, Depends(require(Perm.RUNS_VIEW))],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
 )
 async def list_conversations(
     conversation_service: ConversationSvc,

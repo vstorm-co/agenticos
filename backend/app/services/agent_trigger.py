@@ -2095,12 +2095,17 @@ class AgentTriggerService:
             except NotFoundError, AuthorizationError:
                 await self._disable(trigger, reason="creator_cannot_run_agent")
                 continue
-            if (
+            session_ended = (
                 await session_repo.active_device(
                     self.db, session_id=wait.device_id, user_id=wait.user_id, now=datetime.now(UTC)
                 )
                 is None
-            ):
+            )
+            can_rebind = session_ended and any(
+                device.capabilities.routine_grants
+                for device in await device_hub.connected(wait.user_id)
+            )
+            if session_ended and not can_rebind:
                 await self._disable(trigger, reason="local_device_disconnected")
                 await NotificationService(self.db).routine_blocked(
                     organization_id=trigger.organization_id,
@@ -2140,7 +2145,12 @@ class AgentTriggerService:
                 continue
             if await self._stop_for_monthly_budget(trigger):
                 continue
-            if await device_hub.wait_for(wait.user_id, wait.device_id, timeout=0) is None:
+            # The worker probes replacement grants outside this sweep's parent
+            # locks and migrates matching events only after native confirmation.
+            if (
+                not can_rebind
+                and await device_hub.wait_for(wait.user_id, wait.device_id, timeout=0) is None
+            ):
                 continue
             job_id = await self.queue_fire(
                 trigger.id, organization_id=trigger.organization_id, activation_id=wait.id
@@ -2597,7 +2607,7 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
-        await follow_signed_in_session(self.db, trigger)
+        await follow_signed_in_session(self.db, trigger, ctx)
         waiting = await device_wait_repo.get(self.db, activation_id)
         intent = activation_intent(trigger)
         if waiting is not None:

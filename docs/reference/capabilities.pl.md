@@ -1,5 +1,5 @@
 ---
-source_sha: "af48402946ea"
+source_sha: "0f5f9ee0e642"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2733,6 +2733,11 @@ niezależnie od tego, czy kiedykolwiek je wywoła.
 |---|---|---|
 | `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignorowane przez wyszukiwanie natywne |
+| `defer_capabilities` | `false` | odraczaj kwalifikujące się narzędzia funkcyjne włączonych capability |
+| `defer_mcp_servers` | `true` | odraczaj narzędzia powiązanych serwerów MCP |
+| `exclude_capabilities` | `[]` | identyfikatory capability, których narzędzia pozostają widoczne |
+| `exclude_mcp_servers` | `[]` | znormalizowane prefiksy narzędzi MCP, których narzędzia pozostają widoczne |
+| `exclude_tools` | `[]` | widoczne nazwy narzędzi po dodaniu prefiksu i zmianie nazwy, które pozostają widoczne |
 
 **`local_bm25`** szereguje lokalnie identyfikatory, opisy i schematy argumentów narzędzi u każdego providera. Uwzględnia rzadkość słów i długość tekstu, premiuje identyfikatory, zwraca tylko pasujące dozwolone narzędzia i nie wywołuje modelu ani embeddingów. Limit wyników nadal obowiązuje.
 
@@ -2746,19 +2751,35 @@ niezależnie od tego, czy kiedykolwiek je wywoła.
   działania, który autor przyjmuje, nazywając jeden z nich — `auto` nie zawodzi w
   ten sposób nigdy.
 
-**To włączenie tego odracza zestawy narzędzi MCP.** Capability i odraczanie to dwie
-połowy jednej decyzji: biblioteczne `ToolSearch` jest bezczynne, gdy nic nie jest
-odroczone, a odroczone narzędzie bez wyszukiwania, które by je znalazło, to
-narzędzie, którego model nigdy nie wywoła. Związanie `tool_search` jest więc tym, co
-oznacza zestawy narzędzi podłączonych serwerów do odroczonego ładowania — własne
-narzędzia rejestru zostają widoczne, będąc nieliczne i wybrane per agent. Agent,
-który tego nie wiąże, nie płaci nic i widzi wszystkie narzędzia jak wcześniej.
+**Wybierz grupy narzędzi do odroczenia.** Wartości domyślne zachowują działanie
+istniejących speców: narzędzia MCP są odroczone, a narzędzia capability pozostają
+widoczne. Włącz `defer_capabilities`, aby odraczać także kwalifikujące się
+narzędzia funkcyjne włączonych capability. Wyłącz `defer_mcp_servers`, aby
+odraczać tylko narzędzia capability, albo włącz obie grupy razem. Agent bez
+wyszukiwania narzędzi widzi swoje narzędzia tak jak wcześniej.
+
+**Wykluczenia pozostawiają narzędzia widoczne od pierwszego żądania.** Wpisz
+identyfikatory capability w `exclude_capabilities`, całe przestrzenie nazw
+narzędzi MCP w `exclude_mcp_servers` lub końcowe nazwy narzędzi w `exclude_tools`.
+Połączenie o nazwie `github-work` używa przestrzeni nazw `github_work`; osobiste
+powiązanie używa rzeczywistej przestrzeni nazw konta, zwykle klucza katalogowego,
+takiego jak `notion`. Kilka osobistych kont może mieć różne przestrzenie nazw.
+Dla pojedynczego narzędzia MCP uwzględnij prefiks, np. `github_work_search`, oraz
+nazwę nadaną przez zmianę nazwy w powiązaniu. Wykluczenia wpływają na widoczność;
+listy dozwolonych narzędzi połączenia i powiązania nadal kontrolują dostęp.
+
+Natywne narzędzia providera i hooki capability pozostają aktywne. Skille zachowują
+własne odkrywanie przez `load_capability`. Głos w czasie rzeczywistym nie używa
+odraczania przez wyszukiwanie narzędzi. Jeśli każde narzędzie pozostaje widoczne,
+wyszukiwanie nie ma odroczonego katalogu do odkrycia.
 
 **Builder mówi, kiedy warto.** Gdy powiązania MCP agenta dają razem więcej niż 30
 narzędzi - według listy dozwolonych narzędzi powiązania, a bez niej według tego, co
 serwer wymienił przy ostatnim sprawdzeniu - zakładka MCP pokazuje ostrzeżenie z
-przybliżoną liczbą tokenów i przycisk, który wiąże wyszukiwanie narzędzi. Nigdy nie
-wiąże go sam: odraczanie zmienia to, co widzi model, więc decyzja należy do edytora.
+przybliżoną liczbą tokenów i przycisk włączający wyszukiwanie narzędzi MCP. Dodaje
+on wyszukiwanie narzędzi lub włącza odraczanie MCP w istniejącej konfiguracji,
+zachowując wykluczenia i ustawienia capability. Nigdy nie włącza odraczania sam:
+zmienia to, co widzi model, więc decyzja należy do edytora.
 
 **Odraczanie zmienia to, co widzi model, nigdy tożsamość narzędzia.** Odnalezione
 narzędzie MCP przychodzi pod swoją prawdziwą, prefiksowaną nazwą, więc
@@ -2766,7 +2787,7 @@ narzędzie MCP przychodzi pod swoją prawdziwą, prefiksowaną nazwą, więc
 nazwy z powiązania nadal go dosięga; `ToolSearch` siedzi najbardziej na zewnątrz i
 czyta nazwy, które zmiana nazwy już nałożyła.
 
-**Nie wymaga mierzenia.** Dwie lokalne strategie działają w Pythonie i nie wydają
+**Nie wymaga mierzenia.** Lokalne strategie działają w Pythonie i nie wydają
 tokenów; wyszukiwanie natywne działa wewnątrz własnego żądania providera, którego
 zużycie mierzy już [strażnik budżetu](../governance.md); a rundy odkrywania to
 zwykłe żądania do modelu, opakowane przez tego samego strażnika. Jedyny kształt,
@@ -2970,12 +2991,15 @@ domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może
 wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
 dowiaduje się, że osoba odmówiła.
 
-Pytanie bez odpowiedzi nie przerywa pracy agenta na dobre. Jeśli osoba odejdzie z
-otwartą kartą, run parkuje się na niej — w historii runów jako **Oczekuje na
-odpowiedź** — a karta wraca, gdy ta osoba ponownie otworzy rozmowę, na dowolnym
-urządzeniu. Odpowiedź wznawia run od miejsca, w którym się zatrzymał. Odpowiedzieć
-może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
-`GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
+W czacie konsoli run zapisuje pytania i wstrzymuje się przed wyświetleniem karty
+— w historii runów jako **Oczekuje na odpowiedź**. Przełączenie czatu, odświeżenie
+strony lub otwarcie rozmowy na innym urządzeniu przywraca kartę bez odpowiedzi.
+Konsola wysyła odpowiedź przez aktywne połączenie czatu, dzięki czemu delegat może
+zadawać dalsze pytania podczas kontynuacji. Karta bez połączenia czeka na jego
+przywrócenie.
+
+Odpowiedzieć może tylko osoba, której zadano pytanie. Klienci API mogą używać
+`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
 

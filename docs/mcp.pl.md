@@ -1,5 +1,5 @@
 ---
-source_sha: "4c43178a7b56"
+source_sha: "b1ff2ffb62e7"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -196,6 +196,13 @@ Połączenie, którego nikt jeszcze nie odpytał, nie ma katalogu do zaoferowani
 lista wyboru mówi to wprost i kieruje na stronę serwerów, bo tam sprawdza się
 połączenie. Powiązanie, które już wymienia narzędzia, pokazuje właśnie je, więc
 to, z czym jest związane, pozostaje widoczne i wciąż można je zawęzić.
+
+Z [wyszukiwaniem narzędzi](reference/capabilities.md#tool-search) kwalifikujące się
+narzędzia MCP są ukryte, dopóki agent ich nie wyszuka. Ustawienia pozwalają odraczać
+narzędzia MCP, narzędzia capability lub oba rodzaje oraz pozostawiać wybrane
+przestrzenie nazw serwerów albo pojedyncze narzędzia widoczne od pierwszego żądania.
+Te wykluczenia zmieniają moment pokazania schematu narzędzia; listy dozwolonych
+narzędzi połączenia i powiązania nadal decydują, czy jest ono dostępne.
 
 ### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
 

@@ -265,13 +265,33 @@ def test_empty_local_selection_cannot_silently_choose_a_device_folder() -> None:
 
 
 class TestFollowingTheSignedInSession:
+    pytestmark = pytest.mark.security
+
     """A new sign-in on the same computer moves the routine; the app still decides."""
+
+    @pytest.fixture(autouse=True)
+    def rebind_dependencies(self, monkeypatch):
+        monkeypatch.setattr(module, "ready", AsyncMock())
+        monkeypatch.setattr(module, "activation_intent", lambda trigger: str(trigger.local_target))
+        monkeypatch.setattr(module.agent_trigger_repo, "get", AsyncMock(return_value=None))
+        monkeypatch.setattr(module.device_wait_repo, "rebind_device", AsyncMock())
+
+    @staticmethod
+    def _context(trigger):
+        return replace(
+            context(),
+            user_id=trigger.created_by_user_id,
+            organization_id=trigger.organization_id,
+            routine_id=trigger.id,
+        )
 
     @staticmethod
     def _trigger(local: LocalTarget | None = None, *, acting: bool = True):
         from types import SimpleNamespace
 
         return SimpleNamespace(
+            id=uuid4(),
+            organization_id=uuid4(),
             local_target=None if local is None else local.model_dump(mode="json"),
             runs_as_creator=acting,
             created_by_user_id=uuid4(),
@@ -296,13 +316,24 @@ class TestFollowingTheSignedInSession:
             device_hub, "connected", AsyncMock(return_value=[self._device(current)])
         )
         db = AsyncMock()
+        monkeypatch.setattr(module.agent_trigger_repo, "get", AsyncMock(return_value=trigger))
+        before_intent = str(trigger.local_target)
 
-        await module.follow_signed_in_session(db, trigger)
+        await module.follow_signed_in_session(db, trigger, self._context(trigger))
 
         moved = LocalTarget.model_validate(trigger.local_target)
         assert moved.device_id == current
         assert moved.routine_grant == local.routine_grant
         db.flush.assert_awaited_once()
+        module.device_wait_repo.rebind_device.assert_awaited_once_with(
+            db,
+            trigger_id=trigger.id,
+            user_id=trigger.created_by_user_id,
+            previous_device_id=local.device_id,
+            device_id=current,
+            previous_intent=before_intent,
+            intent=str(trigger.local_target),
+        )
 
     @pytest.mark.parametrize("case", ["live", "nothing-connected", "not-acting", "no-folder"])
     async def test_nothing_moves_otherwise(self, monkeypatch, case) -> None:
@@ -319,7 +350,7 @@ class TestFollowingTheSignedInSession:
         )
         db = AsyncMock()
 
-        await module.follow_signed_in_session(db, trigger)
+        await module.follow_signed_in_session(db, trigger, self._context(trigger))
 
         assert trigger.local_target == before
         db.flush.assert_not_awaited()
@@ -330,7 +361,7 @@ class TestFollowingTheSignedInSession:
         active = AsyncMock()
         monkeypatch.setattr(module.session_repo, "active_device", active)
 
-        await module.follow_signed_in_session(AsyncMock(), trigger)
+        await module.follow_signed_in_session(AsyncMock(), trigger, self._context(trigger))
 
         active.assert_not_awaited()
 
@@ -340,6 +371,78 @@ class TestFollowingTheSignedInSession:
         active = AsyncMock()
         monkeypatch.setattr(module.session_repo, "active_device", active)
 
-        await module.follow_signed_in_session(AsyncMock(), trigger)
+        await module.follow_signed_in_session(AsyncMock(), trigger, self._context(trigger))
 
         active.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "refusal", [module.RoutineLocalConsentRequired, module.RoutineDeviceOffline]
+    )
+    async def test_it_probes_other_computers_before_rebinding(self, monkeypatch, refusal):
+        trigger = self._trigger(target())
+        first, second = self._device(uuid4()), self._device(uuid4())
+        monkeypatch.setattr(module.session_repo, "active_device", AsyncMock(return_value=None))
+        monkeypatch.setattr(device_hub, "connected", AsyncMock(return_value=[first, second]))
+        probe = AsyncMock(side_effect=[refusal("unavailable"), second])
+        monkeypatch.setattr(module, "ready", probe)
+        monkeypatch.setattr(module.agent_trigger_repo, "get", AsyncMock(return_value=trigger))
+        await module.follow_signed_in_session(AsyncMock(), trigger, self._context(trigger))
+        assert trigger.local_target["device_id"] == str(second.session_id)
+        assert probe.await_count == 2
+
+    async def test_no_session_is_saved_without_its_native_grant(self, monkeypatch):
+        trigger = self._trigger(target())
+        before = trigger.local_target
+        monkeypatch.setattr(module.session_repo, "active_device", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            device_hub, "connected", AsyncMock(return_value=[self._device(uuid4())])
+        )
+        monkeypatch.setattr(
+            module, "ready", AsyncMock(side_effect=module.RoutineLocalConsentRequired("revoked"))
+        )
+        db = AsyncMock()
+        await module.follow_signed_in_session(db, trigger, self._context(trigger))
+        assert trigger.local_target == before
+        db.flush.assert_not_awaited()
+
+    async def test_a_deleted_routine_is_not_rebound(self, monkeypatch):
+        trigger = self._trigger(target())
+        monkeypatch.setattr(module.session_repo, "active_device", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            device_hub, "connected", AsyncMock(return_value=[self._device(uuid4())])
+        )
+        db = AsyncMock()
+        await module.follow_signed_in_session(db, trigger, self._context(trigger))
+        module.device_wait_repo.rebind_device.assert_not_awaited()
+        db.flush.assert_not_awaited()
+
+    @pytest.mark.parametrize("dimension", ["user_id", "organization_id", "routine_id"])
+    async def test_an_unrelated_authority_cannot_rebind_the_session(self, dimension):
+        trigger = self._trigger(target())
+        ctx = replace(self._context(trigger), **{dimension: uuid4()})
+        with pytest.raises(AuthorizationError, match="owner"):
+            await module.follow_signed_in_session(AsyncMock(), trigger, ctx)
+
+    @pytest.mark.parametrize("change", ["owner", "consent", "folder"])
+    async def test_a_routine_edited_while_the_device_answers_is_not_rebound(
+        self, monkeypatch, change
+    ):
+        trigger = self._trigger(target())
+        ctx = self._context(trigger)
+        monkeypatch.setattr(module.session_repo, "active_device", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            device_hub, "connected", AsyncMock(return_value=[self._device(uuid4())])
+        )
+
+        async def locked(*_args, **_kwargs):
+            if change == "owner":
+                trigger.created_by_user_id = uuid4()
+            elif change == "consent":
+                trigger.runs_as_creator = False
+            else:
+                trigger.local_target = {**trigger.local_target, "folder": "/changed"}
+            return trigger
+
+        monkeypatch.setattr(module.agent_trigger_repo, "get", locked)
+        await module.follow_signed_in_session(AsyncMock(), trigger, ctx)
+        module.device_wait_repo.rebind_device.assert_not_awaited()

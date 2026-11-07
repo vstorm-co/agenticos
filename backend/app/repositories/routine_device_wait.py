@@ -130,3 +130,32 @@ async def fail(db: AsyncSession, *, wait: RoutineDeviceWait) -> None:
     wait.reason = "admission_failed"
     wait.finished_at = datetime.now(UTC)
     await db.flush()
+
+
+async def rebind_device(
+    db: AsyncSession,
+    *,
+    trigger_id: UUID,
+    user_id: UUID,
+    previous_device_id: UUID,
+    device_id: UUID,
+    previous_intent: str,
+    intent: str,
+) -> None:
+    """Move unchanged waiting events with their parent under its row lock.
+
+    Keep event payloads and activation IDs. An edited routine's old activations
+    do not match the previous intent and retain their cancellation boundary.
+    """
+    await db.execute(
+        update(RoutineDeviceWait)
+        .where(
+            RoutineDeviceWait.trigger_id == trigger_id,
+            RoutineDeviceWait.user_id == user_id,
+            RoutineDeviceWait.device_id == previous_device_id,
+            RoutineDeviceWait.intent_hash == previous_intent,
+            RoutineDeviceWait.status == "waiting",
+        )
+        .values(device_id=device_id, intent_hash=intent)
+    )
+    await db.flush()
