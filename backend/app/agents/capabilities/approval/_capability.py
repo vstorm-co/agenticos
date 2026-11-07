@@ -44,6 +44,7 @@ from app.agents.approval import (
 from app.agents.capabilities._registry import (
     FRAMEWORK_TOOL_NAMES,
     LOAD_CAPABILITY,
+    READ_SKILL,
     ApprovalDescriber,
 )
 from app.agents.deps import AgentDeps
@@ -108,7 +109,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         Gated loads deliberately require approval each turn. Ungated loads retain
         progressive disclosure; the current registry still limits what is available.
         """
-        if self.gate_every_tool or LOAD_CAPABILITY in self.required_tool_names:
+        if self.gate_every_tool or bool({LOAD_CAPABILITY, READ_SKILL} & self.required_tool_names):
             kept = []
             for message in ctx.messages:
                 if isinstance(message, ModelRequest):

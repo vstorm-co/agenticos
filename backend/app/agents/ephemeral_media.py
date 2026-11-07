@@ -60,7 +60,9 @@ def without_ephemeral(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def dump_messages(messages: Sequence[ModelMessage]) -> list[dict[str, Any]]:
     """Messages as JSON to store, without the pictures nobody keeps."""
-    return without_ephemeral(ModelMessagesTypeAdapter.dump_python(list(messages), mode="json"))
+    return without_ephemeral(
+        ModelMessagesTypeAdapter.dump_python(list(messages), mode="json", serialize_as_any=True)
+    )
 
 
 def describe_binary(value: object) -> str:

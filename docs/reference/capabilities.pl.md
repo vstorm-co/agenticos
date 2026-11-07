@@ -1,5 +1,5 @@
 ---
-source_sha: "0f5f9ee0e642"
+source_sha: "2df47d0679d0"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -277,17 +277,13 @@ istotną, po jednym skillu naraz — alternatywą jest pole instrukcji rosnące 
 długo, aż każdy run płaci za każdą procedurę. Zobacz [Skille](../skills.md), czym
 jest skill i jak trafia do organizacji.
 
-**Każdy podpięty skill jest osobną capability.** Jego nazwa i opis siedzą w
-katalogu, który model czyta w każdej turze, a treść model wciąga narzędziem
-`load_capability` — należącym do samego frameworka agentowego, dlatego nie ma go na
-liście powyżej i dlatego spec nie może go przyznać, obramkować ani przemianować.
-`read_skill_resource` to jedyne narzędzie, które ta capability wnosi, i pojawia się
-tylko wtedy, gdy przynajmniej jeden podpięty skill wiezie plik obok swoich
-instrukcji.
-
-Narzędzie pochodzi z `pydantic-ai-skills`, więc jego nazwa i sformułowania należą do
-kogoś innego. Test dryfu porównuje to, co deklaruje rejestr, z narzędziami, które
-model faktycznie dostaje — i to on zgłosi dzień, w którym to się stanie.
+**Każdy podpięty skill pozostaje natywną odroczoną capability.** Model widzi
+katalog dostępnych skilli i otwiera treść przez `read_skill`. Adapter platformy
+zachowuje natywny stan ładowania, zgody i odtwarzanie rozmów, także starszych.
+Polityki zgód zachowują stały klucz `load_capability`; zwykłe nadpisania narzędzi
+nie zmieniają nazwy loadera należącego do frameworka. `read_skill_resource` czyta
+pliki pomocnicze i pojawia się tylko wtedy, gdy podpięty skill taki plik zawiera.
+Test dryfu porównuje narzędzie plikowe biblioteki z rejestrem.
 
 `run_skill_script` jest wyłączone, a nie wystawione: pliki skilla trafiają do runa
 pod `/workspace/skills/`, gdzie uruchamia je własne `execute`
@@ -2769,7 +2765,7 @@ nazwę nadaną przez zmianę nazwy w powiązaniu. Wykluczenia wpływają na wido
 listy dozwolonych narzędzi połączenia i powiązania nadal kontrolują dostęp.
 
 Natywne narzędzia providera i hooki capability pozostają aktywne. Skille zachowują
-własne odkrywanie przez `load_capability`. Głos w czasie rzeczywistym nie używa
+własne odkrywanie przez `read_skill`. Głos w czasie rzeczywistym nie używa
 odraczania przez wyszukiwanie narzędzi. Jeśli każde narzędzie pozostaje widoczne,
 wyszukiwanie nie ma odroczonego katalogu do odkrycia.
 
