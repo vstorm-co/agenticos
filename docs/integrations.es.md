@@ -1,5 +1,5 @@
 ---
-source_sha: "1e8100e20e65"
+source_sha: "2e56e827219e"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -48,6 +48,8 @@ Toda escritura en ejecuciones de agentes requiere aprobación humana, incluso co
 
 Los nodos de archivo reciben base64, nunca rutas locales del servidor. Word crea `.docx` desde título y párrafos. Subidas/descargas tienen límite de 20 MB, JSON de 2 MB y texto extraído de 100 000 caracteres. Una escritura fallida puede haber llegado: compruebe el resultado remoto antes de repetirla.
 
+La opción de solo lectura limita localmente las cuentas OAuth, de aplicación y con token Slack pegado. Los permisos de escritura previos del proveedor no evitan ese límite, incluido el consentimiento incremental de Google. Para cambiarlo, vuelva a conectar la cuenta y active explícitamente la escritura.
+
 La publicación de un vínculo con una cuenta de organización comprueba los permisos de cada herramienta habilitada. Si la cuenta solo permite lectura, desactive las herramientas de escritura antes de publicar o vuelva a conectar con permisos de escritura.
 
 ## Conocimiento, triggers y watches { #knowledge-triggers-and-watches }
@@ -59,6 +61,8 @@ Los triggers reutilizan la cola transaccional, deduplicación y política de fue
 Una watch elige una conexión personal y producto, y recibe solo una herramienta fija de cambios de lectura. Active el producto en el agente primero. Elija conversaciones Slack y chats Teams delegados en la capability. Los canales Teams usan `channel/team-id/channel-id`; app-only sin conversaciones lee todos los chats del usuario configurado.
 
 Cada watch mantiene un cursor persistente independiente que avanza tras consumir correctamente la revisión. Los cursores nuevos/restablecidos crean una base silenciosa. Gmail usa history IDs, Outlook/calendarios cursores del proveedor, Slack timestamps por conversación e IMAP UIDVALIDITY/UID. Teams delegado usa `lastModifiedDateTime`; canales y aplicación usan Graph delta. Si una lectura acotada informa demasiados cambios, reduzca la fuente.
+
+Vuelva a conectar desde la fila de la cuenta afectada para sustituir las credenciales en el mismo registro. Se conservan el ID y el nombre estable para las referencias de agentes, fuentes y triggers; cambia la generación de autorización y las rutinas existentes necesitan revisar sus fuentes. Use el mismo método de autenticación. Los errores de sondeo aparecen en la cuenta y se borran tras una lectura correcta. Una hoja inaccesible conserva su cursor mientras las hojas sanas continúan. Los feeds Slack excluyen mensajes enviados por el usuario o bot conectado para evitar bucles de respuestas.
 
 Consulte [capabilities](reference/capabilities.md), [triggers](triggers.md), [gobernanza y watches](governance.md#proactive-work) y [MCP](mcp.md).
 

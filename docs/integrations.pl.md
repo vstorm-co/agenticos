@@ -1,5 +1,5 @@
 ---
-source_sha: "1e8100e20e65"
+source_sha: "2e56e827219e"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -48,6 +48,8 @@ Każdy zapis wymaga zatwierdzenia przez człowieka w uruchomieniach agenta, niez
 
 Węzły plikowe przyjmują base64, nigdy lokalną ścieżkę serwera. Word przyjmuje tytuł i akapity i tworzy `.docx`. Upload i download mają limit 20 MB, JSON 2 MB, a wyodrębniony tekst 100 000 znaków. Nieudany zapis mógł dotrzeć do dostawcy: przed ponowieniem sprawdź wynik po jego stronie.
 
+Wybór tylko do odczytu jest lokalnym limitem dla kont OAuth, aplikacyjnych i kont z wklejonym tokenem Slack. Wcześniej przyznane prawa zapisu u dostawcy nie omijają go, także przy przyrostowej zgodzie Google. Aby zmienić ten wybór, połącz konto ponownie i jawnie włącz zapisy.
+
 Publikacja powiązania z kontem organizacji sprawdza zakresy każdego włączonego narzędzia. Przy koncie tylko do odczytu wyłącz narzędzia zapisu przed publikacją albo połącz konto ponownie z prawami zapisu.
 
 ## Wiedza, triggery i watche { #knowledge-triggers-and-watches }
@@ -59,6 +61,8 @@ Triggery rutyn używają istniejącej kolejki transakcyjnej, deduplikacji i zatw
 Watch wybiera jedno osobiste konto i produkt oraz otrzymuje stałe narzędzie zmian tylko do odczytu. Najpierw włącz produkt na agencie. Rozmowy Slack i delegowane czaty Teams wybiera się w capability. Kanały Teams mają zapis `channel/team-id/channel-id`; app-only Teams bez wskazanych rozmów czyta wszystkie czaty skonfigurowanego użytkownika.
 
 Każdy watch ma osobny trwały kursor, przesuwany dopiero po pomyślnym sprawdzeniu. Nowy lub zresetowany kursor ustala cichy punkt startowy. Gmail używa history IDs, Outlook i kalendarze kursorów dostawcy, Slack czasu na rozmowę, a IMAP UIDVALIDITY/UID. Czaty Teams delegated używają `lastModifiedDateTime`, a kanały i app-only Graph delta. Przy przekroczeniu limitu zaległości zawęź źródło.
+
+Połącz ponownie konto z jego wiersza, aby wymienić credentials w istniejącym rekordzie. ID konta i stała nazwa pozostają, zachowując odwołania agentów, źródeł i triggerów; generacja autoryzacji zmienia się, a istniejące rutyny wymagają przeglądu źródeł. Użyj tej samej metody logowania. Błędy pollingu są widoczne na koncie i znikają po poprawnym odczycie. Niedostępny arkusz zachowuje swój kursor, a zdrowe arkusze są nadal odczytywane. Feedy zmian Slack pomijają wiadomości wysłane przez połączonego użytkownika lub bota, aby zapobiec pętlom odpowiedzi.
 
 Zobacz [capabilities](reference/capabilities.md), [triggery](triggers.md), [zarządzanie i watche](governance.md#proactive-work) oraz [MCP](mcp.md).
 

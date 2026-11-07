@@ -148,6 +148,13 @@ async def _slack(
     user_id = identity.get("user_id")
     if not isinstance(user_id, str) or not user_id:
         raise ExternalServiceError(message="Slack did not identify the connected member")
+    bot_id = identity.get("bot_id")
+    events = [
+        event
+        for event in events
+        if event.payload.get("user") != user_id
+        and not (isinstance(bot_id, str) and bot_id and event.payload.get("bot_id") == bot_id)
+    ]
     for event in events:
         text = event.payload.get("text")
         event.payload["mentions_me"] = isinstance(text, str) and f"<@{user_id}>" in text

@@ -1,5 +1,5 @@
 ---
-source_sha: "1e8100e20e65"
+source_sha: "2e56e827219e"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -48,6 +48,8 @@ Jeder Schreibzugriff in Agentenläufen benötigt menschliche Freigabe, auch bei 
 
 Dateiknoten nehmen Base64-Inhalt an, niemals einen lokalen Serverpfad. Word erstellt `.docx` aus Titel und Absätzen. Upload/Download sind auf 20 MB begrenzt, JSON auf 2 MB und extrahierter Text auf 100.000 Zeichen. Ein fehlgeschlagener Schreibzugriff kann bereits angekommen sein: vor erneutem Senden den Anbieter prüfen.
 
+Die Auswahl „schreibgeschützt“ begrenzt OAuth-, Anwendungs- und eingefügte Slack-Token-Konten lokal. Bereits erteilte Schreibrechte beim Anbieter umgehen diese Grenze nicht, auch nicht bei inkrementeller Google-Zustimmung. Um die Auswahl zu ändern, das Konto erneut verbinden und Schreibzugriff ausdrücklich aktivieren.
+
 Die Veröffentlichung einer Organisationskontobindung prüft die Bereiche jedes aktivierten Werkzeugs. Bei einem reinen Lesekonto Schreibwerkzeuge vor der Veröffentlichung deaktivieren oder das Konto mit Schreibrechten neu verbinden.
 
 ## Wissen, Trigger und Watches { #knowledge-triggers-and-watches }
@@ -59,6 +61,8 @@ Routine-Trigger verwenden die bestehende transaktionale Warteschlange, Deduplizi
 Eine Watch wählt eine persönliche Verbindung und ein Produkt und erhält nur ein festes, lesendes Änderungswerkzeug. Das Produkt zuerst am Agenten aktivieren. Slack-Unterhaltungen und delegierte Teams-Chats werden in der Capability gewählt. Teams-Kanäle heißen `channel/team-id/channel-id`; eine Teams-App-Watch ohne Unterhaltungen liest alle Chats des konfigurierten Benutzers.
 
 Jede Watch hat einen eigenen dauerhaften Cursor, der erst nach erfolgreicher Verarbeitung fortschreitet. Neue/zurückgesetzte Cursor starten still. Gmail nutzt History-IDs, Outlook/Kalender Anbieter-Cursor, Slack Zeitstempel pro Unterhaltung und IMAP UIDVALIDITY/UID. Delegierte Teams-Chats nutzen `lastModifiedDateTime`, Kanal- und Anwendungsfeeds Graph Delta. Bei einem zu großen Rückstand die Quelle eingrenzen.
+
+Über die betroffene Kontozeile werden Zugangsdaten im bestehenden Datensatz ersetzt. Konto-ID und stabiler Name bleiben für Agenten-, Quellen- und Trigger-Verweise erhalten; die Autorisierungsgeneration ändert sich und bestehende Routinen benötigen eine Quellenprüfung. Dieselbe Anmeldemethode verwenden. Polling-Fehler erscheinen am Konto und verschwinden nach erfolgreichem Lesen. Ein unzugängliches Tabellenblatt behält seinen Cursor, während gesunde Tabellenblätter weiterlaufen. Slack-Änderungsfeeds schließen Nachrichten des verbundenen Benutzers oder Bots aus, um Antwortschleifen zu verhindern.
 
 Siehe [Capabilities](reference/capabilities.md), [Trigger](triggers.md), [Governance und Watches](governance.md#proactive-work) und [MCP](mcp.md).
 

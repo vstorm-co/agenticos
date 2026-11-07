@@ -3591,6 +3591,7 @@
       "vault2": "Vault",
       "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz.",
       "connectedAccounts": {
+        "pollingFailed": "Yoklama başarısız oldu. Hesap izinlerini ve seçili kaynakları kontrol edin.",
         "setup": {
           "title": "Connect {provider}",
           "description": "Register an OAuth app once for your organization, then connect your account.",

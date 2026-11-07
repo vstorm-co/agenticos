@@ -2,6 +2,7 @@
 
 import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_BODY } from "@/lib/dialog-sizes";
 import { useState } from "react";
+import type { ConnectedAccount } from "@/types/mirage";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -15,15 +16,23 @@ import {
 } from "@/components/ui";
 import { useConnectedAccounts, type AccountOwner } from "@/hooks/use-connected-accounts";
 
-export function ImapSetupDialog({ owner, onClose }: { owner: AccountOwner; onClose: () => void }) {
+export function ImapSetupDialog({
+  owner,
+  onClose,
+  reconnectAccount,
+}: {
+  owner: AccountOwner;
+  onClose: () => void;
+  reconnectAccount?: ConnectedAccount;
+}) {
   const t = useTranslations("pages.vault.connectedAccounts.setup");
   const { connectImap } = useConnectedAccounts(owner, { provider: "imap" });
   const [host, setHost] = useState("");
   const [port, setPort] = useState(993);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(reconnectAccount?.email ?? "");
   const [password, setPassword] = useState("");
   const [folder, setFolder] = useState("INBOX");
-  const [label, setLabel] = useState("");
+  const [label, setLabel] = useState(reconnectAccount?.label ?? "");
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
@@ -36,7 +45,11 @@ export function ImapSetupDialog({ owner, onClose }: { owner: AccountOwner; onClo
           onSubmit={(event) => {
             event.preventDefault();
             connectImap.mutate(
-              { credential: { host, port, username, password, folder }, label },
+              {
+                credential: { host, port, username, password, folder },
+                label,
+                ...(reconnectAccount ? { connection_id: reconnectAccount.id } : {}),
+              },
               {
                 onSuccess: () => {
                   setPassword("");
@@ -105,7 +118,7 @@ export function ImapSetupDialog({ owner, onClose }: { owner: AccountOwner; onClo
             />
           </div>
           <Button type="submit" disabled={connectImap.isPending || !host || !username || !password}>
-            {t("connect")}
+            {t("connectDirect")}
           </Button>
         </form>
       </DialogContent>

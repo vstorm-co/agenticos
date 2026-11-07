@@ -212,13 +212,11 @@ class IntegrationService:
             )
 
         if (
-            account.auth_type == "application"
+            account.auth_type in {"application", "oauth", "bearer"}
             and operation.side_effecting
-            and not McpConnectionService.application_writes_enabled(account)
+            and not McpConnectionService.integration_writes_enabled(account)
         ):
-            raise AuthorizationError(
-                message="Writes were not enabled when connecting this application account"
-            )
+            raise AuthorizationError(message="Writes were not enabled when connecting this account")
 
     async def validate_feed_selection(
         self, account: McpConnection, channels: tuple[str, ...], *, organization_id: UUID

@@ -165,3 +165,27 @@ async def test_slack_missing_message_list_is_a_failure(monkeypatch):
     monkeypatch.setattr(feeds.client, "execute", AsyncMock(return_value={"ok": True}))
     with pytest.raises(ExternalServiceError, match="list"):
         await feeds.changes_since("slack", SecretStr("token"), cursor={"C": "10"}, channels=("C",))
+
+
+@pytest.mark.parametrize("bot", [False, True])
+async def test_slack_own_messages_are_not_emitted_but_the_cursor_still_consumes_them(
+    monkeypatch, bot
+):
+    own = {"bot_id": "B-own"} if bot else {"user": "U-own"}
+    call = AsyncMock(
+        side_effect=[
+            {
+                "messages": [
+                    {"ts": "20", **own, "text": "agent reply"},
+                    {"ts": "19", "user": "U-other", "text": "human message"},
+                ]
+            },
+            {"user_id": "U-own", **({"bot_id": "B-own"} if bot else {})},
+        ]
+    )
+    monkeypatch.setattr(feeds.client, "execute", call)
+    read = await feeds.changes_since(
+        "slack", SecretStr("private"), cursor={"C1": "10"}, channels=("C1",)
+    )
+    assert [event.payload["text"] for event in read.events] == ["human message"]
+    assert read.cursor == {"C1": "20"}

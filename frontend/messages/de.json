@@ -6580,6 +6580,7 @@
         "personalDetail": "Wählen Sie ein Konto für Agenten, Workflows und persönliche Watches. Jede Person verbindet ihre eigenen Konten.",
         "organizationDetail": "Gemeinsame Konten stehen konfigurierten Agenten, Workflows, Wissenssynchronisierung und Triggern zur Verfügung.",
         "needsReconnect": "Die Anmeldung funktioniert nicht mehr. Verbinden Sie das Konto erneut.",
+        "pollingFailed": "Polling fehlgeschlagen. Kontoberechtigungen und ausgewählte Quellen prüfen.",
         "scopes": "{count, plural, one {# Berechtigung erteilt} other {# Berechtigungen erteilt}}",
         "reconnect": "Erneut verbinden",
         "disconnect": "{email} trennen",

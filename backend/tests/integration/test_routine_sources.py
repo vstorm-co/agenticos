@@ -1223,3 +1223,53 @@ async def test_native_input_grant_revocation_stops_polling_before_provider_acces
     monkeypatch.setattr(McpConnectionService, "integration_access_token", token)
     assert not await AgentTriggerService(db)._polled_source_current(trigger, account)
     token.assert_not_awaited()
+
+
+async def test_reconnecting_a_native_account_keeps_existing_trigger_foreign_keys(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    from contextlib import asynccontextmanager
+
+    from app.core.mail_credential import ImapCredential
+    from app.services.integrations import imap
+    from app.services.mcp_connection import McpConnectionService
+
+    ctx, trigger, _, _ = await world(db)
+    account = McpConnection(
+        organization_id=ctx.organization_id,
+        created_by_user_id=ctx.user_id,
+        scope="org",
+        purpose="account",
+        catalog_key="imap",
+        auth_type="imap",
+        name="stable-mailbox",
+        url="imap://mailbox",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    db.add(account)
+    await db.flush()
+    identifier = account.id
+    generation = account.authorization_generation
+    trigger.trigger_type, trigger.event_source, trigger.portal_key = "event", "imap_mail", "imap"
+    trigger.interval_seconds, trigger.next_fire_at, trigger.connection_id = None, None, identifier
+    await db.flush()
+
+    @asynccontextmanager
+    async def mailbox(credential):
+        yield object()
+
+    monkeypatch.setattr(imap, "mailbox", mailbox)
+    saved = await McpConnectionService(db).connect_imap_account(
+        ctx,
+        connection_id=identifier,
+        credential=ImapCredential(
+            host="imap.example.com", username="person@example.com", password="new-private-password"
+        ),
+        label="Mail",
+        for_organization=True,
+    )
+    await db.flush()
+    await db.refresh(trigger)
+    assert saved.id == identifier == trigger.connection_id
+    assert saved.name == "stable-mailbox" and saved.authorization_generation != generation

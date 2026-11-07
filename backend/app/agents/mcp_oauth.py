@@ -289,9 +289,10 @@ class McpOAuthPayload(BaseModel):
     integration_odoo: OdooCredential | None = None
     integration_subject: str | None = None
     integration_application_id: str | None = None
-    # Older application payloads already narrowed their scopes to the chosen writes.
-    # New grants retain the explicit choice separately from the provider's roles.
+    # Preserve legacy payloads' scope-based contract. New grants also retain the
+    # chosen write ceiling: incremental consent can return older, broader scopes.
     integration_write_enabled: bool = True
+    account_reconnect_id: UUID | None = None
     account_initiator_id: UUID | None = None
     account_source_organization_id: UUID | None = None
     account_source_secret_id: UUID | None = None

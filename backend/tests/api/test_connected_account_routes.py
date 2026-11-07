@@ -109,6 +109,7 @@ async def test_connecting_and_disconnecting_reach_the_right_owner(
     assert service.account_start.await_args.kwargs == {
         "for_organization": for_organization,
         "browser_nonce": "n" * 43,
+        "connection_id": None,
         "provider": "google",
         "products": None,
         "label": "",

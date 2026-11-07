@@ -12,6 +12,7 @@ import type { ConnectedAccountList } from "@/types/mirage";
 
 export type IntegrationProvider = "google" | "microsoft" | "slack" | "imap" | "odoo";
 export interface AccountConnectOptions {
+  connection_id?: string;
   label?: string;
   provider: IntegrationProvider;
   products: string[];
@@ -80,6 +81,7 @@ export function useConnectedAccounts(
   });
   const connectOdoo = useMutation({
     mutationFn: (data: {
+      connection_id?: string;
       credential: { origin: string; database: string; api_key: string };
       label: string;
       write: boolean;
@@ -89,6 +91,7 @@ export function useConnectedAccounts(
   });
   const connectImap = useMutation({
     mutationFn: (data: {
+      connection_id?: string;
       credential: {
         host: string;
         port: number;
@@ -103,6 +106,7 @@ export function useConnectedAccounts(
   });
   const connectApplication = useMutation({
     mutationFn: (data: {
+      connection_id?: string;
       provider: IntegrationProvider;
       secret_id: string;
       subject: string | null;
@@ -114,7 +118,7 @@ export function useConnectedAccounts(
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   const connectToken = useMutation({
-    mutationFn: (data: { token: string; label: string }) =>
+    mutationFn: (data: { token: string; label: string; connection_id?: string; write?: boolean }) =>
       apiClient.post(`${PREFIX[owner]}/slack/token`, data),
     onSuccess: refreshAccounts,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),

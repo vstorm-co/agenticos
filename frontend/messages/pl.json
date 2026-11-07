@@ -2852,6 +2852,7 @@
         "personalDetail": "Wybierz konto dla agentów, workflow i osobistych watchy. Każda osoba łączy własne konta.",
         "organizationDetail": "Wspólne konta służą skonfigurowanym agentom, workflow, synchronizacji wiedzy i triggerom.",
         "needsReconnect": "Logowanie przestało działać. Podłącz konto ponownie.",
+        "pollingFailed": "Polling nie powiódł się. Sprawdź uprawnienia konta i wybrane źródła.",
         "scopes": "{count, plural, one {# przyznane uprawnienie} few {# przyznane uprawnienia} many {# przyznanych uprawnień} other {# przyznanego uprawnienia}}",
         "reconnect": "Podłącz ponownie",
         "disconnect": "Odłącz {email}",

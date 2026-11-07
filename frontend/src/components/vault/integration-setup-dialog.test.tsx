@@ -95,7 +95,7 @@ describe("IntegrationSetupDialog", () => {
     expect(screen.getByLabelText("Slack token")).toHaveAttribute("type", "password");
     await userEvent.click(screen.getByRole("button", { name: "Connect with token" }));
     expect(connectToken).toHaveBeenCalledWith(
-      { token: "xoxp-private", label: "" },
+      { token: "xoxp-private", label: "", write: false },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
     expect(connect).not.toHaveBeenCalled();

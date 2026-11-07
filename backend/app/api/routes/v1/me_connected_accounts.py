@@ -65,6 +65,7 @@ async def start_my_account(
     authorization_url = await service.account_start(
         ctx,
         browser_nonce=data.browser_nonce,
+        connection_id=data.connection_id,
         provider=data.provider,
         products=data.products,
         label=data.label,
@@ -88,7 +89,12 @@ async def connect_slack_token(
 ) -> Any:
     """Connect a validated Slack user or bot token without OAuth."""
     row = await service.connect_slack_token(
-        ctx, token=data.token, label=data.label, for_organization=False
+        ctx,
+        token=data.token,
+        write=data.write,
+        label=data.label,
+        connection_id=data.connection_id,
+        for_organization=False,
     )
     return ConnectedAccountRead.from_model(row)
 
@@ -99,7 +105,11 @@ async def connect_imap_account(
 ) -> Any:
     """Connect an IMAP mailbox over verified TLS using an app password."""
     row = await service.connect_imap_account(
-        ctx, credential=data.credential, label=data.label, for_organization=False
+        ctx,
+        credential=data.credential,
+        label=data.label,
+        connection_id=data.connection_id,
+        for_organization=False,
     )
     return ConnectedAccountRead.from_model(row)
 
@@ -114,6 +124,7 @@ async def connect_application_account(
     row = await service.connect_application_account(
         ctx,
         provider=data.provider,
+        connection_id=data.connection_id,
         secret_id=data.secret_id,
         subject=data.subject,
         products=data.products,
@@ -136,6 +147,7 @@ async def connect_odoo_account(
     row = await service.connect_odoo_account(
         ctx,
         credential=data.credential,
+        connection_id=data.connection_id,
         label=data.label,
         write=data.write,
         for_organization=False,

@@ -181,6 +181,7 @@ async def test_an_impersonating_administrator_cannot_connect_as_the_member(
     repo.create.assert_not_called()
 
 
+@pytest.mark.parametrize("lost_grant", [False, True])
 @pytest.mark.parametrize("for_organization", [False, True])
 async def test_abandoned_account_consent_can_restart_after_its_master_key_is_removed(
     ctx: AuthContext,
@@ -188,6 +189,7 @@ async def test_abandoned_account_consent_can_restart_after_its_master_key_is_rem
     client: GoogleOAuthAppSecret,
     monkeypatch: pytest.MonkeyPatch,
     for_organization: bool,
+    lost_grant: bool,
 ) -> None:
     from app.core.config import settings
     from app.core.vault import unseal
@@ -197,13 +199,19 @@ async def test_abandoned_account_consent_can_restart_after_its_master_key_is_rem
         user_id=None if for_organization else ctx.subject_id,
         organization_id=ctx.organization_id if for_organization else None,
         secret_key_version=1,
+        account_source_organization_id=ctx.organization_id,
         oauth_pending_payload="old-unreadable-consent",
+        oauth_payload="grant-sealed-with-removed-key" if lost_grant else None,
     )
     repo.get_pending_account.return_value = pending
+    repo.get_by_id_for_update = AsyncMock(return_value=pending)
     monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: "replacement-test-master-key"})
 
     url = await McpConnectionService(AsyncMock()).account_start(
-        ctx, for_organization=for_organization, browser_nonce=NONCE
+        ctx,
+        for_organization=for_organization,
+        browser_nonce=NONCE,
+        connection_id=pending.id if lost_grant else None,
     )
 
     assert url.startswith(google_oauth.AUTHORIZE_ENDPOINT)
@@ -220,7 +228,10 @@ async def test_abandoned_account_consent_can_restart_after_its_master_key_is_rem
     assert payload.account_initiator_id == ctx.subject_id
     assert payload.browser_nonce_digest == hashlib.sha256(NONCE.encode()).hexdigest()
     assert payload.access_token is None and payload.refresh_token is None
-    assert "oauth_payload" not in written
+    if lost_grant:
+        assert written["oauth_payload"] is None
+    else:
+        assert "oauth_payload" not in written
     repo.create.assert_not_awaited()
     repo.create_org_scoped.assert_not_awaited()
 
@@ -287,10 +298,13 @@ async def test_an_unreadable_new_grant_leaves_the_earlier_one_as_it_was(repo, mo
     assert repo.list_accounts.await_args.kwargs["organization_id"] == org
 
 
-async def test_the_shared_callback_names_an_account_rather_than_probing_it(repo, monkeypatch):
+@pytest.mark.parametrize("write", [False, True])
+async def test_the_shared_callback_names_an_account_rather_than_probing_it(
+    repo, monkeypatch, write
+):
     pending = _account(oauth_state="state")
     pending.oauth_pending_payload = _sealed(
-        pending, _payload(access_token=None, refresh_token=None)
+        pending, _payload(access_token=None, refresh_token=None, integration_write_enabled=write)
     )
     repo.get_by_oauth_state = AsyncMock(return_value=pending)
     monkeypatch.setattr(
@@ -317,6 +331,23 @@ async def test_the_shared_callback_names_an_account_rather_than_probing_it(repo,
     name.assert_awaited_once()
     assert name.await_args.args[1] == "AT"
     probe.assert_not_called()
+    stored = next(
+        call.kwargs["update_data"]
+        for call in repo.update.await_args_list
+        if "oauth_payload" in call.kwargs["update_data"]
+    )
+    pending.oauth_payload = stored["oauth_payload"]
+    pending.granted_scopes = [google_oauth.DRIVE]
+    assert McpConnectionService.integration_writes_enabled(pending) is write
+    from app.services.integrations import PRODUCTS, IntegrationService
+
+    product = PRODUCTS["google_drive"]
+    operation = next(op for op in product.operations if op.side_effecting)
+    if write:
+        IntegrationService.check_operation_scopes(pending, product, operation)
+    else:
+        with pytest.raises(AuthorizationError, match="Writes were not enabled"):
+            IntegrationService.check_operation_scopes(pending, product, operation)
 
 
 # -- listing, disconnecting, and what a run gets ------------------------------
@@ -741,6 +772,15 @@ async def test_native_consent_matches_the_setup_scopes_and_provider_client(
         info.identity_scopes + selected.read_scopes + (selected.write_scopes if write else [])
     )
     assert query["redirect_uri"] == [info.redirect_uri]
+    fields = native_repo.create.await_args.kwargs
+    # A newly staged grant is created with its pending payload in one write.
+    pending = _account(
+        user_id=ctx.subject_id,
+        catalog_key=provider,
+        secret_key_version=fields["secret_key_version"],
+    )
+    pending.oauth_payload = fields["oauth_pending_payload"]
+    assert McpConnectionService.integration_writes_enabled(pending) is write
     if provider == "google":
         assert query["access_type"] == ["offline"] and query["prompt"] == ["consent"]
 
@@ -803,9 +843,10 @@ async def test_slack_token_connect_requires_a_real_token_and_current_membership(
         ("microsoft", ["teams"], "00000000-0000-0000-0000-000000000001"),
     ],
 )
+@pytest.mark.parametrize("reconnect", [False, True])
 @pytest.mark.parametrize("for_organization", [False, True])
 async def test_application_accounts_revalidate_the_source_credential_before_minting_tokens(
-    ctx, native_repo, monkeypatch, provider, products, subject, for_organization
+    ctx, native_repo, monkeypatch, provider, products, subject, for_organization, reconnect
 ):
     from pydantic import SecretStr
 
@@ -838,6 +879,17 @@ async def test_application_accounts_revalidate_the_source_credential_before_mint
             )
         ),
     )
+    target = _account(
+        user_id=None if for_organization else ctx.user_id,
+        organization_id=ctx.organization_id if for_organization else None,
+        scope="org" if for_organization else "user",
+        catalog_key=provider,
+        account_source_organization_id=ctx.organization_id,
+        auth_type="application",
+        name="stable-account-name",
+        poll_cursor={"old": "position"},
+    )
+    native_repo.get_by_id_for_update = AsyncMock(return_value=target)
     service = McpConnectionService(MagicMock())
     row = await service.connect_application_account(
         ctx,
@@ -848,7 +900,12 @@ async def test_application_accounts_revalidate_the_source_credential_before_mint
         write=True,
         label="Automation",
         for_organization=for_organization,
+        connection_id=target.id if reconnect else None,
     )
+    if reconnect:
+        assert row.id == target.id and row.name == "stable-account-name" and row.poll_cursor is None
+        native_repo.create.assert_not_awaited()
+        native_repo.create_org_scoped.assert_not_awaited()
     assert row.auth_type == "application" and row.account_email == subject
     assert "provider-access-token" not in row.oauth_payload
     assert await service.integration_access_token(
@@ -1535,9 +1592,12 @@ async def test_entra_account_records_only_roles_actually_granted_for_the_selecte
         native_repo.create.assert_not_awaited()
 
 
+@pytest.mark.parametrize("auth_type", ["application", "oauth", "bearer"])
 @pytest.mark.parametrize("payload", [None, "invalid", "legacy", "read-only"])
-async def test_application_write_setting_is_sealed_and_legacy_grants_remain_readable(payload):
-    account = _account(auth_type="application")
+async def test_application_write_setting_is_sealed_and_legacy_grants_remain_readable(
+    payload, auth_type
+):
+    account = _account(auth_type=auth_type)
     if payload in {"legacy", "read-only"}:
         data = _payload(integration_write_enabled=payload == "legacy").model_dump(mode="json")
         if payload == "legacy":
@@ -1545,7 +1605,9 @@ async def test_application_write_setting_is_sealed_and_legacy_grants_remain_read
         account.oauth_payload = _sealed(account, McpOAuthPayload.model_validate(data))
     else:
         account.oauth_payload = payload
-    assert McpConnectionService.application_writes_enabled(account) == (payload == "legacy")
+    assert McpConnectionService.integration_writes_enabled(account) == (
+        payload == "legacy" or (auth_type == "bearer" and payload is None)
+    )
 
 
 @pytest.mark.parametrize("for_organization", [False, True])
@@ -1631,3 +1693,318 @@ async def test_file_trigger_application_identity_is_sealed_and_requires_reconnec
     row.oauth_payload = None
     with pytest.raises(BadRequestError, match="Reconnect"):
         McpConnectionService.integration_application_id(row)
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+@pytest.mark.parametrize("method", ["slack", "imap", "odoo"])
+async def test_reconnecting_direct_accounts_keeps_the_id_and_name_and_invalidates_source_consent(
+    ctx, native_repo, monkeypatch, method, for_organization
+):
+    from contextlib import asynccontextmanager
+
+    from pydantic import SecretStr
+
+    from app.core.mail_credential import ImapCredential
+    from app.core.odoo_credential import OdooCredential
+    from app.services.integrations import imap, odoo
+
+    auth = "bearer" if method == "slack" else method
+    row = _account(
+        user_id=None if for_organization else ctx.user_id,
+        organization_id=ctx.organization_id if for_organization else None,
+        scope="org" if for_organization else "user",
+        account_source_organization_id=ctx.organization_id,
+        catalog_key=method,
+        auth_type=auth,
+        name="stable-alias",
+        poll_cursor={"old": "cursor"},
+        authorization_generation=uuid4(),
+    )
+    generation = row.authorization_generation
+    native_repo.get_by_id_for_update = AsyncMock(return_value=row)
+    service = McpConnectionService(AsyncMock())
+    kwargs = {"label": "Reconnected", "for_organization": for_organization, "connection_id": row.id}
+    if method == "slack":
+        monkeypatch.setattr(
+            service_module.slack_oauth,
+            "identify",
+            AsyncMock(return_value=("Workspace / Bot", ["channels:history", "chat:write"])),
+        )
+        saved = await service.connect_slack_token(
+            ctx, token=SecretStr("xoxb-new-private-token"), **kwargs
+        )
+        assert await service.integration_access_token(
+            saved, organization_id=ctx.organization_id
+        ) == SecretStr("xoxb-new-private-token")
+        assert not service.integration_writes_enabled(saved)
+    elif method == "imap":
+
+        @asynccontextmanager
+        async def mailbox(credential):
+            yield object()
+
+        monkeypatch.setattr(imap, "mailbox", mailbox)
+        credential = ImapCredential(
+            host="imap.example.com", username="person@example.com", password="private-password"
+        )
+        saved = await service.connect_imap_account(ctx, credential=credential, **kwargs)
+        assert (
+            service.integration_mail_credential(saved, organization_id=ctx.organization_id)
+            == credential
+        )
+    else:
+        credential = OdooCredential(
+            origin="https://erp.example.com", database="company", api_key="private-key"
+        )
+        monkeypatch.setattr(odoo, "identify", AsyncMock())
+        saved = await service.connect_odoo_account(
+            ctx, credential=credential, write=False, **kwargs
+        )
+        assert (
+            service.integration_odoo_credential(saved, organization_id=ctx.organization_id)
+            == credential
+        )
+    assert saved is row and saved.name == "stable-alias" and saved.poll_cursor is None
+    assert (
+        saved.authorization_generation != generation
+        and saved.last_status == "ok"
+        and saved.last_error is None
+    )
+    native_repo.create.assert_not_awaited()
+    native_repo.create_org_scoped.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing",
+        "purpose",
+        "provider",
+        "personal-owner",
+        "personal-tenant",
+        "personal-scope",
+        "org-tenant",
+        "org-scope",
+        "org-grant",
+        "method",
+    ],
+)
+async def test_reconnect_refuses_foreign_accounts_and_method_changes_before_opening_a_credential(
+    ctx, native_repo, monkeypatch, case
+):
+    from app.core.exceptions import BadRequestError
+
+    org = case.startswith("org-")
+    row = _account(
+        user_id=None if org else ctx.user_id,
+        organization_id=ctx.organization_id if org else None,
+        scope="org" if org else "user",
+        account_source_organization_id=ctx.organization_id,
+        auth_type="application",
+    )
+    match case:
+        case "purpose":
+            row.purpose = "mcp"
+        case "provider":
+            row.catalog_key = "microsoft"
+        case "personal-owner":
+            row.user_id = uuid4()
+        case "personal-tenant":
+            row.account_source_organization_id = uuid4()
+        case "personal-scope":
+            row.scope = "org"
+        case "org-tenant":
+            row.organization_id = uuid4()
+        case "org-scope":
+            row.scope = "user"
+        case "method":
+            row.auth_type = "oauth"
+    native_repo.get_by_id_for_update = AsyncMock(return_value=None if case == "missing" else row)
+    monkeypatch.setattr(
+        service_module, "resolve_access", AsyncMock(return_value=case != "org-grant")
+    )
+    opened = AsyncMock()
+    monkeypatch.setattr(service_module.OrganizationSecretService, "get_usable", opened)
+    with pytest.raises(BadRequestError if case == "method" else NotFoundError):
+        await McpConnectionService(AsyncMock()).connect_application_account(
+            ctx,
+            provider="google",
+            secret_id=SOURCE_SECRET,
+            products=["google_drive"],
+            subject=None,
+            write=False,
+            label="",
+            for_organization=org,
+            connection_id=row.id,
+        )
+    opened.assert_not_awaited()
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+@pytest.mark.parametrize("siblings", ["none", "self", "foreign", "collision", "wrong-target"])
+async def test_oauth_reconnect_preserves_the_selected_row_and_checks_identity_collisions_before_replacing_it(
+    ctx, native_repo, client, monkeypatch, siblings, for_organization
+):
+    caller = AuthContext(user_id=INITIATOR, organization_id=SOURCE_ORG, role="owner")
+    row = _account(
+        user_id=None if for_organization else INITIATOR,
+        organization_id=SOURCE_ORG if for_organization else None,
+        scope="org" if for_organization else "user",
+        name="stable-alias",
+        oauth_payload="old-live-credential",
+        poll_cursor={"old": "position"},
+        authorization_generation=uuid4(),
+    )
+    old_generation = row.authorization_generation
+    native_repo.get_by_id_for_update = AsyncMock(return_value=row)
+    native_repo.get_by_oauth_state = AsyncMock(return_value=row)
+    service = McpConnectionService(AsyncMock())
+    await service.account_start(
+        caller,
+        for_organization=for_organization,
+        browser_nonce=NONCE,
+        products=["gmail"],
+        connection_id=row.id,
+    )
+    assert row.oauth_pending_payload and row.name == "stable-alias"
+    if siblings == "wrong-target":
+        payload = service_module._decode_payload(row, row.oauth_pending_payload)
+        row.oauth_pending_payload = _sealed(
+            row, payload.model_copy(update={"account_reconnect_id": uuid4()})
+        )
+    other = _account(
+        user_id=None if for_organization else INITIATOR,
+        scope="org" if for_organization else "user",
+        organization_id=(uuid4() if siblings == "foreign" else SOURCE_ORG)
+        if for_organization
+        else None,
+        account_email="new@example.com",
+        account_source_organization_id=uuid4() if siblings == "foreign" else SOURCE_ORG,
+    )
+    native_repo.list_accounts.return_value = (
+        [row] if siblings == "self" else [other] if siblings in {"foreign", "collision"} else []
+    )
+    monkeypatch.setattr(
+        google_oauth,
+        "exchange_code",
+        AsyncMock(
+            return_value=google_oauth.GoogleToken(
+                access_token="new-token",
+                refresh_token="refresh",
+                expires_in=3600,
+                granted_scopes=[google_oauth.DRIVE],
+            )
+        ),
+    )
+    monkeypatch.setattr(google_oauth, "account_email", AsyncMock(return_value="new@example.com"))
+    if siblings in {"collision", "wrong-target"}:
+        with pytest.raises(service_module.OAuthError):
+            await service.oauth_callback(
+                state=row.oauth_state, code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+            )
+        assert row.authorization_generation == old_generation
+    else:
+        saved = await service.oauth_callback(
+            state=row.oauth_state, code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+        )
+        assert (
+            saved is row
+            and saved.name == "stable-alias"
+            and saved.account_email == "new@example.com"
+        )
+        assert saved.poll_cursor is None and saved.authorization_generation != old_generation
+        assert not service.integration_writes_enabled(saved)
+    native_repo.create.assert_not_awaited()
+    native_repo.delete.assert_not_awaited()
+
+
+@pytest.mark.parametrize("write", [False, True])
+async def test_pasted_slack_token_write_policy_is_local_even_when_the_token_has_chat_write(
+    ctx, native_repo, monkeypatch, write
+):
+    from pydantic import SecretStr
+
+    from app.services.integrations import PRODUCTS, IntegrationService
+
+    monkeypatch.setattr(
+        service_module.slack_oauth,
+        "identify",
+        AsyncMock(return_value=("Workspace / Bot", ["channels:history", "chat:write"])),
+    )
+    row = await McpConnectionService(AsyncMock()).connect_slack_token(
+        ctx, token=SecretStr("xoxb-private-token"), label="", for_organization=False, write=write
+    )
+    product = PRODUCTS["slack"]
+    operation = next(op for op in product.operations if op.side_effecting)
+    if write:
+        IntegrationService.check_operation_scopes(row, product, operation)
+    else:
+        with pytest.raises(AuthorizationError, match="Writes were not enabled"):
+            IntegrationService.check_operation_scopes(row, product, operation)
+
+
+async def test_native_poll_failure_does_not_hide_a_revoked_oauth_grant(native_repo):
+    from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED
+    from app.schemas.connected_account import ConnectedAccountRead
+
+    row = _account(last_status="error", last_error=AUTHORIZATION_EXPIRED)
+    await McpConnectionService(AsyncMock()).record_native_poll_status(row, failed=True)
+    assert row.authorization_expired and row.last_error == AUTHORIZATION_EXPIRED
+    assert ConnectedAccountRead.from_model(row).polling_failed
+    await McpConnectionService(AsyncMock()).record_native_poll_status(row, failed=False)
+    assert row.last_status == "ok" and row.last_error is None
+
+
+async def test_org_reconnect_rechecks_the_resource_grant_after_browser_consent(
+    ctx, native_repo, client, monkeypatch
+):
+    row = _account(scope="org", organization_id=SOURCE_ORG, user_id=None, oauth_state="state")
+    row.oauth_pending_payload = _sealed(
+        row, _payload(access_token=None, account_reconnect_id=row.id)
+    )
+    native_repo.get_by_oauth_state = AsyncMock(return_value=row)
+    monkeypatch.setattr(service_module, "resolve_access", AsyncMock(return_value=False))
+    exchange = AsyncMock()
+    monkeypatch.setattr(google_oauth, "exchange_code", exchange)
+    with pytest.raises(service_module.OAuthError, match="organization access changed"):
+        await McpConnectionService(AsyncMock()).oauth_callback(
+            state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+        )
+    exchange.assert_not_awaited()
+    native_repo.update.assert_not_awaited()
+
+
+@pytest.mark.parametrize("identity", [None, "other@example.com", "same@example.com"])
+async def test_new_oauth_consent_cannot_replace_a_non_oauth_identity(
+    ctx, native_repo, monkeypatch, identity
+):
+    row = _account(oauth_state="state")
+    row.oauth_pending_payload = _sealed(row, _payload(access_token=None))
+    old = _account(auth_type="application", account_email="same@example.com")
+    native_repo.get_by_oauth_state = AsyncMock(return_value=row)
+    native_repo.list_accounts.return_value = [old]
+    monkeypatch.setattr(
+        google_oauth,
+        "exchange_code",
+        AsyncMock(
+            return_value=google_oauth.GoogleToken(
+                access_token="new-token",
+                refresh_token="refresh",
+                expires_in=3600,
+                granted_scopes=[google_oauth.DRIVE],
+            )
+        ),
+    )
+    monkeypatch.setattr(google_oauth, "account_email", AsyncMock(return_value=identity))
+    monkeypatch.setattr(McpConnectionService, "_name_account", AsyncMock(return_value=row))
+    if identity == "same@example.com":
+        with pytest.raises(service_module.OAuthError, match="another authentication method"):
+            await McpConnectionService(AsyncMock()).oauth_callback(
+                state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+            )
+        native_repo.update.assert_not_awaited()
+    else:
+        await McpConnectionService(AsyncMock()).oauth_callback(
+            state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+        )
+    assert old.auth_type == "application" and old.oauth_payload is None

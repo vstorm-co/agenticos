@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ConnectedAccount } from "@/types/mirage";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import {
@@ -37,10 +38,12 @@ export function IntegrationSetupDialog({
   owner,
   provider,
   onClose,
+  reconnectAccount,
 }: {
   owner: AccountOwner;
   provider: Exclude<IntegrationProvider, "imap" | "odoo">;
   onClose: () => void;
+  reconnectAccount?: ConnectedAccount;
 }) {
   const t = useTranslations("pages.vault.connectedAccounts.setup");
   const errors = useTranslations("errors");
@@ -54,10 +57,17 @@ export function IntegrationSetupDialog({
   const [adding, setAdding] = useState(false);
   const [products, setProducts] = useState<string[]>([]);
   const [token, setToken] = useState("");
-  const [label, setLabel] = useState("");
-  const [method, setMethod] = useState<"oauth" | "application">("oauth");
+  const [label, setLabel] = useState(reconnectAccount?.label ?? "");
+  const [method, setMethod] = useState<"oauth" | "application">(
+    reconnectAccount?.auth_type === "application" ? "application" : "oauth",
+  );
   const [credentialId, setCredentialId] = useState("");
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(
+    reconnectAccount?.auth_type === "application" &&
+      (reconnectAccount.email.includes("@") || /^[0-9a-f-]{36}$/i.test(reconnectAccount.email))
+      ? reconnectAccount.email
+      : "",
+  );
   const applicationKind = provider === "google" ? "gcp_service_account" : "entra_app";
   const returnTo = usePathname();
   const info = setup.data;
@@ -103,6 +113,7 @@ export function IntegrationSetupDialog({
                     <Button
                       size="sm"
                       variant={method === "oauth" ? "secondary" : "ghost"}
+                      disabled={!!reconnectAccount}
                       onClick={() => setMethod("oauth")}
                     >
                       {t("oauth")}
@@ -110,6 +121,7 @@ export function IntegrationSetupDialog({
                     <Button
                       size="sm"
                       variant={method === "application" ? "secondary" : "ghost"}
+                      disabled={!!reconnectAccount}
                       onClick={() => setMethod("application")}
                     >
                       {t(provider === "google" ? "serviceAccount" : "application")}
@@ -191,40 +203,50 @@ export function IntegrationSetupDialog({
                   ].join("\n")}
                 </pre>
               </details>
-              {provider === "slack" && (
-                <details className="grid gap-2 text-sm">
-                  <summary>{t("tokenPath")}</summary>
-                  <div className="mt-3 grid gap-2">
-                    <Label htmlFor="integration-token">{t("token")}</Label>
-                    <Input
-                      id="integration-token"
-                      type="password"
-                      autoComplete="off"
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                    />
-                    <Button
-                      variant="outline"
-                      disabled={!token || connectToken.isPending}
-                      onClick={() =>
-                        connectToken.mutate(
-                          { token, label },
-                          {
-                            onSuccess: () => {
-                              setToken("");
-                              onClose();
+              {provider === "slack" &&
+                (!reconnectAccount || reconnectAccount.auth_type === "bearer") && (
+                  <details
+                    className="grid gap-2 text-sm"
+                    open={reconnectAccount?.auth_type === "bearer"}
+                  >
+                    <summary>{t("tokenPath")}</summary>
+                    <div className="mt-3 grid gap-2">
+                      <Label htmlFor="integration-token">{t("token")}</Label>
+                      <Input
+                        id="integration-token"
+                        type="password"
+                        autoComplete="off"
+                        value={token}
+                        onChange={(e) => setToken(e.target.value)}
+                      />
+                      <Button
+                        variant="outline"
+                        disabled={!token || connectToken.isPending}
+                        onClick={() =>
+                          connectToken.mutate(
+                            {
+                              token,
+                              label,
+                              write,
+                              ...(reconnectAccount ? { connection_id: reconnectAccount.id } : {}),
                             },
-                          },
-                        )
-                      }
-                    >
-                      {t("saveToken")}
-                    </Button>
-                  </div>
-                </details>
-              )}
+                            {
+                              onSuccess: () => {
+                                setToken("");
+                                onClose();
+                              },
+                            },
+                          )
+                        }
+                      >
+                        {t("saveToken")}
+                      </Button>
+                    </div>
+                  </details>
+                )}
               <Button
                 disabled={
+                  reconnectAccount?.auth_type === "bearer" ||
                   !products.length ||
                   isConnecting ||
                   connectApplication.isPending ||
@@ -238,6 +260,7 @@ export function IntegrationSetupDialog({
                   method === "application"
                     ? connectApplication.mutate(
                         {
+                          ...(reconnectAccount ? { connection_id: reconnectAccount.id } : {}),
                           provider,
                           secret_id: credentialId,
                           subject: subject || null,
@@ -247,7 +270,13 @@ export function IntegrationSetupDialog({
                         },
                         { onSuccess: onClose },
                       )
-                    : connect(returnTo, { provider, products, write, label })
+                    : connect(returnTo, {
+                        provider,
+                        products,
+                        write,
+                        label,
+                        ...(reconnectAccount ? { connection_id: reconnectAccount.id } : {}),
+                      })
                 }
               >
                 {t("connect")}

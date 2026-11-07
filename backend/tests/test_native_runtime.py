@@ -616,14 +616,20 @@ async def test_one_broken_product_does_not_rollback_a_healthy_products_jobs_or_c
     row, rows, service, store, add = poller
     healthy = add("google", {})
     add("google_sheets", {"spreadsheet_id": "deleted-book", "sheet_name": "Sheet1"})
-    service.prepare_polled_fires.return_value = [
-        SimpleNamespace(trigger_id=healthy.id, event_context="new mail", source_policy_id=uuid4())
-    ]
+    service.prepare_polled_fires.side_effect = lambda *args, **kwargs: (
+        [SimpleNamespace(trigger_id=healthy.id, event_context="new mail", source_policy_id=uuid4())]
+        if kwargs["events"]
+        else []
+    )
     monkeypatch.setattr(
         triggers,
         "get_adapter",
         lambda _: SimpleNamespace(
-            poll=AsyncMock(return_value=PolledEvents(events=(), cursor={"resume": "mail"}))
+            poll=AsyncMock(
+                return_value=PolledEvents(
+                    events=(PolledEvent(delivery_id="mail", payload={}),), cursor={"resume": "mail"}
+                )
+            )
         ),
     )
     monkeypatch.setattr(
@@ -631,7 +637,9 @@ async def test_one_broken_product_does_not_rollback_a_healthy_products_jobs_or_c
     )
     db = AsyncMock(info={})
     assert await triggers.poll_account(db, row) == 1
-    assert store.await_args.kwargs["cursor"] == {"products": {"google": {"resume": "mail"}}}
+    assert store.await_args.kwargs["cursor"] == {
+        "products": {"google": {"resume": "mail"}, "google_sheets": {}}
+    }
     assert service.queue_fire.await_count == 1
     assert db.begin_nested.await_count == 2
 
@@ -719,3 +727,46 @@ async def test_one_inaccessible_conversation_selection_does_not_stop_another(
     assert (bad_key in positions) is has_previous
     if has_previous:
         assert positions[bad_key] == {"bad": "1.0"}
+
+
+async def test_one_inaccessible_sheet_keeps_its_cursor_while_healthy_sheets_continue(
+    poller, monkeypatch
+):
+    row, rows, service, store, add = poller
+    good = add("google_sheets", {"spreadsheet_id": "good", "sheet_name": "Sheet1"})
+    add("google_sheets", {"spreadsheet_id": "bad", "sheet_name": "Sheet1"})
+    good_key = triggers.sheet_key("good", "Sheet1")
+    bad_key = triggers.sheet_key("bad", "Sheet1")
+    row.poll_cursor = {
+        "products": {"google_sheets": {good_key: {"last_row": 3}, bad_key: {"last_row": 4}}}
+    }
+
+    async def read(*args, spreadsheet_id, **kwargs):
+        if spreadsheet_id == "bad":
+            raise BadRequestError(message="Sheet no longer accessible")
+        return feeds.Changes(
+            events=[
+                feeds.Change(
+                    id="new-row", payload={"spreadsheet_id": "good", "sheet_name": "Sheet1"}
+                )
+            ],
+            cursor={"last_row": 5},
+        )
+
+    monkeypatch.setattr(triggers, "rows_since", read)
+    service.prepare_polled_fires.return_value = [
+        SimpleNamespace(trigger_id=good.id, event_context="new row", source_policy_id=uuid4())
+    ]
+    assert await triggers.poll_account(AsyncMock(info={}), row) == 1
+    assert store.await_args.kwargs["cursor"]["products"]["google_sheets"] == {
+        good_key: {"last_row": 5},
+        bad_key: {"last_row": 4},
+    }
+    assert row.last_status == "error" and "failed" in row.last_error
+    monkeypatch.setattr(
+        triggers,
+        "rows_since",
+        AsyncMock(return_value=feeds.Changes(events=[], cursor={"last_row": 6})),
+    )
+    await triggers.poll_account(AsyncMock(info={}), row)
+    assert row.last_status == "ok" and row.last_error is None

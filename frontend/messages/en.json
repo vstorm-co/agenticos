@@ -7302,6 +7302,7 @@
         "personalDetail": "Choose an account for agents, workflows and personal watches. Each person connects their own accounts.",
         "organizationDetail": "Shared accounts can be used by configured agents, workflows, knowledge sync and triggers.",
         "needsReconnect": "Its sign-in stopped working. Connect it again.",
+        "pollingFailed": "Polling failed. Check the account permissions and selected sources.",
         "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
         "reconnect": "Reconnect",
         "disconnect": "Disconnect {email}",

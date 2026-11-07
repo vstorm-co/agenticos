@@ -35,6 +35,11 @@ export function ConnectedAccountsCard({ owner, canManage }: ConnectedAccountsCar
   const tErrors = useTranslations("errors");
   const [provider, setProvider] = useState<IntegrationProvider>("google");
   const [settingUp, setSettingUp] = useState(false);
+  const [reconnecting, setReconnecting] = useState<ConnectedAccount | null>(null);
+  const closeSetup = () => {
+    setSettingUp(false);
+    setReconnecting(null);
+  };
   const { accounts, isLoading, error, isConnecting, disconnect } = useConnectedAccounts(owner, {
     provider,
   });
@@ -102,16 +107,25 @@ export function ConnectedAccountsCard({ owner, canManage }: ConnectedAccountsCar
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{account.email}</p>
-                  {account.needs_reconnect ? (
-                    <p className="text-destructive text-xs">{t("needsReconnect")}</p>
+                  {account.needs_reconnect || account.polling_failed ? (
+                    <p className="text-destructive text-xs">
+                      {t(account.needs_reconnect ? "needsReconnect" : "pollingFailed")}
+                    </p>
                   ) : (
                     <p className="text-muted-foreground text-xs">
                       {t("scopes", { count: account.scopes.length })}
                     </p>
                   )}
                 </div>
-                {canManage && account.needs_reconnect && (
-                  <Button size="sm" variant="outline" onClick={() => setSettingUp(true)}>
+                {canManage && (account.needs_reconnect || account.polling_failed) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setReconnecting(account);
+                      setSettingUp(true);
+                    }}
+                  >
                     {t("reconnect")}
                   </Button>
                 )}
@@ -145,16 +159,25 @@ export function ConnectedAccountsCard({ owner, canManage }: ConnectedAccountsCar
         )}
       </ListCard>
       {settingUp && provider === "imap" && (
-        <ImapSetupDialog owner={owner} onClose={() => setSettingUp(false)} />
+        <ImapSetupDialog
+          owner={owner}
+          reconnectAccount={reconnecting ?? undefined}
+          onClose={closeSetup}
+        />
       )}
       {settingUp && provider === "odoo" && (
-        <OdooSetupDialog owner={owner} onClose={() => setSettingUp(false)} />
+        <OdooSetupDialog
+          owner={owner}
+          reconnectAccount={reconnecting ?? undefined}
+          onClose={closeSetup}
+        />
       )}
       {settingUp && provider !== "imap" && provider !== "odoo" && (
         <IntegrationSetupDialog
           owner={owner}
           provider={provider}
-          onClose={() => setSettingUp(false)}
+          reconnectAccount={reconnecting ?? undefined}
+          onClose={closeSetup}
         />
       )}
     </>

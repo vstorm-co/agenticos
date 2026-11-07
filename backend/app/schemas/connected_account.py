@@ -28,6 +28,8 @@ class ConnectedAccountRead(BaseSchema):
     owner: Literal["personal", "organization"]
     needs_reconnect: bool
     """Its grant expired, was revoked, or lost its source credential and must be reconnected."""
+    auth_type: str = "oauth"
+    polling_failed: bool = False
     created_at: datetime
 
     @classmethod
@@ -36,6 +38,8 @@ class ConnectedAccountRead(BaseSchema):
     ) -> ConnectedAccountRead:
         return cls(
             id=account.id,
+            auth_type=account.auth_type or "oauth",
+            polling_failed=account.last_status == "error",
             name=account.name,
             label=account.label,
             provider="microsoft"
@@ -63,6 +67,10 @@ class ConnectedAccountList(BaseSchema):
 
 
 class ConnectedAccountStart(BaseSchema):
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Reconnect this owned account in place, preserving its ID and authentication method.",
+    )
     label: str = Field(default="", max_length=64)
     provider: Literal["google", "microsoft", "slack", "imap"] = "google"
     products: list[str] | None = Field(default=None, max_length=12)
@@ -71,11 +79,20 @@ class ConnectedAccountStart(BaseSchema):
 
 
 class ConnectedAccountToken(BaseSchema):
+    write: bool = False
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Reconnect this owned account in place, preserving its ID and authentication method.",
+    )
     token: SecretStr = Field(description="A Slack user or bot token, sealed before storage.")
     label: str = Field(default="", max_length=64)
 
 
 class ConnectedApplicationAccount(BaseSchema):
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Reconnect this owned account in place, preserving its ID and authentication method.",
+    )
     provider: Literal["google", "microsoft"]
     secret_id: UUID
     subject: str | None = Field(
@@ -89,11 +106,19 @@ class ConnectedApplicationAccount(BaseSchema):
 
 
 class ConnectedImapAccount(BaseSchema):
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Reconnect this owned account in place, preserving its ID and authentication method.",
+    )
     credential: ImapCredential
     label: str = Field(default="", max_length=64)
 
 
 class ConnectedOdooAccount(BaseSchema):
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Reconnect this owned account in place, preserving its ID and authentication method.",
+    )
     credential: OdooCredential
     label: str = Field(default="", max_length=64)
     write: bool = False

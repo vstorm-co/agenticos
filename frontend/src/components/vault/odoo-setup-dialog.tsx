@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ConnectedAccount } from "@/types/mirage";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -16,13 +17,21 @@ import {
 import { useConnectedAccounts, type AccountOwner } from "@/hooks/use-connected-accounts";
 import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_BODY } from "@/lib/dialog-sizes";
 
-export function OdooSetupDialog({ owner, onClose }: { owner: AccountOwner; onClose: () => void }) {
+export function OdooSetupDialog({
+  owner,
+  onClose,
+  reconnectAccount,
+}: {
+  owner: AccountOwner;
+  onClose: () => void;
+  reconnectAccount?: ConnectedAccount;
+}) {
   const t = useTranslations("pages.vault.connectedAccounts.setup");
   const { connectOdoo } = useConnectedAccounts(owner, { provider: "odoo" });
   const [origin, setOrigin] = useState("");
-  const [database, setDatabase] = useState("");
+  const [database, setDatabase] = useState(reconnectAccount?.email ?? "");
   const [key, setKey] = useState("");
-  const [label, setLabel] = useState("");
+  const [label, setLabel] = useState(reconnectAccount?.label ?? "");
   const [write, setWrite] = useState(false);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -36,7 +45,12 @@ export function OdooSetupDialog({ owner, onClose }: { owner: AccountOwner; onClo
           onSubmit={(event) => {
             event.preventDefault();
             connectOdoo.mutate(
-              { credential: { origin, database, api_key: key }, label, write },
+              {
+                credential: { origin, database, api_key: key },
+                label,
+                write,
+                ...(reconnectAccount ? { connection_id: reconnectAccount.id } : {}),
+              },
               {
                 onSuccess: () => {
                   setKey("");

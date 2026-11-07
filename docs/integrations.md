@@ -42,6 +42,8 @@ Each write requires human approval in agent runs, even if a per-tool override re
 
 File nodes accept base64 content, never a server-local path. Word writes accept a title and paragraphs and create a `.docx`. Uploads/downloads are bounded to 20 MB, JSON to 2 MB and extracted text to 100,000 characters. A failed write may already have reached the provider: inspect the remote result before retrying.
 
+The read-only choice is a local ceiling for OAuth, application and pasted Slack-token accounts. Previously granted provider write scopes do not override it, including Google incremental consent. Reconnect and explicitly enable writes to change that choice.
+
 Publishing an organization binding verifies the scopes of every enabled tool. With a read-only account, disable write tools before publishing or reconnect with write permissions.
 
 ## Knowledge, triggers and watches
@@ -55,6 +57,8 @@ Routine triggers reuse the existing transactional queue, deduplication and appro
 A watch selects one personal connection and product, with only a fixed read-only change tool. Enable that product on the agent first. Slack conversations and delegated Teams chats must be selected in the capability. Teams channels use `channel/team-id/channel-id`; an app-only Teams feed with no conversations reads all chats of its configured subject.
 
 Each watch has an independent durable cursor; it advances only after a successful consumed check. New/reset cursors establish a quiet baseline rather than replaying history. Gmail uses history IDs, Outlook and calendars use provider cursors, Slack uses a timestamp per conversation and IMAP uses UIDVALIDITY/UID. Delegated Teams chats use `lastModifiedDateTime`; channel and application feeds use Graph delta. Narrow a source if a bounded read reports too much backlog.
+
+Reconnect from the affected account row to replace credentials in place. The account ID and stable name remain, preserving agent, source and trigger references; its authorization generation changes and existing routines need a source review. Use the same authentication method. Polling errors appear on the account and clear after a successful poll. An inaccessible spreadsheet retains its own cursor while healthy spreadsheets continue. Slack change feeds exclude messages sent by the connected user or bot to prevent reply loops.
 
 See [capabilities](reference/capabilities.md), [triggers](triggers.md), [governance and watches](governance.md#proactive-work) and [MCP](mcp.md) for their existing controls.
 
