@@ -19,7 +19,7 @@ only, so there is nothing here for the budget to miss (#16 is the live example
 of what forgetting this costs).
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from pydantic_ai.capabilities import ToolSearch, ToolSearchStrategy
@@ -63,8 +63,9 @@ library: its default already says what a query is and that queries are unioned.
 class ConfiguredToolSearch(ToolSearch[object]):
     """Select function tools for discovery without deferring capability lifecycle hooks.
 
-    The factory supplies only its configured capability ids: surface-added tools
-    such as account connection and capability requests must remain visible.
+    The factory supplies effective tool names from its enabled bindings, including
+    tools contributed by child capabilities. Surface-added tools such as account
+    connection and capability requests must remain visible.
     Exclusions preserve existing deferred flags, including skill disclosure gates.
     """
 
@@ -73,18 +74,18 @@ class ConfiguredToolSearch(ToolSearch[object]):
     exclude_capabilities: frozenset[str] = frozenset()
     exclude_mcp_servers: frozenset[str] = frozenset()
     exclude_tools: frozenset[str] = frozenset()
-    capability_ids: frozenset[str] = field(default_factory=frozenset)
+    capability_tool_names: frozenset[str] = frozenset()
 
     async def prepare_tools(
         self, ctx: RunContext[object], tool_defs: list[ToolDefinition]
     ) -> list[ToolDefinition]:
         # Pydantic AI dispatches this after ownership and renames, inside its
         # search wrapper. Only function schemas change; hooks and builtins do not.
-        deferred_ids = self.capability_ids - self.exclude_capabilities
         return [
             replace(tool, defer_loading=True)
             if self.defer_capabilities
-            and tool.capability_id in deferred_ids
+            and tool.capability_id is not None
+            and tool.name in self.capability_tool_names
             and tool.name not in self.exclude_tools
             else tool
             for tool in tool_defs

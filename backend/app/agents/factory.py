@@ -37,6 +37,7 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
+from app.agents.capabilities import CapabilityBinding
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._overrides import ToolOverrides
@@ -592,7 +593,7 @@ def build_agent(
         toolsets=(
             (extra_toolsets or [])
             if voice is not None
-            else _defer_for_tool_search(configured, extra_toolsets or [])
+            else _defer_for_tool_search(configured, extra_toolsets or [], bindings=bindings)
         ),
     )
 
@@ -668,16 +669,27 @@ def _input_screen(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
 def _defer_for_tool_search(
     configured: list[AbstractCapability[Any]],
     extra_toolsets: list[AbstractToolset[Any]],
+    *,
+    bindings: list[CapabilityBinding],
 ) -> list[AbstractToolset[Any]]:
     """Pair configured function-tool and MCP deferral with the agent's search.
 
-    Only registry-built capability ids are eligible. Surface-added capabilities
-    stay visible, and the realtime path bypasses this pairing altogether.
+    Select registered tools by their binding's effective names: a composed
+    capability's tools may carry anonymous child ids generated per run.
+    Surface-added tools stay visible; realtime bypasses this pairing altogether.
     """
     for capability in configured:
         if isinstance(capability, ConfiguredToolSearch):
-            capability.capability_ids = frozenset(
-                item.id for item in configured if item.id is not None
+            configured_ids = {item.id for item in configured}
+            capability.capability_tool_names = frozenset(
+                tool.name
+                for binding in bindings
+                if binding.enabled
+                and binding.capability_id in configured_ids
+                and binding.capability_id not in capability.exclude_capabilities
+                for tool in capability_def(binding.capability_id).effective_tools(
+                    binding.tool_overrides
+                )
             )
             return [capability.defer_toolset(toolset) for toolset in extra_toolsets]
     return extra_toolsets

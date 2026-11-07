@@ -36,6 +36,7 @@ from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.secret_kinds import NoSecret
 from app.db.models.skill import Skill
+from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -148,6 +149,82 @@ async def test_each_source_can_be_deferred_independently(
         expected.add("search_tools")
 
     assert await _visible_names(built) == expected
+
+
+@pytest.mark.parametrize(
+    ("defer_capabilities", "exclude_capabilities"),
+    [(False, []), (True, []), (True, ["sandbox"])],
+)
+async def test_sandbox_child_tools_follow_their_configured_parent_selection(
+    defer_capabilities: bool, exclude_capabilities: list[str]
+) -> None:
+    built = _build(
+        ToolSearchConfig(
+            strategy="keywords",
+            defer_capabilities=defer_capabilities,
+            exclude_capabilities=exclude_capabilities,
+        ),
+        capabilities=[CapabilityBindingSpec(id="sandbox"), CapabilityBindingSpec(id="charts")],
+    )
+    expected = {"search_tools"} if defer_capabilities else {"create_chart"}
+    if not defer_capabilities or "sandbox" in exclude_capabilities:
+        expected.update({"ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute"})
+
+    assert await _visible_names(built) == expected
+
+
+@pytest.mark.parametrize("excluded_name", ["preview_file", "read_file"])
+async def test_sandbox_child_tool_exclusions_use_the_binding_renamed_name(
+    excluded_name: str,
+) -> None:
+    built = _build(
+        ToolSearchConfig(
+            strategy="keywords", defer_capabilities=True, exclude_tools=[excluded_name]
+        ),
+        capabilities=[
+            CapabilityBindingSpec(
+                id="sandbox", tool_overrides={"read_file": ToolOverride(name="preview_file")}
+            )
+        ],
+    )
+    expected = {"search_tools"}
+    if excluded_name == "preview_file":
+        expected.add("preview_file")
+
+    assert await _visible_names(built) == expected
+
+
+async def test_discovered_sandbox_child_tool_executes_in_the_run_workspace() -> None:
+    built = _build(
+        ToolSearchConfig(strategy="keywords", defer_capabilities=True),
+        capabilities=[CapabilityBindingSpec(id="sandbox")],
+    )
+    workspace = document_workspace()
+    offered: list[set[str]] = []
+
+    def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        offered.append({tool.name for tool in info.function_tools})
+        if len(offered) == 1:
+            return ModelResponse(parts=[ToolCallPart("search_tools", {"queries": ["write_file"]})])
+        if len(offered) == 2:
+            write_file = next(tool for tool in info.function_tools if tool.name == "write_file")
+            assert write_file.description is not None
+            assert "Write" in write_file.description
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        "write_file", {"path": "/notes.txt", "content": "saved after discovery"}
+                    )
+                ]
+            )
+        return ModelResponse(parts=[TextPart("done")])
+
+    with built.agent.override(model=FunctionModel(respond)):
+        await built.agent.run("Save a note.", deps=built.deps, workspace=workspace)
+
+    assert offered[0] == {"search_tools"}
+    assert "write_file" in offered[1]
+    assert await workspace.read_text("/notes.txt") == "saved after discovery"
 
 
 async def test_whole_capability_and_wrapped_server_exclusions_leave_other_tools_deferred() -> None:
@@ -368,7 +445,10 @@ async def test_surface_tools_stay_visible_when_both_sources_defer() -> None:
     assert await _visible_names(built) == {"connect_account", "request_capability", "search_tools"}
 
 
-async def test_tool_search_preserves_a_skills_load_capability_disclosure_gate() -> None:
+@pytest.mark.parametrize("exclude_skills", [False, True])
+async def test_tool_search_preserves_a_skills_load_capability_disclosure_gate(
+    exclude_skills: bool,
+) -> None:
     secret_instructions = "Refunds require the private procedure approval number."
     skill = Skill(
         id=uuid4(),
@@ -380,7 +460,9 @@ async def test_tool_search_preserves_a_skills_load_capability_disclosure_gate() 
     )
     built = _build(
         ToolSearchConfig(
-            strategy="keywords", defer_capabilities=True, exclude_capabilities=["skills"]
+            strategy="keywords",
+            defer_capabilities=True,
+            exclude_capabilities=["skills"] if exclude_skills else [],
         ),
         capabilities=[CapabilityBindingSpec(id="skills"), CapabilityBindingSpec(id="charts")],
         resources={"skills": [skill]},
