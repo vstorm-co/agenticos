@@ -51,7 +51,7 @@ import { MessageList, coalesceActivity } from "./message-list";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { LocalAccessDialog } from "./local-access-dialog";
-import { useLocalAccessGate } from "@/hooks/use-local-access-gate";
+import { useComputerAccessOnUse, useLocalAccessGate } from "@/hooks/use-local-access-gate";
 import { CompactionNotice } from "./compaction-notice";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
@@ -477,6 +477,8 @@ export function ChatContainer({
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
+    pendingComputerAccess,
+    sendComputerAccessResponse,
     reportVisual,
   } = useChat({
     conversationId: currentConversationId,
@@ -485,12 +487,20 @@ export function ChatContainer({
     onTurnInterrupted: handleTurnInterrupted,
     testing,
   });
-  // An agent that works on this computer is sent to once it knows where: the
-  // chat's folder, the one remembered for it, or the person's answer, asked once.
+  // An agent that works on this computer is sent to with the folder this chat or
+  // the agent was given; with none, it asks when it needs the files.
   const sendMessage = useLocalAccessGate(sendChatMessage, selectedAgent, {
     selectedAgentId,
     metadataPending: agentsLoading,
     projectId: openConversation?.project_id,
+  });
+  useComputerAccessOnUse({
+    pending: pendingComputerAccess,
+    respond: sendComputerAccessResponse,
+    agent:
+      pendingComputerAccess?.agent_id === undefined
+        ? selectedAgent
+        : agents.find((agent) => agent.id === pendingComputerAccess.agent_id),
   });
 
   // A message addressed to a workflow goes to it instead of the agent: the

@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Local routines ask once: the desktop app lets all your routines in an organization work in a folder (or your home folder, for the whole computer), and every later routine there is saved without another dialog. The permission survives app updates and signing in again; a routine follows your current desktop session. Approving another folder or stronger operations keeps earlier grants. On Windows, routine folders must use local drives rather than UNC or device paths.
+- The public API lists, opens and renames your conversations (`GET`/`POST /api/v1/conversations`, `PATCH /api/v1/conversations/{id}`), checks one of your own MCP connections (`POST /api/v1/me/mcp-connections/{id}/test`), and the platform MCP server gains `list_conversations`, `create_conversation`, `test_my_connection` and `update_proactivity_settings`, so a routine's topic chat and the organization's watch cadence and briefing can be set up without the console.
+
+### Fixed
+
+- A replacement desktop that does not hold a routine’s grant leaves its incoming events waiting for the approved computer and warns the owner; it does not disable the routine or discard those events. Delegates retain a shared local-workspace requirement before computer access has been granted, so they can ask for access too.
+- Routine permissions are verified against the current store fingerprint in the OS keychain, so editing the JSON or replaying a revoked store cannot extend consent. **Upgrade:** explicitly unlink and relink the computer, then approve existing local routines again; older grants have no trusted fingerprint. A missing keychain or interrupted permission write fails closed and requires the same reset.
+- Routine folder admission refuses symbolic links in the root path, including a replaced grant root, instead of resolving them before checking access. Local folder commands retain the approved directory through Linux sandbox startup, preventing a concurrent folder rename or symlink replacement from changing what is mounted. Linux needs bubblewrap with `--bind-fd` support. On Linux, task environment variables are applied inside the sandbox and passed privately through a descriptor.
+- An agent whose workspace is your computer no longer refuses a message, or asks where it may work before you send one, when no folder is chosen. It answers what needs no files and asks for your computer only when a request needs your files; the chat continues with them once you choose.
+- An API key you issued, or an MCP client you authorized, with the explicitly selected `personal:consent` scope can now create and change your own routines that act as you and your watches, review a routine's sources, and publish an agent without withdrawing your routines' consent. This scope is excluded from all presets, including Full access, and existing credentials gain no consent automatically. It used to be refused as if it were somebody else; an agent's run credential outside your private chat and an administrator impersonating you are still refused.
+- A routine its agent cannot run - for example one whose agent works on your computer and that names no folder - no longer leaves a run that the stale-run sweep later reports as a crash; it stops with a notification that says why.
+- A watch check is bounded: at most 30 model requests, with long tool results trimmed and an overgrown history summarized. A first check of a whole Notion workspace had made about 40 requests and cost $2.
+- Connecting an MCP server in the desktop app opens the provider's sign-in in your own browser instead of inside the app window, so saved passwords, passkeys and existing sign-ins work there. Finish signing in and return to the app; the server appears once it is authorised.
+
 ## [1.55.0] - 2026-11-07
 
 ### Changed

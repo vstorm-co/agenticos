@@ -54,6 +54,23 @@ of their past conversations, no sites they kept signed in for the browser, and
 no user-scoped sandbox workspace. Whoever holds the key is a script, not the
 person, so the run answers as it would on a public widget.
 
+Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
+
+**Setting up work that acts as you is yours to do with a key you issued.** A
+key you created, or an MCP client's token you authorized, may create and change
+your own [routines](triggers.md) that act as you (`runs_as_creator`) and your
+[watches](console.md), review a routine's sources, and publish an agent without
+withdrawing the consent of routines you made to act as you. The run those
+routines start is still the routine's, under its reviewed sources and budget.
+An agent's own run credential cannot do this outside your private chat, and
+neither can an administrator impersonating you.
+
+Conversations are public too: `GET /api/v1/conversations` lists the issuer's
+chats (`runs:view`), and `POST /api/v1/conversations` with a `title` and
+`PATCH /api/v1/conversations/{id}` open and rename one (`agents:run`) - for
+example a topic chat a routine answers in. `POST /api/v1/me/mcp-connections/{id}/test`
+checks one of your own connections and refreshes its tools (`agents:run`).
+
 Read-only connection discovery is also public: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` and `GET /sandbox-connections/{id}/policy`
 require `connections:view`; `GET /mcp-connections` requires `mcp:manage`.

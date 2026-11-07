@@ -10,7 +10,13 @@ import { useLocalAccessStore } from "@/stores/local-access-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { Agent } from "@/types/agents";
 
-import { useLocalAccessGate, worksOnThisComputer } from "./use-local-access-gate";
+import type { ComputerAccessRequest } from "@/types/chat";
+
+import {
+  useComputerAccessOnUse,
+  useLocalAccessGate,
+  worksOnThisComputer,
+} from "./use-local-access-gate";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
@@ -102,30 +108,12 @@ describe("useLocalAccessGate", () => {
     expect(useLocalAccessStore.getState().asking).toBeNull();
   });
 
-  it("asks once, then sends and remembers the answer for the agent", async () => {
+  it("sends without asking when nothing was granted, so the agent asks on use", async () => {
     const { send, gated } = gate(local);
     gated("hej", ["file"]);
-    expect(send).not.toHaveBeenCalled();
-    await waitFor(() =>
-      expect(useLocalAccessStore.getState().asking).toEqual({
-        id: "agent-1",
-        name: "AgenticOS",
-        coding: false,
-      }),
-    );
-    await act(async () => useLocalAccessStore.getState().answer(whole));
-    expect(send).toHaveBeenCalledWith("hej", ["file"]);
-    await waitFor(() => expect(useWorkOnStore.getState().targetFor("chat")).toEqual(whole));
-    expect(useWorkOnStore.getState().agentTargetFor("agent-1")).toEqual(whole);
-  });
-
-  it("sends nothing when the person declines", async () => {
-    const { send, gated } = gate(local);
-    gated("hej");
-    await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-    await act(async () => useLocalAccessStore.getState().answer(null));
-    expect(send).not.toHaveBeenCalled();
-    expect(useWorkOnStore.getState().agentTargetFor("agent-1")).toBeNull();
+    await waitFor(() => expect(send).toHaveBeenCalledWith("hej", ["file"]));
+    expect(useLocalAccessStore.getState().asking).toBeNull();
+    expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
   });
 
   it("settles an earlier question as declined when a second one is asked", async () => {
@@ -144,39 +132,22 @@ it("does not inherit another agent's global default", async () => {
   useWorkOnStore.setState({ byConversation: {} });
   const { send, gated } = gate(local);
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking?.id).toBe(local.id));
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
-it("asks again for a revoked remembered folder", async () => {
+it("sends without a revoked remembered folder", async () => {
   useWorkOnStore.getState().rememberForAgent(local.id, { folder: "/gone", mode: "full_access" });
   const { send, gated } = gate(local);
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
 it("does not borrow agent A's whole-computer consent for B", async () => {
   useWorkOnStore.getState().set("chat", whole);
   const { send, gated } = gate({ ...local, id: "agent-B" });
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking?.id).toBe("agent-B"));
-  expect(send).not.toHaveBeenCalled();
-});
-it("does not remember legacy whole-computer consent across chats", async () => {
-  const { send, gated } = gate(local);
-  gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  const { computer_grant_agent: _owner, ...legacy } = whole;
-  await act(async () => useLocalAccessStore.getState().answer(legacy));
-  expect(send).toHaveBeenCalledOnce();
-  expect(useWorkOnStore.getState().agentTargetFor(local.id)).toBeNull();
-});
-it("abandons a pending consent if the person changed conversations", async () => {
-  const { send, gated } = gate(local);
-  gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  useConversationStore.setState({ currentConversationId: "elsewhere" });
-  await act(async () => useLocalAccessStore.getState().answer(whole));
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
 it("keeps a project's cloud workspace", () => {
   useConversationStore.setState({ currentConversationId: null, pendingProjectId: "project" });
@@ -198,9 +169,7 @@ it("waits for selected-agent metadata before sending", async () => {
   act(() => result.current("hello"));
   expect(send).not.toHaveBeenCalled();
   rerender({ agent: local, loading: false });
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  await act(async () => useLocalAccessStore.getState().answer(whole));
-  expect(send).toHaveBeenCalledWith("hello");
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
 });
 
 it("fails closed when selected-agent metadata could not load", () => {
@@ -242,13 +211,13 @@ it.each(["agent", "conversation", "organization", "missing"] as const)(
   },
 );
 
-it("refuses a legacy remembered consent and asks for this conversation", async () => {
+it("sends without a legacy remembered consent", async () => {
   const { computer_grant_agent: _owner, ...legacy } = whole;
   useWorkOnStore.getState().rememberForAgent(local.id, legacy);
   const { send, gated } = gate(local);
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
 
 it("uses legacy native consent only within the conversation that chose it", async () => {
@@ -265,25 +234,25 @@ it("does not reuse remembered consent when an older app cannot verify it", async
   useWorkOnStore.getState().rememberForAgent(local.id, whole);
   const { send, gated } = gate(local);
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
 
-it("asks again after native whole-computer consent was revoked", async () => {
+it("drops a revoked whole-computer choice and sends without it", async () => {
   shell.local.mockResolvedValue({ grants: [], modes: ["full_access"], computer_grants: [] });
   useWorkOnStore.getState().set("chat", whole);
   const { send, gated } = gate(local);
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
 
 it("does not reuse a folder after its access mode was narrowed", async () => {
   useWorkOnStore.getState().rememberForAgent(local.id, { folder: "/work", mode: "full_access" });
   const { send, gated } = gate(local);
   gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  expect(send).not.toHaveBeenCalled();
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
 });
 
 it.each(["explicit", "remembered"] as const)(
@@ -307,7 +276,7 @@ it.each(["explicit", "remembered"] as const)(
   },
 );
 
-it("does not open an access dialog after a synchronous conversation switch", async () => {
+it("sends nothing after a synchronous conversation switch", async () => {
   const { send, gated } = gate(local);
   gated("hello");
   useConversationStore.setState({ currentConversationId: "other" });
@@ -336,28 +305,6 @@ it.each([true, false])(
   },
 );
 
-it("checks the latest agent before applying a delayed native choice", async () => {
-  const send = vi.fn();
-  const { result, rerender } = renderHook(({ agent }) => useLocalAccessGate(send, agent), {
-    initialProps: { agent: local },
-  });
-  result.current("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  rerender({ agent: cloud });
-  await act(async () => useLocalAccessStore.getState().answer(whole));
-  expect(send).not.toHaveBeenCalled();
-});
-
-it("remembers a chosen folder for the agent without requiring whole-computer consent", async () => {
-  const { send, gated } = gate(local);
-  gated("hello");
-  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
-  const folder = { folder: "/work", mode: "workspace_write" } as const;
-  await act(async () => useLocalAccessStore.getState().answer(folder));
-  expect(send).toHaveBeenCalledWith("hello");
-  expect(useWorkOnStore.getState().agentTargetFor(local.id)).toEqual(folder);
-});
-
 it("respects an already-open project's cloud workspace", () => {
   const send = vi.fn();
   const { result } = renderHook(() =>
@@ -369,4 +316,114 @@ it("respects an already-open project's cloud workspace", () => {
   );
   result.current("hello");
   expect(send).toHaveBeenCalledWith("hello");
+});
+
+describe("useComputerAccessOnUse", () => {
+  function onUse(agent: Agent | undefined) {
+    const respond = vi.fn();
+    const props = { pending: null as ComputerAccessRequest | null, agent };
+    const view = renderHook(
+      (current: typeof props) => useComputerAccessOnUse({ ...current, respond }),
+      { initialProps: props },
+    );
+    return { respond, view, props };
+  }
+
+  it("asks, remembers the choice and releases the requesting run", async () => {
+    const { respond, view, props } = onUse(local);
+    const asked = { reason: "Read README" };
+    view.rerender({ ...props, pending: asked });
+    await waitFor(() =>
+      expect(useLocalAccessStore.getState().asking).toMatchObject({
+        id: local.id,
+        reason: "Read README",
+      }),
+    );
+    await act(async () => useLocalAccessStore.getState().answer(whole));
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(true));
+    expect(useWorkOnStore.getState().targetFor("chat")).toEqual(whole);
+    expect(useWorkOnStore.getState().agentTargetFor(local.id)).toEqual(whole);
+  });
+
+  it("asks for a local coding delegate under its cloud root agent", async () => {
+    const { respond, view, props } = onUse(cloud);
+    view.rerender({ ...props, pending: { reason: "Delegate needs files", coding: true } });
+    await waitFor(() =>
+      expect(useLocalAccessStore.getState().asking).toMatchObject({
+        id: cloud.id,
+        coding: true,
+        reason: "Delegate needs files",
+      }),
+    );
+    await act(async () =>
+      useLocalAccessStore.getState().answer({ ...whole, computer_grant_agent: cloud.id }),
+    );
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(true));
+    expect(useWorkOnStore.getState().agentTargetFor(cloud.id)).toMatchObject({
+      computer_grant_agent: cloud.id,
+    });
+  });
+
+  it("discards a native answer after the organization changes in a draft chat", async () => {
+    useConversationStore.setState({ currentConversationId: null });
+    const { respond, view, props } = onUse(local);
+    view.rerender({ ...props, pending: { reason: "Read project" } });
+    await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+    useOrgStore.setState({ activeOrgId: "other" });
+    await act(async () => useLocalAccessStore.getState().answer(whole));
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
+    expect(useWorkOnStore.getState().agentTargetFor(local.id)).toBeNull();
+  });
+
+  it("does not remember a legacy whole-computer choice for the agent", async () => {
+    const { respond, view, props } = onUse(local);
+    view.rerender({ ...props, pending: { reason: "x" } });
+    await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+    const { computer_grant_agent: _owner, ...legacy } = whole;
+    await act(async () => useLocalAccessStore.getState().answer(legacy));
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(true));
+    expect(useWorkOnStore.getState().agentTargetFor(local.id)).toBeNull();
+  });
+
+  it("tells the run when the person declines, and continues nothing", async () => {
+    const { respond, view, props } = onUse(local);
+    view.rerender({ ...props, pending: { reason: "x" } });
+    await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+    await act(async () => useLocalAccessStore.getState().answer(null));
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
+  });
+
+  it("does not continue in a chat the person left while choosing", async () => {
+    const { respond, view, props } = onUse(local);
+    const asked = { reason: "x" };
+    view.rerender({ ...props, pending: asked });
+    await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+    useConversationStore.setState({ currentConversationId: "elsewhere" });
+    await act(async () => useLocalAccessStore.getState().answer(whole));
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
+  });
+
+  it.each([
+    ["outside the desktop app", local, false],
+    ["for an unknown agent", undefined, true],
+  ])("declines at once %s", (_case, agent, desktop) => {
+    shell.desktop = desktop;
+    const { respond, view, props } = onUse(agent);
+    view.rerender({ ...props, pending: { reason: "x" } });
+    expect(respond).toHaveBeenCalledWith(false);
+    expect(useLocalAccessStore.getState().asking).toBeNull();
+  });
+
+  it("reports a failed native question and declines", async () => {
+    const failure = new Error("bridge");
+    const request = vi
+      .spyOn(useLocalAccessStore.getState(), "request")
+      .mockRejectedValueOnce(failure);
+    const { respond, view, props } = onUse(local);
+    view.rerender({ ...props, pending: { reason: "x" } });
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(false));
+    expect(reportShellFailure).toHaveBeenCalledWith("asking for local access", failure);
+    expect(toast.error).toHaveBeenCalled();
+    request.mockRestore();
+  });
 });

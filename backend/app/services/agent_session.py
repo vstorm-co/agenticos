@@ -31,6 +31,7 @@ from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
+from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
@@ -239,6 +240,9 @@ class AgentSession:
         # A run waiting for the person to connect one of their own services;
         # completed by `connect_account_response`, one at a time under `_ask_lock`.
         self._connect_future: asyncio.Future[bool] | None = None
+        # A run paused until the person grants their computer, completed by
+        # `computer_access_response`, one at a time under `_ask_lock` too.
+        self._computer_future: asyncio.Future[bool] | None = None
         # The running turn's timeline, so `_ask_one` can record a mid-turn
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
@@ -298,8 +302,9 @@ class AgentSession:
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
 
-        A `stop` cancels the running turn; an `ask_user_response` or a
-        `connect_account_response` unblocks a paused run; any other control frame is ignored; a bare message starts a
+        A `stop` cancels the running turn; an `ask_user_response`, a
+        `connect_account_response` or a `computer_access_response` unblocks a
+        paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
 
         A frame that will *act* on the session is refused first if that session
@@ -404,6 +409,15 @@ class AgentSession:
             if not await self._reauthorize():
                 return
             waiting.set_result(data.get("connected") is True)
+            return
+
+        if msg_type == "computer_access_response":
+            waiting = self._computer_future
+            if waiting is None or waiting.done():
+                return
+            if not await self._reauthorize():
+                return
+            waiting.set_result(data.get("granted") is True)
             return
 
         if msg_type == "attach":
@@ -748,6 +762,10 @@ class AgentSession:
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
             waiting.set_result(False)
+        # And for one waiting on the computer: nobody is there to choose a folder.
+        computer = self._computer_future
+        if computer is not None and not computer.done():
+            computer.set_result(False)
         # `shield` is what makes the two endings distinguishable: without it
         # `wait_for`'s timeout cancels the turn *through* the wait, and the
         # explicit cancellation below - the path every existing test covers, and
@@ -1010,6 +1028,7 @@ class AgentSession:
                     on_sandbox_wait=self._sandbox_wait_event,
                     on_personal_gaps=self._personal_gaps_event,
                     request_connection=self._request_connection,
+                    request_computer_access=self._request_computer_access,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -1403,6 +1422,31 @@ class AgentSession:
                 return await waiting
             finally:
                 self._connect_future = None
+
+    async def _request_computer_access(self, request: ComputerAccessRequest) -> bool:
+        """Pause the run: ask the client where the agent may work, and wait.
+
+        Emits `computer_access`, then awaits `computer_access_response` - `granted`
+        true once the person chose a folder or the whole computer in the desktop
+        app, false when they declined or the client cannot offer one. A socket
+        that goes away answers false.
+        """
+        async with self._ask_lock:
+            if self._closed or self._question_detached:
+                return False
+            waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+            self._computer_future = waiting
+            try:
+                payload: dict[str, str | bool] = {"reason": request.reason}
+                if request.coding:
+                    payload["coding"] = True
+                if self._turn_agent_id is not None:
+                    payload["agent_id"] = str(self._turn_agent_id)
+                if not await self._emit("computer_access", payload):
+                    return False
+                return await waiting
+            finally:
+                self._computer_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.

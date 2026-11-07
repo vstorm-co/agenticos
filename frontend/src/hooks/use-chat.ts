@@ -34,6 +34,7 @@ import type {
   ChatMessageFile,
   ChatPerson,
   Compaction,
+  ComputerAccessRequest,
   ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
@@ -367,6 +368,12 @@ export function useChat(options: UseChatOptions = {}) {
   );
   // A run paused until the person connects one of their own services, or `null`.
   const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
+  const [pendingComputerAccess, setPendingComputerAccess] = useState<ComputerAccessRequest | null>(
+    null,
+  );
+  const awaitingComputerRef = useRef(false);
+  const continueAfterComputerRef = useRef<{ agentId: string | null } | null>(null);
+  const computerRequestRef = useRef<ComputerAccessRequest | null>(null);
   // Whether a run on the server is still waiting on that card. Beside the state
   // because leaving the conversation takes the card down, and a run nobody
   // answers waits for as long as the socket stays open.
@@ -898,6 +905,7 @@ export function useChat(options: UseChatOptions = {}) {
             !["awaiting_approval", "awaiting_answer", "running"].includes(run_status)
           ) {
             terminalRunIdsRef.current.add(run_id);
+            if (run_status !== "completed") continueAfterComputerRef.current = null;
             if (parkedQuestionRunRef.current === run_id) {
               setPendingQuestions(null);
               setParkedQuestion(null);
@@ -1214,9 +1222,13 @@ export function useChat(options: UseChatOptions = {}) {
             liveQuestionRef.current = false;
           }
           setPendingConnection(null);
+          setPendingComputerAccess(null);
+          continueAfterComputerRef.current = null;
+          computerRequestRef.current = null;
           // An open that failed ends the turn here, with no `complete` after it.
           setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
+          awaitingComputerRef.current = false;
           // A reply save failure means the prompt already ran, even if reconnecting
           // lost its acknowledgement. Offering Retry would execute it again.
           const refused = code === "message_save_failed" ? null : unconfirmedRef.current;
@@ -1272,6 +1284,7 @@ export function useChat(options: UseChatOptions = {}) {
             (request) => !decidedApprovalIdsRef.current.has(request.id),
           );
           if (actionable.length === 0) break;
+          continueAfterComputerRef.current = null;
           offeredApprovalBatchesRef.current.add(
             JSON.stringify([run_id, actionable.map((request) => request.tool_call_id).sort()]),
           );
@@ -1299,6 +1312,17 @@ export function useChat(options: UseChatOptions = {}) {
             // conversation gets it from the stored message instead.
             updateMessage(id, (msg) => ({ ...msg, runId: run_id }));
           }
+          break;
+        }
+
+        case "computer_access": {
+          // The agent reached for the person's files, and the run waits for them
+          // to choose a folder or the whole computer.
+          const wire = wsEvent.data as ComputerAccessRequest;
+          const request = { ...wire, agent_id: wire.agent_id ?? turnAgentIdRef.current };
+          computerRequestRef.current = request;
+          setPendingComputerAccess(request);
+          awaitingComputerRef.current = true;
           break;
         }
 
@@ -1424,6 +1448,21 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "complete": {
+          if (
+            continueAfterComputerRef.current &&
+            !(wsEvent.data as { stopped?: boolean }).stopped &&
+            !stopRequestedRef.current &&
+            followingRef.current === null
+          ) {
+            setQueue([
+              ...messageQueueRef.current,
+              {
+                id: clientId(),
+                content: t("localAccess.continue"),
+                agentId: continueAfterComputerRef.current.agentId,
+              },
+            ]);
+          }
           if (followingRef.current === null) {
             const finished =
               conversationApi.getState().currentConversationId ?? activeConversationId;
@@ -1443,7 +1482,11 @@ export function useChat(options: UseChatOptions = {}) {
           // A connection prompt belongs to the live turn. Durable approval and
           // question cards outlive this socket's turn and resume their own runs.
           setPendingConnection(null);
+          setPendingComputerAccess(null);
+          continueAfterComputerRef.current = null;
+          computerRequestRef.current = null;
           awaitingConnectionRef.current = false;
+          awaitingComputerRef.current = false;
           // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
           // this handler parsed, and reading a field off it silently yields
           // `undefined` - which looked exactly like a turn nobody measured.
@@ -1646,6 +1689,7 @@ export function useChat(options: UseChatOptions = {}) {
       fileIds?: string[],
       files?: ChatMessageFile[],
       mentions?: Mentionable[],
+      agentOverride?: string | null,
     ): string => {
       stoppedMessageIdRef.current = null;
       resumedRunIdRef.current = undefined;
@@ -1798,13 +1842,14 @@ export function useChat(options: UseChatOptions = {}) {
         if (test.draft) payload.draft = true;
         else if (test.environmentId) payload.environment_id = test.environmentId;
       }
-      // Read at send time, not captured in the closure: the queue drainer calls
-      // this up to a turn later, and the frame must name whatever is selected
-      // when it actually leaves. The picker keeps a published agent selected
+      // Ordinary queued messages follow the picker at send time. A computer
+      // access continuation instead stays with the agent that requested it.
+      // The picker keeps a published agent selected
       // whenever the organization has one, so a frame without an `agent_id`
       // only happens when nothing is published at all - and the backend
       // refuses it with the message that says to publish one.
-      const agentId = selectionApi.getState().selectedAgentId;
+      const agentId =
+        agentOverride === undefined ? selectionApi.getState().selectedAgentId : agentOverride;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;
       pendingFileRootRef.current =
@@ -1978,6 +2023,9 @@ export function useChat(options: UseChatOptions = {}) {
     setParkedQuestion(null);
     parkedQuestionRunRef.current = null;
     setPendingConnection(null);
+    setPendingComputerAccess(null);
+    continueAfterComputerRef.current = null;
+    computerRequestRef.current = null;
     offeredApprovalBatchesRef.current = new Set();
     decidingApprovalRef.current = null;
     setResumingDelegations(new Set());
@@ -2061,12 +2109,19 @@ export function useChat(options: UseChatOptions = {}) {
     setParkedQuestion(null);
     parkedQuestionRunRef.current = null;
     setPendingConnection(null);
+    setPendingComputerAccess(null);
+    continueAfterComputerRef.current = null;
+    computerRequestRef.current = null;
     // The card goes with the conversation it was in, and the run waiting on it
     // is told to carry on without - or it holds the turn open behind a card
     // nobody can see any more.
     if (awaitingConnectionRef.current) {
       awaitingConnectionRef.current = false;
       sendMessage({ type: "connect_account_response", connected: false });
+    }
+    if (awaitingComputerRef.current) {
+      awaitingComputerRef.current = false;
+      sendMessage({ type: "computer_access_response", granted: false });
     }
     setCompacting(null);
     setCompactionImpossible(null);
@@ -2803,6 +2858,26 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, sendMessage],
   );
 
+  /** Release a run paused on `computer_access`: `true` once a folder or the computer was granted. */
+  const sendComputerAccessResponse = useCallback(
+    (granted: boolean) => {
+      if (stoppingRef.current !== null) return;
+      if (!isConnected) return;
+      if (!awaitingComputerRef.current || computerRequestRef.current !== pendingComputerAccess)
+        return;
+      setPendingComputerAccess(null);
+      computerRequestRef.current = null;
+      awaitingComputerRef.current = false;
+      if (granted && continueAfterComputerRef.current === null) {
+        continueAfterComputerRef.current = {
+          agentId: pendingComputerAccess?.agent_id ?? turnAgentIdRef.current,
+        };
+      }
+      sendMessage({ type: "computer_access_response", granted });
+    },
+    [isConnected, sendMessage, pendingComputerAccess],
+  );
+
   /** Take the turn off screen without telling the server anything.
    *
    *  What `stopGeneration` does after it has sent its frame, and what a
@@ -2835,7 +2910,11 @@ export function useChat(options: UseChatOptions = {}) {
         parkedQuestionRunRef.current = null;
       }
       setPendingConnection(null);
+      setPendingComputerAccess(null);
+      continueAfterComputerRef.current = null;
+      computerRequestRef.current = null;
       awaitingConnectionRef.current = false;
+      awaitingComputerRef.current = false;
       setDelegations(closeOpenDelegations);
       // A dropped socket can no longer bring `sandbox_ready`, and the next turn
       // on the open sandbox sends no preparation frames to clear it (#2251).
@@ -2846,6 +2925,8 @@ export function useChat(options: UseChatOptions = {}) {
 
   const stopGeneration = useCallback(() => {
     if (stoppingRef.current !== null) return;
+    continueAfterComputerRef.current = null;
+    computerRequestRef.current = null;
     const submittedAnswer = pendingRunAnswerRef.current;
     if (submittedAnswer !== null && !submittedAnswer.stream.started) {
       // Stop our submitted task before its stream takes over; the message on
@@ -3210,7 +3291,7 @@ export function useChat(options: UseChatOptions = {}) {
       )
         return;
       setQueue(messageQueueRef.current.slice(1));
-      const bubbleId = doSend(next.content, next.fileIds, next.files, next.mentions);
+      const bubbleId = doSend(next.content, next.fileIds, next.files, next.mentions, next.agentId);
       unconfirmedRef.current = { message: next, bubbleId };
     }, 100);
     queuedSendTimer.current = timer;
@@ -3372,5 +3453,8 @@ export function useChat(options: UseChatOptions = {}) {
     /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
     pendingConnection,
     sendConnectionResponse,
+    /** What a paused run asked the person's computer for. See `useComputerAccessOnUse`. */
+    pendingComputerAccess,
+    sendComputerAccessResponse,
   };
 }

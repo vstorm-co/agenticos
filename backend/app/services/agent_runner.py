@@ -144,6 +144,7 @@ from app.agents.capabilities.channel_tools import (
 from app.agents.capabilities.coding_agent import (
     CODING_AGENT_ID,
     LOCAL_CODING_PREFERENCES,
+    CodingAgentConfig,
     CodingPreferences,
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
@@ -179,6 +180,7 @@ from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
+from app.agents.computer_on_use import ComputerAccessCallback, RequestComputerOnUse
 from app.agents.connect_on_use import (
     ConnectionCallback,
     ConnectionRequest,
@@ -443,7 +445,68 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     return ids
 
 
-def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
+def _computer_requirements(spec: AgentSpec) -> tuple[bool, bool]:
+    from app.services.sandbox_workspace import sandbox_config
+
+    config = sandbox_config(spec)
+    return (
+        config is not None and config.backend == "local",
+        any(
+            binding.id == CODING_AGENT_ID
+            and binding.enabled
+            and CodingAgentConfig.model_validate(binding.config).runs_on == "this_computer"
+            for binding in spec.capabilities
+        ),
+    )
+
+
+def _defer_computer_access(
+    spec: AgentSpec,
+    *,
+    callback: ComputerAccessCallback | None,
+    device_available: bool,
+    coding_available: bool,
+) -> tuple[AgentSpec, RequestComputerOnUse | None]:
+    local_workspace, local_coding = _computer_requirements(spec)
+    missing_workspace = local_workspace and not device_available
+    missing_coding = local_coding and not coding_available
+    if callback is None or not (missing_workspace or missing_coding):
+        return spec, None
+    return (
+        _without_computer_tools(spec, sandbox_missing=missing_workspace),
+        RequestComputerOnUse(request_access=callback, coding=missing_coding),
+    )
+
+
+def _coding_available(resources: Mapping[str, object]) -> bool:
+    from app.services.device_hub import DeviceWorkspace
+
+    workspace = resources.get(WORKSPACE_RESOURCE)
+    return (
+        isinstance(workspace, Workspace)
+        and isinstance(workspace.backend, DeviceWorkspace)
+        and workspace.backend.local_coding_allowed
+    )
+
+
+def _computer_resources(resources: Mapping[str, object]) -> dict[str, object]:
+    from app.services.device_hub import DeviceWorkspace
+
+    workspace = resources.get(WORKSPACE_RESOURCE)
+    if not isinstance(workspace, Workspace) or not isinstance(workspace.backend, DeviceWorkspace):
+        return {}
+    return {
+        key: resources[key]
+        for key in (WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE, SPILL_LOG_RESOURCE)
+        if key in resources
+    }
+
+
+def _delegate_workspace(
+    spec: AgentSpec,
+    shared: list[CapabilityBindingSpec],
+    delegation: _Delegation,
+) -> DelegateWorkspace:
     """Which workspace a delegate with this effective spec runs in.
 
     The parent's only when `sandbox` was shared - `_with_shared` has put the
@@ -451,6 +514,14 @@ def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) ->
     apart. A delegate binding `sandbox` of its own works in a fresh one, and one
     binding none in none.
     """
+    if any(_computer_requirements(spec)):
+        workspace = delegation.computer_resources.get(WORKSPACE_RESOURCE)
+        if isinstance(workspace, Workspace):
+            # A nested delegate may have a cloud-only immediate parent. Keep the
+            # root run's device workspace and its execution identity together.
+            return workspace
+        if delegation.request_computer_access is not None:
+            return "none"
     if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
         return "parent"
     if any(
@@ -1873,6 +1944,24 @@ async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _without_computer_tools(spec: AgentSpec, *, sandbox_missing: bool) -> AgentSpec:
+    """Defer tools that cannot work until the person chooses their computer.
+
+    Sandbox-backed coding needs the deferred workspace too; a private cloud
+    coding task stays available because it opens its own workspace.
+    """
+    bindings: list[CapabilityBindingSpec] = []
+    for binding in spec.capabilities:
+        if binding.id == "sandbox" and sandbox_missing:
+            continue
+        if binding.id == CODING_AGENT_ID and binding.enabled:
+            runs_on = CodingAgentConfig.model_validate(binding.config).runs_on
+            if runs_on == "this_computer" or (runs_on == "sandbox" and sandbox_missing):
+                continue
+        bindings.append(binding)
+    return spec.model_copy(update={"capabilities": bindings})
+
+
 def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
     """Describe the selected environment after its device and service grants resolve."""
     from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
@@ -2643,6 +2732,9 @@ class _Delegation:
     Parked instead, the delegate's approval would surface as one on the twin's
     `task` call, which no approval row answers."""
 
+    request_computer_access: ComputerAccessCallback | None = None
+    computer_resources: Mapping[str, object] = field(default_factory=dict)
+
     routine_check: RoutineCheck | None = None
     routine_action_check: RoutineToolCheck | None = None
     routine_sources: dict[UUID, McpSourceIdentity] | None = None
@@ -2673,7 +2765,12 @@ def _catalog_delegate_access(ctx: AuthContext, agent_id: UUID) -> Callable[[], A
                 raise AuthorizationError(message="The delegation's member is no longer active")
             if current.role != ctx.role or current.is_app_admin != ctx.is_app_admin:
                 raise AuthorizationError(message="Delegation authority changed; start a new run")
-            current = replace(current, api_key_id=ctx.api_key_id, key_scopes=ctx.key_scopes)
+            current = replace(
+                current,
+                api_key_id=ctx.api_key_id,
+                key_scopes=ctx.key_scopes,
+                key_internal=ctx.key_internal,
+            )
             agent = await AgentRegistryService(db).get(current, agent_id, perm=Perm.AGENTS_RUN)
             if agent.status != AgentStatus.PUBLISHED.value:
                 raise AuthorizationError(message="The discovered delegate is no longer published")
@@ -2744,8 +2841,17 @@ def _delegate_builder(
     """
 
     def build() -> PydanticAgent[Any, Any]:
+        effective, computer_on_use = _defer_computer_access(
+            delegation.render_variables(spec),
+            callback=delegation.request_computer_access,
+            device_available=bool(delegation.computer_resources),
+            coding_available=_coding_available(delegation.computer_resources),
+        )
+        own_resources = dict(resources)
+        if any(_computer_requirements(spec)):
+            own_resources.update(delegation.computer_resources)
         built = build_agent(
-            _with_execution_environment(delegation.render_variables(spec), None),
+            _with_execution_environment(effective, None),
             model,
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
@@ -2754,10 +2860,13 @@ def _delegate_builder(
             user_id=delegation.user_id,
             user_name=delegation.user_name,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
-            resources=resources,
+            resources=own_resources,
             secrets=secrets,
             extra_toolsets=extra_toolsets,
-            extra_capabilities=guard_for(delegation.routine_check, agent_id=agent_id),
+            extra_capabilities=(
+                *guard_for(delegation.routine_check, agent_id=agent_id),
+                *(() if computer_on_use is None else (computer_on_use,)),
+            ),
             routine_action_check=delegation.routine_action_check,
             # Its own reviewers, resolved with everything else: without their
             # models `_reviewers` leaves each one out, and an agent reviewed when
@@ -3240,6 +3349,7 @@ class AgentRunnerService:
         output_schema: dict[str, Any] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        request_computer_access: ComputerAccessCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
         voice: VoiceRun | None = None,
@@ -3309,6 +3419,11 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            request_computer_access: How to ask the person at the keyboard where
+                the agent may work on their computer while the run waits. Given,
+                an agent whose workspace is that computer and has none chosen
+                starts without it and is offered `request_computer_access`,
+                instead of the whole turn being refused.
             public_origin: An outsider supplied this run's input - a delivery
                 fired an event trigger, or a workflow admitted by an external door
                 runs the agent - so nobody is behind it, whoever `ctx` names.
@@ -3400,6 +3515,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            request_computer_access=request_computer_access,
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
             voice=voice,
@@ -3542,6 +3658,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        request_computer_access: ComputerAccessCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
         impersonated: bool = False,
@@ -4093,6 +4210,22 @@ class AgentRunnerService:
             ),
             on_wait=on_sandbox_wait,
             local=local,
+            defer_local=request_computer_access is not None and routine is None,
+        )
+        # Defer the root's tools, preserving the author's shared requirements
+        # when resolving delegates that may ask for this same computer first.
+        delegation_capabilities = spec.capabilities
+        spec, computer_on_use = _defer_computer_access(
+            spec,
+            callback=request_computer_access,
+            coding_available=_coding_available(
+                {WORKSPACE_RESOURCE: workspace.workspace} if workspace is not None else {}
+            ),
+            device_available=bool(
+                _computer_resources({WORKSPACE_RESOURCE: workspace.workspace})
+                if workspace is not None
+                else {}
+            ),
         )
         if existing_run is None and ctx.routine_activation_id is not None:
             from app.services.routine_devices import admit_activation
@@ -4349,8 +4482,9 @@ class AgentRunnerService:
         )
         runtime = await self._delegation_runtime(
             ctx,
+            request_computer_access=request_computer_access,
             models_ctx=models_ctx,
-            spec=spec,
+            spec=spec.model_copy(update={"capabilities": delegation_capabilities}),
             agent=agent,
             run=run,
             surface=surface,
@@ -4499,6 +4633,7 @@ class AgentRunnerService:
             spec_toolsets = []
             extra_toolsets = []
             on_use = None
+            computer_on_use = None
 
         built = build_agent(
             spoken_spec if voice is not None else spec,
@@ -4524,6 +4659,7 @@ class AgentRunnerService:
             ],
             extra_capabilities=(
                 *(() if on_use is None else (on_use,)),
+                *(() if computer_on_use is None else (computer_on_use,)),
                 *guard_for(routine_check, agent_id=agent.id),
             ),
             agent_period_spend=agent_period_spend,
@@ -4650,6 +4786,7 @@ class AgentRunnerService:
         delegations: list[RecordedDelegation],
         delegate_recorders: list[tuple[UUID, RunRecorder]],
         stash: DelegationStash,
+        request_computer_access: ComputerAccessCallback | None = None,
         answering_call: VoiceOptions | None = None,
         routine_check: RoutineCheck | None = None,
         routine_action_check: RoutineToolCheck | None = None,
@@ -4720,6 +4857,8 @@ class AgentRunnerService:
             runtimes=runtimes,
             stash=stash,
             output_screen=_output_screen(spec),
+            request_computer_access=request_computer_access,
+            computer_resources=_computer_resources(resources),
             answering_call=answering_call,
             routine_check=routine_check,
             routine_action_check=routine_action_check,
@@ -5096,7 +5235,7 @@ class AgentRunnerService:
             ),
             max_steps=specialist.max_steps,
             preferred_mode=specialist.preferred_mode,
-            workspace=_delegate_workspace(spec, shared),
+            workspace=_delegate_workspace(spec, shared, delegation),
             collection_names=tuple(own_resources["kb_collection_names"]),
             collection_scopes=tuple(own_resources["kb_vector_scopes"].items()),
         )
@@ -5314,7 +5453,7 @@ class AgentRunnerService:
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
-            workspace=_delegate_workspace(runnable, shared),
+            workspace=_delegate_workspace(runnable, shared, delegation),
             agent_id=ref.agent_id,
             agent_version_id=ref.agent_version_id,
             # Beside the agent as well as inside its deps, because the library
