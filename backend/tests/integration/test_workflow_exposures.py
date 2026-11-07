@@ -3036,6 +3036,56 @@ class TestOutlook:
         ).scalar_one()
         assert audit.details["reason"] == "runs_needing_attention"
 
+    async def test_mail_is_skipped_when_a_run_waiting_for_a_question_holds_the_ceiling(
+        self, db, tenant, caplog
+    ):
+        owner, org, workflow = tenant
+        await self._limited_to_one_run(db, tenant)
+        service = WorkflowExposureService(db)
+        version = await db.get(WorkflowVersion, workflow.current_version_id)
+        assert version is not None
+        chat_run, _entry = await WorkflowExecutionService(db).admit_pinned(
+            _ctx(owner, org),
+            workflow,
+            version,
+            triggered_by=WorkflowRunTrigger.CHAT,
+            run_input={"prompt": "wait for my answer"},
+        )
+        assert chat_run.triggered_by == WorkflowRunTrigger.CHAT.value
+        assert chat_run.public_origin is False
+        # A signed-in chat run can park on a question for hours; it holds the one
+        # place the workflow's mailbox shares with it, and mail itself cannot ask.
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == chat_run.id)
+            .values(status=WorkflowRunStatus.WAITING_FOR_USER.value)
+        )
+
+        # m1 must be skipped, not held: a held cursor would stall every reader.
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m1")]
+        )
+
+        assert len(await _runs(db)) == 1
+        (record,) = [r for r in caplog.records if r.message == "workflow_mail_message_refused"]
+        assert record.__dict__["reason"] == "WorkflowAdmissionQuotaError"
+        (audit,) = (
+            (
+                await db.execute(
+                    select(AppAdminAuditLog).where(
+                        AppAdminAuditLog.action == "workflow.mail_message_skipped"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert audit.target_id == str(workflow.id)
+        assert audit.details == {
+            "exposure_id": str(await _exposure_id(db, workflow)),
+            "reason": "runs_waiting_for_user",
+        }
+
     async def test_a_full_storage_allowance_keeps_the_cursor(self, db, tenant):
         owner, org, workflow = tenant
         await _outlook_mailbox(db, org)

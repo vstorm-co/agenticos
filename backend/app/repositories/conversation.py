@@ -1717,22 +1717,42 @@ async def save_workflow_message(
 
     A stable identity lets a reloaded chat discover a waiting workflow and keeps
     terminal delivery from adding a second copy of the card.
+
+    The card is admitted early in the thread, but its answer can arrive after the
+    person has sent more turns and those turns have been compacted into a summary.
+    Left at its admission `ordinal`, the answer would sit at or below the summary
+    cutoff and vanish from the next turn's history - it is in neither the saved
+    summary nor the rows replayed after it. On a material change the row moves to
+    the `ordinal` this INSERT allocated: PostgreSQL evaluates the identity default
+    before `ON CONFLICT`, so `excluded.ordinal` is a fresh position even when no
+    row is inserted. An identical redelivery keeps its ordinal, so a terminal
+    answer already compacted into a summary is not replayed a second time.
     """
-    statement = (
-        pg_insert(Message)
-        .values(
-            id=uuid5(workflow_run_id, "workflow-chat-message"),
-            conversation_id=conversation_id,
-            role="assistant",
-            content=content,
-            parts=parts,
-        )
-        .on_conflict_do_update(
-            index_elements=[Message.id],
-            set_={"content": content, "parts": parts},
-        )
-        .returning(Message)
+    statement = pg_insert(Message).values(
+        id=uuid5(workflow_run_id, "workflow-chat-message"),
+        conversation_id=conversation_id,
+        role="assistant",
+        content=content,
+        parts=parts,
     )
+    advanced = case(
+        (
+            or_(
+                Message.content.is_distinct_from(statement.excluded.content),
+                Message.parts.is_distinct_from(statement.excluded.parts),
+            ),
+            statement.excluded.ordinal,
+        ),
+        else_=Message.ordinal,
+    )
+    statement = statement.on_conflict_do_update(
+        index_elements=[Message.id],
+        set_={
+            "content": content,
+            "parts": parts,
+            "ordinal": advanced,
+        },
+    ).returning(Message)
     message = (await db.execute(statement)).scalar_one()
     await db.execute(
         sql_update(Conversation)

@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemPromptPart, TextPart
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -25,9 +26,11 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun
+from app.repositories import conversation as conversation_repo
 from app.schemas.api_key import ApiKeyCreate, ApiKeyCreated
 from app.services import rate_limit, workflow_run_socket
 from app.services.api_key import ApiKeyService
+from app.services.conversation import ConversationService
 from app.services.workflow_execution import WorkflowExecutionService, events
 from app.services.workflow_run_socket import WorkflowRunSocket
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -332,6 +335,118 @@ class TestTheChatsDoor:
             assert len(total.scalars().all()) == 2
             assert ended is not None and ended.parts is not None
             assert ended.parts[0]["status"] == "cancelled"
+
+    async def test_an_answer_delivered_after_a_summary_stays_in_the_model_history(self, factory):
+        """The card is admitted early, but its answer can arrive after the person
+        has chatted more and those turns have been compacted into a summary. The
+        stable id must not leave the answer at the summary cutoff, where neither
+        the saved summary nor the rows replayed after it would hold it (#2811)."""
+        owner, org, _workflow = await _tenant(factory)
+        run_id = uuid.uuid4()
+        stable_id = uuid.uuid5(run_id, "workflow-chat-message")
+
+        async with factory() as db:
+            conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=owner.id)
+            db.add(conversation)
+            await db.flush()
+
+            await conversation_repo.save_workflow_message(
+                db,
+                conversation_id=conversation.id,
+                workflow_run_id=run_id,
+                content="",
+                parts=[{"type": "workflow_run", "run_id": str(run_id), "status": "running"}],
+            )
+            # The person keeps talking while the run is parked.
+            await conversation_repo.create_message(
+                db, conversation_id=conversation.id, role="user", content="One more thing."
+            )
+            await conversation_repo.create_message(
+                db, conversation_id=conversation.id, role="assistant", content="What is it?"
+            )
+            summary = ModelMessagesTypeAdapter.dump_python(
+                [ModelRequest(parts=[SystemPromptPart(content="Earlier turns, summarised.")])],
+                mode="json",
+            )
+            await ConversationService(db).keep_summary(conversation.id, summary)
+            cutoff = await conversation_repo.last_ordinal(db, conversation.id)
+
+            await conversation_repo.save_workflow_message(
+                db,
+                conversation_id=conversation.id,
+                workflow_run_id=run_id,
+                content="Here is the finished plan.",
+                parts=[
+                    {"type": "workflow_run", "run_id": str(run_id), "status": "succeeded"},
+                    {"type": "text", "text": "Here is the finished plan."},
+                ],
+            )
+
+            delivered_ordinal = await db.scalar(
+                select(Message.ordinal).where(Message.id == stable_id)
+            )
+            assert delivered_ordinal is not None and delivered_ordinal > cutoff
+
+            rows = (
+                (
+                    await db.execute(
+                        select(Message).where(Message.conversation_id == conversation.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert len(rows) == 3
+            assert sum(1 for row in rows if row.id == stable_id) == 1
+
+            history = await ConversationService(db).model_history(conversation.id, limit=50)
+            texts = [
+                part.content
+                for message in history
+                for part in message.parts
+                if isinstance(part, TextPart)
+            ]
+            assert texts == ["Here is the finished plan."]
+
+            # Fold the answer into a fresh summary, the way the next turn would,
+            # so the answer is now accounted for by the summary rather than a row.
+            await ConversationService(db).keep_summary(
+                conversation.id, ModelMessagesTypeAdapter.dump_python(history, mode="json")
+            )
+
+            # An identical redelivery keeps the id and ordinal, so a terminal
+            # answer already folded into a summary is not replayed twice.
+            await conversation_repo.save_workflow_message(
+                db,
+                conversation_id=conversation.id,
+                workflow_run_id=run_id,
+                content="Here is the finished plan.",
+                parts=[
+                    {"type": "workflow_run", "run_id": str(run_id), "status": "succeeded"},
+                    {"type": "text", "text": "Here is the finished plan."},
+                ],
+            )
+            again = await db.scalar(select(Message.ordinal).where(Message.id == stable_id))
+            assert again == delivered_ordinal
+            rows = (
+                (
+                    await db.execute(
+                        select(Message).where(Message.conversation_id == conversation.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert len(rows) == 3
+
+            replayed = await ConversationService(db).model_history(conversation.id, limit=50)
+            replayed_texts = [
+                part.content
+                for message in replayed
+                for part in message.parts
+                if isinstance(part, TextPart)
+            ]
+            assert replayed_texts.count("Here is the finished plan.") == 1
 
     async def test_a_workflow_that_does_not_start_from_a_chat_message_is_refused(self, factory):
         owner, org, workflow = await _tenant(factory)
