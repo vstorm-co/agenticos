@@ -62,11 +62,12 @@ an `error` object with an `id`, `code`, `tool`, `execution`, `message`, `issues`
 For example, a workflow ID must be a UUID returned by workflow discovery; an array
 of field names must be sent as `["name", "primary_ip"]`, not a comma-separated string.
 Missing required fields are named individually. Value constraints give their allowed
-choices or required length.
+choices, numeric bounds, item counts or required length.
 
 MCP argument validation uses the advertised schema without fetching external
-references. Invalid, unresolved or recursive schemas return `tool_unavailable`
-before dispatch.
+references. Schema checks run in isolated processes with bounded concurrency and
+a deadline. Invalid, unresolved or recursive schemas, and checks that exceed the
+deadline, return `tool_unavailable` before dispatch.
 
 `execution` is `not_started` when validation or registration rejects the call before
 invocation, `started` when a start is established, and `unknown` when a failure
@@ -97,6 +98,10 @@ When `run_code` reports a nested tool failure, `cause_tool` and `cause_execution
 identify that call and whether it started. The error ID and field issues survive
 the sandbox boundary. An unknown outer outcome still requires checking earlier
 actions before replaying the script.
+
+Compiler errors retain a safe diagnostic and source location when available,
+including the offending identifier for unresolved names. The diagnostic omits raw
+source, internal tracebacks and arbitrary exception messages.
 
 Clearing tool results retains controlled error envelopes, even when the configured
 number of retained results is zero. Summaries and sliding windows can still reduce

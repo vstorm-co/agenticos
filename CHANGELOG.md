@@ -22,13 +22,16 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Tool failures now keep actionable structured details through model continuation,
-  approval resume and saved transcripts: named missing fields, allowed values and
-  length constraints, correction examples, execution disposition, recovery guidance
-  and an error ID that identifies the detailed server log. Unknown tool names report
+  approval resume and saved transcripts: named missing fields, allowed values,
+  numeric and collection bounds, safe compiler diagnostics, correction examples,
+  execution disposition, recovery guidance and an error ID that identifies the
+  detailed server log. Unknown tool names report
   unavailable registration rather than missing permission, and agents check uncertain
   execution outcomes before retrying. Budgets, guardrails, loop stops and usage limits
   retain their terminal behavior through code mode. Only calls that pass complete
   validation count as successful argument repairs.
+- MCP schema checks run in isolated processes with bounded concurrency and a deadline,
+  so server-controlled regular expressions cannot block the application's event loop.
 
 ## [1.56.1] - 2026-11-07
 

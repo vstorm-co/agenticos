@@ -81,6 +81,10 @@ keeps field corrections, execution disposition and a log reference through appro
 resume, code mode and transcript storage. Let those failures reach the runtime;
 use `steer` for a tool's own correctable semantic checks.
 
+Untrusted MCP schema checks belong in bounded, isolated processes, including the
+schema's own validation. A timeout around a thread cannot stop a backtracking
+Python regex that holds the interpreter lock.
+
 Budget exhaustion, guardrail blocks, loop stops and model usage limits are terminal
 run controls. Propagate them to the runner so its accounting and final status stay
 correct. A sandbox must preserve that control flow even if it otherwise converts

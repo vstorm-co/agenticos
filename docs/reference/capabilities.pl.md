@@ -1,5 +1,5 @@
 ---
-source_sha: "2df47d0679d0"
+source_sha: "673c6ed584bd"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -101,9 +101,15 @@ pól przechodzą przez granicę sandboxa. Nieznany wynik zewnętrznego wywołani
 wymaga sprawdzenia wcześniejszych działań przed ponownym uruchomieniem skryptu.
 
 Brakujące wymagane pola są wskazywane osobno. Ograniczenia wartości podają dozwolone
-opcje lub wymaganą długość. Walidacja argumentów MCP korzysta z udostępnionego schematu
-bez pobierania odwołań zewnętrznych. Nieprawidłowy, nierozwiązywalny lub rekurencyjny
-schemat zwraca `tool_unavailable` przed wywołaniem narzędzia.
+opcje, granice liczbowe, liczbę elementów lub wymaganą długość. Walidacja argumentów
+MCP korzysta z udostępnionego schematu bez pobierania odwołań zewnętrznych.
+Sprawdzanie schematu działa w osobnych procesach z ograniczoną współbieżnością
+i limitem czasu. Nieprawidłowy, nierozwiązywalny lub rekurencyjny schemat oraz
+przekroczenie limitu czasu zwracają `tool_unavailable` przed wywołaniem narzędzia.
+
+Błędy kompilatora zachowują bezpieczną diagnostykę i dostępną lokalizację w kodzie,
+w tym identyfikator nierozpoznanej nazwy. Diagnostyka pomija surowy kod źródłowy,
+wewnętrzne ślady stosu i dowolne komunikaty wyjątków.
 
 Czyszczenie wyników narzędzi zachowuje kontrolowane struktury błędów, nawet gdy
 skonfigurowana liczba zachowywanych wyników wynosi zero. Podsumowania i przesuwane

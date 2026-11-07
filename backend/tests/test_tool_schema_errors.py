@@ -1,6 +1,8 @@
 """A remote MCP schema must not turn argument validation into unchecked I/O."""
 
-import urllib.request
+import asyncio
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,6 +15,7 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_core import SchemaValidator
 
+from app.agents import tool_schema_validation
 from app.agents.deps import AgentDeps
 from app.agents.tool_errors import ToolErrorEnvelope, ToolErrors
 
@@ -75,25 +78,37 @@ async def _invoke(
 
 
 @pytest.mark.security
-@pytest.mark.parametrize(
-    "reference",
-    [
-        "http://127.0.0.1/private?token=secret",
-        "https://internal.invalid/private",
-        "file:///etc/passwd",
-    ],
-)
 async def test_a_remote_schema_reference_is_refused_without_network_or_file_access(
-    reference: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    def refuse_io(*_args: object, **_kwargs: object) -> object:
-        pytest.fail("Schema validation attempted unchecked network or file access")
+    fetched: list[bool] = []
 
-    monkeypatch.setattr(urllib.request, "urlopen", refuse_io)
-    remote = _RemoteSchemaToolset({"type": "object", "properties": {"value": {"$ref": reference}}})
+    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        fetched.append(True)
+        await reader.readuntil(b"\r\n\r\n")
+        body = json.dumps(
+            {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "string"}
+        ).encode()
+        writer.write(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+            + str(len(body)).encode()
+            + b"\r\nConnection: close\r\n\r\n"
+            + body
+        )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
 
-    (envelope,) = await _invoke(remote, {"value": "submitted"})
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1")
+    async with await asyncio.start_server(serve, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        reference = f"http://127.0.0.1:{port}/schema?token=secret"
+        remote = _RemoteSchemaToolset(
+            {"type": "object", "properties": {"value": {"$ref": reference}}}
+        )
+        (envelope,) = await _invoke(remote, {"value": "submitted"})
 
+    assert fetched == []
     assert remote.executed is False
     assert envelope.error.code == "tool_unavailable"
     assert envelope.error.execution == "not_started"
@@ -101,6 +116,68 @@ async def test_a_remote_schema_reference_is_refused_without_network_or_file_acce
     assert envelope.error.id in caplog.text
     assert reference not in envelope.model_dump_json()
     assert "secret" not in envelope.model_dump_json()
+
+
+@pytest.mark.security
+async def test_a_file_schema_reference_is_refused_even_when_the_file_would_validate(
+    tmp_path: Path,
+) -> None:
+    canary = tmp_path / "schema.json"
+    canary.write_text(
+        json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "string"})
+    )
+    reference = canary.as_uri()
+    remote = _RemoteSchemaToolset({"type": "object", "properties": {"value": {"$ref": reference}}})
+
+    (envelope,) = await _invoke(remote, {"value": "submitted"})
+
+    assert envelope.error.code == "tool_unavailable"
+    assert envelope.error.execution == "not_started"
+    assert remote.executed is False
+    assert reference not in envelope.model_dump_json()
+
+
+@pytest.mark.security
+async def test_a_schema_timeout_reaches_the_agent_without_dispatching_the_tool(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(tool_schema_validation, "DEFAULT_TIMEOUT_SECONDS", 1.0)
+    remote = _RemoteSchemaToolset(
+        {"type": "object", "properties": {"value": {"type": "string", "pattern": "(a+)+b"}}}
+    )
+
+    (envelope,) = await _invoke(remote, {"value": "a" * 40 + "c"})
+
+    assert remote.executed is False
+    assert envelope.error.code == "tool_unavailable"
+    assert envelope.error.execution == "not_started"
+    assert envelope.error.recovery == "rediscover_tools"
+    assert "time budget" in envelope.error.message
+    assert envelope.error.id in caplog.text
+    assert "aaaa" not in envelope.model_dump_json()
+
+
+async def test_overlapping_schema_branches_produce_one_actionable_correction() -> None:
+    remote = _RemoteSchemaToolset(
+        {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "allOf": [
+                        {"type": "integer", "minimum": 0},
+                        {"type": "integer", "maximum": 5},
+                    ]
+                }
+            },
+        }
+    )
+
+    (envelope,) = await _invoke(remote, {"value": "submitted"})
+
+    assert remote.executed is False
+    assert len(envelope.error.issues) == 1
+    assert envelope.error.issues[0].field == "value"
+    assert envelope.error.issues[0].message == "Invalid `value`: expected integer."
 
 
 async def test_a_local_schema_reference_still_validates_arguments_and_dispatches() -> None:

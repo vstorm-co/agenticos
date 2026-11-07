@@ -38,12 +38,14 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness import CodeMode
 from pydantic_monty import MontyRuntimeError, MontySyntaxError, MontyTypingError
 
+from app.agents.code_diagnostics import name_error_issues, syntax_issues, typing_issues
 from app.agents.deps import AgentDeps
 from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder
 from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.tool_errors import (
     RUN_STOP_ERRORS,
     ControlledToolError,
+    ToolArgumentIssue,
     ToolRunStopped,
     capture_tool_errors,
     nested_tool_error,
@@ -174,9 +176,16 @@ def _code_failure(
     """Summarize typed sandbox failures without returning its source or traceback.
 
     CodeMode wraps Monty's failure in ModelRetry and then ToolRetryError. The
-    typed cause survives, so the message never needs to parse a vendor's text.
+    typed cause survives. For compiler failures, only the diagnostic code and
+    source position are extracted from the rendered report.
     A snippet can call tools before its failing line; those effects cannot be
     inferred from the local exception and must be inspected before replaying it.
+
+    Compiler diagnostics - a type-check rejection or a syntax error - carry their
+    structural code and source position in `issues`, so the model sees which name
+    is undefined or which line to fix rather than a generic `TypeError`. Runtime
+    `NameError` keeps only a safe identifier read from the submitted source; a
+    secret smuggled into an exception name or message is never echoed.
     """
     cause: BaseException | None = exc
     while cause is not None:
@@ -203,16 +212,42 @@ def _code_failure(
             exception_type=exception_type,
             error=exc,
         )
-    if not isinstance(cause, MontyRuntimeError):
+    if isinstance(cause, MontyTypingError):
+        issues = typing_issues(cause.display(), code)
         return tool_error(
             tool=CODE_TOOL,
             code="invalid_arguments",
             execution="not_started",
-            message=f"Code validation failed: {exception_type}. Correct the `code` argument.",
+            message=_validation_message(issues, exception_type),
             recovery="correct_arguments",
+            issues=issues,
+            error=exc,
+        )
+    if isinstance(cause, MontySyntaxError):
+        issues = syntax_issues(cause)
+        return tool_error(
+            tool=CODE_TOOL,
+            code="invalid_arguments",
+            execution="not_started",
+            message=_validation_message(issues, exception_type),
+            recovery="correct_arguments",
+            issues=issues,
             exception_type=exception_type,
             error=exc,
         )
+    if isinstance(inner, NameError):
+        issues = name_error_issues(inner, cause, code)
+        if issues:
+            return tool_error(
+                tool=CODE_TOOL,
+                code="invalid_arguments",
+                execution="started",
+                message=f"Code execution failed: {exception_type}. {' '.join(i.message for i in issues)}",
+                recovery="correct_arguments",
+                issues=issues,
+                exception_type=exception_type,
+                error=exc,
+            )
     denied = isinstance(inner, PermissionError)
     return tool_error(
         tool=CODE_TOOL,
@@ -223,6 +258,13 @@ def _code_failure(
         exception_type=exception_type,
         error=exc,
     )
+
+
+def _validation_message(issues: list[ToolArgumentIssue], exception_type: str) -> str:
+    """The concise correction prompt, from structured issues or a safe type name."""
+    if issues:
+        return " ".join(issue.message for issue in issues) + " Correct the `code` argument."
+    return f"Code validation failed: {exception_type}. Correct the `code` argument."
 
 
 def _code_operation(code: str, error: MontyRuntimeError) -> str:

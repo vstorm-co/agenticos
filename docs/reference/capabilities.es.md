@@ -1,5 +1,5 @@
 ---
-source_sha: "2df47d0679d0"
+source_sha: "673c6ed584bd"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -104,10 +104,17 @@ resultado externo desconocido exige comprobar las acciones anteriores antes de
 volver a ejecutar el script.
 
 Los campos obligatorios que faltan se indican por separado. Las restricciones de
-valor muestran las opciones permitidas o la longitud exigida. La validación de
-argumentos MCP utiliza el esquema publicado sin obtener referencias externas.
-Los esquemas inválidos, irresolubles o recursivos devuelven `tool_unavailable`
-antes de invocar la herramienta.
+valor muestran las opciones permitidas, los límites numéricos, la cantidad de
+elementos o la longitud exigida. La validación de argumentos MCP utiliza el esquema
+publicado sin obtener referencias externas. Las comprobaciones se ejecutan en
+procesos aislados con concurrencia limitada y un plazo. Los esquemas inválidos,
+irresolubles o recursivos y las comprobaciones que exceden el plazo devuelven
+`tool_unavailable` antes de invocar la herramienta.
+
+Los errores del compilador conservan un diagnóstico seguro y la posición en el
+código cuando está disponible, incluido el identificador de los nombres sin
+resolver. El diagnóstico omite el código fuente sin procesar, las trazas internas
+y los mensajes arbitrarios de las excepciones.
 
 La limpieza de resultados de herramientas conserva los errores estructurados
 controlados, incluso si el número configurado de resultados retenidos es cero.

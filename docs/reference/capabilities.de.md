@@ -1,5 +1,5 @@
 ---
-source_sha: "2df47d0679d0"
+source_sha: "673c6ed584bd"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -104,9 +104,15 @@ und Feldprobleme bleiben über die Sandbox-Grenze erhalten. Bei unbekanntem äu�
 Ergebnis müssen frühere Aktionen vor einer erneuten Skriptausführung geprüft werden.
 
 Fehlende Pflichtfelder werden einzeln benannt. Wertebeschränkungen nennen die
-zulässigen Optionen oder die erforderliche Länge. Die MCP-Argumentprüfung nutzt
-das bereitgestellte Schema, ohne externe Referenzen abzurufen. Ungültige,
-nicht auflösbare oder rekursive Schemas liefern vor dem Aufruf `tool_unavailable`.
+zulässigen Optionen, Zahlenbegrenzungen, Elementanzahlen oder die erforderliche
+Länge. Die MCP-Argumentprüfung nutzt das bereitgestellte Schema, ohne externe
+Referenzen abzurufen. Schemaprüfungen laufen in getrennten Prozessen mit begrenzter
+Parallelität und einer Frist. Ungültige, nicht auflösbare oder rekursive Schemas
+und Prüfungen mit überschrittener Frist liefern vor dem Aufruf `tool_unavailable`.
+
+Compilerfehler behalten eine sichere Diagnose und, soweit verfügbar, die Position
+im Quelltext, einschließlich des Bezeichners einer nicht aufgelösten Referenz.
+Die Diagnose lässt rohen Quelltext, interne Stacktraces und beliebige Ausnahmemeldungen aus.
 
 Beim Leeren von Tool-Ergebnissen bleiben kontrollierte Fehlerstrukturen erhalten,
 auch wenn die konfigurierte Anzahl beibehaltener Ergebnisse null ist.

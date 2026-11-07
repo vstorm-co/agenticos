@@ -259,3 +259,281 @@ async def test_union_validation_keeps_each_primitive_type_in_its_correction(
         "boolean",
     ]
     assert "private-secret" not in envelope.model_dump_json()
+
+
+async def test_a_model_repairs_numeric_bounds_from_the_exact_returned_limits() -> None:
+    executions: list[tuple[int, int]] = []
+    received: list[ToolErrorEnvelope] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        errors = _errors(messages)
+        if not errors:
+            return ModelResponse(parts=[ToolCallPart("read_page", {"offset": -1, "limit": 20001})])
+        if not received:
+            received.extend(errors)
+            return ModelResponse(parts=[ToolCallPart("read_page", {"offset": 0, "limit": 8000})])
+        return ModelResponse(parts=[TextPart("done")])
+
+    agent = Agent[AgentDeps, str](FunctionModel(respond), capabilities=[ToolErrors()])
+
+    @agent.tool_plain
+    def read_page(
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=20000)] = 8000,
+    ) -> str:
+        executions.append((offset, limit))
+        return "page"
+
+    result = await agent.run("read", deps=AgentDeps())
+
+    assert result.output == "done"
+    assert executions == [(0, 8000)]
+    issues = received[0].error.issues
+    assert [(issue.field, issue.code) for issue in issues] == [
+        ("offset", "greater_than_equal"),
+        ("limit", "less_than_equal"),
+    ]
+    assert [issue.expected_type for issue in issues] == ["integer", "integer"]
+    assert issues[0].message == "`offset` must be at least 0."
+    assert issues[1].message == "`limit` must be at most 20000."
+    assert "-1" not in received[0].model_dump_json()
+    assert "20001" not in received[0].model_dump_json()
+    assert tool_calls_in(result.all_messages())[0].result == received[0].model_dump_json(
+        exclude_none=True
+    )
+
+
+@pytest.mark.parametrize(
+    ("field_schema", "value", "correction"),
+    [
+        ({"type": "integer", "minimum": 0}, -1, "at least 0"),
+        ({"type": "integer", "maximum": 20000}, 20001, "at most 20000"),
+        ({"type": "integer", "exclusiveMinimum": 0}, 0, "greater than 0"),
+        ({"type": "integer", "exclusiveMaximum": 10}, 10, "less than 10"),
+        ({"type": "number", "multipleOf": 0.5}, 0.3, "a multiple of 0.5"),
+        (
+            {"type": "array", "items": {"type": "string"}, "minItems": 3},
+            ["a"],
+            "at least 3 items",
+        ),
+        (
+            {"type": "array", "items": {"type": "string"}, "maxItems": 2},
+            ["a", "b", "c"],
+            "at most 2 items",
+        ),
+    ],
+)
+async def test_mcp_numeric_and_list_constraints_state_the_schema_bound(
+    field_schema: dict[str, JsonValue], value: JsonValue, correction: str
+) -> None:
+    remote = _RemoteSchemaToolset({"type": "object", "properties": {"value": field_schema}})
+
+    (envelope,) = await _invoke(remote, {"value": value})
+
+    assert correction in envelope.error.message
+    assert envelope.error.issues[0].field == "value"
+    assert remote.executed is False
+
+
+@pytest.mark.parametrize(
+    ("value", "correction"),
+    [(0, "greater than 0"), (10, "less than 10")],
+)
+async def test_builtin_strict_numeric_bounds_are_preserved(value: int, correction: str) -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": value})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[int, Field(gt=0, lt=10)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert correction in envelope.error.message
+
+
+async def test_builtin_multiple_of_states_the_factor() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": 0.3})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[float, Field(multiple_of=0.5)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert "a multiple of 0.5" in envelope.error.message
+
+
+async def test_a_short_list_names_its_minimum_item_count() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": ["a"]})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(min_length=3)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert "at least 3 items" in envelope.error.message
+    assert "for example" not in envelope.error.message
+
+
+async def test_a_long_list_names_its_maximum_item_count() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": ["a", "b", "c"]})),
+        capabilities=[ToolErrors()],
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(max_length=2)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert "at most 2 items" in envelope.error.message
+    assert "for example" not in envelope.error.message
+
+
+async def test_a_string_array_example_respects_a_tiny_maximum() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"fields": "name,primary_ip"})),
+        capabilities=[ToolErrors()],
+    )
+
+    @agent.tool_plain
+    def configure(fields: Annotated[list[str], Field(max_length=1)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert 'for example ["name"]' in envelope.error.message
+    assert "name,primary_ip" not in envelope.model_dump_json()
+
+
+async def test_a_string_array_example_respects_a_zero_maximum() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": "name"})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(max_length=0)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert "for example []" in envelope.error.message
+
+
+async def test_a_string_array_example_is_padded_to_a_tiny_minimum() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": "name"})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(min_length=2)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert 'for example ["value", "value_1"]' in envelope.error.message
+
+
+async def test_a_string_array_example_fits_loose_item_bounds() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": "name"})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(min_length=1, max_length=3)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert 'for example ["value"]' in envelope.error.message
+
+
+async def test_a_string_array_example_is_omitted_when_the_minimum_is_large() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": "name"})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(min_length=3)]) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert "at least 3 items" in envelope.error.message
+    assert "for example" not in envelope.error.message
+
+
+async def test_an_optional_string_array_keeps_its_item_bounds() -> None:
+    agent = Agent[AgentDeps, str](
+        _model(ToolCallPart("configure", {"value": ["a"]})), capabilities=[ToolErrors()]
+    )
+
+    @agent.tool_plain
+    def configure(value: Annotated[list[str], Field(min_length=3)] | None = None) -> str:
+        pytest.fail("Invalid constrained arguments must not execute")
+
+    result = await agent.run("configure", deps=AgentDeps())
+
+    (envelope,) = _errors(result.all_messages())
+    assert "at least 3 items" in envelope.error.message
+    assert "for example" not in envelope.error.message
+
+
+async def test_a_huge_minimum_item_schema_states_the_bound_without_materializing_an_example() -> (
+    None
+):
+    remote = _RemoteSchemaToolset(
+        {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1_000_000_000,
+                }
+            },
+        }
+    )
+
+    (envelope,) = await _invoke(remote, {"value": "a,b"})
+
+    assert "at least 1000000000 items" in envelope.error.message
+    assert "for example" not in envelope.error.message
+    assert len(envelope.error.message) < 200
+    assert remote.executed is False
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("too_short", "array"),
+        ("too_long", "array"),
+        ("greater_than_equal", "integer"),
+        ("less_than_equal", "integer"),
+        ("greater_than", "integer"),
+        ("less_than", "integer"),
+        ("multiple_of", "number"),
+    ],
+)
+def test_constraint_codes_without_an_advertised_bound_fall_back_to_the_type(
+    code: str, expected: str
+) -> None:
+    issue = ToolErrors()._issue("value", code, expected, schema={"type": expected})
+    assert issue.message == f"Invalid `value`: expected {expected}."

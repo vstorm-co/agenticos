@@ -15,6 +15,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls
 from pydantic_ai.tools import ToolDefinition
 from pydantic_monty import MontyRuntimeError
 
+from app.agents import code_mode as code_mode_module
 from app.agents.code_mode import CodeCalls, _code_operation, code_mode
 from app.agents.deps import AgentDeps
 from app.agents.manifest import RunRecorder
@@ -24,7 +25,7 @@ from app.services.transcript import tool_calls_in
 pytestmark = pytest.mark.anyio
 
 
-async def _failed_script(code: str) -> tuple[dict[str, Any], str, list[int]]:
+async def _failed_script(code: str, *, tools: bool = True) -> tuple[dict[str, Any], str, list[int]]:
     received: list[str] = []
     updates: list[int] = []
 
@@ -58,19 +59,21 @@ async def _failed_script(code: str) -> tuple[dict[str, Any], str, list[int]]:
         ],
     )
 
-    @agent.tool_plain
-    def update_record(n: int) -> str:
-        """Update one record."""
-        updates.append(n)
-        return "updated"
+    if tools:
 
-    @agent.tool_plain
-    def run_workflow(workflow_id: UUID) -> str:
-        raise AssertionError("Invalid workflow arguments must not execute")
+        @agent.tool_plain
+        def update_record(n: int) -> str:
+            """Update one record."""
+            updates.append(n)
+            return "updated"
 
-    @agent.tool_plain
-    def netbox(fields: list[str]) -> str:
-        raise AssertionError("Invalid field arguments must not execute")
+        @agent.tool_plain
+        def run_workflow(workflow_id: UUID) -> str:
+            raise AssertionError("Invalid workflow arguments must not execute")
+
+        @agent.tool_plain
+        def netbox(fields: list[str]) -> str:
+            raise AssertionError("Invalid field arguments must not execute")
 
     result = await agent.run("Run the program.", deps=AgentDeps())
     (seen,) = received
@@ -105,6 +108,96 @@ async def test_a_runtime_failure_does_not_echo_exception_text_or_traceback() -> 
     assert error["recovery"] == "correct_arguments"
     assert "internal.invalid" not in rendered
     assert "secret" not in rendered
+
+
+async def test_an_unresolved_reference_names_the_identifier_and_position(caplog) -> None:
+    error, rendered, _ = await _failed_script("print(missing_config_name)")
+
+    assert error["code"] == "invalid_arguments"
+    assert error["execution"] == "not_started"
+    assert error["recovery"] == "correct_arguments"
+    (issue,) = error["issues"]
+    assert issue["field"] == "code"
+    assert issue["code"] == "unresolved-reference"
+    assert issue["expected_type"] == "defined name"
+    assert issue["message"] == "Name `missing_config_name` is not defined (line 1, column 7)."
+    assert "missing_config_name" in error["message"]
+    assert "line 1, column 7" in error["message"]
+    assert "TypeError" not in rendered
+    assert "used when not defined" not in rendered
+    assert error["id"] in caplog.text
+
+
+async def test_a_type_check_failure_keeps_only_its_code_and_position() -> None:
+    error, rendered, _ = await _failed_script("len(1)")
+
+    assert error["code"] == "invalid_arguments"
+    assert error["execution"] == "not_started"
+    (issue,) = error["issues"]
+    assert issue["field"] == "code"
+    assert issue["code"] == "invalid-argument-type"
+    assert issue["expected_type"] == "valid Python"
+    assert issue["message"] == "Code validation failed: invalid-argument-type at line 1, column 5."
+    assert "Sized" not in rendered
+    assert "Literal[1]" not in rendered
+
+
+async def test_a_syntax_error_keeps_only_its_position_and_a_safe_category() -> None:
+    error, rendered, _ = await _failed_script("if")
+
+    assert error["code"] == "invalid_arguments"
+    assert error["execution"] == "not_started"
+    (issue,) = error["issues"]
+    assert issue["field"] == "code"
+    assert issue["code"] == "invalid-syntax"
+    assert issue["expected_type"] == "valid Python"
+    assert issue["message"] == "Code validation failed: invalid syntax at line 1, column 3."
+    assert "Expected an expression" not in rendered
+
+
+async def test_a_runtime_name_error_keeps_the_identifier_without_its_text() -> None:
+    error, rendered, _ = await _failed_script("print(undefined_name)", tools=False)
+
+    assert error["code"] == "invalid_arguments"
+    assert error["execution"] == "started"
+    assert error["exception_type"] == "NameError"
+    (issue,) = error["issues"]
+    assert issue["field"] == "code"
+    assert issue["code"] == "name-error"
+    assert issue["expected_type"] == "defined name"
+    assert issue["message"] == "Name `undefined_name` is not defined (line 1, column 7)."
+    assert "name 'undefined_name' is not defined" not in rendered
+
+
+async def test_a_syntax_error_without_type_checking_keeps_its_position() -> None:
+    error, rendered, _ = await _failed_script("if", tools=False)
+
+    assert error["execution"] == "not_started"
+    assert error["exception_type"] == "SyntaxError"
+    assert error["issues"][0]["code"] == "invalid-syntax"
+    assert "line 1, column 3" in error["message"]
+    assert "Expected an expression" not in rendered
+
+
+@pytest.mark.parametrize(
+    ("helper", "code", "tools", "message"),
+    [
+        ("typing_issues", "len(1)", True, "Code validation failed: TypeError."),
+        ("name_error_issues", "print(undefined_name)", False, "Code execution failed: NameError."),
+    ],
+)
+async def test_missing_structural_diagnostics_keep_a_safe_correction(
+    monkeypatch: pytest.MonkeyPatch, helper: str, code: str, tools: bool, message: str
+) -> None:
+    monkeypatch.setattr(code_mode_module, helper, lambda *_args: [])
+
+    error, rendered, _ = await _failed_script(code, tools=tools)
+
+    assert error["message"].startswith(message)
+    assert error["recovery"] == "correct_arguments"
+    assert error["issues"] == []
+    assert "Traceback" not in rendered
+    assert "Sized" not in rendered
 
 
 async def test_a_script_that_already_called_a_tool_requires_execution_inspection() -> None:

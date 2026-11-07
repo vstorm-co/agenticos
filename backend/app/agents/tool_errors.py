@@ -15,8 +15,6 @@ from dataclasses import dataclass, field
 from typing import Literal
 from uuid import uuid4
 
-from jsonschema import FormatChecker, validators
-from jsonschema.exceptions import SchemaError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 from pydantic_ai import AgentRunResult, RunContext
 from pydantic_ai.capabilities import (
@@ -30,13 +28,12 @@ from pydantic_ai.capabilities import (
 from pydantic_ai.exceptions import ToolFailed, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import ToolDefinition
-from referencing import Registry
-from referencing.exceptions import Unresolvable
 
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.tool_schema_validation import SchemaValidationUnavailable, validate_tool_schema
 from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
@@ -335,51 +332,30 @@ class ToolErrors(AbstractCapability[AgentDeps]):
             schema = tool_def.parameters_json_schema
             issues = []
             try:
-                validator = validators.validator_for(schema)
-                validator.check_schema(schema)
-                # MCP schemas are server-controlled. An empty registry keeps
-                # local references while preventing jsonschema's default URL
-                # retriever from reading files or dialing an unchecked host.
-                checker = validator(schema, format_checker=FormatChecker(), registry=Registry())
-                for problem in checker.iter_errors(validated):
-                    location = tuple(problem.absolute_path)
-                    # JSON Schema locates a missing property at its parent object.
-                    # Derive its name from the schema, never from an error message
-                    # that could contain submitted values.
-                    locations = (
-                        [
-                            (*location, name)
-                            for name in problem.validator_value
-                            if name not in problem.instance
-                        ]
-                        if problem.validator == "required"
-                        else [location]
-                    )
+                # Both checking the advertised schema and validating arguments
+                # can evaluate server-supplied regexes. Isolate all evaluation,
+                # including reference resolution, in a killable bounded worker.
+                for problem in await validate_tool_schema(schema, validated):
+                    location = tuple(problem.path)
                     code = (
                         "uuid_parsing"
-                        if problem.validator == "format" and problem.validator_value == "uuid"
-                        else str(problem.validator)
+                        if problem.validator == "format" and problem.schema.get("format") == "uuid"
+                        else problem.validator
                     )
-                    for location in locations:
-                        name = ".".join(str(item) for item in location) or "arguments"
-                        field_schema = _field_schema(schema, location)
-                        if problem.validator != "required" and isinstance(problem.schema, dict):
-                            field_schema = problem.schema
-                        expected = _expected_type(field_schema, code)
-                        issue = self._issue(name, code, expected, schema=field_schema)
-                        if issue not in issues:
-                            issues.append(issue)
-                        if len(issues) == 10:
-                            break
+                    name = ".".join(str(item) for item in location) or "arguments"
+                    expected = _expected_type(problem.schema, code)
+                    issue = self._issue(name, code, expected, schema=problem.schema)
+                    if issue not in issues:
+                        issues.append(issue)
                     if len(issues) == 10:
                         break
-            except (SchemaError, Unresolvable, RecursionError) as error:
+            except SchemaValidationUnavailable as error:
                 raise ToolFailed(
                     tool_error(
                         tool=call.tool_name,
                         code="tool_unavailable",
                         execution="not_started",
-                        message="The tool's advertised argument schema cannot be validated safely. Rediscover the tool before invoking it.",
+                        message=f"{error.message} Rediscover the tool before invoking it.",
                         recovery="rediscover_tools",
                         error=error,
                     )
@@ -393,7 +369,7 @@ class ToolErrors(AbstractCapability[AgentDeps]):
     ) -> ToolArgumentIssue:
         message = f"Invalid `{name}`: expected {expected}."
         alternatives = schema.get("anyOf")
-        if expected == "string" and isinstance(alternatives, list):
+        if isinstance(alternatives, list):
             non_null = [
                 alternative
                 for alternative in alternatives
@@ -401,25 +377,78 @@ class ToolErrors(AbstractCapability[AgentDeps]):
             ]
             if len(non_null) == 1:
                 schema = non_null[0]
+        specific = False
         if code in ("missing", "missing_argument", "required"):
             message = f"Missing required `{name}`: expected {expected}."
+            specific = True
         elif code in ("literal_error", "enum", "const"):
             choices = schema.get("enum")
             if "const" in schema:
                 choices = [schema["const"]]
             if isinstance(choices, list):
                 message = f"`{name}` must be one of {json.dumps(choices, ensure_ascii=False)}."
+                specific = True
         elif code in ("string_too_long", "maxLength") and isinstance(
             maximum := schema.get("maxLength"), int
         ):
             message = f"`{name}` must contain at most {maximum} characters."
+            specific = True
         elif code in ("string_too_short", "minLength") and isinstance(
             minimum := schema.get("minLength"), int
         ):
             message = f"`{name}` must contain at least {minimum} characters."
-        if expected == "array of strings":
-            example = '["name", "primary_ip"]' if name == "fields" else '["value"]'
-            message = f"`{name}` must be an array of strings, for example {example}."
+            specific = True
+        elif code in ("too_long", "maxItems") and isinstance(
+            maximum := schema.get("maxItems"), int
+        ):
+            message = f"`{name}` must contain at most {maximum} items."
+            specific = True
+        elif code in ("too_short", "minItems") and isinstance(
+            minimum := schema.get("minItems"), int
+        ):
+            message = f"`{name}` must contain at least {minimum} items."
+            specific = True
+        elif code in ("less_than_equal", "maximum") and isinstance(
+            maximum := schema.get("maximum"), (int, float)
+        ):
+            message = f"`{name}` must be at most {maximum}."
+            specific = True
+        elif code in ("greater_than_equal", "minimum") and isinstance(
+            minimum := schema.get("minimum"), (int, float)
+        ):
+            message = f"`{name}` must be at least {minimum}."
+            specific = True
+        elif code in ("less_than", "exclusiveMaximum") and isinstance(
+            maximum := schema.get("exclusiveMaximum"), (int, float)
+        ):
+            message = f"`{name}` must be less than {maximum}."
+            specific = True
+        elif code in ("greater_than", "exclusiveMinimum") and isinstance(
+            minimum := schema.get("exclusiveMinimum"), (int, float)
+        ):
+            message = f"`{name}` must be greater than {minimum}."
+            specific = True
+        elif code in ("multiple_of", "multipleOf") and isinstance(
+            factor := schema.get("multipleOf"), (int, float)
+        ):
+            message = f"`{name}` must be a multiple of {factor}."
+            specific = True
+        if expected == "array of strings" and not specific:
+            example = ["name", "primary_ip"] if name == "fields" else ["value"]
+            maximum = schema.get("maxItems")
+            if isinstance(maximum, int) and len(example) > maximum:
+                example = example[:maximum]
+            minimum = schema.get("minItems")
+            if isinstance(minimum, int) and minimum > 2:
+                # A schema is server-controlled: never materialize a large valid
+                # array to satisfy a big minimum. State the bound instead.
+                message = f"`{name}` must contain at least {minimum} items."
+            else:
+                if isinstance(minimum, int) and len(example) < minimum:
+                    example += [f"value_{index}" for index in range(len(example), minimum)]
+                message = (
+                    f"`{name}` must be an array of strings, for example {json.dumps(example)}."
+                )
         if name == "workflow_id" and expected == "UUID":
             lookup = next(
                 (
