@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.55.0] - 2026-11-07
+
 ### Changed
 
 - The organization switcher now sits at the top of the sidebar, showing the active organization's name and avatar without opening the account menu. It remains available in the collapsed sidebar and phone menu, with organization management and creation in the same dropdown.
@@ -20549,7 +20551,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...HEAD
+[1.55.0]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...v1.55.0
 [1.54.1]: https://github.com/vstorm-co/agenticos/compare/v1.54.0...v1.54.1
 [1.54.0]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...v1.53.0
