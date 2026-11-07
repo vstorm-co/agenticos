@@ -4246,7 +4246,8 @@
       "replyMailboxUnavailable": "Wybrana skrzynka niedostępna",
       "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach.",
       "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)",
-      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane."
+      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane.",
+      "startRunSchema": "Oczekiwany schemat wejścia"
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -6872,6 +6873,10 @@
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
+      },
+      "workflow-input-contract": {
+        "title": "Określ oczekiwane dane wejściowe",
+        "body": "Wyzwalacze Ręcznie, API i Wywołany przez workflow obsługują proste pola lub kontrakt JSON Schema Draft 2020-12. Schemat obsługuje zagnieżdżone wartości i jest sprawdzany przed rozpoczęciem runu."
       }
     },
     "chooseLanguage": "Język",
@@ -10093,7 +10098,13 @@
         "boolean": "Tak lub nie",
         "date": "Data",
         "choice": "Wybór"
-      }
+      },
+      "contractFormat": "Kontrakt wejścia",
+      "simpleFields": "Proste pola",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Wybierz proste pola lub kontrakt JSON Schema. Zmiana formatu zastępuje obecny kontrakt.",
+      "schemaHint": "Użyj JSON Schema Draft 2020-12 dla zagnieżdżonych obiektów, tablic i referencji. Dane są sprawdzane przed rozpoczęciem runu.",
+      "schemaInvalid": "Wpisz obiekt JSON. Ta zmiana nie została zapisana."
     },
     "pickerHostLabel": "Host sandboxa",
     "pickerHostDefault": "Domyślny host organizacji",
@@ -10287,7 +10298,7 @@
     "templateUnknown": "{placeholder} nie wskazuje niczego, co ten krok może czytać.",
     "templatePreview": "Podgląd:",
     "templateSuggestions": "Wartości z wcześniejszych kroków",
-    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi wejściowymi sprawdzanymi względem tych pól. Kroki po nim czytają je jako payload.",
+    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi sprawdzanymi względem tego kontraktu wejścia. Kroki po nim czytają dane jako payload.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Wybierz workflow",
     "pickerWorkflowNone": "Żaden workflow nie jest jeszcze opublikowany z wyzwalaczem Called by a workflow.",

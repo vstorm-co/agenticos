@@ -77,7 +77,7 @@ import { ReplyMailboxPicker } from "./reply-mailbox-picker";
 import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
 import { HttpAuthField } from "./http-auth-field";
-import { InputFieldsForm } from "./input-fields-form";
+import { InputContractForm } from "./input-contract-form";
 import { MergeForm } from "./merge-form";
 import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
@@ -1247,7 +1247,7 @@ function NodeFields({
         {definition.id === FORM_TRIGGER && (
           <FormPageForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
         )}
-        <InputFieldsForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+        <InputContractForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
       </div>
     );
   }

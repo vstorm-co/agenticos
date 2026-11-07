@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -19,7 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { CodeArea } from "@/components/ui/code-area";
+import { JsonView } from "@/components/ui/json-view";
 import { type FormValue, type InputField, runInputFrom } from "@/lib/workflows/input-fields";
+import type { JsonSchema } from "@/lib/workflows/types";
 
 import { RunField } from "./run-field";
 
@@ -27,6 +30,7 @@ export interface RunEntry {
   id: string;
   name: string;
   fields: readonly InputField[];
+  inputSchema?: JsonSchema | null;
   sample: Record<string, unknown>;
 }
 
@@ -46,6 +50,8 @@ interface StartRunDialogProps {
   testFields?: readonly InputField[];
   /** The fields the published version's trigger declares, asked for in a real run. */
   liveFields?: readonly InputField[];
+  testInputSchema?: JsonSchema | null;
+  liveInputSchema?: JsonSchema | null;
   onStart: (start: {
     mode: "real" | "test";
     input: Record<string, unknown>;
@@ -84,6 +90,8 @@ export function StartRunDialog({
   sampleInput = {},
   testFields = [],
   liveFields = [],
+  testInputSchema = null,
+  liveInputSchema = null,
   onStart,
 }: StartRunDialogProps) {
   const t = useTranslations("pages.workflows");
@@ -97,6 +105,12 @@ export function StartRunDialog({
   const [entryId, setEntryId] = useState(entries[0]?.id);
   const entry = entries.find((candidate) => candidate.id === entryId) ?? entries[0];
   const fields = entry?.fields ?? (mode === "test" ? testFields : liveFields);
+  const inputSchema =
+    entry === undefined
+      ? mode === "test"
+        ? testInputSchema
+        : liveInputSchema
+      : (entry.inputSchema ?? null);
   const typed = fields.length > 0;
   const parsed = parseRunInput(text);
   const invalid = !typed && typeof parsed === "string";
@@ -196,6 +210,11 @@ export function StartRunDialog({
           ) : (
             <div className="space-y-1.5">
               <Label>{t("startRunInput")}</Label>
+              {inputSchema !== null && (
+                <MoreOptions label={t("startRunSchema")}>
+                  <JsonView value={inputSchema} />
+                </MoreOptions>
+              )}
               <CodeArea
                 name="input.json"
                 aria-label={t("startRunInput")}

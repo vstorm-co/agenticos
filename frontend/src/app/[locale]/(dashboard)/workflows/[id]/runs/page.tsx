@@ -14,6 +14,7 @@ import { usePermissions, useWorkflow, useWorkflowRuns, useWorkflowVersion } from
 import { ROUTES } from "@/lib/constants";
 import {
   declaredFields,
+  declaredInputSchema,
   sampleRunInput,
   startsByHand,
   entryNodes,
@@ -69,6 +70,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
               id: node.id,
               name: node.label ?? node.definition_id,
               fields: declaredFields(branch),
+              inputSchema: declaredInputSchema(branch),
               sample: sampleRunInput(branch),
             };
           });
@@ -109,6 +111,8 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           liveEntries={choices(live?.graph, true)}
           testFields={declaredFields(workflow?.draft_graph)}
           liveFields={declaredFields(live?.graph)}
+          testInputSchema={declaredInputSchema(workflow?.draft_graph)}
+          liveInputSchema={declaredInputSchema(live?.graph)}
           onStart={({ mode, input, entry_node_id }) =>
             start.mutate(
               { workflow_id: id, mode, input, ...(entry_node_id ? { entry_node_id } : {}) },

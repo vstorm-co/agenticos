@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "f4560e57f1b5"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -50,8 +50,8 @@ powierzchnię w `triggered_by`.
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
 Jego **pola wejścia** robią z wejścia kontrakt. Pole ma nazwę, typ - tekst, lista tekstów, liczba,
-liczba całkowita, tak lub nie, data albo wybór - i to, czy jest wymagane. Bez pól run
-przyjmuje dowolny obiekt JSON. Z polami **Start a run** prosi o każde po nazwie, run,
+liczba całkowita, tak lub nie, data albo wybór - i to, czy jest wymagane. Bez pól
+i schematu run przyjmuje dowolny obiekt JSON. Z polami **Start a run** prosi o każde po nazwie, run,
 którego wejściu brakuje pola, który wysyła pole złego typu albo niezadeklarowane,
 jest odrzucany przed startem błędem `WORKFLOW_RUN_INPUT_INVALID`, a binding do
 `payload.<pole>` jest sprawdzany pod kątem typu przy publikacji.
@@ -70,11 +70,82 @@ jest dostępny w wyzwalaczach Manual, Form i Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### Kontrakty wejścia JSON Schema { #json-schema-input-contracts }
+
+Dla zagnieżdżonego wejścia ustaw `config.input_schema` wyzwalacza na dokument
+JSON Schema Draft 2020-12. **API request**, **Manual** i **Called by a workflow**
+przyjmują tę alternatywę dla prostych `fields`. Używaj jednego kontraktu naraz:
+nie można połączyć schematu z niepustą listą `fields`. Publiczne wyzwalacze
+**Form** zachowują kontrakt prostych pól.
+
+Kontrakt obsługuje zagnieżdżone obiekty, tablice obiektów, `enum`, `required`,
+długości ciągów znaków (`minLength` i `maxLength`), długości tablic (`minItems` i
+`maxItems`) oraz `additionalProperties`. Używaj ponownie definicji przez `$defs`
+i lokalne referencje `$ref`. Referencje muszą wskazywać na ten sam dokument;
+referencje zewnętrzne są odrzucane i nigdy nie są pobierane. Wejście pozostaje
+obiektem JSON; nie wymaga modelu Python zdefiniowanego przez użytkownika ani
+konkretnego frameworka wywołującego.
+
+Umieść tę konfigurację w wyzwalaczu, aby przyjmował klienta i co najmniej jedną
+pozycję zamówienia:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publikacja zamraża schemat w wersji workflow. Wejście jest sprawdzane względem
+kontraktu tej wersji przed przyjęciem runu, także dla wywołań przez API,
+WebSocket, MCP i podrzędny workflow; testy używają kontraktu szkicu. Nieprawidłowe
+wejście zwraca `WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami.
+Schemat nie konwertuje wartości ani nie wstawia wartości domyślnych. Bez prostych
+pól i schematu, także przy pustym obiekcie schematu, zachowane zostaje dotychczasowe
+nietypowane wejście w postaci obiektu JSON.
+
+Wywołujący może sprawdzić efektywny kontrakt przed wykonaniem przez
+[API schematu wejścia workflow](../api.md#running-a-workflow) lub
+[odkrywanie MCP](../mcp.md#workflow-and-table-tools). Istniejące kontrakty prostych
+pól są również udostępniane jako JSON Schema.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Uruchamia go osoba - **Test draft** w edytorze albo **Start a run** na stronie
 runów. Przekazuje grafowi to samo, co **API request**, i przyjmuje te same pola
-wejścia, o które edytor prosi przed startem runa.
+wejścia lub kontrakt JSON Schema. Edytor prosi o wejście przed startem runa.
 
 ### trigger.chat { #trigger-chat }
 
@@ -118,9 +189,10 @@ Publikacja wymaga dostępu do odczytu tabeli.
 
 ### trigger.workflow_call { #trigger-workflow-call }
 
-**Called by a workflow.** Uruchamiany przez krok `workflow.run` innego workflow, z
-polami, które deklaruje - tymi samymi co **Manual** - i nigdy ręcznie ani przez API.
-Dane wejściowe wywołującego są sprawdzane względem nich, zanim przebieg się zacznie.
+**Called by a workflow.** Uruchamiany przez krok `workflow.run` innego workflow,
+z deklarowanym kontraktem wejścia - prostymi polami lub JSON Schema, jak w
+**Manual** - i nigdy ręcznie ani przez API. Wejście wywołującego jest sprawdzane
+względem tego kontraktu przed startem runa.
 
 ### trigger.form { #trigger-form }
 

@@ -46,6 +46,8 @@ class FormTriggerConfig(TriggerInputConfig):
 
     @model_validator(mode="after")
     def _asks_for_something(self) -> FormTriggerConfig:
+        if self.input_schema is not None:
+            raise ValueError("A public form uses simple fields rather than input_schema")
         if not self.fields:
             raise ValueError("A form asks for at least one field")
         return self

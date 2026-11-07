@@ -1108,6 +1108,23 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", f"/workflows/{workflow_id}")
 
+    async def get_workflow_input_schema(
+        workflow_id: UUID, version_id: UUID | None = None
+    ) -> dict[str, JsonValue]:
+        """Inspect a published workflow's input before execution. Needs `workflows:view`.
+
+        Returns workflow_id, version_id and entries with entry_node_id, trigger
+        and input_schema (JSON Schema Draft 2020-12). Uses the current published
+        version unless version_id selects an older one. References remain local
+        to each schema. Simple fields have equivalent schemas; untyped entries
+        accept any JSON object.
+        """
+        return await api.request(
+            "GET",
+            f"/workflows/{workflow_id}/input-schema",
+            params={} if version_id is None else {"version_id": str(version_id)},
+        )
+
     async def list_workflow_nodes() -> dict[str, JsonValue]:
         """Discover available workflow steps before choosing an automation design. Needs `workflows:view`.
 
@@ -1371,7 +1388,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     ) -> dict[str, JsonValue]:
         """Start a published workflow as the caller. Needs run access; waits for approval.
 
-        Read get_workflow_definition first and supply its declared input fields.
+        Read get_workflow_input_schema first and supply input that fits its contract.
         Returns the admitted run, not a completed result: poll get_workflow_execution
         and inspect its steps. An agent inside a workflow must use a workflow.run
         node instead of starting another root workflow.
@@ -1461,6 +1478,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_virtual_table_views, False),
         (list_workflow_definitions, False),
         (get_workflow_definition, False),
+        (get_workflow_input_schema, False),
         (list_workflow_nodes, False),
         (get_workflow_node, False),
         (create_workflow_draft, True),

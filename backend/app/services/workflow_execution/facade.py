@@ -171,7 +171,7 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
-    """Refuse `payload` when the graph's entry declares fields it does not fit: a Manual,
+    """Refuse `payload` when the graph's entry declares a contract it does not fit: a Manual,
     API, Form or Called by a workflow trigger.
 
     Raises:
@@ -183,9 +183,11 @@ def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None
         return
     # The graph passed `validate_graph` - at publish, or just now for a draft -
     # so its config fits.
-    # Only the fields: a Form trigger's config carries its page's words beside them.
-    fields = TriggerInputConfig.model_validate({"fields": entry.config.get("fields", [])})
-    problems = input_problems(fields, payload)
+    # A Form trigger's config also carries its page's presentation settings.
+    contract = TriggerInputConfig.model_validate(
+        {key: entry.config[key] for key in ("fields", "input_schema") if key in entry.config}
+    )
+    problems = input_problems(contract, payload)
     if problems:
         raise WorkflowRunInputInvalidError(problems=problems)
 

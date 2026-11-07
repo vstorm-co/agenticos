@@ -444,6 +444,25 @@ describe("OutputPane", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("asks for schema-constrained input before testing a step without earlier data", async () => {
+    seed(
+      line({}, { ...node("t", "trigger.manual"), config: { input_schema: { type: "object" } } }),
+    );
+    renderOutput(STEP, [MANUAL, STEP]);
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(mutate).not.toHaveBeenCalled();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "Expected input schema" })).toBeVisible();
+    fireEvent.change(dialog.getByRole("textbox", { name: "Input (JSON)" }), {
+      target: { value: '{"contacts":[{"email":"ada@example.com"}]}' },
+    });
+    await userEvent.click(dialog.getByRole("button", { name: "Start a run" }));
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { contacts: [{ email: "ada@example.com" }] } }),
+      expect.anything(),
+    );
+  });
+
   it("opens setup problems from a disabled step test without starting a run", async () => {
     seed(line({ definition_id: "gone.step" }));
     renderOutput();

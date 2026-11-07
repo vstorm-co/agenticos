@@ -289,14 +289,14 @@ class WorkflowParentStoppedError(WorkflowDispatchRefusedError):
 
 
 class WorkflowRunInputInvalidError(AppException):
-    """The run's input does not fit the fields its Manual or API trigger declares (422).
+    """The run's input does not fit its trigger's fields or JSON Schema contract (422).
 
     `details["problems"]` names each field that is missing, of the wrong type,
     not one of a choice's options, or not declared at all. Each entry is
     `{field, message, type}`, `type` being the validator's own error type.
     """
 
-    message = "The run's input does not fit the fields this workflow asks for"
+    message = "The run's input does not fit this workflow's input contract"
     code = "WORKFLOW_RUN_INPUT_INVALID"
     status_code = 422
 

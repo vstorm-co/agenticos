@@ -32,6 +32,13 @@ GRAPH = WorkflowGraph(
     [
         ("list_workflow_definitions", {}, "GET", "/workflows", False),
         ("get_workflow_definition", {"workflow_id": ID}, "GET", f"/workflows/{ID}", False),
+        (
+            "get_workflow_input_schema",
+            {"workflow_id": ID},
+            "GET",
+            f"/workflows/{ID}/input-schema",
+            False,
+        ),
         ("create_workflow_draft", {"name": "Lead intake"}, "POST", "/workflows", True),
         (
             "update_workflow_draft",
@@ -132,6 +139,14 @@ async def test_listing_tables_without_a_search_sends_only_the_page() -> None:
     await tool.function()
 
     assert api.request.await_args.kwargs["params"] == {"limit": 50, "skip": 0}
+
+
+async def test_input_schema_discovery_can_select_a_published_version() -> None:
+    api = MagicMock(spec=PlatformApi)
+    api.request = AsyncMock(return_value={"entries": []})
+    tool = {tool.name: tool for tool in platform_tools(api)}["get_workflow_input_schema"]
+    await tool.function(workflow_id=ID, version_id=ID)
+    assert api.request.await_args.kwargs["params"] == {"version_id": str(ID)}
 
 
 async def test_publication_withholds_one_time_credentials() -> None:

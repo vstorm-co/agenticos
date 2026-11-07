@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "f4560e57f1b5"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -52,7 +52,7 @@ superficie en `triggered_by`.
 
 Sus **campos de entrada** convierten la entrada en un contrato. Un campo tiene un
 nombre, un tipo - texto, lista de textos, número, número entero, sí o no, fecha u opción - y si es
-obligatorio. Sin campos, un run acepta cualquier objeto JSON. Con campos, **Start a
+obligatorio. Sin campos ni esquema, un run acepta cualquier objeto JSON. Con campos, **Start a
 run** pide cada uno por su nombre, un run cuya entrada omite uno, envía uno del tipo
 equivocado o uno no declarado se rechaza antes de empezar con
 `WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
@@ -72,11 +72,81 @@ está disponible en los triggers Manual, Form y Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### Contratos de entrada con JSON Schema { #json-schema-input-contracts }
+
+Para entradas anidadas, establece `config.input_schema` del trigger en un documento
+JSON Schema Draft 2020-12. **API request**, **Manual** y **Called by a workflow**
+aceptan esta alternativa a los `fields` simples. Usa un contrato cada vez: no se
+puede combinar un esquema con una lista `fields` no vacía. Los triggers públicos
+**Form** conservan su contrato de campos simples.
+
+El contrato admite objetos anidados, arrays de objetos, `enum`, `required`,
+longitudes de cadenas (`minLength` y `maxLength`), longitudes de arrays (`minItems`
+y `maxItems`) y `additionalProperties`. Reutiliza definiciones con `$defs` y
+referencias `$ref` locales. Las referencias deben resolverse dentro del mismo
+documento; las referencias externas se rechazan y nunca se descargan. La entrada
+sigue siendo un objeto JSON y no requiere modelos Python definidos por el usuario
+ni un framework concreto para quien llama.
+
+Esta configuración del trigger acepta un cliente y una o más líneas de pedido:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publicar congela el esquema dentro de la versión del workflow. La entrada se
+comprueba contra el contrato de esa versión antes de admitir un run, también en
+llamadas por API, WebSocket, MCP y workflows secundarios; las pruebas usan el
+contrato del borrador. Una entrada inválida devuelve `WORKFLOW_RUN_INPUT_INVALID`
+con rutas de campos y mensajes. El esquema no convierte valores ni inserta valores
+predeterminados. Sin campos simples ni esquema, incluido un objeto de esquema
+vacío, se conserva la entrada existente como objeto JSON sin tipado.
+
+Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante la
+[API del esquema de entrada del workflow](../api.md#running-a-workflow) o el
+[descubrimiento MCP](../mcp.md#workflow-and-table-tools). Los contratos existentes de
+campos simples también se exponen como JSON Schema.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Lo inicia una persona - **Test draft** en el editor, o **Start a run** en su
 página de runs. Entrega al grafo lo mismo que **API request** y acepta los mismos
-campos de entrada, que el editor pide antes de empezar el run.
+campos de entrada o un contrato JSON Schema. El editor pide la entrada antes de empezar el run.
 
 ### trigger.chat { #trigger-chat }
 
@@ -121,8 +191,9 @@ lectura a la tabla.
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Lo inicia el paso `workflow.run` de otro workflow, con los
-campos que declara - los mismos que **Manual** - y nunca a mano ni por la API. La
-entrada de quien llama se comprueba contra ellos antes de que empiece la ejecución.
+contrato de entrada que declara - campos simples o JSON Schema, como **Manual** -
+y nunca a mano ni por la API. La entrada de quien llama se comprueba contra ese
+contrato antes de que empiece la ejecución.
 
 ### trigger.form { #trigger-form }
 

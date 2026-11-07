@@ -112,6 +112,28 @@ describe("RunButton", () => {
     );
   });
 
+  it("asks for a JSON object before starting a schema-constrained draft", async () => {
+    seed({
+      input_schema: {
+        type: "object",
+        required: ["contacts"],
+        properties: { contacts: { type: "array" } },
+      },
+    });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Expected input schema" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), {
+      target: { value: '{"contacts":[{"email":"ada@example.com"}]}' },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(mutate).toHaveBeenCalledWith(
+      { workflow_id: "wf", mode: "test", input: { contacts: [{ email: "ada@example.com" }] } },
+      expect.anything(),
+    );
+  });
+
   it("says why it cannot run: no steps, problems, or an edit still saving", () => {
     const { rerender } = render(
       <RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />,

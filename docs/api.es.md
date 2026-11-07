@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "aa298268b36a"
 ---
 
 # La API HTTP { #the-http-api }
@@ -341,6 +341,24 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 Esto inicia un run de la versión publicada del workflow y responde `201` de
 inmediato; los nodos se ejecutan en segundo plano. `"mode": "test"` ejecuta en
 su lugar el borrador actual, desde cualquier trigger, y exige `workflows:edit`.
+
+Antes de llamar, lee `GET /api/v1/workflows/{id}/input-schema` con
+`workflows:view`. Devuelve el `version_id` publicado y una lista `entries` con
+`entry_node_id`, `trigger` e `input_schema` efectivo para cada entrada Manual, API,
+Called by a workflow o Form. Pasa `version_id` para inspeccionar una versión
+publicada concreta. Los contratos JSON Schema se devuelven sin cambios; los campos
+simples se representan como JSON Schema y las entradas sin tipado devuelven
+`{"type": "object"}`. Usa el contrato de la entrada deseada y pasa su
+`entry_node_id` al iniciar.
+
+El [contrato de entrada JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+opcional se comprueba antes de admitir el run. Una discrepancia responde
+`422 WORKFLOW_RUN_INPUT_INVALID` con rutas de campos y mensajes en `error.details.problems`;
+no se crea ningún run. Cada problema tiene `field`, `message` y `type`; las rutas
+anidadas incluyen índices de arrays, por ejemplo `items.0.sku`. El contrato procede
+de la versión publicada actual o del borrador para `"mode": "test"`. Se
+aplica igual por WebSocket y MCP y cuando llama otro workflow.
+
 `deadline_seconds` (hasta
 treinta días) fija un plazo que se comprueba cada vez que un nodo va a
 despacharse: el primer nodo pendiente tras cumplirse hace fallar el run con

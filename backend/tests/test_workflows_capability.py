@@ -1,13 +1,14 @@
 """The workflows capability's registration: what it builds from a binding, and what it refuses."""
 
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.workflows import Workflows, WorkflowsConfig
+from app.agents.capabilities.workflows._toolset import _inputs
 from app.services.access import acting_member
 
 
@@ -51,3 +52,44 @@ async def test_the_acting_member_is_nobody_for_a_run_without_a_member_id():
     assert await acting_member(MagicMock(), None, "x") is None
     assert await acting_member(MagicMock(), uuid.uuid4(), None) is None
     assert await acting_member(MagicMock(), uuid.uuid4(), "not-a-uuid") is None
+
+
+@pytest.mark.anyio
+async def test_workflow_tool_discovery_preserves_schema_references_and_legacy_fields() -> None:
+    workflow = MagicMock(organization_id=uuid.uuid4())
+    entry = str(uuid.uuid4())
+    schema = {
+        "$defs": {"text": {"type": "string", "minLength": 2}},
+        "properties": {"name": {"$ref": "#/$defs/text"}},
+    }
+    graph = {
+        "entry_node_id": entry,
+        "nodes": [
+            {"id": entry, "definition_id": "trigger.manual", "config": {"input_schema": schema}}
+        ],
+    }
+    version = MagicMock(graph=graph)
+    with patch(
+        "app.agents.capabilities.workflows._toolset.workflow_repo.get_version",
+        new=AsyncMock(return_value=version),
+    ):
+        fields, contract = await _inputs(MagicMock(), workflow, uuid.uuid4())
+        assert fields == [] and contract == schema
+        graph["nodes"][0]["config"] = {
+            "fields": [{"name": "name", "type": "text", "required": True}]
+        }
+        fields, contract = await _inputs(MagicMock(), workflow, uuid.uuid4())
+        assert fields == [{"name": "name", "type": "text", "required": True}]
+        assert contract["required"] == ["name"] and contract["additionalProperties"] is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("missing", [False, True])
+async def test_workflow_tool_discovery_keeps_untyped_workflows_open(missing: bool) -> None:
+    workflow = MagicMock(organization_id=uuid.uuid4())
+    version = None if missing else MagicMock(graph={"nodes": []})
+    with patch(
+        "app.agents.capabilities.workflows._toolset.workflow_repo.get_version",
+        new=AsyncMock(return_value=version),
+    ):
+        assert await _inputs(MagicMock(), workflow, uuid.uuid4()) == ([], {"type": "object"})

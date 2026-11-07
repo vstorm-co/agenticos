@@ -13,6 +13,7 @@ import { validateGraph } from "@/components/workflows/validation";
 import { useWorkflowRuns } from "@/hooks";
 import {
   declaredFields,
+  declaredInputSchema,
   sampleRunInput,
   entryNodes,
   entryGraph,
@@ -56,6 +57,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
     [graph, catalog, tw],
   );
   const fields = declaredFields(graph);
+  const inputSchema = declaredInputSchema(graph);
   const entries =
     graph === null
       ? []
@@ -68,6 +70,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
               catalog.find((definition) => definition.id === node.definition_id)?.name ??
               node.definition_id,
             fields: declaredFields(branch),
+            inputSchema: declaredInputSchema(branch),
             sample: sampleRunInput(branch),
           };
         });
@@ -97,7 +100,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
       setChatOpen(true);
       return;
     }
-    if (fields.length > 0 || entries.length > 1) setAsking(true);
+    if (fields.length > 0 || inputSchema !== null || entries.length > 1) setAsking(true);
     else begin(sampleRunInput(graph));
   };
 
@@ -151,6 +154,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
           canTest
           busy={start.isPending}
           testFields={fields}
+          testInputSchema={inputSchema}
           sampleInput={sampleRunInput(graph)}
           entries={entries.length > 1 ? entries : []}
           onStart={({ input, entry_node_id }) => begin(input, entry_node_id)}

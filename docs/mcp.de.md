@@ -1,5 +1,5 @@
 ---
-source_sha: "276f8e90ab5e"
+source_sha: "9e34dfda44ef"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1376,6 +1376,15 @@ Die Warteschlange der Zustandsprüfung verwendet einen eigenen indizierten Zeits
 ## Workflows und Tabellen erstellen { #workflow-and-table-tools }
 
 Der Plattform-MCP-Server bietet auch Werkzeuge für Workflows und Virtual Tables. Beginnen Sie mit `list_workflow_definitions`, `get_workflow_definition`, `list_workflow_nodes` und `get_workflow_node`. Erstellen und speichern Sie private Graphen mit `create_workflow_draft` und `update_workflow_draft` unter Beibehaltung von `expected_revision`. `test_workflow_draft` akzeptiert optional `entry_node_id`; prüfen Sie `get_workflow_execution` und `get_workflow_execution_steps`, bevor Sie Erfolg melden. Tests können echte APIs aufrufen und Daten schreiben. `publish_workflow` aktiviert konfigurierte Eingänge, erfordert die bestehenden Veröffentlichungsrechte und hält einmalige Signaturgeheimnisse vom Modell fern. Unbeaufsichtigte Veröffentlichung erfordert weiterhin eine menschliche Sitzung; ein API-Schlüssel darf deren Rechte nicht dauerhaft übernehmen.
+
+Verwende vor `run_workflow` das Werkzeug `get_workflow_input_schema`, um den
+veröffentlichten Eingabevertrag ohne Ausführung zu prüfen. Es nimmt `workflow_id`
+und optional `version_id` an und liefert dieselben `input_schema`-Verträge pro
+Eingang wie der [HTTP-Endpunkt zur Abfrage](api.md#running-a-workflow). Wähle die
+gewünschte `entry_node_id` und sende passende `fields`. Verträge nach JSON Schema
+Draft 2020-12, bisherige einfache Felder und untypisierte Eingaben verwenden dieses
+gemeinsame Abfrageformat; beim Annehmen eines Runs wird gegen den Vertrag der
+für den Run angenommenen Version geprüft.
 
 Für operative Datensätze dienen `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` und `update_virtual_table_record`. Schema- und Datensatzänderungen behalten Revisionsprüfungen bei. Alle Werkzeuge nutzen Organisation, Rechte und Ressourcenzugriffe des Aufrufenden; Schreibwerkzeuge behalten die Plattform-MCP-Freigabe bei. Die Architect-Skills workflow-builder und virtual-tables erklären Triggerauswahl, das Kapseln einer dokumentierten HTTP-API ohne passenden MCP-Katalogeintrag und das Anbinden veröffentlichter aufrufbarer Workflows als Agentenwerkzeuge. Zugangsdaten werden im Tresor eingerichtet, niemals in Graphen oder Modellausgaben.
 

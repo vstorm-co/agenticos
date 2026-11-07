@@ -38,6 +38,49 @@ function mount(props: Partial<Parameters<typeof StartRunDialog>[0]> = {}) {
 }
 
 describe("StartRunDialog", () => {
+  it("shows the contract of the selected version and preserves nested JSON input", async () => {
+    const onStart = mount({
+      testInputSchema: { type: "object", title: "Draft contact request" },
+      liveInputSchema: { type: "object", title: "Published contact request" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Expected input schema" }));
+    expect(screen.getByText("Draft contact request")).toBeVisible();
+    await userEvent.click(screen.getByRole("combobox", { name: "Run" }));
+    await userEvent.click(screen.getByRole("option", { name: "Published version" }));
+    expect(screen.getByText("Published contact request")).toBeVisible();
+    expect(screen.queryByText("Draft contact request")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), {
+      target: { value: '{"contacts":[{"email":"ada@example.com","tags":["customer"]}]}' },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(onStart).toHaveBeenCalledWith({
+      mode: "real",
+      input: { contacts: [{ email: "ada@example.com", tags: ["customer"] }] },
+    });
+  });
+
+  it("shows only the selected entry's schema, leaving untyped entries open", async () => {
+    mount({
+      testInputSchema: { title: "Default fallback" },
+      entries: [
+        {
+          id: "schema",
+          name: "Schema start",
+          fields: [],
+          sample: {},
+          inputSchema: { title: "Entry contract" },
+        },
+        { id: "open", name: "Open start", fields: [], sample: {} },
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Expected input schema" }));
+    expect(screen.getByText("Entry contract")).toBeVisible();
+    expect(screen.queryByText("Default fallback")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "Start from" }));
+    await userEvent.click(screen.getByRole("option", { name: "Open start" }));
+    expect(screen.queryByRole("button", { name: "Expected input schema" })).not.toBeInTheDocument();
+  });
+
   it("starts a test of the draft with the typed input", async () => {
     const onStart = mount();
     fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: '{"lead": 7}' } });

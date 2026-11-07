@@ -44,7 +44,7 @@ starts, is refused at publish.
 
 Its **Input fields** make the input a contract. A field has a name, a type - text, list of text,
 number, whole number, yes or no, date or choice - and whether it is required. With
-none, a run takes any JSON object. With some, **Start a run** asks for each by name,
+neither fields nor a schema, a run takes any JSON object. With fields, **Start a run** asks for each by name,
 a run whose input misses one, sends one of the wrong type or sends one not declared
 is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
@@ -63,11 +63,81 @@ is available on Manual, Form and Called by a workflow triggers.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### JSON Schema input contracts { #json-schema-input-contracts }
+
+For nested input, set the trigger's `config.input_schema` to a JSON Schema
+Draft 2020-12 document. **API request**, **Manual** and **Called by a workflow**
+accept this alternative to simple `fields`. Use one contract at a time: a schema
+and a nonempty `fields` list cannot be combined. Public **Form** triggers keep
+their simple-field contract.
+
+The contract supports nested objects, arrays of objects, `enum`, `required`,
+string lengths (`minLength` and `maxLength`), array lengths (`minItems` and
+`maxItems`) and `additionalProperties`. Reuse definitions with `$defs` and local
+`$ref` references. References must resolve inside the same document; external
+references are refused and never fetched. The input remains a JSON object, and
+no user-defined Python model or caller framework is needed.
+
+Put this configuration on a trigger to accept a customer and one or more order
+lines:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publishing freezes the schema inside the workflow version. Input is checked
+against that version's contract before a run is admitted, including API,
+WebSocket, MCP and child-workflow calls; tests use the draft's contract. Invalid
+input returns `WORKFLOW_RUN_INPUT_INVALID` with field paths and messages. The
+schema does not coerce values or insert defaults. With neither simple fields nor
+a schema, including an empty schema object, the existing untyped JSON-object
+input is preserved.
+
+Callers can inspect the effective contract before execution through the
+[workflow input-schema API](../api.md#running-a-workflow) or
+[MCP discovery](../mcp.md#workflow-and-table-tools). Existing simple-field
+contracts are also exposed as JSON Schema.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its
 runs page. It hands the graph what **API request** does and takes the same input
-fields, which the editor asks for before the run starts.
+fields or JSON Schema contract. The editor asks for input before the run starts.
 
 ### trigger.chat { #trigger-chat }
 
@@ -111,8 +181,9 @@ access to the table.
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Started by another workflow's `workflow.run` step, with
-the fields it declares - the same fields as **Manual** - and never by hand or over
-the API. The caller's input is checked against them before the run starts.
+the input contract it declares - simple fields or JSON Schema, as on **Manual** -
+and never by hand or over the API. The caller's input is checked against that
+contract before the run starts.
 
 ### trigger.form { #trigger-form }
 

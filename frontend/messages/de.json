@@ -5150,6 +5150,10 @@
       "chat-coding-accounts": {
         "title": "Deine Coding-Konten",
         "body": "Verbinde Codex oder Claude Code, ohne den Chat zu verlassen. Dies sind deine privaten Cloud-Konten; lokale Desktop-Werkzeuge behalten ihre eigene Anmeldung."
+      },
+      "workflow-input-contract": {
+        "title": "Erwartete Eingabe festlegen",
+        "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema Draft 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7493,7 +7497,8 @@
       "replyMailboxUnavailable": "Ausgewähltes Postfach nicht verfügbar",
       "replyMailboxConnect": "Zuerst Gmail oder Outlook unter Integrationen verbinden.",
       "replySharedMailbox": "Freigegebenes Outlook-Postfach (optional)",
-      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert."
+      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.",
+      "startRunSchema": "Erwartetes Eingabeschema"
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -9237,7 +9242,13 @@
         "boolean": "Ja oder nein",
         "date": "Datum",
         "choice": "Auswahl"
-      }
+      },
+      "contractFormat": "Eingabevertrag",
+      "simpleFields": "Einfache Felder",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Wähle einfache Felder oder einen JSON-Schema-Vertrag. Ein Formatwechsel ersetzt den aktuellen Vertrag.",
+      "schemaHint": "Verwende JSON Schema Draft 2020-12 für verschachtelte Objekte, Arrays und Referenzen. Eingaben werden vor dem Start eines Runs geprüft.",
+      "schemaInvalid": "Gib ein JSON-Objekt ein. Diese Änderung wurde nicht gespeichert."
     },
     "pickerHostLabel": "Sandbox-Host",
     "pickerHostDefault": "Der Standard-Host der Organisation",
@@ -9431,7 +9442,7 @@
     "templateUnknown": "{placeholder} bezeichnet nichts, was dieser Schritt lesen kann.",
     "templatePreview": "Vorschau:",
     "templateSuggestions": "Werte aus vorherigen Schritten",
-    "triggerHintCall": "Der Schritt Run a workflow eines anderen Workflows startet diesen mit seiner Eingabe, geprüft gegen diese Felder. Die Schritte danach lesen sie als payload.",
+    "triggerHintCall": "Der Schritt Run a workflow eines anderen Workflows startet diesen mit seiner Eingabe, geprüft gegen diesen Eingabevertrag. Die Schritte danach lesen die Eingabe als payload.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Workflow wählen",
     "pickerWorkflowNone": "Noch kein Workflow ist mit dem Auslöser Called by a workflow veröffentlicht.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "f4560e57f1b5"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -54,7 +54,7 @@ hat, und nennt die Oberfläche in `triggered_by`.
 
 Seine **Eingabefelder** machen die Eingabe zu einem Vertrag. Ein Feld hat einen
 Namen, einen Typ - Text, Liste von Texten, Zahl, ganze Zahl, ja oder nein, Datum oder Auswahl - und ob
-es Pflicht ist. Ohne Felder nimmt ein Run jedes JSON-Objekt. Mit Feldern fragt
+es Pflicht ist. Ohne Felder und ohne Schema nimmt ein Run jedes JSON-Objekt. Mit Feldern fragt
 **Start a run** jedes beim Namen ab, ein Run, dessen Eingabe eines fehlt, eines vom
 falschen Typ oder ein nicht deklariertes sendet, wird vor dem Start mit
 `WORKFLOW_RUN_INPUT_INVALID` abgelehnt, und ein Binding an `payload.<feld>` wird beim
@@ -74,11 +74,83 @@ ist bei den Triggern Manual, Form und Called by a workflow verfügbar.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### Eingabeverträge mit JSON Schema { #json-schema-input-contracts }
+
+Setze für verschachtelte Eingaben `config.input_schema` des Triggers auf ein
+Dokument nach JSON Schema Draft 2020-12. **API request**, **Manual** und
+**Called by a workflow** akzeptieren diese Alternative zu einfachen `fields`.
+Verwende jeweils einen Vertrag: Ein Schema und eine nicht leere Liste `fields`
+können nicht kombiniert werden. Öffentliche **Form**-Trigger behalten ihren
+Vertrag mit einfachen Feldern.
+
+Der Vertrag unterstützt verschachtelte Objekte, Arrays aus Objekten, `enum`,
+`required`, Zeichenfolgenlängen (`minLength` und `maxLength`), Array-Längen
+(`minItems` und `maxItems`) und `additionalProperties`. Verwende Definitionen mit
+`$defs` und lokalen `$ref`-Referenzen erneut. Referenzen müssen innerhalb desselben
+Dokuments aufgelöst werden; externe Referenzen werden abgelehnt und nie abgerufen.
+Die Eingabe bleibt ein JSON-Objekt; ein benutzerdefiniertes Python-Modell oder ein
+bestimmtes Framework des Aufrufers ist nicht erforderlich.
+
+Diese Trigger-Konfiguration nimmt einen Kunden und mindestens eine
+Bestellposition an:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Das Veröffentlichen friert das Schema in der Workflow-Version ein. Die Eingabe
+wird vor dem Annehmen eines Runs gegen den Vertrag dieser Version geprüft, auch
+bei API-, WebSocket-, MCP- und untergeordneten Workflow-Aufrufen; Tests verwenden
+den Vertrag des Drafts. Ungültige Eingaben liefern `WORKFLOW_RUN_INPUT_INVALID`
+mit Feldpfaden und Meldungen. Das Schema konvertiert keine Werte und setzt keine
+Standardwerte ein. Ohne einfache Felder und ohne Schema, auch bei einem leeren
+Schema-Objekt, bleibt die bisherige untypisierte JSON-Objekteingabe erhalten.
+
+Aufrufer können den wirksamen Vertrag vor der Ausführung über die
+[Workflow-Eingabeschema-API](../api.md#running-a-workflow) oder die
+[MCP-Suche](../mcp.md#workflow-and-table-tools) prüfen. Auch bestehende Verträge mit
+einfachen Feldern werden als JSON Schema bereitgestellt.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Von einer Person gestartet - **Test draft** im Editor oder **Start a run** auf
 seiner Run-Seite. Er gibt dem Graphen dasselbe wie **API request** und nimmt
-dieselben Eingabefelder, nach denen der Editor vor dem Start fragt.
+dieselben Eingabefelder oder einen JSON-Schema-Vertrag. Der Editor fragt vor dem Start nach der Eingabe.
 
 ### trigger.chat { #trigger-chat }
 
@@ -125,9 +197,9 @@ sofern Spalten gewählt sind. Das Veröffentlichen braucht Lesezugriff auf die T
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Vom Schritt `workflow.run` eines anderen Workflows
-gestartet, mit den Feldern, die er deklariert - denselben wie bei **Manual** - und nie
-von Hand oder über die API. Die Eingabe des Aufrufers wird vor dem Start dagegen
-geprüft.
+gestartet, mit seinem deklarierten Eingabevertrag - einfachen Feldern oder JSON
+Schema wie bei **Manual** - und nie von Hand oder über die API. Die Eingabe des
+Aufrufers wird vor dem Start gegen diesen Vertrag geprüft.
 
 ### trigger.form { #trigger-form }
 

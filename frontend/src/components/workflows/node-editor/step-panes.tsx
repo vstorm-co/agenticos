@@ -30,7 +30,12 @@ import {
   knownOutputs,
 } from "@/lib/workflows/step-data";
 import { effectiveDefinition } from "@/lib/workflows/ports";
-import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
+import {
+  WEBHOOK_TRIGGER,
+  declaredFields,
+  declaredInputSchema,
+  sampleRunInput,
+} from "@/lib/workflows/triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -288,7 +293,8 @@ export function OutputPane({
   const begin = () => {
     const input = knownInput(graph, stepData);
     if (input !== null) test(input);
-    else if (declaredFields(graph).length > 0) setAsking(true);
+    else if (declaredFields(graph).length > 0 || declaredInputSchema(graph) !== null)
+      setAsking(true);
     else test(sampleRunInput(graph));
   };
   const ask = () => (definition.effect_kind === "write" ? setConfirming(true) : begin());
@@ -470,6 +476,7 @@ export function OutputPane({
           canTest
           busy={start.isPending}
           testFields={declaredFields(graph)}
+          testInputSchema={declaredInputSchema(graph)}
           onStart={({ input }) => test(input)}
         />
       )}

@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "aa298268b36a"
 ---
 
 # API HTTP { #the-http-api }
@@ -326,6 +326,22 @@ To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
 węzły działają w tle. `input` to to, co przekazuje dalej wyzwalacz [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). Tutaj uruchamia się tylko wersja, która startuje od tego wyzwalacza albo bez żadnego: każda inna odpowiada `409
 WORKFLOW_TRIGGER_MISMATCH`, bo uruchamia ją webhook, harmonogram, wiadomość na czacie albo rekord tabeli. `"mode": "test"` uruchamia zamiast tego bieżący draft, od dowolnego wyzwalacza, i
 wymaga `workflows:edit`.
+
+Przed wywołaniem odczytaj `GET /api/v1/workflows/{id}/input-schema` z
+`workflows:view`. Odpowiedź zawiera opublikowane `version_id` i listę `entries` z
+`entry_node_id`, `trigger` i efektywnym `input_schema` dla każdego wejścia Manual,
+API, Called by a workflow lub Form. Przekaż `version_id`, aby sprawdzić konkretną
+opublikowaną wersję. Kontrakty JSON Schema są zwracane bez zmian; proste pola są
+przedstawiane jako JSON Schema, a nietypowane wejścia zwracają `{"type": "object"}`.
+Użyj kontraktu wybranego wejścia i przekaż jego `entry_node_id` przy uruchamianiu.
+
+Opcjonalny [kontrakt wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+jest sprawdzany przed przyjęciem runu. Niezgodność zwraca
+`422 WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami w `error.details.problems`;
+run nie powstaje. Każdy problem ma `field`, `message` i `type`; zagnieżdżone
+ścieżki zawierają indeksy tablic, na przykład `items.0.sku`. Kontrakt pochodzi z
+bieżącej opublikowanej wersji albo ze szkicu dla `"mode": "test"`. Obowiązuje tak
+samo przez WebSocket i MCP oraz gdy wywołuje inny workflow.
 
 `deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy

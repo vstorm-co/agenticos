@@ -5272,6 +5272,10 @@
       "chat-coding-accounts": {
         "title": "Your coding accounts",
         "body": "Connect Codex or Claude Code without leaving the chat. These are your private cloud accounts; local desktop tools keep their own sign-in."
+      },
+      "workflow-input-contract": {
+        "title": "Define the expected input",
+        "body": "A Manual, API or Called by a workflow trigger can use simple fields or a JSON Schema Draft 2020-12 contract. The schema supports nested values and is checked before a run starts."
       }
     },
     "chooseLanguage": "Language",
@@ -5909,7 +5913,8 @@
       "replyMailboxUnavailable": "Selected mailbox unavailable",
       "replyMailboxConnect": "Connect Gmail or Outlook in Integrations first.",
       "replySharedMailbox": "Shared Outlook mailbox (optional)",
-      "startRunListHint": "One item per line. Blank lines are ignored."
+      "startRunListHint": "One item per line. Blank lines are ignored.",
+      "startRunSchema": "Expected input schema"
     },
     "retention": {
       "title": "Data retention",
@@ -9358,7 +9363,13 @@
         "boolean": "Yes or no",
         "date": "Date",
         "choice": "Choice"
-      }
+      },
+      "contractFormat": "Input contract",
+      "simpleFields": "Simple fields",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Choose simple fields or a JSON Schema contract. Changing the format replaces the current contract.",
+      "schemaHint": "Use JSON Schema Draft 2020-12 for nested objects, arrays and references. Inputs are checked before a run starts.",
+      "schemaInvalid": "Enter a JSON object. This edit was not saved."
     },
     "pickerHostLabel": "Sandbox host",
     "pickerHostDefault": "The organization's default host",
@@ -9552,7 +9563,7 @@
     "templateUnknown": "{placeholder} names nothing this step can read.",
     "templatePreview": "Preview:",
     "templateSuggestions": "Values from earlier steps",
-    "triggerHintCall": "Another workflow's Run a workflow step starts this one with its input, checked against these fields. The steps after it read them as payload.",
+    "triggerHintCall": "Another workflow's Run a workflow step starts this one with its input, checked against this input contract. The steps after it read the input as payload.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Choose a workflow",
     "pickerWorkflowNone": "No workflow is published starting from Called by a workflow yet.",
