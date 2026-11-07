@@ -1,5 +1,5 @@
 ---
-source_sha: "361689f179db"
+source_sha: "5f64be1dd9e7"
 ---
 
 # Konsola { #the-console }
@@ -208,6 +208,12 @@ twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno
 powiadomienie i jedna wiadomość prywatna od każdego jej bota w Slacku, Teams i
 Mattermost, który cię zna, wymieniają to, co nowe. Każde znalezisko trafia tylko
 do jednego briefingu.
+
+Przełącznik workspace'u znajduje się pod logo u góry paska bocznego i pokazuje
+nazwę oraz awatar aktywnej organizacji. Otwórz go, aby zmienić organizację,
+zarządzać organizacjami lub utworzyć nową. W zwiniętym pasku bocznym przełącznik
+ma postać awatara; menu telefonu udostępnia ten sam element. Ustawienia konta
+pozostają w menu konta na dole.
 
 Wyszukiwanie znajduje się nad pozycjami nawigacji, ze skrótem klawiaturowym
 widocznym na komputerze. Powiadomienia i menu konta pozostają pod przewijaną listą.

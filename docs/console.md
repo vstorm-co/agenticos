@@ -198,6 +198,12 @@ the hour your organization's proactivity keeps, one notification and one direct
 message from each of its Slack, Teams and Mattermost bots that knows you list
 what is new. Each finding is in one briefing only.
 
+The workspace switcher sits below the brand at the top of the sidebar and shows
+the active organization's name and avatar. Open it to switch organizations or
+reach the organization management and creation actions. The collapsed sidebar
+keeps the avatar as the switcher; the phone menu offers the same control. Account
+settings stay in the account menu at the bottom.
+
 Search stays above the sidebar's destinations, with its keyboard shortcut visible
 on a computer. Notifications and the account menu stay below the scrolling list.
 On touch devices, shared buttons, fields, tabs and menu choices have larger hit

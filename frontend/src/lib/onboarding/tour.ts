@@ -156,6 +156,14 @@ export interface TourStep {
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: "welcome", inTour: true },
 
+  // Sidebar controls belong to the dashboard's help tour. Optional because the
+  // phone drawer may be closed when the tour reaches this step.
+  {
+    id: "workspace-switcher",
+    page: ROUTES.DASHBOARD,
+    target: "workspace-switcher",
+    optional: true,
+  },
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
