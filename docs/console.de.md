@@ -1,5 +1,5 @@
 ---
-source_sha: "361689f179db"
+source_sha: "302bc847e98d"
 ---
 
 # Die Konsole { #the-console }
@@ -220,6 +220,13 @@ Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nenne
 eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
 und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
 Briefing.
+
+Der Organisationswechsler steht unter dem Logo oben in der Seitenleiste und zeigt
+den Namen und Avatar der aktiven Organisation. Öffnen Sie ihn, um die
+Organisation zu wechseln, Organisationen zu verwalten oder eine neue anzulegen.
+In der eingeklappten Seitenleiste bleibt der Avatar als Wechsler erhalten; das
+Menü auf dem Smartphone bietet dasselbe Bedienelement. Die Kontoeinstellungen
+bleiben im Kontomenü unten.
 
 Die Suche steht oberhalb der Navigationsziele; am Computer ist ihr Tastenkürzel
 sichtbar. Benachrichtigungen und Kontomenü bleiben unterhalb der scrollbaren Liste.

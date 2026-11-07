@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- The organization switcher now sits at the top of the sidebar, showing the active organization's name and avatar without opening the account menu. It remains available in the collapsed sidebar and phone menu, with organization management and creation in the same dropdown.
+
 ## [1.52.0] - 2026-11-06
 
 ### Fixed
