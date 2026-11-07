@@ -253,6 +253,13 @@ sequenceDiagram
 That is the whole inbound vocabulary, plus `context` (what the page says about the
 visitor) and `file_ids` (what they attached, on a page that takes files).
 
+Every `message` frame counts toward a per-connection limit, including empty or
+malformed messages. Valid messages also spend the existing visitor allowance;
+malformed input cannot exhaust a bucket shared with other anonymous visitors.
+A frame may name at most three file IDs; oversized lists are refused before
+parsing. Invalid IDs in a bounded list are dropped and recorded as one aggregate
+log entry without their values.
+
 **It deliberately does not include the three fields the dashboard's own frame
 carries:** the agent, the model profile and the environment.
 
