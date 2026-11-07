@@ -2219,8 +2219,9 @@ class TestTheThreadAModelIsGivenBack:
 
         assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
 
+    @pytest.mark.parametrize("loader_label", ["Capability", "Skill"])
     async def test_loaded_skills_survive_without_replaying_large_or_failed_tool_results(
-        self, monkeypatch, capability_loads_repo
+        self, monkeypatch, capability_loads_repo, loader_label
     ):
         from pydantic_ai.messages import CapabilityLoadDeltaPart
 
@@ -2234,13 +2235,17 @@ class TestTheThreadAModelIsGivenBack:
             MockToolCall(
                 args={"id": "interview"},
                 result=json.dumps(
-                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                    {
+                        "message": f"{loader_label} 'interview' loaded. Its instructions, if any, follow."
+                    }
                 ),
             ),
             MockToolCall(
                 args={"id": "interview"},
                 result=json.dumps(
-                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                    {
+                        "message": f"{loader_label} 'interview' loaded. Its instructions, if any, follow."
+                    }
                 ),
             ),
             MockToolCall(args={"id": "missing"}, result="No capability found"),

@@ -275,8 +275,9 @@ class ConversationService:
                 returned = json.loads(call.result)
             except ValueError, TypeError:
                 continue
-            if isinstance(returned, dict) and returned.get("message") == (
-                f"Capability {capability_id!r} loaded. Its instructions, if any, follow."
+            if isinstance(returned, dict) and returned.get("message") in (
+                f"Capability {capability_id!r} loaded. Its instructions, if any, follow.",
+                f"Skill {capability_id!r} loaded. Its instructions, if any, follow.",
             ):
                 loaded[capability_id] = None
         if loaded:

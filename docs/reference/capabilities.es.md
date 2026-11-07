@@ -1,5 +1,5 @@
 ---
-source_sha: "53e57d1f61b1"
+source_sha: "f64755f9783a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -282,18 +282,14 @@ skill cada vez — la alternativa sería un campo de instrucciones que crece has
 cada run paga por cada procedimiento. Consulta [Skills](../skills.md) para saber
 qué es un skill y cómo llega a una organización.
 
-**Cada skill vinculado es una capability propia.** Su nombre y su descripción están
-en el catálogo que el modelo lee en cada turno, y el modelo trae el cuerpo con
-`load_capability`, la herramienta del propio framework de agents: por eso no está
-en la lista de arriba y por eso un spec no puede concederla, ni controlarla, ni
-renombrarla. `read_skill_resource` es la única herramienta que aporta esta
-capability, y solo aparece cuando al menos un skill vinculado trae un archivo junto
-a sus instrucciones.
-
-La herramienta viene de `pydantic-ai-skills`, así que su nombre y su redacción los
-cambia otra persona. Un test de deriva compara lo que declara el registro con las
-herramientas que realmente se le ofrecen al modelo, y eso es lo que avisa el día
-que ocurra.
+**Cada skill vinculado sigue siendo una capability diferida nativa.** El modelo
+ve un catálogo de skills disponibles y abre el contenido con `read_skill`. El
+adaptador de la plataforma conserva el estado de carga nativo, las aprobaciones
+y la reproducción de conversaciones, incluidas las antiguas. Las políticas de
+aprobación mantienen la clave estable `load_capability`; los overrides habituales
+no renombran este cargador del framework. `read_skill_resource` lee archivos
+auxiliares y aparece solo si un skill vinculado incluye alguno. Un test de deriva
+compara la herramienta de archivos de la biblioteca con el registro.
 
 `run_skill_script` está apagada en lugar de expuesta: los archivos de un skill
 llegan a un run bajo `/workspace/skills/`, donde los ejecuta el propio `execute`
@@ -2842,7 +2838,7 @@ aplique el renombrado de la vinculación. Las exclusiones afectan a la visibilid
 las listas permitidas de conexión y vinculación siguen controlando el acceso.
 
 Las herramientas nativas del provider y los hooks de capabilities siguen activos.
-Los skills conservan su propio descubrimiento mediante `load_capability`. La voz
+Los skills conservan su propio descubrimiento mediante `read_skill`. La voz
 en tiempo real no usa el diferido de la búsqueda de herramientas. Si todas las
 herramientas siguen visibles, la búsqueda no tiene un catálogo diferido que descubrir.
 

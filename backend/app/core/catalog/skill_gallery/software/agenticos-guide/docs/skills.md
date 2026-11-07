@@ -11,9 +11,9 @@ twenty-first pushes the conversation out of the window. Skills invert that:
 
 ```mermaid
 flowchart LR
-    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
+    A["available skills<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_capability - the body"]
+    B -->|yes| C["read_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -95,17 +95,15 @@ name and description and opened on demand:
 
 | How | What it does |
 |---|---|
-| The capability catalog | Names and one-line descriptions of everything bound to this agent |
-| `load_capability` | The full body of one skill, pulled into the conversation |
+| Available skills | Names and one-line descriptions of everything bound to this agent |
+| `read_skill` | The full body of one skill, pulled into the conversation |
 | `read_skill_resource` | One file beside a skill |
 
-`load_capability` is the agent framework's own tool, not one this platform
-publishes, so it is not something a spec grants or renames — but it **can** be
-gated, because it is the call that opens a skill: `tool_approval` on it is how an
-agent asks a person before a skill reaches the model, and a spec that gated the
-old `load_skill` is migrated onto it rather than left ungated. What the capability
-contributes as a tool of its own is `read_skill_resource`, and only when at least
-one of the bound skills ships a file to read.
+`read_skill` presents the framework's native deferred loader in skill-specific
+terms. Approval policies retain the stable key `load_capability`, so existing
+published specs and pending approvals keep working. The old `load_skill` approval
+key still migrates to it. There is no separate listing tool. `read_skill_resource`
+reads supporting files only after the skill has been opened.
 
 A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else.

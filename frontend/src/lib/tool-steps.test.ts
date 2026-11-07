@@ -101,7 +101,8 @@ describe("the line for one tool call", () => {
     expect(toolStep("load_capability", { id: "refund_policy" }, true, t).label).toBe(
       "Refund Policy",
     );
-    expect(toolStep("load_capability", {}, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", {}, true, t).label).toBe("Read Skill");
+    expect(toolStep("read_skill", { id: "refund_policy" }, true, t).label).toBe("Refund Policy");
   });
 
   it("carries the query or the URL as the detail beside a finished call", () => {
@@ -251,7 +252,7 @@ describe("reading a call's arguments", () => {
   });
 
   it("names a skill only when the call said which", () => {
-    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Read Skill");
   });
 
   it("reads a path under any name a tool gives it, and a query when there is none", () => {

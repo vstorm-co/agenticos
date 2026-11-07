@@ -1513,7 +1513,7 @@ async def capability_loads_in_messages(
         select(ToolCall)
         .where(
             ToolCall.message_id.in_(message_ids),
-            ToolCall.tool_name == "load_capability",
+            ToolCall.tool_name.in_(("load_capability", "read_skill")),
             ToolCall.status == "completed",
             ToolCall.result.is_not(None),
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "53e57d1f61b1"
+source_sha: "f64755f9783a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -285,18 +285,14 @@ das so lange wächst, bis jeder Run für jede Prozedur bezahlt. Siehe
 [Skills](../skills.md) dafür, was ein Skill ist und wie einer in eine Organisation
 gelangt.
 
-**Jeder gebundene Skill ist eine eigene Capability.** Sein Name und seine
-Beschreibung stehen im Katalog, den das Modell in jeder Runde liest, und den
-Textkörper holt sich das Modell mit `load_capability` — dem Tool des
-Agent-Frameworks selbst, weshalb es nicht in der Liste oben steht und weshalb ein
-Spec es weder gewähren noch absichern noch umbenennen kann. `read_skill_resource`
-ist das einzige Tool, das diese Capability beisteuert, und es erscheint nur, wenn
-mindestens ein gebundener Skill eine Datei neben seinen Instruktionen mitbringt.
-
-Das Tool stammt aus `pydantic-ai-skills`, sein Name und seine Formulierungen liegen
-also in fremder Hand. Ein Drift-Test vergleicht, was die Registry deklariert, mit
-den Tools, die dem Modell tatsächlich angeboten werden — das ist es, was den Tag
-meldet, an dem das passiert.
+**Jeder gebundene Skill bleibt eine native verzögerte Capability.** Das Modell
+sieht einen Katalog verfügbarer Skills und öffnet den Inhalt mit `read_skill`.
+Der Plattformadapter erhält den nativen Ladezustand, Freigaben und die Wiedergabe
+von Unterhaltungen, auch älteren. Freigaberichtlinien behalten den stabilen
+Schlüssel `load_capability`; gewöhnliche Tool-Overrides benennen diesen
+Framework-Loader nicht um. `read_skill_resource` liest Begleitdateien und
+erscheint nur, wenn ein gebundener Skill eine mitbringt. Ein Drift-Test gleicht
+das Dateitool der Bibliothek mit der Registry ab.
 
 `run_skill_script` ist abgeschaltet statt freigegeben: Die Dateien eines Skills
 erreichen einen Run unter `/workspace/skills/`, wo das eigene `execute` der
@@ -2981,7 +2977,7 @@ Ausnahmen beeinflussen die Sichtbarkeit; die Allowlists von Connection und
 Binding kontrollieren weiterhin den Zugriff.
 
 Native Tools des Providers und Capability-Hooks bleiben aktiv. Skills behalten
-ihre eigene Entdeckung über `load_capability`. Echtzeit-Sprachgespräche nutzen
+ihre eigene Entdeckung über `read_skill`. Echtzeit-Sprachgespräche nutzen
 keine Zurückstellung durch Tool-Suche. Bleibt jedes Tool sichtbar, gibt es für
 die Suche keinen zurückgestellten Katalog zu entdecken.
 
