@@ -312,7 +312,26 @@ class TestTheChatsDoor:
             },
             conversation.id,
         )
-        assert [(m.role, m.content) for m in messages] == [("user", "Summarise the leads")]
+        assert sorted((m.role, m.content) for m in messages) == [
+            ("assistant", ""),
+            ("user", "Summarise the leads"),
+        ]
+        pending = next(message for message in messages if message.role == "assistant")
+        assert pending.parts is not None
+        assert pending.parts[0]["run_id"] == str(run_id)
+        assert pending.parts[0]["status"] == "running"
+
+        # The saved card lets a reloaded chat discover a still-running workflow.
+        # Terminal delivery updates that card instead of adding another reply.
+        await _cancel(factory, owner, org, run_id)
+        async with factory() as db:
+            ended = await db.get(Message, pending.id)
+            total = await db.execute(
+                select(Message).where(Message.conversation_id == conversation.id)
+            )
+            assert len(total.scalars().all()) == 2
+            assert ended is not None and ended.parts is not None
+            assert ended.parts[0]["status"] == "cancelled"
 
     async def test_a_workflow_that_does_not_start_from_a_chat_message_is_refused(self, factory):
         owner, org, workflow = await _tenant(factory)

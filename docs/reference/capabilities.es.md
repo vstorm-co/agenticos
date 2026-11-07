@@ -1,5 +1,5 @@
 ---
-source_sha: "0f5f9ee0e642"
+source_sha: "3d21c2ff7127"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3065,8 +3065,8 @@ persona no quiso responder, y sigue.
 
 La herramienta y su esquema vienen de `AskUser` de pydantic-ai-harness. Está activa
 por defecto en cada agent nuevo y en cada plantilla, y el autor puede desactivarla.
-Donde todavía nadie puede responder — una programación, un webhook, la API — el
-agent recibe que la persona no quiso responder.
+Un run independiente de agent sin canal de preguntas — desde una programación,
+un webhook o la API — recibe que la persona no quiso responder.
 
 En el chat de la consola, el run guarda sus preguntas y se pausa antes de mostrar
 la tarjeta — **Waiting for an answer** en el historial de runs. Cambiar de chat,
@@ -3079,6 +3079,8 @@ Solo la persona a quien se preguntó puede responder. Los clientes de la API
 pueden usar `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve
 a leer la tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+Dentro de un paso de agent de un workflow, la misma herramienta guarda la conversación y pausa el workflow con **Esperando al usuario**. Responde en la vista del run del workflow o en el chat de origen. La respuesta se guarda y el worker del workflow reanuda el mismo run del agent, conservando su presupuesto y los resultados anteriores de las herramientas. Los clientes de workflow leen `GET /workflow-runs/{run_id}/questions` y envían `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` con el objeto habitual `responses`. Cada entrada indica el `workflow_run_id` propietario; usa ese identificador al responder a una pregunta de un workflow llamado de forma síncrona.
 
 ## Borradores { #drafts }
 

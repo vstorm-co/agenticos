@@ -22,6 +22,7 @@ import {
   WORKFLOW_DETAIL,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
@@ -186,6 +187,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       [WORKSPACE_DETAIL]: { pending: false, href: null },
       [TABLE_DETAIL]: { pending: false, href: null },
       [WORKFLOW_DETAIL]: { pending: false, href: null },
+      [WORKFLOW_RUN_DETAIL]: { pending: false, href: null },
       [WORKFLOW_RUNS_DETAIL]: { pending: false, href: null },
       [WORKFLOW_LOGS_DETAIL]: { pending: false, href: null },
       [ARTIFACT_DETAIL]: { pending: false, href: null },

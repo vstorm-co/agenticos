@@ -44,7 +44,7 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import member_repo
 from app.schemas.workflow_run import WorkflowRunRead
 from app.services import rate_limit
-from app.services.workflow_execution import WorkflowExecutionService, events
+from app.services.workflow_execution import WorkflowExecutionService, delivery, events
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ class WorkflowRunSocket:
                 conversation_id=conversation.id,
                 actor_user_id=ctx.user_id,
             )
-            return await runs.start(
+            run = await runs.start(
                 ctx,
                 frame.workflow_id,
                 triggered_by=WorkflowRunTrigger.CHAT,
@@ -174,6 +174,13 @@ class WorkflowRunSocket:
                 },
                 reply_conversation_id=conversation.id,
             )
+            await delivery.deliver_started(
+                db,
+                run=run,
+                conversation_id=conversation.id,
+                organization_id=ctx.organization_id,
+            )
+            return run
 
     async def _follow(self, run_id: UUID, after: str | None) -> None:
         """Send the run, then every event after `after`, until the run has ended."""

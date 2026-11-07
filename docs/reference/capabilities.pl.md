@@ -1,5 +1,5 @@
 ---
-source_sha: "0f5f9ee0e642"
+source_sha: "3d21c2ff7127"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2988,8 +2988,8 @@ odmówiła, i działa dalej.
 
 Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
 domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
-wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
-dowiaduje się, że osoba odmówiła.
+wyłączyć. Samodzielny run agenta bez kanału pytań — z harmonogramu, webhooka
+lub API — otrzymuje informację, że osoba odmówiła.
 
 W czacie konsoli run zapisuje pytania i wstrzymuje się przed wyświetleniem karty
 — w historii runów jako **Oczekuje na odpowiedź**. Przełączenie czatu, odświeżenie
@@ -3002,6 +3002,8 @@ Odpowiedzieć może tylko osoba, której zadano pytanie. Klienci API mogą używ
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
+
+W kroku agenta workflow to samo narzędzie zapisuje rozmowę i wstrzymuje workflow ze stanem **Oczekiwanie na użytkownika**. Odpowiedz w widoku runa workflow lub czacie źródłowym. Odpowiedź zostaje zapisana, a worker workflow wznawia ten sam run agenta, zachowując jego budżet i wcześniejsze wyniki narzędzi. Klienci workflow odczytują `GET /workflow-runs/{run_id}/questions` i wysyłają `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` ze zwykłym obiektem `responses`. Każdy wpis wskazuje `workflow_run_id` właściciela; użyj tego identyfikatora, odpowiadając na pytanie z workflow wywołanego synchronicznie.
 
 ## Wersje robocze { #drafts }
 

@@ -40,7 +40,11 @@ if TYPE_CHECKING:
 
 
 async def _stop_agent_runs(
-    db: AsyncSession, *, organization_id: UUID, agent_run_ids: Sequence[UUID | None]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_run_ids: Sequence[UUID | None],
+    reason: str = "Stopped: its workflow run ended",
 ) -> list[ParkedStop]:
     """Stop the parked agent runs, row work only: the caller audits them last."""
     ids = [agent_run_id for agent_run_id in agent_run_ids if agent_run_id is not None]
@@ -50,7 +54,7 @@ async def _stop_agent_runs(
     from app.services.agent_runner import AgentRunnerService
 
     return await AgentRunnerService(db).stop_parked_for_workflow(
-        ids, organization_id=organization_id
+        ids, organization_id=organization_id, reason=reason
     )
 
 
@@ -139,7 +143,12 @@ async def stop_run_work(db: AsyncSession, *, run: WorkflowRun, now: datetime) ->
 
 
 async def withdraw_late_wait(
-    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, waiting_agent_run_id: UUID | None
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    waiting_agent_run_id: UUID | None,
+    reason: str = "Stopped: its workflow run ended",
 ) -> None:
     """Close the wait of a step that parked after it was stopped or its run had ended.
 
@@ -149,6 +158,6 @@ async def withdraw_late_wait(
     """
     await workflow_approval_repo.cancel_pending_for_node_runs(db, [node_run.id])
     stops = await _stop_agent_runs(
-        db, organization_id=run.organization_id, agent_run_ids=[waiting_agent_run_id]
+        db, organization_id=run.organization_id, agent_run_ids=[waiting_agent_run_id], reason=reason
     )
     await _audit_stops(db, stops)

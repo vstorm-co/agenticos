@@ -1,5 +1,5 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "e4e5ff113ea8"
 ---
 
 # Workflows { #workflows }
@@ -111,7 +111,9 @@ einen Workflow, was seinen Trigger ebenfalls pausiert. Ein archivierter lässt s
 wiederherstellen, weiterhin pausiert, oder mit Versionen, Läufen und Freigaben löschen;
 einer mit noch nicht beendeten Läufen wird mit `WORKFLOW_IN_USE` abgelehnt.
 
-Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheint nur das Workflow-Ergebnis. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
+Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheinen das Workflow-Ergebnis und Fragen des Agents. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
+
+Ein Agent-Schritt kann mit `ask_user_question` pausieren und **Wartet auf Benutzer** anzeigen. Beantworte die Frage im ursprünglichen Chat oder auf der Run-Seite. Deine Antwort schließt den offenen Tool-Aufruf ab, und der Workflow-Worker setzt dieselbe Unterhaltung des Agents fort. Der Agent kann weitere Fragen stellen, bevor er sein Ergebnis zurückgibt. Unabhängige Zweige können währenddessen weiterlaufen.
 
 Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im Hintergrund-Worker als auch im Webchat verwenden.
 

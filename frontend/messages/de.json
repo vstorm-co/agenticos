@@ -5150,6 +5150,10 @@
       "chat-coding-accounts": {
         "title": "Deine Coding-Konten",
         "body": "Verbinde Codex oder Claude Code, ohne den Chat zu verlassen. Dies sind deine privaten Cloud-Konten; lokale Desktop-Werkzeuge behalten ihre eigene Anmeldung."
+      },
+      "workflow-run-questions": {
+        "title": "Dem Agent antworten",
+        "body": "Ein Agent in diesem Workflow kann Rückfragen stellen. Antworte hier, um die gespeicherte Unterhaltung und den Workflow fortzusetzen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6946,7 +6950,8 @@
         "queued": "In der Warteschlange",
         "running": "Läuft",
         "waiting_approval": "Wartet auf Freigabe",
-        "waiting_retry": "Wird wiederholt"
+        "waiting_retry": "Wird wiederholt",
+        "waiting_for_user": "Wartet auf Antwort"
       },
       "nodeStatus": {
         "cancelled": "Abgebrochen",
@@ -7493,7 +7498,10 @@
       "replyMailboxUnavailable": "Ausgewähltes Postfach nicht verfügbar",
       "replyMailboxConnect": "Zuerst Gmail oder Outlook unter Integrationen verbinden.",
       "replySharedMailbox": "Freigegebenes Outlook-Postfach (optional)",
-      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert."
+      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.",
+      "runQuestionsTitle": "Dein Agent braucht eine Antwort, um fortzufahren",
+      "runQuestionsFailed": "Die Fragen konnten nicht geladen werden.",
+      "runQuestionsRetry": "Erneut versuchen"
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",

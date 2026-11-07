@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "0880de91f848"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -691,6 +691,10 @@ guardrails y el historial de runs del agent. El run se registra con la superfici
 Una llamada a una herramienta que requiere aprobación detiene el paso, y la
 decisión reanuda el mismo run del agent.
 
+La herramienta existente `ask_user_question` también pausa este paso. El workflow muestra `waiting_for_user`; la tarjeta de la pregunta está disponible en el chat de origen y la vista del run. Solo la persona a quien se preguntó puede responder. Las respuestas se guardan antes de poner en cola la continuación del workflow, que reanuda la llamada pendiente con el presupuesto actual del workflow. Recargar la página conserva la pregunta. Cancelar el workflow cierra sus runs de agentes en espera; las preguntas sin respuesta caducan tras `QUESTION_EXPIRY_HOURS` (24 por defecto).
+
+Esto se aplica al agent del propio paso cuando una persona con sesión iniciada está detrás del run. Los runs de origen público no tienen una persona a quien preguntar. Los delegados siguen necesitando una superficie de preguntas activa. Si el modelo agrupa una pregunta con una llamada que requiere aprobación, la aprobación tiene prioridad y la pregunta se trata como rechazada al reanudar.
+
 `inline` configura el agent en el paso en lugar de `agent`, y solo uno de los dos
 está fijado. La spec es del paso y se versiona con el grafo: el primer run crea un
 agent propiedad del workflow, fuera del catálogo y alcanzable mediante el acceso al
@@ -711,6 +715,7 @@ respuesta sin objeto donde se pidió uno, con `STRUCTURED_OUTPUT_MISMATCH`.
 |---|---|
 | Completed | Completed |
 | Esperando aprobación | Espera y luego reanuda el mismo run |
+| Esperando respuesta | Espera a la persona y reanuda la misma conversación |
 | Presupuesto superado | `AGENT_BUDGET_EXCEEDED` |
 | Bloqueado por un guardrail | `AGENT_GUARDRAIL_BLOCKED` |
 | En otro caso | `AGENT_RUN_FAILED` |

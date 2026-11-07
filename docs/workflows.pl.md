@@ -1,5 +1,5 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "e4e5ff113ea8"
 ---
 
 # Workflows { #workflows }
@@ -106,7 +106,9 @@ przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
 udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
 `WORKFLOW_IN_USE`.
 
-Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje tylko wynik workflow. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje wynik workflow oraz pytania agenta. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+
+Krok agenta może wywołać `ask_user_question`, aby wstrzymać się ze stanem **Oczekiwanie na użytkownika**. Odpowiedz na karcie pytania w czacie źródłowym lub na stronie runa. Odpowiedź kończy oczekujące wywołanie narzędzia, a worker workflow wznawia tę samą rozmowę agenta. Agent może zadać kolejne pytanie, zanim zwróci końcowy wynik. Niezależne gałęzie mogą działać dalej, gdy ten krok czeka.
 
 Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 

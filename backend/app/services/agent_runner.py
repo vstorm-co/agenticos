@@ -63,7 +63,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.agent import AgentRealtime
 from pydantic_ai.exceptions import ModelAPIError
@@ -232,6 +232,7 @@ from app.agents.subagent_runtime import (
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.audit import current_impersonator, record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -865,6 +866,11 @@ class PausedRunState(BaseModel):
             "(#2064). Answered from the person's reply on resume - or as declined, "
             "where the run parked on an approval in the same step"
         ),
+    )
+    question_results: dict[str, dict[str, list[str]] | str] = Field(
+        default_factory=dict,
+        exclude_if=lambda results: not results,
+        description="Accepted question tool results, saved before a workflow continuation is queued",
     )
     delegated_approvals: dict[str, str] = Field(
         default_factory=dict,
@@ -6509,7 +6515,8 @@ class AgentRunnerService:
 
         `answers` is what a run parked on `ask_user` questions continues with: each
         parked question's tool result, keyed by its call (#2064). A run waiting on
-        an answer is refused without one for every question; a run that parked on
+        an answer is refused without one for every question. A workflow's stored
+        results are used when `answers` is omitted. A run that parked on
         an approval in the same step answers its questions as declined.
 
         Runs the *version the run was parked on*, not whatever is published now:
@@ -6597,7 +6604,16 @@ class AgentRunnerService:
         if run_limit_usd is not None:
             ceiling = run_limit_usd if ceiling is None else min(ceiling, run_limit_usd)
 
-        given = answers or {}
+        if (
+            state.question_results
+            and answers is not None
+            and dict(answers) != state.question_results
+        ):
+            raise BadRequestError(
+                message="These questions already have accepted answers",
+                details={"run_id": run_id},
+            )
+        given = state.question_results if answers is None else answers
         if run.status == RunStatus.AWAITING_ANSWER.value and any(
             question not in given for question in state.questions
         ):
@@ -6882,6 +6898,15 @@ class AgentRunnerService:
         if destination is not None:
             await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="stopped")
         result = await self._stop_parked(run, actor_user_id=ctx.subject_id)
+        if run.surface == RunSurface.WORKFLOW.value:
+            # Wake in a fresh transaction: workflow locks must precede agent locks.
+            from app.services.workflow_execution.approval_wake import wake_after_approval_decision
+
+            spawn_after_commit(
+                self.db,
+                wake_after_approval_decision(run.id, organization_id=run.organization_id),
+                name="workflow-agent-stop-wake",
+            )
         if destination is not None and not told:
             await queue_notices(
                 self.db, [ChatNotice(run.organization_id, run.id, destination, STOPPED_NOTICE)]
@@ -7073,9 +7098,57 @@ class AgentRunnerService:
             AuthorizationError: If the caller is not the person it asked, or is
                 their organization key without `agents:run`.
             BadRequestError: If the run is not waiting for an answer, or an
-                answer names a question it did not ask.
+                answer names a question it did not ask. Workflow-owned runs must
+                accept answers through their workflow rather than execute inline.
         """
         run = await self.get_run(ctx, run_id)
+        if run.surface == RunSurface.WORKFLOW.value:
+            raise BadRequestError(
+                message="Answer this run through its workflow",
+                details={"run_id": run_id},
+            )
+        results = self._question_results(ctx, run, responses)
+        return await self.resume(
+            ctx, run_id, answers=results, on_segment=on_segment, live_surface=live_surface
+        )
+
+    async def accept_answers(
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        responses: Mapping[str, list[dict[str, JsonValue]]],
+    ) -> AgentRun:
+        """Save answers without running a model; the owning workflow queues its continuation.
+
+        The workflow takes its own locks first, then this method claims the agent
+        row. An identical retry is idempotent while the continuation is queued;
+        accepted answers cannot be replaced, and stale question ids are refused.
+        """
+        run = await agent_run_repo.claim_parked_run(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": run_id})
+        results = self._question_results(ctx, run, responses)
+        state = PausedRunState.model_validate(run.paused_state)
+        if state.question_results:
+            if state.question_results != results:
+                raise BadRequestError(
+                    message="These questions already have accepted answers",
+                    details={"run_id": run_id},
+                )
+            return run
+        state.question_results = results
+        return await agent_run_repo.keep_paused_state(
+            self.db, run=run, paused_state=state.model_dump(mode="json")
+        )
+
+    @staticmethod
+    def _question_results(
+        ctx: AuthContext, run: AgentRun, responses: Mapping[str, Sequence[object]]
+    ) -> dict[str, dict[str, list[str]] | str]:
+        """Validate the answerer's authority and normalize the current question results."""
+        run_id = run.id
         if run.status != RunStatus.AWAITING_ANSWER.value or run.paused_state is None:
             raise BadRequestError(
                 message="This run is not waiting for an answer",
@@ -7104,18 +7177,15 @@ class AgentRunnerService:
             tool_call_id: question_request(call)
             for tool_call_id, call in _question_calls(state).items()
         }
-        results: dict[str, object] = {
+        return {
             tool_call_id: ask_user_result(
                 asked[tool_call_id],
-                answers_to_response(asked[tool_call_id], responses[tool_call_id]),
+                answers_to_response(asked[tool_call_id], list(responses[tool_call_id])),
             )
             if tool_call_id in responses
             else DECLINED
             for tool_call_id in state.questions
         }
-        return await self.resume(
-            ctx, run_id, answers=results, on_segment=on_segment, live_surface=live_surface
-        )
 
     async def parked_questions(self, ctx: AuthContext, run: AgentRun) -> list[ParkedQuestion]:
         """The questions this run is waiting on the caller to answer, right now.
@@ -7131,6 +7201,8 @@ class AgentRunnerService:
         ):
             return []
         state = PausedRunState.model_validate(run.paused_state)
+        if state.question_results:
+            return []
         return [
             ParkedQuestion(
                 tool_call_id=tool_call_id,

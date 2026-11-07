@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "0880de91f848"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -711,6 +711,10 @@ Guardrails und Run-Historie des Agents. Der Run wird mit der Oberfläche
 den Prompt angehängt. Ein freigabepflichtiger Tool-Aufruf hält den Schritt an,
 und die Entscheidung setzt denselben Agent-Run fort.
 
+Auch das vorhandene Tool `ask_user_question` hält diesen Schritt an. Der Workflow zeigt `waiting_for_user`; die Fragekarte erscheint im ursprünglichen Chat und in der Run-Ansicht. Nur die gefragte Person kann antworten. Antworten werden gespeichert, bevor die Workflow-Fortsetzung eingereiht wird; diese setzt den offenen Tool-Aufruf unter dem aktuellen Workflow-Budget fort. Neuladen verwirft die Frage nicht. Ein Abbruch des Workflows beendet seine wartenden Agent-Runs; unbeantwortete Fragen verfallen nach `QUESTION_EXPIRY_HOURS` (standardmäßig 24).
+
+Dies gilt für den eigenen Agent des Schritts, wenn eine angemeldete Person hinter dem Run steht. Runs mit öffentlichem Ursprung haben keine Person für Rückfragen. Delegierte Agents benötigen weiterhin eine aktive Frageoberfläche. Bündelt das Modell eine Frage mit einem freigabepflichtigen Aufruf, hat die Freigabe Vorrang; beim Fortsetzen gilt die Frage als abgelehnt.
+
 `inline` konfiguriert den Agent im Schritt statt `agent`, und genau eines von beiden
 ist gesetzt. Die Spec gehört dem Schritt und wird mit dem Graphen versioniert: Der
 erste Run legt einen Agent an, der dem Workflow gehört, nicht im Katalog erscheint
@@ -733,6 +737,7 @@ fehlschlagen, und eine Antwort ohne Objekt, wo eines verlangt war, mit
 |---|---|
 | Completed | Completed |
 | Wartet auf Freigabe | Wartet, setzt dann denselben Run fort |
+| Wartet auf Antwort | Wartet auf die Person und setzt dieselbe Unterhaltung fort |
 | Budget überschritten | `AGENT_BUDGET_EXCEEDED` |
 | Von einem Guardrail blockiert | `AGENT_GUARDRAIL_BLOCKED` |
 | Sonst | `AGENT_RUN_FAILED` |

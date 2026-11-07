@@ -21,6 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
@@ -139,6 +140,90 @@ def _no_dispatch_trigger():
         "app.services.workflow_execution.facade.dispatch_queue.queue_dispatch", new=AsyncMock()
     ):
         yield
+
+
+class TestQuestionRoutes:
+    async def test_questions_identify_the_saved_step_and_tool_call(self, owner_client: OpenClient):
+        run_id, step_id, agent_run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        questions = [
+            {
+                "workflow_run_id": run_id,
+                "node_run_id": step_id,
+                "agent_run_id": agent_run_id,
+                "questions": [
+                    {"tool_call_id": "question-1", "questions": [{"question": "Which region?"}]}
+                ],
+            }
+        ]
+        with patch.object(
+            WorkflowExecutionService, "questions", AsyncMock(return_value=questions)
+        ) as read:
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run_id}/questions"))
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["workflow_run_id"] == str(run_id)
+        assert row["node_run_id"] == str(step_id)
+        assert row["agent_run_id"] == str(agent_run_id)
+        assert row["questions"][0]["tool_call_id"] == "question-1"
+        assert read.await_args is not None and read.await_args.args[1] == run_id
+
+    async def test_answer_queues_the_identified_step(self, owner_client: OpenClient):
+        run = _run_row()
+        step_id = uuid.uuid4()
+        responses = {"question-1": [{"answer": "Europe"}]}
+        with patch.object(
+            WorkflowExecutionService, "answer_questions", AsyncMock(return_value=_read(run))
+        ) as answer:
+            async with owner_client() as http:
+                response = await http.post(
+                    _url(f"/{run.id}/nodes/{step_id}/answers"), json={"responses": responses}
+                )
+        assert response.status_code == 200
+        assert response.json()["id"] == str(run.id)
+        assert answer.await_args is not None
+        assert answer.await_args.args[1:] == (run.id, step_id, responses)
+
+    @pytest.mark.parametrize("operation", ["read", "answer"])
+    async def test_foreign_runs_are_absent(self, owner_client: OpenClient, operation: str):
+        run_id, step_id = uuid.uuid4(), uuid.uuid4()
+        method = "questions" if operation == "read" else "answer_questions"
+        with patch.object(
+            WorkflowExecutionService,
+            method,
+            AsyncMock(side_effect=NotFoundError(message="Workflow run not found")),
+        ):
+            async with owner_client() as http:
+                response = (
+                    await http.get(_url(f"/{run_id}/questions"))
+                    if operation == "read"
+                    else await http.post(
+                        _url(f"/{run_id}/nodes/{step_id}/answers"),
+                        json={"responses": {"question-1": [{"answer": "Europe"}]}},
+                    )
+                )
+        assert response.status_code == 404
+
+    async def test_stale_answers_return_the_service_refusal(self, owner_client: OpenClient):
+        with patch.object(
+            WorkflowExecutionService,
+            "answer_questions",
+            AsyncMock(side_effect=BadRequestError(message="This run is not waiting for an answer")),
+        ):
+            async with owner_client() as http:
+                response = await http.post(
+                    _url(f"/{uuid.uuid4()}/nodes/{uuid.uuid4()}/answers"),
+                    json={"responses": {"old-question": [{"answer": "Europe"}]}},
+                )
+        assert response.status_code == 400
+        assert response.json()["error"]["message"] == "This run is not waiting for an answer"
+
+    async def test_an_empty_answer_batch_is_rejected(self, owner_client: OpenClient):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/nodes/{uuid.uuid4()}/answers"), json={"responses": {}}
+            )
+        assert response.status_code == 422
 
 
 class TestReplyExpectationRoute:

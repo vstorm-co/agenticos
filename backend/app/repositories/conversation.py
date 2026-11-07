@@ -4,7 +4,7 @@ from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from sqlalchemy import (
     ColumnElement,
@@ -1702,6 +1702,45 @@ async def create_message(
         .values(updated_at=message.created_at)
     )
 
+    return message
+
+
+async def save_workflow_message(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    workflow_run_id: UUID,
+    content: str,
+    parts: list[dict[str, object]],
+) -> Message:
+    """Keep the pending workflow card and its final answer in the same chat message.
+
+    A stable identity lets a reloaded chat discover a waiting workflow and keeps
+    terminal delivery from adding a second copy of the card.
+    """
+    statement = (
+        pg_insert(Message)
+        .values(
+            id=uuid5(workflow_run_id, "workflow-chat-message"),
+            conversation_id=conversation_id,
+            role="assistant",
+            content=content,
+            parts=parts,
+        )
+        .on_conflict_do_update(
+            index_elements=[Message.id],
+            set_={"content": content, "parts": parts},
+        )
+        .returning(Message)
+    )
+    message = (await db.execute(statement)).scalar_one()
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(updated_at=datetime.now(UTC))
+    )
+    await db.flush()
+    await db.refresh(message)
     return message
 
 

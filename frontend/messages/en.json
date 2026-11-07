@@ -5272,6 +5272,10 @@
       "chat-coding-accounts": {
         "title": "Your coding accounts",
         "body": "Connect Codex or Claude Code without leaving the chat. These are your private cloud accounts; local desktop tools keep their own sign-in."
+      },
+      "workflow-run-questions": {
+        "title": "Answer the agent",
+        "body": "An agent in this workflow can ask for clarification. Answer here to continue its saved conversation and let the workflow proceed."
       }
     },
     "chooseLanguage": "Language",
@@ -5389,7 +5393,8 @@
         "budget_exceeded": "Budget spent",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "succeeded": "Succeeded"
+        "succeeded": "Succeeded",
+        "waiting_for_user": "Waiting for user"
       },
       "nodeStatus": {
         "pending": "Pending",
@@ -5909,7 +5914,10 @@
       "replyMailboxUnavailable": "Selected mailbox unavailable",
       "replyMailboxConnect": "Connect Gmail or Outlook in Integrations first.",
       "replySharedMailbox": "Shared Outlook mailbox (optional)",
-      "startRunListHint": "One item per line. Blank lines are ignored."
+      "startRunListHint": "One item per line. Blank lines are ignored.",
+      "runQuestionsTitle": "Your agent needs an answer to continue",
+      "runQuestionsFailed": "The questions could not be loaded.",
+      "runQuestionsRetry": "Try again"
     },
     "retention": {
       "title": "Data retention",
