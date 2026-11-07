@@ -136,7 +136,7 @@ async def test_only_console_owner_can_review(db: AsyncSession, identity: str):
     if identity == "other":
         ctx = replace(ctx, user_id=uuid4())
     elif identity == "api":
-        ctx = replace(ctx, api_key_id=uuid4())
+        ctx = replace(ctx, api_key_id=uuid4(), key_internal=True)
     elif identity == "routine":
         ctx = replace(ctx, routine_id=trigger.id)
     else:

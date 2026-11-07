@@ -1520,8 +1520,9 @@
     "approvalRememberFailed": "Nie udało się usunąć zgody. Spróbuj ponownie.",
     "approvalRememberRetry": "Spróbuj ponownie",
     "localAccess": {
+      "continue": "Dostęp udzielony - kontynuuj.",
       "title": "Gdzie {agent} może pracować?",
-      "description": "{agent} pracuje na Twoim komputerze. Pytamy raz dla tego agenta; zmienisz lub cofniesz to później w Chat controls → Work on.",
+      "description": "{agent} potrzebuje plików z Twojego komputera do tej prośby. Wybór zapamiętamy dla tego agenta; zmienisz lub cofniesz to później w Chat controls → Work on.",
       "computer": "Cały komputer",
       "computerHint": "Może czytać i zmieniać pliki wszędzie, gdzie ma dostęp Twoje konto, i uruchamiać polecenia jako Ty. Komputer poprosi o potwierdzenie.",
       "folder": "Wybierz folder",
@@ -7052,6 +7053,7 @@
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
     "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
+    "finishConsentInBrowser": "Dokończ logowanie w przeglądarce i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
     "consentTabBlocked": "Przeglądarka zablokowała kartę logowania. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
     "fromRegistry": "Rejestr",
     "fromRegistryHint": "Z publicznego rejestru MCP. Nikt tutaj go nie sprawdzał: opis pochodzi od wydawcy i nie ma wskazówek, jakiego poświadczenia wymaga.",
@@ -7721,13 +7723,15 @@
     "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
     "templatesFewer": "Pokaż mniej",
     "local": {
+      "useAllowed": "Użyj dozwolonego folderu",
+      "allRoutines": "Wszystkie moje routines",
       "label": "Pracuj na",
       "hint": "Każde uruchomienie pracuje w folderze na twoim komputerze przez aplikację desktopową albo w piaskownicy agenta. Gdy aplikacja jest zamknięta, uruchomienie na nią czeka.",
       "elsewhereHint": "Każde uruchomienie pracuje w tym folderze na twoim komputerze. Zmienisz go w aplikacji desktopowej na tym komputerze.",
       "sandbox": "Piaskownica agenta",
       "pick": "Wybierz folder…",
       "useSandbox": "Użyj piaskownicy",
-      "routineHint": "Wybierz folder i operacje. Zapis poprosi ten komputer o zgodę wyłącznie dla tej rutyny.",
+      "routineHint": "Wybierz folder i operacje. Za pierwszym razem ten komputer zapyta raz o zgodę dla wszystkich twoich rutyn w tym folderze; kolejne rutyny w nim nie wymagają już zgody.",
       "read": "Odczyt",
       "write": "Zapis",
       "execute": "Uruchamianie poleceń",
@@ -11617,7 +11621,8 @@
     "revoked": "Klucz unieważniony",
     "couldNotLoad": "Nie udało się wczytać kluczy API",
     "emptyTitle": "Nie masz jeszcze kluczy API",
-    "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code."
+    "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code.",
+    "personalConsentWhy": "Osobista zgoda nie należy do gotowych zestawów. Aby ten klucz lub aplikacja mogły zatwierdzać rutyny i obserwacje korzystające z Twoich osobistych połączeń i danych, wybierz personal:consent w zestawie Własny."
   },
   "mcpOauth": {
     "title": "{client} chce działać w twoim imieniu",

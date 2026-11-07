@@ -41,6 +41,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
+from app.agents.computer_on_use import ComputerAccessCallback
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.ephemeral_media import dump_messages
@@ -439,6 +440,7 @@ class ChatAgentRunner:
         on_sandbox_wait: SandboxWaitSink | None = None,
         on_personal_gaps: PersonalGapSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        request_computer_access: ComputerAccessCallback | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
@@ -498,6 +500,9 @@ class ChatAgentRunner:
                 own services while the run waits. Given, a personal service they
                 have not connected is asked for when the agent reaches for it,
                 and `on_personal_gaps` hears only the gaps nobody here can fix.
+            request_computer_access: How to ask the person where the agent may
+                work on their computer, for an agent whose workspace is that
+                computer and that has none chosen yet.
             steering: Where what the person sends mid-run lands, read by the
                 model at its next request (#2087).
             visual_reports: Where the console reports how each drawing rendered,
@@ -543,6 +548,7 @@ class ChatAgentRunner:
             # the person's desktop app, in the folder they picked there.
             local=local,
             request_connection=request_connection,
+            request_computer_access=request_computer_access,
             # A sandbox whose image is still being built is minutes in which no
             # token and no tool step arrives. Passed in rather than set on the
             # prepared run: preparing already opens the session.

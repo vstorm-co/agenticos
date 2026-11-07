@@ -64,7 +64,7 @@ use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use agenticos_shell_core::{
-    external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
+    browser_consent_url, external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
 };
 use base64::Engine;
 
@@ -645,6 +645,15 @@ async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<St
 fn open_docker_download(app: AppHandle) -> Result<(), String> {
     app.opener()
         .open_url(local_stack::docker_download(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// An MCP provider's consent, in the person's own browser rather than this window.
+#[tauri::command]
+fn open_consent(app: AppHandle, url: String) -> Result<(), String> {
+    let url = browser_consent_url(&url)?;
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
         .map_err(|e| e.to_string())
 }
 
@@ -1481,6 +1490,7 @@ pub fn run() {
             use_local,
             resume_local,
             open_docker_download,
+            open_consent,
             docker_install::download_docker,
             docker_install::open_docker,
             finish_onboarding,

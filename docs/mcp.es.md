@@ -1,5 +1,5 @@
 ---
-source_sha: "9e34dfda44ef"
+source_sha: "2e39e79df097"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1213,6 +1213,10 @@ clave, así que se rechaza, se limita y se audita exactamente igual que la misma
 petición por HTTP; un rechazo vuelve como error de la herramienta nombrando el
 permiso que faltaba.
 
+Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
+
+Las comprobaciones de conexión actualizan las herramientas descubiertas y el estado. Por eso `test_my_connection` espera aprobación tanto con `writes` como con `all`.
+
 | Herramienta | Necesita |
 |---|---|
 | `whoami` | — |
@@ -1226,7 +1230,9 @@ permiso que faltaba.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1241,9 +1247,9 @@ permiso que faltaba.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama; una clave necesita `agents:run` para `test_my_connection`) |
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
-| `create_watch`, `update_watch` | consentimiento humano privado; `agents:run` al elegir agente |
+| `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres.
 `get_project` lee las instrucciones y la configuración de un proyecto elegido.

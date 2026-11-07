@@ -1,5 +1,5 @@
 ---
-source_sha: "bfd7342ba921"
+source_sha: "0a37f530c461"
 ---
 
 # Permisos { #permissions }
@@ -100,7 +100,9 @@ Dos clases de permiso, y se comportan de forma distinta.
 Los permisos **globales** son binarios y valen para toda la organización:
 `members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+
+Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
 
 `api_keys:create` permite a un miembro emitir [claves de
 API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y

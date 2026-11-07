@@ -1,5 +1,5 @@
 ---
-source_sha: "9e34dfda44ef"
+source_sha: "2e39e79df097"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1178,6 +1178,10 @@ Każde narzędzie to wywołanie [publicznego API](api.md) tym kluczem, więc jes
 odrzucane, limitowane i audytowane dokładnie tak jak to samo żądanie po HTTP;
 odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
+
+Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_my_connection` czeka na zatwierdzenie zarówno przy `writes`, jak i `all`.
+
 | Narzędzie | Wymaga |
 |---|---|
 | `whoami` | — |
@@ -1191,7 +1195,9 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` na agencie |
 | `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1206,9 +1212,9 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego; klucz wymaga `agents:run` dla `test_my_connection`) |
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
-| `create_watch`, `update_watch` | zgoda człowieka w prywatnej rozmowie; `agents:run` przy wyborze agenta |
+| `create_watch`, `update_watch` | sama osoba - zalogowana, przez wydany przez nią klucz lub token MCP albo w jej prywatnym czacie; `agents:run` przy wyborze agenta |
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów.
 Instrukcje i konfigurację wybranego projektu odczytuje `get_project`.

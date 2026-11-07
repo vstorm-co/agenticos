@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
+import { coveredByAllRoutines } from "@/lib/desktop/routine-work";
 import { useOrgStore } from "@/stores/org-store";
 import { ShellError } from "@/lib/desktop/shell";
 import { useTranslations } from "next-intl";
@@ -532,7 +533,7 @@ export function TriggerFormDialog({
     };
   }
 
-  async function approveTarget(routineId: string): Promise<LocalTarget | null> {
+  async function approveTarget(): Promise<LocalTarget | null> {
     if (!localTarget) return null;
     const { org, user, identity, available } = localWork;
     if (
@@ -546,18 +547,27 @@ export function TriggerFormDialog({
       // i18n-exempt: diagnostic only; submit renders local.permissionFailed from the catalog.
       throw new ShellError("refused", "Review the folder on its paired computer");
     }
+    const operations = {
+      read: true as const,
+      write: localTarget.operations.write,
+      execute: localTarget.operations.execute,
+    };
+    // Said once for every routine: a folder inside it needs no dialog.
+    const covered = coveredByAllRoutines(
+      localWork.grants.data ?? [],
+      identity.device_id,
+      localTarget.folder,
+      operations,
+    );
+    if (covered) return covered;
     return localWork.allow.mutateAsync({
       organization_id: org,
       user_id: user,
       device_id: identity.device_id,
-      routine_id: routineId,
-      name: name.trim() || prompt.slice(0, 120),
+      routine_id: null,
+      name: t("local.allRoutines"),
       root: localTarget.folder,
-      operations: {
-        read: true,
-        write: localTarget.operations.write,
-        execute: localTarget.operations.execute,
-      },
+      operations,
     });
   }
 
@@ -605,9 +615,7 @@ export function TriggerFormDialog({
         // Turning acting-as-me off clears the folder on the server; say nothing then.
         const before = trigger.local_target ?? null;
         if (runsAsCreator && JSON.stringify(localTarget) !== JSON.stringify(before)) {
-          const approved = localTarget
-            ? (approvedLocal ?? (await approveTarget(trigger.id)))
-            : null;
+          const approved = localTarget ? (approvedLocal ?? (await approveTarget())) : null;
           if (!stillHere()) return;
           if (localTarget && !approved) return;
           setApprovedLocal(approved);
@@ -671,7 +679,7 @@ export function TriggerFormDialog({
           preparedOwner.current = { org, user, agent: effectiveAgentId };
           setPreparedLocal(result);
           if (!stillHere()) return;
-          const approved = approvedLocal ?? (await approveTarget(result.id));
+          const approved = approvedLocal ?? (await approveTarget());
           if (!stillHere()) return;
           if (!approved) {
             toast.info(t("local.savedPaused"));

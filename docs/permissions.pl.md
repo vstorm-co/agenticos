@@ -1,5 +1,5 @@
 ---
-source_sha: "bfd7342ba921"
+source_sha: "0a37f530c461"
 ---
 
 # Uprawnienia { #permissions }
@@ -97,7 +97,9 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
 `api_keys:create` pozwala członkowi wydawać [klucze
 API](api.md#organization-api-keys) dla siebie; `api_keys:manage` pokazuje i

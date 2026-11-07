@@ -1138,6 +1138,10 @@ permissions. Each tool is a call to the [public API](api.md) made with that key,
 so it is refused, rate limited and audited exactly as the same request over HTTP
 would be; an expected refusal returns an explicit error envelope naming the missing permission.
 
+Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
+
+Connection checks update discovered tools and status. `test_my_connection` therefore waits for approval under both `writes` and `all`.
+
 | Tool | Needs |
 |---|---|
 | `whoami` | — |
@@ -1151,7 +1155,9 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` on the agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1166,9 +1172,9 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (the caller's own; a key needs `agents:run` for `test_my_connection`) |
 | `list_watches`, `delete_watch` | the caller’s own watches |
-| `create_watch`, `update_watch` | private-human consent; `agents:run` when selecting an agent |
+| `create_watch`, `update_watch` | the person themselves - signed in, through a key or MCP token they issued, or in their private chat; `agents:run` when selecting an agent |
 
 Project discovery with `list_projects` returns only project ids and names.
 Read a selected project's instructions and configuration with `get_project`.
