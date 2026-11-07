@@ -775,3 +775,6 @@ Two ways through it:
 - A sender filter fires only on mail the sender's domain signed.
 - A schedule's time of day is read in its time zone, yours by default.
 - On a laptop, reach for **Run now** before you reach for a tunnel.
+
+
+Built-in Google, Microsoft, Slack and IMAP connections also work here. See [built-in integrations](integrations.md) for setup, account selection, capabilities, workflow operations, knowledge sync and durable change feeds.

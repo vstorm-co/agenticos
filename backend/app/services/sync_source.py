@@ -266,6 +266,7 @@ class SyncSourceService:
         await _refuse_a_credential_in_the_config(data.config, data.connector_type)
         await _refuse_an_invalid_config(data.config, data.connector_type)
         hint = await self._checked_secret(data.secret_id, data.connector_type, ctx)
+        await self._checked_account(data.config, data.connector_type, data.secret_id, ctx)
 
         source = await sync_source_repo.create(
             self.db,
@@ -327,6 +328,68 @@ class SyncSourceService:
                 **(extra or {}),
             },
         )
+
+    async def _checked_account(
+        self,
+        config: dict[str, object],
+        connector_type: str,
+        secret_id: UUID | None,
+        ctx: AuthContext,
+    ) -> None:
+        connection = config.get("connection_id")
+        if connection is None:
+            return
+        if secret_id is not None:
+            raise refused_field(
+                "config.connection_id", "Choose a connected account or a vault credential, not both"
+            )
+        provider = {
+            "gdrive": "google",
+            "sharepoint": "microsoft",
+            "slack": "slack",
+            "odoo": "odoo",
+        }.get(connector_type)
+        if provider is None:
+            raise refused_field(
+                "config.connection_id", "This source cannot use a connected account"
+            )
+        from app.services.integrations import (
+            IntegrationService,
+            AccountSelection,
+            PRODUCTS,
+            can_read_feed,
+        )
+
+        try:
+            connection_id = UUID(str(connection))
+        except ValueError, TypeError:
+            raise refused_field(
+                "config.connection_id", "Choose a valid organization connected account"
+            ) from None
+        product = PRODUCTS[
+            {
+                "google": "google_drive",
+                "microsoft": "microsoft_files",
+                "slack": "slack",
+                "odoo": "odoo_contacts",
+            }[provider]
+        ]
+        account = await IntegrationService(self.db).binding_account(
+            product, AccountSelection(account="organization", connection_id=connection_id), ctx
+        )
+        if not can_read_feed(account, product.id):
+            raise refused_field(
+                "config.connection_id",
+                "Reconnect the account with this knowledge product's read permissions",
+            )
+
+        if provider == "slack":
+            from app.services.rag.connectors.slack import SlackKnowledgeConfig
+
+            selected = SlackKnowledgeConfig.model_validate(config)
+            await IntegrationService(self.db).validate_feed_selection(
+                account, tuple(selected.channels), organization_id=ctx.organization_id
+            )
 
     async def _checked_secret(
         self, secret_id: UUID | None, connector_type: str, ctx: AuthContext
@@ -409,6 +472,9 @@ class SyncSourceService:
         # caller must be one who may bind it, as on create - a member's private
         # secret behind somebody else's source is not theirs to lend.
         await self._checked_secret(existing.secret_id, existing.connector_type, ctx)
+        await self._checked_account(
+            _raw_config(existing), existing.connector_type, existing.secret_id, ctx
+        )
 
         source = await sync_source_repo.create(
             self.db,
@@ -448,6 +514,11 @@ class SyncSourceService:
         if "secret_id" in updates:
             hint = await self._checked_secret(updates["secret_id"], existing.connector_type, ctx)
 
+        if "secret_id" in updates and "config" not in updates:
+            await self._checked_account(
+                _raw_config(existing), existing.connector_type, updates["secret_id"], ctx
+            )
+
         if "config" in updates and updates["config"] is not None:
             raw_existing = _raw_config(existing)
             # A key patched to null is removed: a form that clears an optional
@@ -467,6 +538,9 @@ class SyncSourceService:
             # connector then answered an hour later in a sync log rather than to
             # the caller who sent it.
             await _refuse_an_invalid_config(merged, existing.connector_type)
+            await self._checked_account(
+                merged, existing.connector_type, updates.get("secret_id", existing.secret_id), ctx
+            )
             updates["config"] = merged
 
         previous_collection = existing.collection_name

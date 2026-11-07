@@ -17,6 +17,10 @@ from app.schemas.connected_account import (
     ConnectedAccountList,
     ConnectedAccountRead,
     ConnectedAccountStart,
+    ConnectedAccountToken,
+    ConnectedApplicationAccount,
+    ConnectedImapAccount,
+    ConnectedOdooAccount,
 )
 from app.schemas.mcp_connection import McpOAuthStartResult
 
@@ -28,11 +32,19 @@ router = APIRouter()
     response_model=ConnectedAccountList,
     dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
 )
-async def list_org_accounts(service: McpConnectionSvc, ctx: Auth) -> Any:
+async def list_org_accounts(service: McpConnectionSvc, ctx: Auth, provider: str = "google") -> Any:
     """The organization's connected accounts, oldest first."""
-    accounts = await service.list_accounts(ctx, for_organization=True)
+    accounts = await service.list_accounts(ctx, for_organization=True, provider=provider)
     return ConnectedAccountList(
-        items=[ConnectedAccountRead.from_model(account) for account in accounts],
+        items=[
+            ConnectedAccountRead.from_model(
+                account,
+                needs_reconnect=await service.account_needs_reconnect(
+                    account, organization_id=ctx.organization_id
+                ),
+            )
+            for account in accounts
+        ],
         total=len(accounts),
     )
 
@@ -50,7 +62,14 @@ async def start_org_account(
     A `404` while the organization has stored no Google OAuth client.
     """
     authorization_url = await service.account_start(
-        ctx, browser_nonce=data.browser_nonce, for_organization=True
+        ctx,
+        browser_nonce=data.browser_nonce,
+        connection_id=data.connection_id,
+        provider=data.provider,
+        products=data.products,
+        label=data.label,
+        write=data.write,
+        for_organization=True,
     )
     return McpOAuthStartResult(authorization_url=authorization_url)
 
@@ -64,3 +83,79 @@ async def start_org_account(
 async def delete_org_account(account_id: UUID, service: McpConnectionSvc, ctx: Auth) -> None:
     """Disconnect one of the organization's accounts."""
     await service.delete_account(ctx, account_id, for_organization=True)
+
+
+@router.post(
+    "/slack/token",
+    response_model=ConnectedAccountRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def connect_slack_token(
+    data: ConnectedAccountToken, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Connect a validated Slack user or bot token without OAuth."""
+    row = await service.connect_slack_token(
+        ctx,
+        token=data.token,
+        write=data.write,
+        label=data.label,
+        connection_id=data.connection_id,
+        for_organization=True,
+    )
+    return ConnectedAccountRead.from_model(row)
+
+
+@router.post(
+    "/application",
+    response_model=ConnectedAccountRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def connect_application_account(
+    data: ConnectedApplicationAccount, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Connect a Google service account or a Microsoft application from its vault credential."""
+    row = await service.connect_application_account(ctx, **data.model_dump())
+    return ConnectedAccountRead.from_model(row)
+
+
+@router.post(
+    "/imap",
+    response_model=ConnectedAccountRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def connect_imap_account(
+    data: ConnectedImapAccount, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Connect an IMAP mailbox over verified TLS using an app password."""
+    row = await service.connect_imap_account(
+        ctx,
+        credential=data.credential,
+        label=data.label,
+        connection_id=data.connection_id,
+        for_organization=True,
+    )
+    return ConnectedAccountRead.from_model(row)
+
+
+@router.post(
+    "/odoo",
+    response_model=ConnectedAccountRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def connect_odoo_account(
+    data: ConnectedOdooAccount, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Validate an Odoo 19+ JSON-2 API key and seal its database connection."""
+    row = await service.connect_odoo_account(
+        ctx,
+        credential=data.credential,
+        connection_id=data.connection_id,
+        label=data.label,
+        write=data.write,
+        for_organization=True,
+    )
+    return ConnectedAccountRead.from_model(row)

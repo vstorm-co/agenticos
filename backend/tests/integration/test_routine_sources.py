@@ -1091,3 +1091,185 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
     else:
         reviewed = await RoutineSourceService(db)._review(ctx, trigger)
         assert bool(reviewed.unavailable) is (source != "disabled_phone")
+
+
+async def test_disconnecting_a_personal_input_stops_only_its_routines_even_from_another_org(
+    db: AsyncSession,
+):
+    from app.db.models.organization import Organization, OrganizationMember
+    from app.services.mcp_connection import McpConnectionService
+
+    ctx, trigger, _, _ = await world(db)
+    account = McpConnection(
+        user_id=ctx.user_id,
+        scope="user",
+        purpose="account",
+        name="Work",
+        url="https://www.googleapis.com",
+        catalog_key="google",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    other = McpConnection(
+        user_id=ctx.user_id,
+        scope="user",
+        purpose="account",
+        name="Private",
+        url="https://www.googleapis.com",
+        catalog_key="google",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    db.add_all([account, other])
+    await db.flush()
+    trigger.trigger_type, trigger.event_source, trigger.delivery_mode = "event", "gmail", "polling"
+    trigger.interval_seconds, trigger.next_fire_at, trigger.connection_id = None, None, account.id
+    second = AgentTrigger(
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        created_by_user_id=ctx.user_id,
+        trigger_type="event",
+        event_source="gmail",
+        delivery_mode="polling",
+        connection_id=other.id,
+        prompt="Check other mail",
+        is_active=True,
+    )
+    inactive = AgentTrigger(
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        created_by_user_id=ctx.user_id,
+        trigger_type="event",
+        event_source="gmail",
+        delivery_mode="polling",
+        connection_id=account.id,
+        prompt="Paused mail",
+        is_active=False,
+    )
+    selected = Organization(name="Another", slug=f"other-{uuid4()}", created_by_user_id=ctx.user_id)
+    db.add_all([second, inactive, selected])
+    await db.flush()
+    db.add(OrganizationMember(organization_id=selected.id, user_id=ctx.user_id, role="owner"))
+    await db.flush()
+    await McpConnectionService(db).delete_account(
+        replace(ctx, organization_id=selected.id), account.id, for_organization=False
+    )
+    await db.refresh(trigger)
+    await db.refresh(second)
+    assert not trigger.is_active and trigger.connection_id is None
+    assert second.is_active and second.connection_id == other.id
+
+
+@pytest.mark.security
+async def test_native_input_grant_revocation_stops_polling_before_provider_access(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    from sqlalchemy import select
+
+    from app.db.models.organization import OrganizationMember
+    from app.db.models.resource_grant import ResourceGrant
+    from app.db.models.user import User
+    from app.services.mcp_connection import McpConnectionService
+
+    ctx, trigger, _, _ = await world(db)
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == ctx.organization_id,
+            OrganizationMember.user_id == ctx.user_id,
+        )
+    )
+    assert membership is not None
+    membership.role = "builder"
+    ctx = replace(ctx, role="builder")
+    administrator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+    db.add(administrator)
+    await db.flush()
+    account = McpConnection(
+        organization_id=ctx.organization_id,
+        created_by_user_id=administrator.id,
+        scope="org",
+        purpose="account",
+        catalog_key="google",
+        visibility="private",
+        name="Narrowed mailbox",
+        url="https://www.googleapis.com",
+        auth_type="bearer",
+        granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+        is_enabled=True,
+    )
+    db.add(account)
+    await db.flush()
+    grant = ResourceGrant(
+        organization_id=ctx.organization_id,
+        subject_user_id=ctx.user_id,
+        resource_type="mcp_connection",
+        resource_id=account.id,
+        level="use",
+    )
+    db.add(grant)
+    trigger.trigger_type, trigger.event_source, trigger.delivery_mode = "event", "gmail", "polling"
+    trigger.interval_seconds, trigger.next_fire_at, trigger.connection_id = None, None, account.id
+    await db.flush()
+    service = RoutineSourceService(db)
+    policy = (await service.snapshot(ctx, trigger)).policy
+    trigger.approved_sources = policy.model_dump(mode="json")
+    await db.flush()
+    assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
+    await db.delete(grant)
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=policy.id)
+    token = AsyncMock()
+    monkeypatch.setattr(McpConnectionService, "integration_access_token", token)
+    assert not await AgentTriggerService(db)._polled_source_current(trigger, account)
+    token.assert_not_awaited()
+
+
+async def test_reconnecting_a_native_account_keeps_existing_trigger_foreign_keys(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    from contextlib import asynccontextmanager
+
+    from app.core.mail_credential import ImapCredential
+    from app.services.integrations import imap
+    from app.services.mcp_connection import McpConnectionService
+
+    ctx, trigger, _, _ = await world(db)
+    account = McpConnection(
+        organization_id=ctx.organization_id,
+        created_by_user_id=ctx.user_id,
+        scope="org",
+        purpose="account",
+        catalog_key="imap",
+        auth_type="imap",
+        name="stable-mailbox",
+        url="imap://mailbox",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    db.add(account)
+    await db.flush()
+    identifier = account.id
+    generation = account.authorization_generation
+    trigger.trigger_type, trigger.event_source, trigger.portal_key = "event", "imap_mail", "imap"
+    trigger.interval_seconds, trigger.next_fire_at, trigger.connection_id = None, None, identifier
+    await db.flush()
+
+    @asynccontextmanager
+    async def mailbox(credential):
+        yield object()
+
+    monkeypatch.setattr(imap, "mailbox", mailbox)
+    saved = await McpConnectionService(db).connect_imap_account(
+        ctx,
+        connection_id=identifier,
+        credential=ImapCredential(
+            host="imap.example.com", username="person@example.com", password="new-private-password"
+        ),
+        label="Mail",
+        for_organization=True,
+    )
+    await db.flush()
+    await db.refresh(trigger)
+    assert saved.id == identifier == trigger.connection_id
+    assert saved.name == "stable-mailbox" and saved.authorization_generation != generation

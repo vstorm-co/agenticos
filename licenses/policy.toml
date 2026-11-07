@@ -136,3 +136,9 @@ license = "CC-BY-4.0"
 status = "accepted"
 obligations = "Attribution: name the work and its licence, link the source. Browser-support data read by the build tooling and compiled into the console's bundle."
 fulfilled_by = "Named with its source in THIRD_PARTY_NOTICES.md; its LICENSE is collected into the image under /app/licenses/node_modules/caniuse-lite/; source at https://github.com/browserslist/caniuse-lite (data from https://caniuse.com)."
+
+[review.python."orjson"]
+license = "MPL-2.0 AND (Apache-2.0 OR MIT)"
+status = "accepted"
+obligations = "Retain the Apache/MIT notices and the MPL text; make the MPL-covered source available. Reached through Mirage's production IMAP support, used unmodified as a separately installed wheel."
+fulfilled_by = "The orjson 3.13.0 wheel ships LICENSE-APACHE, LICENSE-MIT and LICENSE-MPL-2.0 under its dist-info/licenses directory, retained in the backend image. Unmodified source is available at https://github.com/ijl/orjson and in the pinned PyPI source distribution."

@@ -710,3 +710,60 @@ async def test_current_trigger_snapshot_rejects_stale_review_or_corrupt_local_ta
     await db.flush()
     with pytest.raises(AuthorizationError):
         await authority._trigger_in(db)
+
+
+@pytest.mark.parametrize("change", ["generation", "disabled", "owner", "purpose"])
+async def test_native_watch_authority_is_revoked_before_another_account_read(
+    db: AsyncSession, change: str
+) -> None:
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.watch import Watch
+    from app.services.watch_sources import approve_sources
+
+    world = await _world(db)
+    world.organization.proactive_watches_enabled = True
+    account = McpConnection(
+        user_id=world.user.id,
+        scope="user",
+        purpose="account",
+        name="Work",
+        catalog_key="google",
+        granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+        url="https://www.googleapis.com",
+        account_source_organization_id=world.organization.id,
+        is_enabled=True,
+    )
+    db.add(account)
+    await db.flush()
+    spec = AgentSpec(
+        name="Monitor", capabilities=[{"id": "gmail", "config": {"account_name": "Work"}}]
+    )
+    sources = approve_sources(spec, account)
+    watch = Watch(
+        organization_id=world.organization.id,
+        user_id=world.user.id,
+        connection_id=account.id,
+        agent_id=world.agent.id,
+        title="Mail",
+        instructions="Read new mail",
+        interval_minutes=60,
+        next_run_at=datetime.now(UTC),
+        approved_sources=sources.model_dump(mode="json"),
+    )
+    db.add(watch)
+    await db.flush()
+    ctx = replace(world.ctx, routine_id=watch.id, routine_kind="watch")
+    authority = await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    await authority.check_in(db, world.agent.id)
+    if change == "generation":
+        account.authorization_generation = uuid4()
+    elif change == "disabled":
+        account.is_enabled = False
+    elif change == "owner":
+        account.user_id = world.owner.id
+    else:
+        account.purpose = "mcp"
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority.check_in(db, world.agent.id)

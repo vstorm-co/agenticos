@@ -342,6 +342,8 @@ class TestWhatTheConnectorsDeclare:
             "web": "none",
             "git": "git_token",
             "sharepoint": "entra_app",
+            "slack": "none",
+            "odoo": "none",
         }
 
     def test_no_connector_config_schema_carries_a_credential_field(self):
@@ -410,3 +412,17 @@ def test_there_is_no_second_encryption_mechanism():
 
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("app.core.crypto")
+
+
+@pytest.mark.security
+async def test_secret_only_patch_cannot_bypass_an_existing_connected_account(monkeypatch):
+    service = _service(monkeypatch)
+    existing = SimpleNamespace(
+        connector_type="gdrive", config={"connection_id": str(uuid.uuid4())}, secret_id=None
+    )
+    monkeypatch.setattr(service, "get_source", AsyncMock(return_value=existing))
+    monkeypatch.setattr(service, "_checked_secret", AsyncMock(return_value="hint"))
+    with pytest.raises(BadRequestError, match="connected account or a vault credential"):
+        await service.update_source(
+            str(uuid.uuid4()), SyncSourceUpdate(secret_id=uuid.uuid4()), ctx=_ctx(_ORG)
+        )

@@ -488,6 +488,7 @@ class TestOneLook:
         status=RunStatus.COMPLETED,
         check=None,
         retain_check=True,
+        integration_cursor=None,
     ):
         async def execute(ctx, agent_id, prompt, **kwargs):
             if error is not None:
@@ -495,6 +496,7 @@ class TestOneLook:
             receipt = kwargs["watch_receipt"]
             assert isinstance(receipt, WatchReadReceipt)
             receipt.completed_calls = source_reads
+            receipt.integration_cursor = integration_cursor
             receipt.check = (check or AsyncMock()) if retain_check else None
             output = kwargs["structured"]
             assert isinstance(output, list)
@@ -851,6 +853,14 @@ class TestTheRoutes:
         assert response.status_code == 403
         service.list_mine.assert_not_called()
         service.delete.assert_not_called()
+
+    async def test_connection_choices_are_returned_by_the_personal_source_service(
+        self, client: AsyncClient, service
+    ):
+        service.connections = AsyncMock(return_value=[])
+        response = await client.get("/api/v1/me/watches/connections")
+        assert response.status_code == 200 and response.json() == []
+        service.connections.assert_awaited_once()
 
     async def test_set_up_list_change_and_remove(self, client: AsyncClient, service):
         read = watch_read(_watch(), organization=_organization(), connection=_named(_connection()))
@@ -1280,3 +1290,74 @@ async def test_watch_drafts_have_one_owned_working_chat_and_stale_attempts_do_no
     assert publish.await_args.kwargs["origin_kind"] == "watch"
     assert publish.await_args.kwargs["item"].content == "A proposed reply"
     assert publish.await_args.kwargs["notify"] is True
+
+
+@pytest.mark.parametrize("outcome", ["quiet", "record_failed", "revoked"])
+async def test_integration_cursor_is_persisted_only_after_an_authorized_consumed_check(outcome):
+    cursor = {"history_id": "consumed"}
+    check = AsyncMock(
+        side_effect=AuthorizationError(message="revoked") if outcome == "revoked" else None
+    )
+    patches, _ = TestOneLook._patches(_watch(), integration_cursor=cursor, check=check)
+    update = AsyncMock()
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(patch(f"{LOOK}.watch_repo.update_fields", new=update))
+        stack.enter_context(
+            patch.object(
+                WatchLook,
+                "_record",
+                new=AsyncMock(
+                    return_value=(0, False),
+                    side_effect=RuntimeError("write failed")
+                    if outcome == "record_failed"
+                    else None,
+                ),
+            )
+        )
+        if outcome == "record_failed":
+            with pytest.raises(RuntimeError):
+                await WatchLook(MagicMock()).look(uuid.uuid4())
+        else:
+            assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 0
+    if outcome == "quiet":
+        assert update.await_args.kwargs["changes"] == {"integration_cursor": cursor}
+    else:
+        update.assert_not_awaited()
+
+
+async def test_native_slack_watch_checks_the_selected_history_before_it_is_saved():
+    from app.services.integrations import IntegrationService
+
+    connection = _named(_connection(server="slack", purpose="account"))
+    connection.account_source_organization_id = ORG
+    connection.auth_type = "bearer"
+    connection.granted_scopes = ["channels:history"]
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Monitor",
+            "capabilities": [
+                {"id": "slack", "config": {"account": "personal", "channels": ["D1"]}}
+            ],
+        }
+    )
+    create, patches = TestSettingOneUp._patches(_organization(), connection)
+    check = AsyncMock(
+        side_effect=BadRequestError(message="selected conversation requires im:history")
+    )
+    with (
+        patches[0],
+        patches[1],
+        patches[2],
+        patches[3],
+        patch.object(WatchService, "_selected_spec", new=AsyncMock(return_value=spec)),
+        patch.object(IntegrationService, "validate_feed_selection", new=check),
+        pytest.raises(BadRequestError, match="im:history"),
+    ):
+        await WatchService(MagicMock()).create(
+            _ctx(),
+            _create(connection_id=connection.id, preset_key=None, integration_product_id="slack"),
+        )
+    check.assert_awaited_once_with(connection, ("D1",), organization_id=ORG)
+    create.assert_not_awaited()

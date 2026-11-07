@@ -34,7 +34,10 @@ class WatchCreate(BaseSchema):
     environment_id: UUID | None = None
     pinned_version_id: UUID | None = None
     ends_at: AwareDatetime | None = None
-    connection_id: UUID = Field(description="One of the caller's own MCP connections.")
+    integration_product_id: str | None = Field(default=None, max_length=64)
+    connection_id: UUID = Field(
+        description="One of the caller's own MCP connections or native accounts."
+    )
     preset_key: str | None = Field(
         default=None,
         max_length=64,
@@ -124,6 +127,7 @@ class WatchUpdate(BaseSchema):
 
 
 class WatchRead(BaseSchema):
+    integration_product_id: str | None = None
     max_failures: int | None = Field(
         default=3,
         ge=1,
@@ -190,3 +194,11 @@ class WatchPresetRead(BaseSchema):
 class WatchPresetList(BaseSchema):
     items: list[WatchPresetRead]
     total: int
+
+
+class WatchConnectionRead(BaseSchema):
+    id: UUID
+    name: str
+    label: str | None
+    catalog_key: str | None
+    products: list[str] = Field(default_factory=list)

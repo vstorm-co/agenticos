@@ -1,5 +1,5 @@
 ---
-source_sha: "0f5f9ee0e642"
+source_sha: "3ff9863ce69f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3532,3 +3532,10 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+
+Integrierte Google-, Microsoft-, Slack- und IMAP-Verbindungen funktionieren auch hier. [Integrierte Integrationen](../integrations.md) beschreibt Einrichtung, Kontowahl, Capabilities, Workflow-Operationen, Wissenssynchronisierung und dauerhafte Änderungscursor.
+
+### Odoo-Geschäftsbereiche { #odoo-business-areas }
+
+`odoo_contacts`, `odoo_crm`, `odoo_sales`, `odoo_accounting`, `odoo_inventory` und `odoo_projects` verwenden die gemeinsamen Kontoeinstellungen der Integrationen. Suche, Lesen und Feldmetadaten sind schreibgeschützt; Erstellen/Ändern erfordert immer eine Genehmigung. Lagerbestände sind schreibgeschützt. JSON-2, benötigte Module, Änderungsgrenzen und ausgewählte Wissensfelder beschreibt [Odoo](../integrations.md#odoo). Ein Organisationskonto darf nur mit Zugriff auf die Verbindung gebunden werden; die Ausführung prüft erneut die aktuellen Rechte des Autors der veröffentlichten Version.

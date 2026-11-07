@@ -69,9 +69,7 @@ MIN_INTERVAL_SECONDS = 60
 
 # The event sources read from a connected account rather than posted to: no
 # inbound door, so no per-trigger secret (`ck_trigger_shape`).
-_POLLED = (
-    "'gmail', 'google_calendar', 'google_drive', 'microsoft_files', 'outlook', 'outlook_calendar'"
-)
+_POLLED = "'gmail', 'google_calendar', 'google_drive', 'microsoft_files', 'outlook', 'outlook_calendar', 'slack', 'teams', 'google_sheets', 'imap_mail', 'odoo'"
 
 
 class TriggerDeliveryStatus(enum.StrEnum):
@@ -168,6 +166,11 @@ class EventSource(enum.StrEnum):
 
     GITHUB = "github"
     GMAIL = "gmail"
+    SLACK = "slack"
+    TEAMS = "teams"
+    GOOGLE_SHEETS = "google_sheets"
+    IMAP_MAIL = "imap_mail"
+    ODOO = "odoo"
     GOOGLE_CALENDAR = "google_calendar"
     GOOGLE_DRIVE = "google_drive"
     HUBSPOT = "hubspot"
@@ -435,6 +438,7 @@ class AgentTrigger(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("mcp_connections.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     delivery_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     provider_webhook_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -480,7 +484,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint(
             "event_source IS NULL OR event_source IN "
             "('github', 'gmail', 'google_calendar', 'google_drive', 'hubspot', "
-            "'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
+            "'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk', 'slack', 'teams', 'google_sheets', 'imap_mail', 'odoo')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can

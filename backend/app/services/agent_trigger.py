@@ -102,6 +102,7 @@ from app.schemas.agent_trigger import (
     webhook_url,
 )
 from app.schemas.change_event import ChangeEvent
+from app.schemas.connected_account import ConnectedAccountRead
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
@@ -643,8 +644,33 @@ class AgentTriggerService:
                 if portal.mcp_catalog_key is not None
                 else None
             )
+            usable: list[McpConnection] = []
+            if portal.native_provider is not None:
+                native_org = await self.connections.list_accounts(
+                    ctx, for_organization=True, provider=portal.native_provider
+                )
+                native_personal = await self.connections.list_accounts(
+                    ctx, for_organization=False, provider=portal.native_provider
+                )
+                usable = []
+                for account in [*native_personal, *native_org]:
+                    if not account.is_enabled or not account.account_authorized:
+                        continue
+                    try:
+                        await self.connections.get_polled_connection(
+                            ctx, account.id, portal_key=portal.key
+                        )
+                    except AuthorizationError, BadRequestError, NotFoundError:
+                        continue
+                    usable.append(account)
+                if connection is None and usable:
+                    connection = usable[0]
             items.append(
                 PortalRead(
+                    native_provider=portal.native_provider,
+                    connection_choices=[
+                        ConnectedAccountRead.from_model(account) for account in usable
+                    ],
                     key=portal.key,
                     name=portal.name,
                     description=portal.description,
@@ -660,6 +686,7 @@ class AgentTriggerService:
                         (
                             "needs_authorization"
                             if portal.delivery is DeliveryMode.POLLING
+                            and connection.purpose != "account"
                             and not _covers_read_scopes(
                                 portal.read_scopes, connection.granted_scopes or ()
                             )
@@ -674,7 +701,9 @@ class AgentTriggerService:
                         and portal.key in portal_catalog.MAILBOX_PORTAL_KEYS
                         else None
                     ),
-                    connect_blocked_by=_connect_blocked_by(
+                    connect_blocked_by=None
+                    if connection is not None and connection.purpose == "account"
+                    else _connect_blocked_by(
                         portal, oauth_apps=stored.get(portal.oauth_app_kind or "", 0)
                     ),
                     oauth_app_kind=portal.oauth_app_kind,
@@ -851,22 +880,34 @@ class AgentTriggerService:
                 # is the same unprobeable 404 every org-scoped connection lookup
                 # gives.
                 polled = portal.delivery is portal_catalog.DeliveryMode.POLLING
+                if portal.native_provider is not None and data.connection_id is None:
+                    raise refused_field(
+                        "connection_id", "Choose a connected account for this integration"
+                    )
                 if data.connection_id is not None:
                     # Whichever mechanism connected the portal, since the two live
                     # in the same table under different purposes: a polled grant is
                     # invisible to every MCP-facing read, so proving it through the
                     # MCP lookup refused the caller's own mailbox as not found.
                     if polled or portal.delivery is DeliveryMode.APP_WEBHOOK:
-                        grant = await self.connections.get_org_portal_connection(
-                            ctx, data.connection_id
-                        )
-                        # A grant reads one service: a Gmail grant stored on an
-                        # Outlook trigger would record the wrong relationship and
-                        # never be the account it is polled through (Codex on #2195).
-                        if grant.portal_key != portal.key:
-                            raise refused_field(
-                                "connection_id", "This connection is for another service"
+                        if polled:
+                            source_account = await self.connections.get_polled_connection(
+                                ctx,
+                                data.connection_id,
+                                portal_key=portal.key,
+                                channels=tuple(event_config.get("channels") or ()),
                             )
+                            self._require_native_conversations(
+                                event_source, source_account, event_config
+                            )
+                        else:
+                            grant = await self.connections.get_org_portal_connection(
+                                ctx, data.connection_id
+                            )
+                            if grant.portal_key != portal.key:
+                                raise refused_field(
+                                    "connection_id", "This connection is for another service"
+                                )
                     else:
                         await self.connections.get_org_connection(ctx, data.connection_id)
                 connection_id = data.connection_id
@@ -1125,6 +1166,20 @@ class AgentTriggerService:
                 extra={"trigger_id": str(trigger.id)},
             )
 
+    async def release_polled_connection(
+        self, *, organization_id: UUID, connection_id: UUID
+    ) -> None:
+        """Stop routines before an explicitly disconnected native account loses its FK.
+
+        The account service has already proved ownership. A person's source
+        organization may differ from their currently selected organization.
+        """
+        for trigger in await agent_trigger_repo.list_for_connection(
+            self.db, organization_id=organization_id, connection_id=connection_id
+        ):
+            if trigger.is_active:
+                await self._disable(trigger, reason="source_account_disconnected")
+
     async def release_connection(self, ctx: AuthContext, connection_id: UUID) -> None:
         """Shed every hook this connected account registered, ahead of its delete.
 
@@ -1208,6 +1263,27 @@ class AgentTriggerService:
             _guard_shared_mailbox(
                 ctx, trigger.event_source, changes["event_config"], before=trigger.event_config
             )
+
+        if "event_config" in changes and trigger.portal_key is not None:
+            portal = portal_catalog.get_portal(trigger.portal_key)
+            if portal is not None and portal.native_provider is not None:
+                connection_id = trigger.connection_id
+                if connection_id is None:
+                    legacy = await self.connections.get_org_portal_grant(ctx, portal.key)
+                    if legacy is None:
+                        raise refused_field(
+                            "connection_id", "Choose a connected account for this integration"
+                        )
+                    connection_id = legacy.id
+                source_account = await self.connections.get_polled_connection(
+                    ctx,
+                    connection_id,
+                    portal_key=portal.key,
+                    channels=tuple(changes["event_config"].get("channels") or ()),
+                )
+                self._require_native_conversations(
+                    portal.event_source, source_account, changes["event_config"]
+                )
 
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An
@@ -1353,6 +1429,18 @@ class AgentTriggerService:
         if not acting and trigger.local_target is not None:
             changes["local_target"] = None
 
+    @staticmethod
+    def _require_native_conversations(
+        event_source: str, account: McpConnection, config: Mapping[str, object]
+    ) -> None:
+        if (
+            event_source == "slack"
+            or (event_source == "teams" and account.auth_type != "application")
+        ) and not config.get("channels"):
+            raise refused_field(
+                "event_config.channels", "Choose the conversations this trigger may read"
+            )
+
     async def source_options(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
     ) -> RoutineSourceReview:
@@ -1420,6 +1508,15 @@ class AgentTriggerService:
         override is the same 422 a hand-typed config gives, not a 500 from the raw
         pydantic error nor a filter stored to match nothing.
         """
+        if (
+            event_source == "odoo"
+            and override is not None
+            and override.get("product_id", preset.event_config["product_id"])
+            != preset.event_config["product_id"]
+        ):
+            raise refused_field(
+                "event_config.product_id", "The business area is fixed by the selected Odoo portal"
+            )
         try:
             return (
                 _EVENT_CONFIG_MODELS[event_source]
@@ -1447,6 +1544,10 @@ class AgentTriggerService:
             raise BadRequestError(
                 message="only an event trigger has an event_config to change",
                 details={"trigger_id": str(trigger.id)},
+            )
+        if trigger.event_source == "odoo" and config.get("product_id") != trigger.portal_key:
+            raise refused_field(
+                "event_config.product_id", "The business area is fixed by the selected Odoo portal"
             )
         model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
         try:
@@ -1964,6 +2065,18 @@ class AgentTriggerService:
                             continue
                 if not await self._claim(trigger.id, event.delivery_id):
                     continue
+                if not (await rate_limit.trigger_delivery_allowed(trigger.id)).allowed:
+                    spawn_after_commit(
+                        self.db,
+                        trigger_dedupe.release_event_delivery(
+                            trigger_id=trigger.id, delivery_id=event.delivery_id
+                        ),
+                        name="release a throttled trigger delivery claim",
+                    )
+                    logger.warning(
+                        "trigger_delivery_rate_limited", extra={"trigger_id": str(trigger.id)}
+                    )
+                    continue
                 if file_key is not None and announced is not None:
                     announced[file_key] = datetime.now(UTC).isoformat()
                 decisions.append(
@@ -2018,6 +2131,7 @@ class AgentTriggerService:
         event_source: str,
         reason: str,
         places: frozenset[str] | None = None,
+        connection_id: UUID | None = None,
     ) -> int:
         """Turn off the live triggers reading an account that can no longer be read.
 
@@ -2032,6 +2146,8 @@ class AgentTriggerService:
         )
         stopped = 0
         for trigger in triggers:
+            if connection_id is not None and trigger.connection_id != connection_id:
+                continue
             if (
                 places is not None
                 and trigger_events.polled_place(event_source, trigger.event_config) not in places

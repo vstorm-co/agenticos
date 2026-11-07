@@ -1,5 +1,5 @@
 ---
-source_sha: "bfeef046e22e"
+source_sha: "b6f48bd0b5d2"
 ---
 
 # Glosario { #glossary }
@@ -69,6 +69,26 @@ se describe en [Capabilities](capabilities.md).
 | Ask the user | `ask_user` |
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
+| Word | `word` |
+| IMAP mail | `imap_mail` |
+| Odoo Contacts | `odoo_contacts` |
+| Odoo CRM | `odoo_crm` |
+| Odoo Sales | `odoo_sales` |
+| Odoo Invoicing | `odoo_accounting` |
+| Odoo Inventory | `odoo_inventory` |
+| Odoo Projects | `odoo_projects` |
+| Slack | `slack` |
+| Teams | `teams` |
+| Excel | `excel` |
+| OneDrive / SharePoint | `microsoft_files` |
+| Outlook Calendar | `outlook_calendar` |
+| Outlook mail | `outlook_mail` |
+| Google Slides | `google_slides` |
+| Google Sheets | `google_sheets` |
+| Google Docs | `google_docs` |
+| Google Drive | `google_drive` |
+| Google Calendar | `google_calendar` |
+| Gmail | `gmail` |
 | Chat channel lookup | `channel_tools` |
 | Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |

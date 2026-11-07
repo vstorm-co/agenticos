@@ -150,6 +150,13 @@ class _PlaceUnreadable(Exception):
 class OutlookPortalAdapter(PortalAdapter):
     portal_key = "microsoft"
 
+    def __init__(self, *, subject: str | None = None) -> None:
+        self.subject = subject
+
+    @property
+    def _account_path(self) -> str:
+        return "/me" if self.subject is None else f"/users/{quote(self.subject, safe='')}"
+
     async def poll(
         self,
         *,
@@ -178,7 +185,7 @@ class OutlookPortalAdapter(PortalAdapter):
                 inbox = await self._get(
                     client,
                     access_token,
-                    f"{_API_BASE}/me/mailFolders/inbox",
+                    f"{_API_BASE}{self._account_path}/mailFolders/inbox",
                     params={"$select": "id"},
                 )
             fresh: dict[str, Any] = {"connected_at": now.isoformat(), "places": {}}
@@ -279,7 +286,7 @@ class OutlookPortalAdapter(PortalAdapter):
         found_again = state is None or state.get("folder_id") != folder_id
         for _ in range(_MAX_PAGES):
             if link is None:
-                link = _first_delta(mailbox, folder_id, floor)
+                link = _first_delta(mailbox or self.subject, folder_id, floor)
             try:
                 body = await self._get(client, access_token, link, params=None)
             except PortalUnreachable as exc:
@@ -339,7 +346,7 @@ class OutlookPortalAdapter(PortalAdapter):
         segments = [segment for segment in folder.split("/") if segment]
         if not segments:
             segments = ["inbox"]
-        base = f"{_API_BASE}{_mailbox_path(mailbox)}"
+        base = f"{_API_BASE}{_mailbox_path(mailbox or self.subject)}"
         current: str | None = None
         for index, segment in enumerate(segments):
             if index == 0 and segment in _WELL_KNOWN_FOLDERS:
@@ -402,7 +409,7 @@ class OutlookPortalAdapter(PortalAdapter):
         HTML body is a request of its own, read only when `with_html`.
         """
         mailbox, folder = _place(key)
-        base = f"{_API_BASE}{_mailbox_path(mailbox)}/messages/{quote(message_id, safe='')}"
+        base = f"{_API_BASE}{_mailbox_path(mailbox or self.subject)}/messages/{quote(message_id, safe='')}"
         try:
             message = await self._get(
                 client,
@@ -531,7 +538,7 @@ class OutlookPortalAdapter(PortalAdapter):
             AttachmentTooLarge: The attachment is over `max_bytes`.
         """
         url = (
-            f"{_API_BASE}{_mailbox_path(mailbox)}/messages/{quote(message_id, safe='')}"
+            f"{_API_BASE}{_mailbox_path(mailbox or self.subject)}/messages/{quote(message_id, safe='')}"
             f"/attachments/{quote(attachment_id, safe='')}/$value"
         )
         headers = {"Authorization": f"Bearer {access_token}", "Prefer": _PREFER_IDS}

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { WatchConnection } from "@/hooks/use-watches";
 import { WatchDialog } from "./watch-dialog";
 import type { Watch, WatchPreset } from "@/lib/watches-api";
 
@@ -17,6 +18,7 @@ const state = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   path: "/mcp-servers",
+  native: false,
   push: vi.fn(),
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
@@ -39,12 +41,6 @@ vi.mock("@/hooks", () => ({
     isLoading: false,
   }),
   useAgentEnvironments: () => ({ environments: [] }),
-  useMcpConnections: () => ({
-    connections: [
-      { id: "c-gh", name: "github", label: null, catalog_key: "github" },
-      { id: "c-mine", name: "intranet", label: "Our wiki", catalog_key: null },
-    ],
-  }),
   useOrganizations: () => ({
     activeOrg: state.floor === null ? null : { proactive_watch_min_minutes: state.floor },
   }),
@@ -57,6 +53,24 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: state.push }),
 }));
 vi.mock("@/hooks/use-watches", () => ({
+  useWatchConnections: () => ({
+    connections: [
+      ...(state.native
+        ? [
+            {
+              id: "c-native",
+              name: "Business",
+              label: "Business",
+              catalog_key: "odoo",
+              products: ["odoo_sales", "odoo_inventory"],
+            } satisfies WatchConnection,
+          ]
+        : []),
+      { id: "c-gh", name: "github", label: null, catalog_key: "github" },
+      { id: "c-mine", name: "intranet", label: "Our wiki", catalog_key: null },
+    ],
+  }),
+
   useWatchPresets: () => state.presets,
   useWatches: () => ({ create: state.create, update: state.update }),
 }));
@@ -114,6 +128,7 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
 
 beforeEach(() => {
   state.floor = 15;
+  state.native = false;
   state.presets = [REVIEWS, FAILING, { ...REVIEWS, key: "linear-assigned", server: "linear" }];
   state.create.mockReset().mockResolvedValue(undefined);
   state.update.mockReset().mockResolvedValue(undefined);
@@ -471,3 +486,27 @@ it.each(["instructions", "interval_minutes"])(
     ).toBeInTheDocument();
   },
 );
+
+it("saves the chosen native business area for a new watch", async () => {
+  state.native = true;
+  render(
+    <WatchDialog
+      open
+      onOpenChange={vi.fn()}
+      agentId="a-monitor"
+      connectionId="c-native"
+      initialTask={{ title: "Stock changes", instructions: "Report new stock changes" }}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox", { name: "Product" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Odoo Inventory" }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+  expect(state.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      connection_id: "c-native",
+      integration_product_id: "odoo_inventory",
+    }),
+  );
+});

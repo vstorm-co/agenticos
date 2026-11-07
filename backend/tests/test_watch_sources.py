@@ -354,3 +354,102 @@ async def test_resumed_accounts_keep_their_original_alias_after_default_and_labe
         } == {identifier: source.tool_prefix for identifier, source in admitted.items()}
         assert auth.await_count == 2
         assert all(call.args[0].id != new.id for call in auth.await_args_list)
+
+
+@pytest.mark.parametrize(
+    ("provider", "product"),
+    [("google", "gmail"), ("microsoft", "outlook_mail"), ("slack", "slack")],
+)
+def test_native_watch_carries_one_account_and_removes_every_executable_capability(
+    provider: str, product: str
+) -> None:
+    connection = _connection()
+    connection.purpose = "account"
+    connection.catalog_key = provider
+    connection.granted_scopes = {
+        "google": ["https://www.googleapis.com/auth/gmail.readonly"],
+        "microsoft": ["Mail.Read"],
+        "slack": ["channels:history"],
+    }[provider]
+    connection.label = "Work"
+    original = _spec()
+    original.capabilities.append(
+        CapabilityBindingSpec(id=product, config={"account_name": "Work", "channels": ["C123"]})
+    )
+    approved = approve_sources(original, connection)
+    assert approved.integration_product_id == product
+    assert approved.connection_id == connection.id
+    effective = constrain_sources(original, approved)
+    assert effective.mcp_servers == []
+    assert not effective.code_mode.enabled
+    assert all(
+        binding.id not in {product, "sandbox", "web", "skills"}
+        for binding in effective.capabilities
+    )
+    original.capabilities[-1].config["account_name"] = "Other account"
+    with pytest.raises(AuthorizationError, match="Review"):
+        constrain_sources(original, approved)
+
+
+@pytest.mark.parametrize(
+    "config", [{"account": "organization"}, {"account_name": "Another account"}, {"channels": []}]
+)
+def test_native_watch_refuses_organization_accounts_wrong_names_and_unselected_slack_channels(
+    config: dict[str, object],
+) -> None:
+    connection = _connection()
+    connection.purpose = "account"
+    connection.catalog_key = "slack"
+    spec = _spec()
+    spec.capabilities.append(CapabilityBindingSpec(id="slack", config=config))
+    with pytest.raises(AuthorizationError):
+        approve_sources(spec, connection)
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "missing",
+        "approval",
+        "disabled_read",
+        "read_approval",
+        "provider",
+        "scope",
+        "name",
+        "organization",
+    ],
+)
+def test_native_watch_refuses_every_unapproved_read_boundary(refusal):
+    connection = _connection()
+    connection.purpose, connection.catalog_key, connection.label = "account", "google", "Work"
+    connection.granted_scopes = ["https://www.googleapis.com/auth/gmail.readonly"]
+    spec = _spec()
+    binding = CapabilityBindingSpec(id="gmail", config={"account_name": "Work"})
+    if refusal != "missing":
+        spec.capabilities.append(binding)
+    if refusal == "approval":
+        binding.approval = "required"
+    if refusal == "disabled_read":
+        binding.config["disabled_tools"] = ["gmail_search_threads"]
+    if refusal == "read_approval":
+        binding.tool_approval["gmail_search_threads"] = "required"
+    if refusal == "provider":
+        connection.catalog_key = "slack"
+    if refusal == "scope":
+        connection.granted_scopes = []
+    if refusal == "name":
+        binding.config["account_name"] = "Other"
+    if refusal == "organization":
+        binding.config["account"] = "organization"
+    with pytest.raises(AuthorizationError):
+        approve_sources(spec, connection, product_id="gmail")
+
+
+def test_a_slack_watch_requires_selected_conversations_even_with_history_permissions():
+    connection = _connection()
+    connection.purpose, connection.catalog_key = "account", "slack"
+    connection.granted_scopes = ["channels:history"]
+    spec = _spec()
+    spec.capabilities.append(CapabilityBindingSpec(id="slack"))
+    with pytest.raises(AuthorizationError, match="conversations"):
+        approve_sources(spec, connection, product_id="slack")

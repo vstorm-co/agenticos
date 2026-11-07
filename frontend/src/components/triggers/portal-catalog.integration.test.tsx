@@ -672,3 +672,30 @@ describe("GitHub App installation", () => {
     },
   );
 });
+
+describe("Odoo native account setup", () => {
+  it("opens the API key wizard from an Odoo trigger portal", async () => {
+    vi.clearAllMocks();
+    const entry = {
+      ...polledPortal(null),
+      key: "odoo_projects",
+      name: "Odoo Projects",
+      native_provider: "odoo",
+      event_source: "odoo",
+      oauth_app_kind: null,
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/trigger-portals" ? { items: [entry], total: 1 } : { items: [], total: 0 },
+    );
+    render(<PortalCatalog canRun canManageConnections={false} />, { wrapper });
+    const card = within(await screen.findByRole("group", { name: "Odoo Projects" }));
+    await userEvent.click(card.getByRole("button", { name: "Connect account" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByLabelText("Odoo HTTPS origin")).toBeInTheDocument();
+    expect(dialog.getByLabelText("Database name")).toBeInTheDocument();
+    expect(dialog.getByLabelText("Odoo API key")).toHaveAttribute("type", "password");
+    expect(apiClient.get).not.toHaveBeenCalledWith(expect.stringContaining("setup/odoo"));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});

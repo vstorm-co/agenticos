@@ -333,6 +333,7 @@ nav:
           - virtual-tables.md
           - workflows.md
           - file-processing.md
+          - integrations.md
           - mcp.md
           - sandbox.md
           - triggers.md

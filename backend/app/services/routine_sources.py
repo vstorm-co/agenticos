@@ -328,8 +328,29 @@ class RoutineSourceService:
 
         secret_sources: dict[UUID, UUID] = {}
         mirage_accounts: dict[UUID, UUID] = {}
+        from app.core.exceptions import AppException
+        from app.services.integrations import PRODUCTS, AccountSelection, IntegrationService
+
         for candidate in specs:
             for binding in candidate.capabilities:
+                if binding.enabled and binding.id in PRODUCTS:
+                    try:
+                        native_account = await IntegrationService(self.db).binding_account(
+                            PRODUCTS[binding.id],
+                            AccountSelection.model_validate(binding.config),
+                            ctx,
+                        )
+                    except AppException:
+                        unavailable.add(f"Integration account · {binding.id}")
+                    else:
+                        mirage_accounts[native_account.id] = native_account.authorization_generation
+                        native_client = account_client_identity(native_account)
+                        if native_client is not None:
+                            secret_sources[native_client[1]] = native_client[2]
+                        resources.add(
+                            f"Integration account · {binding.id} · {native_account.label or native_account.name}"
+                        )
+                    continue
                 if not binding.enabled or binding.id != "mirage":
                     continue
                 config = MirageConfig.model_validate(binding.config)
@@ -486,8 +507,27 @@ class RoutineSourceService:
                 self.db, trigger.connection_id, fresh=True
             )
             if (
+                connection is not None
+                and connection.purpose == "account"
+                and connection.scope == "org"
+            ):
+                from app.services.integrations.authority import authorize
+
+                # The input account can differ from all capability accounts above.
+                try:
+                    await authorize(self.db, connection, ctx)
+                except AuthorizationError:
+                    connection = None
+            if (
                 connection is None
-                or connection.organization_id != ctx.organization_id
+                or not (
+                    connection.organization_id == ctx.organization_id
+                    or (
+                        connection.purpose == "account"
+                        and connection.user_id == ctx.subject_id
+                        and connection.account_source_organization_id == ctx.organization_id
+                    )
+                )
                 or not connection.is_enabled
             ):
                 unavailable.add("event source")
@@ -496,6 +536,11 @@ class RoutineSourceService:
                     endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
                     authorization_generation=connection.authorization_generation,
                 )
+                if connection.purpose == "account":
+                    mirage_accounts[connection.id] = connection.authorization_generation
+                    input_client = account_client_identity(connection)
+                    if input_client is not None:
+                        secret_sources[input_client[1]] = input_client[2]
                 names.add(f"{connection.label or connection.name} · {connection.id}")
         if len(sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")

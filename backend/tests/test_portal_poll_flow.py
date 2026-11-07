@@ -90,7 +90,7 @@ def _service(
         recorder.steps.append(f"match:{event_source}:{len(events)}")
         return decisions
 
-    async def disable(*, organization_id, event_source, reason, places=None):
+    async def disable(*, organization_id, event_source, reason, places=None, connection_id=None):
         recorder.steps.append(f"disable:{reason}:{sorted(places) if places else 'all'}")
         return 1
 
@@ -527,6 +527,16 @@ class TestWhichGrantsAreRead:
             "microsoft_files",
             "google_calendar",
             "outlook_calendar",
+            "slack",
+            "teams",
+            "google_sheets",
+            "imap",
+            "odoo_contacts",
+            "odoo_crm",
+            "odoo_sales",
+            "odoo_accounting",
+            "odoo_inventory",
+            "odoo_projects",
         ]
 
 
@@ -1049,3 +1059,51 @@ async def test_a_claimed_candidate_without_a_pollable_source_is_skipped(monkeypa
     with patch("app.services.mcp_connection.McpConnectionService", return_value=connections):
         await trigger_tasks.poll_portal_grants()
     assert connections.record_poll_processing_failure.await_count == (0 if missing else 1)
+
+
+async def test_revoking_one_account_never_stops_another_accounts_triggers(monkeypatch):
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.services.agent_trigger import AgentTriggerService
+
+    first, second = uuid.uuid4(), uuid.uuid4()
+    rows = [
+        AgentTrigger(id=uuid.uuid4(), connection_id=identifier) for identifier in [first, second]
+    ]
+    monkeypatch.setattr(
+        "app.services.agent_trigger.agent_trigger_repo.list_active_for_event_source",
+        AsyncMock(return_value=rows),
+    )
+    service = AgentTriggerService(MagicMock())
+    stopped = AsyncMock()
+    monkeypatch.setattr(service, "_disable", stopped)
+    assert (
+        await service.disable_polled(
+            organization_id=uuid.uuid4(),
+            event_source="outlook",
+            connection_id=first,
+            reason="revoked",
+        )
+        == 1
+    )
+    assert stopped.await_args.args[0] is rows[0]
+
+
+async def test_worker_polling_configures_dedupe_and_delivery_limits_with_one_redis_client(
+    monkeypatch,
+):
+    from app.services import rate_limit, trigger_dedupe
+    from app.worker.tasks import trigger_tasks
+
+    client = SimpleNamespace(connect=AsyncMock())
+    factory = MagicMock(return_value=client)
+    monkeypatch.setattr("app.clients.redis.RedisClient", factory)
+    monkeypatch.setattr(trigger_dedupe, "is_configured", MagicMock(side_effect=[False, True]))
+    dedupe, limits = MagicMock(), MagicMock()
+    monkeypatch.setattr(trigger_dedupe, "configure", dedupe)
+    monkeypatch.setattr(rate_limit, "configure", limits)
+    await trigger_tasks._ensure_trigger_dedupe()
+    await trigger_tasks._ensure_trigger_dedupe()
+    factory.assert_called_once_with()
+    client.connect.assert_awaited_once()
+    dedupe.assert_called_once_with(client)
+    limits.assert_called_once_with(client)

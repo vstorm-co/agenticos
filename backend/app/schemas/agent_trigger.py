@@ -310,6 +310,11 @@ class ZendeskTriggerConfig(BaseSchema):
 
 # Every `EventSource` value, for the API's schema.
 EventSourceName = Literal[
+    "slack",
+    "teams",
+    "google_sheets",
+    "imap_mail",
+    "odoo",
     "github",
     "gmail",
     "google_calendar",
@@ -405,10 +410,42 @@ def webhook_url(event_source: str, trigger_id: UUID) -> str:
     return f"{base}/api/v1/webhooks/triggers/{event_source}/{trigger_id}"
 
 
+class IntegrationMessageTriggerConfig(BaseSchema):
+    channels: list[str] = Field(
+        default_factory=list, max_length=20, description="Conversation IDs to poll."
+    )
+    contains: str | None = Field(default=None, max_length=255)
+    mentions_only: bool = False
+    direct_only: bool = False
+
+
+class SheetsRowTriggerConfig(BaseSchema):
+    spreadsheet_id: str = Field(min_length=1, max_length=255, pattern=r"^[A-Za-z0-9_-]+$")
+    sheet_name: str = Field(
+        default="Sheet1", min_length=1, max_length=100, pattern=r"^[^\r\n\x00]+$"
+    )
+
+
+class OdooTriggerConfig(BaseSchema):
+    product_id: Literal[
+        "odoo_contacts",
+        "odoo_crm",
+        "odoo_sales",
+        "odoo_accounting",
+        "odoo_inventory",
+        "odoo_projects",
+    ]
+
+
 # Read from a connected account rather than posted to - no webhook, no secret.
 _POLLED_SOURCES = frozenset(
     {
         EventSource.GMAIL.value,
+        EventSource.SLACK.value,
+        EventSource.TEAMS.value,
+        EventSource.GOOGLE_SHEETS.value,
+        EventSource.IMAP_MAIL.value,
+        EventSource.ODOO.value,
         EventSource.GOOGLE_CALENDAR.value,
         EventSource.GOOGLE_DRIVE.value,
         EventSource.MICROSOFT_FILES.value,
@@ -420,6 +457,11 @@ _POLLED_SOURCES = frozenset(
 _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GITHUB.value: GithubTriggerConfig,
     EventSource.GMAIL.value: GmailTriggerConfig,
+    EventSource.SLACK.value: IntegrationMessageTriggerConfig,
+    EventSource.TEAMS.value: IntegrationMessageTriggerConfig,
+    EventSource.IMAP_MAIL.value: IntegrationMessageTriggerConfig,
+    EventSource.ODOO.value: OdooTriggerConfig,
+    EventSource.GOOGLE_SHEETS.value: SheetsRowTriggerConfig,
     EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
     EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,
     EventSource.HUBSPOT.value: HubspotTriggerConfig,
@@ -571,7 +613,10 @@ class TriggerCreate(BaseSchema):
     # defaults and validated server-side against the source the catalog resolves.
     portal_key: str | None = Field(default=None, max_length=64)
     preset_key: str | None = Field(default=None, max_length=64)
-    connection_id: UUID | None = None
+    connection_id: UUID | None = Field(
+        default=None,
+        description="Connected account ID; required for native integration portal triggers.",
+    )
     target: str | None = Field(default=None, max_length=255)
 
     @model_validator(mode="after")

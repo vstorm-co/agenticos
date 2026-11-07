@@ -64,6 +64,8 @@ from pydantic import AnyUrl, BaseModel, ValidationError
 
 from app.agents.mcp import CONNECT_TIMEOUT_SECS
 from app.core.config import settings
+from app.core.mail_credential import ImapCredential
+from app.core.odoo_credential import OdooCredential
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import (
     NO_PRIVATE_ADDRESSES,
@@ -283,6 +285,14 @@ class McpOAuthPayload(BaseModel):
     expires_at: float | None = None
     provider: str | None = None
     browser_nonce_digest: str | None = None
+    integration_mail: ImapCredential | None = None
+    integration_odoo: OdooCredential | None = None
+    integration_subject: str | None = None
+    integration_application_id: str | None = None
+    # Preserve legacy payloads' scope-based contract. New grants also retain the
+    # chosen write ceiling: incremental consent can return older, broader scopes.
+    integration_write_enabled: bool = True
+    account_reconnect_id: UUID | None = None
     account_initiator_id: UUID | None = None
     account_source_organization_id: UUID | None = None
     account_source_secret_id: UUID | None = None

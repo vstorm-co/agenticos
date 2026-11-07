@@ -50,6 +50,9 @@ export function CredentialStep({
   const { secrets, isLoading, listError } = useSecrets();
   const { can } = usePermissions();
 
+  if (form.config.connection_id)
+    return <p className="text-muted-foreground text-sm">{t("usingConnectedAccount")}</p>;
+
   if (connector.secret_kind === "none") {
     return (
       <div className="border-foreground/10 bg-foreground/[0.03] rounded-xl border p-5 text-center">

@@ -998,7 +998,8 @@
     "starterIcon": "Symbol für Startnachricht {number}",
     "starterTitle": "Titel der Startnachricht {number}",
     "starterTitlePlaceholder": "Kurzer Titel (optional)",
-    "starterMessageLabel": "Nachricht unter dem Titel, die beim Klicken gesendet wird"
+    "starterMessageLabel": "Nachricht unter dem Titel, die beim Klicken gesendet wird",
+    "enableIntegrationTool": "{tool} aktivieren"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -6574,17 +6575,72 @@
         "personalTitle": "Ihre verbundenen Konten",
         "organizationTitle": "Verbundene Konten der Organisation",
         "count": "{count, plural, one {# Konto} other {# Konten}}",
-        "connect": "Google-Konto verbinden",
+        "connect": "{provider}-Konto verbinden",
         "noneYet": "Noch keine Konten verbunden",
-        "personalDetail": "Ein Agent, dessen virtuelles Terminal die eigenen Konten jeder Person liest, bindet diese ein, wenn Sie mit ihm sprechen.",
-        "organizationDetail": "Das virtuelle Terminal eines Agenten kann eines dieser Konten für alle lesen, die mit ihm sprechen.",
+        "personalDetail": "Wählen Sie ein Konto für Agenten, Workflows und persönliche Watches. Jede Person verbindet ihre eigenen Konten.",
+        "organizationDetail": "Gemeinsame Konten stehen konfigurierten Agenten, Workflows, Wissenssynchronisierung und Triggern zur Verfügung.",
         "needsReconnect": "Die Anmeldung funktioniert nicht mehr. Verbinden Sie das Konto erneut.",
+        "pollingFailed": "Polling fehlgeschlagen. Kontoberechtigungen und ausgewählte Quellen prüfen.",
         "scopes": "{count, plural, one {# Berechtigung erteilt} other {# Berechtigungen erteilt}}",
         "reconnect": "Erneut verbinden",
         "disconnect": "{email} trennen",
         "disconnectTitle": "{email} trennen?",
-        "disconnectDetail": "Agenten, die dieses Konto lesen, verlieren seine Ordner beim nächsten Lauf. Die Freigabe wird aus dem Vault gelöscht.",
-        "disconnectConfirm": "Trennen"
+        "disconnectDetail": "Agenten, Workflows, Wissenssynchronisierung und Watches verlieren den Zugriff auf dieses Konto. Die gespeicherte Autorisierung wird aus dem Vault gelöscht.",
+        "disconnectConfirm": "Trennen",
+        "setup": {
+          "title": "{provider} verbinden",
+          "description": "Registrieren Sie einmal eine OAuth-App für Ihre Organisation und verbinden Sie dann Ihr Konto.",
+          "redirect": "Weiterleitungs-URL",
+          "copyRedirect": "Weiterleitungs-URL kopieren",
+          "google": "Erstellen Sie ein Cloud-Projekt, aktivieren Sie die APIs, konfigurieren Sie Internal oder External und erstellen Sie einen Web-OAuth-Client. Im Modus External/Testing laufen Refresh-Token nach sieben Tagen ab. Native Integrationen benötigen weder MCP Preview noch einen AI-powered-Client.",
+          "microsoft": "Registrieren Sie eine Webanwendung in Entra. Wählen Sie einen Tenant oder common für geschäftliche und persönliche Konten, fügen Sie die Weiterleitungs-URL und delegierte Berechtigungen hinzu und erstellen Sie ein Client Secret. Einige Berechtigungen benötigen die Zustimmung des Administrators. Outlook-Mail und -Kalender verbinden Exchange Online über Microsoft Graph.",
+          "slack": "Erstellen Sie pro Workspace eine interne App oder ergänzen Sie Benutzerberechtigungen und Weiterleitungs-URL in Ihrer bestehenden Bot-App. Die Installation kann Administratorzustimmung benötigen und zählt zum App-Limit. Native Tools benötigen Agents MCP Server nur bei Verwendung von Slack MCP.",
+          "openConsole": "Provider-Konsole öffnen",
+          "saveClient": "OAuth-App im Vault speichern",
+          "write": "Schreibrechte hinzufügen (Agent-Schreibzugriffe benötigen weiterhin eine Freigabe)",
+          "scopes": "Angeforderte Produktberechtigungen",
+          "connect": "Mit Kontozustimmung fortfahren",
+          "provider": {
+            "google": "Google",
+            "microsoft": "Microsoft",
+            "slack": "Slack",
+            "imap": "IMAP",
+            "odoo": "Odoo"
+          },
+          "tokenPath": "Vorhandenes Slack-Benutzer- oder Bot-Token verwenden",
+          "accountLabel": "Kontobezeichnung",
+          "token": "Slack-Token",
+          "saveToken": "Mit Token verbinden",
+          "oauth": "OAuth",
+          "serviceAccount": "Servicekonto",
+          "application": "Anwendungszugriff",
+          "delegation": "Für Workspace-Mail oder Kalender muss ein Administrator domain-wide delegation und genau die untenstehenden Bereiche erlauben. Geben Sie das vertretene Postfach an. Ohne Delegierung muss Drive für das Servicekonto freigegeben werden. Die Wahl der Anwendungsidentität erfordert Bearbeitungszugriff auf diesen Vault-Zugang; Lesezugriff allein reicht nicht aus.",
+          "appPermissions": "Anwendungsrechte und Administratorzustimmung in Entra erteilen. Mail/Kalender benötigen eine Postfachadresse, Teams eine Benutzer-Verzeichnisobjekt-ID. Excel und normale Teams-Beiträge erfordern delegiertes OAuth. Die Wahl der Anwendungsidentität erfordert Bearbeitungszugriff auf diesen Vault-Zugang; Lesezugriff allein reicht nicht aus.",
+          "credential": "Vault-Zugangsdaten",
+          "chooseCredential": "Zugangsdaten auswählen",
+          "subject": "Postfachadresse oder Teams-Benutzerobjekt-ID",
+          "imap": "IMAP verwendet geprüftes TLS und ein App-Passwort. Der Betreiber muss den Hostnamen zu MIRAGE_ALLOWED_HOSTS hinzufügen. Microsoft 365 unterstützt diese Passwortmethode nicht.",
+          "host": "IMAP-Hostname",
+          "port": "Port",
+          "username": "Postfach-Benutzername",
+          "password": "App-Passwort",
+          "folder": "Postfachordner",
+          "product": "Produkt",
+          "saveCredential": "Zugangsdaten im Vault speichern",
+          "googleMcp": "Für Google MCP der Workspace MCP Preview beitreten, Produkt- und MCP-APIs aktivieren, Zustimmung und einen Web-OAuth-Client für einen AI-powered agent konfigurieren. External-Testing-Refresh-Tokens können nach sieben Tagen ablaufen. Callback exakt kopieren.",
+          "slackMcp": "Für Slack MCP eine Internal- oder Marketplace-App registrieren, Callback und Server-Scopes hinzufügen und Agents → MCP Server aktivieren. App-Limits und Administratorfreigabe gelten weiterhin.",
+          "microsoftMcp": "Entra-Web-App mit diesem Callback und delegierten MCP-Server-Scopes registrieren. Microsoft Work IQ hat eigene Lizenzanforderungen.",
+          "odoo": "Verwende JSON-2 mit Odoo 19+. Erstelle einen API-Schlüssel für einen Benutzer mit den erforderlichen Geschäftsrechten. Der Betreiber muss den genauen HTTPS-Host in ODOO_ALLOWED_HOSTS freigeben. Odoo Online erfordert für externe APIs einen Custom-Tarif. Schlüssel laufen ab; verbinde das Konto nach der Rotation erneut.",
+          "odooOrigin": "Odoo-HTTPS-Adresse",
+          "odooDatabase": "Datenbankname",
+          "odooKey": "Odoo-API-Schlüssel",
+          "connectDirect": "Konto verbinden"
+        },
+        "accountOwner": "Kontoinhaber",
+        "chooseAccount": "Verbundenes Konto auswählen",
+        "accountNameLabel": "Name des persönlichen Kontos",
+        "accountNameHint": "Verwenden Sie für jede Person dasselbe Label, z. B. Arbeit. Nur leer lassen, wenn jede Person genau ein passendes Konto hat.",
+        "manageAccounts": "Verbundene Konten verwalten"
       }
     },
     "workspaces": {
@@ -7704,7 +7760,10 @@
     "targetCollection": "Ziel-Collection",
     "updatedCount": "{count} aktualisiert",
     "useExisting": "Bestehende verwenden",
-    "useIntegration": "Diese Integration verwenden"
+    "useIntegration": "Diese Integration verwenden",
+    "connectedAccount": "Verbundenes Organisationskonto",
+    "useVaultCredential": "Stattdessen Vault-Zugangsdaten verwenden",
+    "usingConnectedAccount": "Diese Quelle liest über das ausgewählte Organisationskonto. Zusätzliche Zugangsdaten sind nicht erforderlich."
   },
   "ragStatus": {
     "cancelled": "Abgebrochen",
@@ -8571,7 +8630,12 @@
       "google_drive": "Bei einer Datei in Google Drive",
       "microsoft_files": "Bei einer Datei in OneDrive oder SharePoint",
       "google_calendar": "Vor einem Google-Kalender-Termin",
-      "outlook_calendar": "Vor einem Outlook-Termin"
+      "outlook_calendar": "Vor einem Outlook-Termin",
+      "slack": "Slack",
+      "teams": "Teams",
+      "google_sheets": "Google Sheets",
+      "imap_mail": "IMAP",
+      "odoo": "Odoo"
     },
     "panelTitle": "Routinen",
     "panelDescription": "Wann dieser Agent sich selbst ausführt – nach Zeitplan oder wenn ein Ereignis eintrifft.",
@@ -8918,7 +8982,13 @@
     "installationIdLabel": "Installations-ID",
     "mailLabelFilter": "Gmail-Label-ID",
     "mailFolderFilter": "Postfachordner",
-    "sharedMailboxFilter": "Freigegebenes Postfach"
+    "sharedMailboxFilter": "Freigegebenes Postfach",
+    "integrationConversations": "Unterhaltungen (kommagetrennte IDs)",
+    "integrationMentions": "Nur Erwähnungen von mir",
+    "integrationDirect": "Nur Direktnachrichten",
+    "integrationSpreadsheet": "Tabellen-ID",
+    "integrationSheet": "Blattname",
+    "integrationAccount": "Verbundenes Konto"
   },
   "agentTemplates": {
     "browse": "Agent-Vorlagen",
@@ -9161,7 +9231,18 @@
       "outlook_calendar": "Outlook Calendar",
       "onedrive": "OneDrive",
       "excel": "Excel",
-      "microsoft_365": "Microsoft 365"
+      "microsoft_365": "Microsoft 365",
+      "google_slides": "Google Slides",
+      "word": "Word",
+      "teams": "Teams",
+      "imap_mail": "IMAP",
+      "odoo_contacts": "Odoo Contacts",
+      "odoo_crm": "Odoo CRM",
+      "odoo_sales": "Odoo Sales",
+      "odoo_accounting": "Odoo Invoicing",
+      "odoo_inventory": "Odoo Inventory",
+      "odoo_projects": "Odoo Projects",
+      "odoo": "Odoo"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -11252,6 +11333,166 @@
       "example3": "Eine Tabelle aus Ihrer Datenbank lesen und zusammenfassen",
       "needs": "Die Zugangsdaten der Dienste im Vault oder ein verbundenes Google-Konto. Ein Deployment installiert das Terminal mit dem Extra mirage, und ein Operator erlaubt die Hosts jedes Servers, den Sie eintragen.",
       "never": "Schreibt nie in einen nur lesbar eingebundenen Ordner und fragt vor jedem Schreiben eine Person, wo Sie das festgelegt haben."
+    },
+    "gmail": {
+      "name": "Gmail",
+      "does": "Verwendet Gmail über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "google_calendar": {
+      "name": "Google Calendar",
+      "does": "Verwendet Google Calendar über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "google_drive": {
+      "name": "Google Drive",
+      "does": "Verwendet Google Drive über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "google_docs": {
+      "name": "Google Docs",
+      "does": "Verwendet Google Docs über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "google_sheets": {
+      "name": "Google Sheets",
+      "does": "Verwendet Google Sheets über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "google_slides": {
+      "name": "Google Slides",
+      "does": "Verwendet Google Slides über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "outlook_mail": {
+      "name": "Outlook mail",
+      "does": "Verwendet Outlook mail über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "outlook_calendar": {
+      "name": "Outlook Calendar",
+      "does": "Verwendet Outlook Calendar über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "microsoft_files": {
+      "name": "OneDrive / SharePoint",
+      "does": "Verwendet OneDrive / SharePoint über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "excel": {
+      "name": "Excel",
+      "does": "Verwendet Excel über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "teams": {
+      "name": "Teams",
+      "does": "Verwendet Teams über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "slack": {
+      "name": "Slack",
+      "does": "Verwendet Slack über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "imap_mail": {
+      "name": "IMAP mail",
+      "does": "Liest ein Postfach über IMAP mit einem App-Passwort.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Neue Nachrichten im Postfach lesen",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "word": {
+      "name": "Word",
+      "does": "Liest und schreibt Word-Dokumente in OneDrive oder SharePoint.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_contacts": {
+      "name": "Odoo Contacts",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Contacts über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_crm": {
+      "name": "Odoo CRM",
+      "does": "Liest und ändert Geschäftsdaten in Odoo CRM über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_sales": {
+      "name": "Odoo Sales",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Sales über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_accounting": {
+      "name": "Odoo Invoicing",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Invoicing über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_inventory": {
+      "name": "Odoo Inventory",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Inventory über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_projects": {
+      "name": "Odoo Projects",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Projects über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
     }
   },
   "capabilityCategories": {
@@ -11261,7 +11502,8 @@
     "reasoning": "Denken und Planen",
     "research": "Das Web",
     "utility": "Alltag",
-    "advanced": "Erweitert"
+    "advanced": "Erweitert",
+    "integrations": "Verbundene Produkte"
   },
   "audience": {
     "label": "Wer es nutzen darf",
@@ -11885,6 +12127,446 @@
       "hidden_paths": {
         "title": "Verborgene Pfade",
         "description": "Pfade, die der Agent gar nicht sieht, z. B. /drive/HR/."
+      }
+    },
+    "gmail": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "google_calendar": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "google_drive": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "google_docs": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "google_sheets": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "google_slides": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "outlook_mail": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "outlook_calendar": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "microsoft_files": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "excel": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "teams": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "slack": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "imap_mail": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "word": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_contacts": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_crm": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_sales": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_accounting": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_inventory": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_projects": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
       }
     }
   },

@@ -100,6 +100,18 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.connections.get_org_portal_connection = AsyncMock(
         return_value=_named(id=uuid.uuid4(), name="grant", portal_key="google")
     )
+    service.connections.list_accounts = AsyncMock(return_value=[])
+
+    async def polled_connection(ctx, identifier, *, portal_key, channels=None):
+        grant = await service.connections.get_org_portal_connection(ctx, identifier)
+        if grant.portal_key != portal_key:
+            raise BadRequestError(
+                message="This connection is for another service",
+                details={"fields": [{"field": "connection_id"}]},
+            )
+        return grant
+
+    service.connections.get_polled_connection = AsyncMock(side_effect=polled_connection)
     service._polled_source_current = AsyncMock(return_value=True)
     service.sources = MagicMock()
     service.sources.initial = AsyncMock(return_value=_source_policy())
@@ -2598,10 +2610,11 @@ class TestEditingTheEventConfig:
     fire is a filter edit, not a delete-and-recreate. The source and secret stay
     immutable; a schedule has no filter, so one sent for it is refused (DEENUU #537)."""
 
-    async def test_editing_a_github_filter_persists_the_normalized_config(self):
+    @pytest.mark.parametrize("portal_key", [None, "github", "retired-provider"])
+    async def test_editing_a_github_filter_persists_the_normalized_config(self, portal_key):
         agent = _agent()
         service = _service(agent)
-        trigger = _event_trigger(agent_id=agent.id)
+        trigger = _event_trigger(agent_id=agent.id, portal_key=portal_key)
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
@@ -3180,7 +3193,10 @@ class TestCreatingFromAPortalPreset:
                 _ctx(),
                 agent.id,
                 _preset_create(
-                    portal_key="google", preset_key="any_message", target=None, connection_id=None
+                    portal_key="google",
+                    preset_key="any_message",
+                    target=None,
+                    connection_id=uuid.uuid4(),
                 ),
             )
         assert result.delivery_mode == "manual"
@@ -3195,31 +3211,23 @@ class TestCreatingFromAPortalPreset:
                 await service.create(_ctx(), agent.id, _preset_create(preset_key="no-such-preset"))
         repo.create.assert_not_called()
 
-    async def test_a_preset_without_a_connection_skips_the_lookup(self):
-        """A manual preset the caller wires themselves carries no `connection_id`,
-        so there is nothing to resolve and the org lookup is never called."""
+    async def test_a_native_preset_requires_an_account_before_storing_a_trigger(self):
         agent = _agent()
         service = _service(agent)
-        with (
-            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
-            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
-            patch("app.services.agent_trigger.portals.get_adapter", return_value=None),
-        ):
-            repo.create = AsyncMock(
-                return_value=_event_trigger(
-                    event_source="gmail", conversation_id=uuid.uuid4(), delivery_mode="manual"
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(BadRequestError, match="connected account"):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="google",
+                        preset_key="any_message",
+                        connection_id=None,
+                        target=None,
+                    ),
                 )
-            )
-            result = await service.create(
-                _ctx(),
-                agent.id,
-                _preset_create(
-                    portal_key="google", preset_key="any_message", connection_id=None, target=None
-                ),
-            )
-        assert result.delivery_mode == "manual"
-        assert repo.create.await_args.kwargs["connection_id"] is None
-        service.connections.get_org_connection.assert_not_awaited()
+        repo.create.assert_not_awaited()
 
     async def test_a_connection_from_another_organization_is_refused(self):
         """The caller supplies `connection_id`; a bogus or cross-tenant id must be
@@ -3335,7 +3343,7 @@ class TestCreatingFromAPortalPreset:
                     portal_key="google",
                     preset_key="any_message",
                     target=None,
-                    connection_id=None,
+                    connection_id=uuid.uuid4(),
                     event_config={"subject_contains": "invoice"},
                 ),
             )
@@ -3365,7 +3373,7 @@ class TestCreatingFromAPortalPreset:
                     portal_key="google",
                     preset_key="any_message",
                     target=None,
-                    connection_id=None,
+                    connection_id=uuid.uuid4(),
                     event_config={"subject_contains": "invoice", "sender_contains": "@acme.com"},
                 ),
             )
@@ -3905,6 +3913,7 @@ class TestPortalCatalogConnectionState:
         manual.mcp_catalog_key = None
         manual.oauth_app_kind = None
         manual.webhook_admin_scopes = ()
+        manual.native_provider = None
         manual.presets = []
         service = _service()
         with (
@@ -4770,7 +4779,7 @@ class TestASharedMailbox:
         return _preset_create(
             portal_key="microsoft",
             preset_key="any_message",
-            connection_id=None,
+            connection_id=uuid.uuid4(),
             target=None,
             event_config=config or None,
         )
@@ -4778,6 +4787,7 @@ class TestASharedMailbox:
     async def _create(self, role: str, data: TriggerCreate) -> AsyncMock:
         agent = _agent()
         service = _service(agent)
+        service.connections.get_org_portal_connection.return_value.portal_key = data.portal_key
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
@@ -4850,6 +4860,7 @@ class TestPortalReviewRegressions:
         data = TriggerCreate(
             trigger_type="event",
             prompt="Watch",
+            connection_id=uuid.uuid4(),
             portal_key="microsoft_files",
             preset_key="any_change",
             event_config={"site_url": "https://acme.sharepoint.com/sites/Executive"},
@@ -5159,3 +5170,193 @@ async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
 async def test_invalid_or_null_routine_result_policy_is_refused(mode):
     with pytest.raises(PydanticValidationError):
         TriggerUpdate.model_validate({"result_mode": mode})
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("portal", ["slack", "teams"])
+async def test_native_message_triggers_require_explicit_conversations(portal):
+    agent = _agent()
+    service = _service(agent)
+    service.connections.get_polled_connection = AsyncMock(return_value=MagicMock(auth_type="oauth"))
+    with pytest.raises(BadRequestError, match="Choose the conversations"):
+        await service.create(
+            _ctx(), agent.id, _preset_create(portal_key=portal, preset_key="message", target=None)
+        )
+
+
+@pytest.mark.security
+async def test_an_app_webhook_rejects_another_services_connection():
+    agent = _agent()
+    service = _service(agent)
+    service.connections.get_org_portal_connection = AsyncMock(
+        return_value=MagicMock(portal_key="another-service")
+    )
+    with pytest.raises(BadRequestError, match="another service"):
+        await service.create(_ctx(), agent.id, _preset_create(portal_key="github_app"))
+
+
+@pytest.mark.security
+async def test_odoo_trigger_business_area_cannot_drift_from_its_reader():
+    from app.services import portal_catalog
+
+    service = _service()
+    portal, preset = portal_catalog.get_preset("odoo_contacts", "record_changed")
+    assert service._merged_preset_config("odoo", preset, None) == {"product_id": portal.key}
+    with pytest.raises(BadRequestError, match="business area"):
+        service._merged_preset_config("odoo", preset, {"product_id": "odoo_sales"})
+    trigger = _event_trigger(event_source="odoo", portal_key=portal.key)
+    assert service._validated_event_config(trigger, {"product_id": portal.key}) == {
+        "product_id": portal.key
+    }
+    with pytest.raises(BadRequestError, match="business area"):
+        service._validated_event_config(trigger, {"product_id": "odoo_sales"})
+
+
+async def test_polled_deliveries_enforce_the_trigger_allowance_and_release_throttled_claims():
+    from app.core import background
+    from app.services.portals import PolledEvent
+    from app.services.rate_limit import Decision
+
+    trigger = _event_trigger(event_source="gmail", event_config={})
+    service = _service()
+    service._claim = AsyncMock(return_value=True)
+    with (
+        patch("app.services.agent_trigger.spawn_after_commit", background.spawn_after_commit),
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.list_active_for_event_source",
+            AsyncMock(return_value=[trigger]),
+        ),
+        patch(
+            "app.services.agent_trigger.rate_limit.trigger_delivery_allowed",
+            AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=60, metered=True)),
+        ) as allowance,
+        patch(
+            "app.services.agent_trigger.trigger_dedupe.release_event_delivery", AsyncMock()
+        ) as release,
+    ):
+        decisions = await service.prepare_polled_fires(
+            organization_id=_ORG,
+            event_source="gmail",
+            events=[PolledEvent(delivery_id="busy-inbox", payload={})],
+        )
+        assert decisions == []
+        allowance.assert_awaited_once_with(trigger.id)
+        background.start_deferred(service.db)
+        await background.drain()
+        release.assert_awaited_once_with(trigger_id=trigger.id, delivery_id="busy-inbox")
+
+
+@pytest.mark.parametrize(
+    "source,auth_type,channels,refused",
+    [
+        ("slack", "oauth", [], True),
+        ("teams", "oauth", [], True),
+        ("teams", "application", [], False),
+        ("slack", "oauth", ["C2"], False),
+    ],
+)
+async def test_native_filter_edits_recheck_conversation_requirements(
+    source, auth_type, channels, refused
+):
+    ctx = _ctx()
+    trigger = _event_trigger(
+        event_source=source,
+        event_config={"channels": ["C1"]},
+        portal_key=source,
+        connection_id=uuid.uuid4(),
+        created_by_user_id=ctx.user_id,
+    )
+    service = _service()
+    service._owned = AsyncMock(return_value=trigger)
+    service.connections.get_polled_connection = AsyncMock(
+        return_value=_named(name="Account", auth_type=auth_type)
+    )
+    with patch(
+        "app.services.agent_trigger.agent_trigger_repo.update", AsyncMock(return_value=trigger)
+    ) as update:
+        if refused:
+            with pytest.raises(BadRequestError, match="conversations"):
+                await service.update(
+                    ctx,
+                    trigger.agent_id,
+                    trigger.id,
+                    TriggerUpdate(event_config={"channels": channels}),
+                )
+            update.assert_not_awaited()
+        else:
+            await service.update(
+                ctx,
+                trigger.agent_id,
+                trigger.id,
+                TriggerUpdate(event_config={"channels": channels}),
+            )
+            update.assert_awaited_once()
+    assert service.connections.get_polled_connection.await_args.kwargs["channels"] == tuple(
+        channels
+    )
+
+
+@pytest.mark.parametrize("missing_account", [False, True])
+async def test_native_filter_edits_cannot_escape_account_scope_checks(missing_account):
+    trigger = _event_trigger(
+        event_source="teams",
+        event_config={"channels": []},
+        portal_key="teams",
+        connection_id=None if missing_account else uuid.uuid4(),
+    )
+    service = _service()
+    service._owned = AsyncMock(return_value=trigger)
+    service.connections.get_org_portal_grant = AsyncMock(return_value=None)
+    service.connections.get_polled_connection = AsyncMock(
+        side_effect=AuthorizationError(message="Channel scopes not granted")
+    )
+    with pytest.raises((BadRequestError, AuthorizationError)):
+        await service.update(
+            _ctx(),
+            trigger.agent_id,
+            trigger.id,
+            TriggerUpdate(event_config={"channels": ["channel/team/channel"]}),
+        )
+    assert service.connections.get_polled_connection.await_count == int(not missing_account)
+
+
+async def test_a_manual_github_preset_does_not_require_a_native_account():
+    service = _service()
+    service.connections.webhook_access_token = AsyncMock()
+    trigger = _event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+    with patch(
+        "app.services.agent_trigger.agent_trigger_repo.create", AsyncMock(return_value=trigger)
+    ) as create:
+        await service.create(_ctx(), trigger.agent_id, _preset_create(connection_id=None))
+    create.assert_awaited_once()
+    service.connections.webhook_access_token.assert_not_awaited()
+
+
+async def test_legacy_default_portal_filters_remain_editable_without_rebinding_the_stored_source():
+    ctx = _ctx()
+    trigger = _event_trigger(
+        event_source="gmail",
+        event_config={},
+        portal_key="google",
+        connection_id=None,
+        created_by_user_id=ctx.user_id,
+    )
+    service = _service()
+    service._owned = AsyncMock(return_value=trigger)
+    legacy = _named(
+        id=uuid.uuid4(), name="Organization mailbox", portal_key="google", auth_type="oauth"
+    )
+    service.connections.get_org_portal_grant = AsyncMock(return_value=legacy)
+    service.connections.get_polled_connection = AsyncMock(return_value=legacy)
+    with patch(
+        "app.services.agent_trigger.agent_trigger_repo.update", AsyncMock(return_value=trigger)
+    ) as update:
+        await service.update(
+            ctx,
+            trigger.agent_id,
+            trigger.id,
+            TriggerUpdate(event_config={"subject_contains": "invoice"}),
+        )
+    assert service.connections.get_polled_connection.await_args.args[1] == legacy.id
+    assert "connection_id" not in update.await_args.kwargs["update_data"]
+    assert trigger.connection_id is None

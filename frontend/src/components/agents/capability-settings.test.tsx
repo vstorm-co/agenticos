@@ -24,6 +24,10 @@ const words = (key: string, values?: Record<string, string>): string => {
   );
 };
 
+vi.mock("@/hooks/use-connected-accounts", () => ({
+  useConnectedAccounts: () => ({ accounts: [], isLoading: false, error: null }),
+}));
+
 const KNOWLEDGE: CapabilityCatalogEntry = {
   recommended: null,
   id: "knowledge",
@@ -994,4 +998,61 @@ describe("resolveToolApproval", () => {
     // there to answer it, so the author has to ask for one.
     expect(resolveToolApproval(binding("email"), "send_email")).toBe("never");
   });
+});
+
+it("switches native tools individually while retaining the selected account", async () => {
+  const definition = {
+    ...KNOWLEDGE,
+    id: "gmail",
+    category: "integrations",
+    config_schema: null,
+    tools: [
+      { id: "gmail_search_threads", name: "gmail_search_threads", description: "Search mail" },
+    ],
+  };
+  const change = vi.fn();
+  const initial = binding("gmail", { config: { account_name: "Work", disabled_tools: [] } });
+  const view = render(
+    <CapabilitySettings catalog={[definition]} selected={[initial]} onChange={change} />,
+  );
+  openTools();
+  await userEvent.click(screen.getByRole("switch", { name: "Enable gmail_search_threads" }));
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      config: { account_name: "Work", disabled_tools: ["gmail_search_threads"] },
+    }),
+  );
+  view.rerender(
+    <CapabilitySettings
+      catalog={[definition]}
+      selected={[change.mock.lastCall![0]]}
+      onChange={change}
+    />,
+  );
+  await userEvent.click(screen.getByRole("switch", { name: "Enable gmail_search_threads" }));
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({ config: { account_name: "Work", disabled_tools: [] } }),
+  );
+});
+
+it("edits the personal account alias through native capability settings", async () => {
+  const definition: CapabilityCatalogEntry = {
+    ...KNOWLEDGE,
+    id: "gmail",
+    category: "integrations",
+    tools: [],
+    config_schema: { "x-integration-provider": "google", type: "object", properties: {} },
+  };
+  const change = vi.fn();
+  render(
+    <CapabilitySettings
+      catalog={[definition]}
+      selected={[binding("gmail", { config: {} })]}
+      onChange={change}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText("Personal account name"), "W");
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({ id: "gmail", config: { account_name: "W" } }),
+  );
 });

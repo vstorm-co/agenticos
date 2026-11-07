@@ -103,6 +103,7 @@ async def _syncing(
     listing: list[MagicMock],
     connector: MagicMock,
     replaced: str | None = None,
+    connection_id: uuid.UUID | None = None,
 ) -> Any:
     """The connector flow with its store, database and ingest replaced.
 
@@ -115,7 +116,10 @@ async def _syncing(
 
     source = MagicMock(
         connector_type="gdrive",
-        config={"folder_id": "abc"},
+        config={
+            "folder_id": "abc",
+            **({"connection_id": str(connection_id)} if connection_id else {}),
+        },
         collection_name="docs",
         sync_mode=mode,
         organization_id=uuid.uuid4(),
@@ -984,3 +988,21 @@ class TestASyncLogPassedInIsNotLeftRunning:
         assert answer["status"] == "error"
         sync_svc.complete_sync.assert_not_awaited()
         sources.update_after_sync.assert_awaited_once()
+
+
+async def test_connected_source_passes_the_refreshable_grant_through_listing_and_download():
+    from app.services.integrations import AccountToken
+
+    connector = _connector()
+    account = AccountToken(connection_id=uuid.uuid4(), provider="google", api_key="private-token")
+    with patch.object(
+        rag_tasks, "_refreshable_source_account", new=AsyncMock(return_value=account)
+    ) as grant:
+        async with _syncing(
+            mode="full", listing=[], connector=connector, connection_id=account.connection_id
+        ):
+            await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
+    assert grant.await_args.kwargs["connection_id"] == account.connection_id
+    assert grant.await_args.kwargs["provider"] == "google"
+    assert connector.list_files.await_args.args[1] is account
+    assert connector.download_file.await_args.kwargs["credential"] is account

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -60,6 +60,9 @@ from app.services.spend import assert_organization_within_budget
 from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
 from app.worker.attempt import is_final_attempt
 from app.worker.jobs import IngestDocument, SyncCollection, SyncConnectorSource, sync_source_key
+
+if TYPE_CHECKING:
+    from app.services.integrations import AccountToken
 
 logger = logging.getLogger(__name__)
 
@@ -879,6 +882,30 @@ async def _update_sync_log(sync_log_id: str, status: str, error_message: str | N
         logger.warning("Failed to update SyncLog: %s", e)
 
 
+async def _refreshable_source_account(
+    *,
+    organization_id: UUID,
+    connection_id: UUID,
+    provider: Literal["google", "microsoft", "slack", "odoo"],
+) -> AccountToken:
+    from pydantic import SecretStr
+
+    from app.services.integrations import IntegrationService
+
+    async def grant() -> AccountToken:
+        async with get_worker_db_context() as token_db:
+            return await IntegrationService(token_db).source_token(
+                organization_id=organization_id, connection_id=connection_id, provider=provider
+            )
+
+    async def renew() -> SecretStr:
+        return (await grant()).api_key
+
+    account = await grant()
+    account.bind_renewal(renew)
+    return account
+
+
 async def _connector_credential(
     db: AsyncSession, secret_id: UUID | None, organization_id: UUID
 ) -> StorableSecret | None:
@@ -1389,7 +1416,24 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # be kept (#937). `None` here is a source with no credential, or one
         # whose secret was deleted - the connector refuses rather than reaching
         # for a deployment-wide fallback, because there is not one.
-        credential = await _connector_credential(db, source.secret_id, organization_id)
+        if config.get("connection_id") is not None and source.connector_type in {
+            "gdrive",
+            "sharepoint",
+            "slack",
+            "odoo",
+        }:
+            credential = await _refreshable_source_account(
+                organization_id=organization_id,
+                connection_id=UUID(str(config["connection_id"])),
+                provider={
+                    "gdrive": "google",
+                    "sharepoint": "microsoft",
+                    "slack": "slack",
+                    "odoo": "odoo",
+                }[source.connector_type],
+            )
+        else:
+            credential = await _connector_credential(db, source.secret_id, organization_id)
 
         # The log the job was queued with - a manual trigger and the schedule both
         # open one - or, for a source that had no collection when it was

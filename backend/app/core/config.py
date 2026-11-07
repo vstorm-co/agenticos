@@ -1129,6 +1129,9 @@ class Settings(BaseSettings):
     # SaaS backends (Drive, GitHub, Notion...) reach their fixed APIs regardless.
     MIRAGE_ALLOWED_HOSTS: list[str] = []
 
+    # Exact Odoo hosts approved by the operator to receive database API keys.
+    ODOO_ALLOWED_HOSTS: list[str] = []
+
     # The browser a person signs in to a site with from Settings (#2129). An
     # agent's browser is named in its spec; signing in from Settings involves no
     # agent, so the deployment names the one it runs - the compose `browser`

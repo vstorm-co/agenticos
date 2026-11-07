@@ -31,6 +31,7 @@ assistant) or from the organization-scoped ones a published agent's spec names.
 """
 
 import asyncio
+import base64
 import hashlib
 import logging
 import re
@@ -81,6 +82,8 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
+from app.core.mail_credential import ImapCredential
+from app.core.odoo_credential import OdooCredential
 from app.core.permissions import AuthContext, Perm
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import GithubAppSecret, MicrosoftOAuthAppSecret, SecretKind
@@ -109,6 +112,7 @@ from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
 from app.services.access import MCP_CONNECTION, accessible_ids, decider_context, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
+from app.services.integrations import IntegrationSetup, slack_oauth
 from app.services.mcp_catalog import get_entry
 from app.services.notifications import NotificationService
 from app.services.organization_secret import OrganizationSecretService
@@ -589,17 +593,32 @@ async def _rotate_token(
     if not payload.refresh_token:
         return None
     try:
-        token = await mcp_oauth.refresh_tokens(
-            token_endpoint=payload.token_endpoint,
-            client_id=payload.client_id,
-            client_secret=_revealed(payload.client_secret),
-            refresh_token=payload.refresh_token.get_secret_value(),
-            # Microsoft's v2.0 endpoint refuses RFC 8707's `resource`; the scopes
-            # already say which API the token is for.
-            resource=None if payload.provider == microsoft_oauth.PROVIDER else payload.resource,
-            scope=payload.scope,
-            server_url=payload.server_url,
-        )
+        if payload.provider == "slack":
+            refreshed = await slack_oauth.refresh_user_token(
+                client_id=payload.client_id,
+                client_secret=_revealed(payload.client_secret) or "",
+                refresh_token=payload.refresh_token,
+            )
+            token = OAuthToken(
+                access_token=refreshed.access_token.get_secret_value(),
+                refresh_token=_revealed(refreshed.refresh_token),
+                expires_in=refreshed.expires_in,
+                scope=refreshed.scope,
+            )
+        else:
+            token = await mcp_oauth.refresh_tokens(
+                token_endpoint=payload.token_endpoint,
+                client_id=payload.client_id,
+                client_secret=_revealed(payload.client_secret),
+                refresh_token=payload.refresh_token.get_secret_value(),
+                # Microsoft's v2.0 endpoint refuses RFC 8707's `resource`; the scopes
+                # already say which API the token is for.
+                resource=None
+                if payload.provider in {microsoft_oauth.PROVIDER, "slack"}
+                else payload.resource,
+                scope=payload.scope,
+                server_url=payload.server_url,
+            )
     except mcp_oauth.OAuthGrantRevoked:
         # Dead for good, so it is dropped rather than spent again every minute:
         # with no refresh token the row reads as needing a new consent, which is
@@ -879,6 +898,13 @@ def account_source_organization(account: McpConnection) -> UUID | None:
 class McpConnectionService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    def integration_setup(self, provider: str, *, write: bool = False) -> IntegrationSetup:
+        from app.services.integrations import setup_for
+
+        if provider not in {"google", "microsoft", "slack"}:
+            raise BadRequestError(message="Unknown integration provider")
+        return setup_for(provider, write=write)
 
     async def list_for_user(self, *, user_id: UUID) -> tuple[list[McpConnection], int]:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
@@ -1334,6 +1360,7 @@ class McpConnectionService:
         payload: McpOAuthPayload,
         state: str,
         upgrade: bool = False,
+        label: str | None = None,
     ) -> None:
         """Write a staged consent flow onto an existing row or a fresh one.
 
@@ -1358,12 +1385,12 @@ class McpConnectionService:
                     message="A connection with this name already exists",
                     details={"name": name},
                 )
-            # An abandoned account has no live grant to preserve, so restarting
-            # consent must not depend on a master key that was already retired.
-            # Other rows retain their version alongside their live credential.
+            # A missing wrapping key cannot preserve a usable live grant. Repair
+            # that account under the current key without breaking healthy grants.
+            unusable_account = existing.purpose == "account" and not existing.account_authorized
             pending = (
                 seal(payload.model_dump_json(), scope=vault_scope)
-                if existing.purpose == "account" and existing.oauth_payload is None
+                if unusable_account
                 else _seal_for(existing, payload.model_dump_json())
             )
             await mcp_connection_repo.update(
@@ -1373,6 +1400,12 @@ class McpConnectionService:
                     "is_enabled": True,
                     "oauth_state": state,
                     "oauth_pending_payload": pending.ciphertext,
+                    **(
+                        {"oauth_payload": None}
+                        if unusable_account and existing.oauth_payload is not None
+                        else {}
+                    ),
+                    **({"label": label or None} if label is not None else {}),
                     "secret_key_version": pending.key_version,
                     **(
                         {"account_source_organization_id": payload.account_source_organization_id}
@@ -1507,6 +1540,24 @@ class McpConnectionService:
             connection_id=connection_id,
             portal_keys=portal_keys,
             now=datetime.now(UTC),
+        )
+
+    async def record_native_poll_status(self, account: McpConnection, *, failed: bool) -> None:
+        """Publish a sanitized account heartbeat while preserving each source cursor."""
+        await mcp_connection_repo.update(
+            self.db,
+            db_connection=account,
+            update_data={
+                "last_status": "error" if failed else "ok",
+                "last_error": (
+                    account.last_error
+                    if account.authorization_expired
+                    else "Native polling failed; check the account, permissions and selected sources"
+                )
+                if failed
+                else None,
+                "last_checked_at": datetime.now(UTC),
+            },
         )
 
     async def record_poll_processing_failure(self, connection_id: UUID) -> None:
@@ -1879,10 +1930,65 @@ class McpConnectionService:
         )
         return connection
 
+    async def _reconnect_account(
+        self,
+        ctx: AuthContext,
+        connection_id: UUID | None,
+        *,
+        provider: str,
+        auth_type: str,
+        for_organization: bool,
+    ) -> McpConnection | None:
+        # All account mutations share the callback's owner-before-row lock order.
+        await mcp_connection_repo.lock_account_owner(
+            self.db,
+            user_id=None if for_organization else ctx.subject_id,
+            organization_id=ctx.organization_id if for_organization else None,
+        )
+        if connection_id is None:
+            return None
+        account = await mcp_connection_repo.get_by_id_for_update(self.db, connection_id)
+        if (
+            account is None
+            or account.purpose != "account"
+            or account.catalog_key != provider
+            or (
+                for_organization
+                and (account.scope != "org" or account.organization_id != ctx.organization_id)
+            )
+            or (
+                not for_organization
+                and (
+                    account.scope != "user"
+                    or account.user_id != ctx.subject_id
+                    or account_source_organization(account) != ctx.organization_id
+                )
+            )
+        ):
+            raise NotFoundError(message="Connected account not found")
+        if for_organization and not await resolve_access(
+            self.db, ctx, account, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(message="Connected account not found")
+        if account.auth_type != auth_type:
+            raise BadRequestError(
+                message="Reconnect using this account's existing authentication method"
+            )
+        return account
+
     async def account_start(
-        self, ctx: AuthContext, *, for_organization: bool, browser_nonce: str
+        self,
+        ctx: AuthContext,
+        *,
+        for_organization: bool,
+        browser_nonce: str,
+        provider: str = "google",
+        products: list[str] | None = None,
+        write: bool = False,
+        label: str = "",
+        connection_id: UUID | None = None,
     ) -> str:
-        """Begin connecting a Google account a virtual terminal's mount signs in as (#2191).
+        """Begin provider consent for a named Google, Microsoft or Slack account.
 
         The organization's own OAuth client, from the vault, as for a polled portal
         - and the account is either the caller's (`for_organization=False`), found
@@ -1898,23 +2004,98 @@ class McpConnectionService:
                 administrator's own grant would be stored as the member's (#1490).
         """
         refuse_binding_while_impersonating("Connecting an account")
+        existing = await self._reconnect_account(
+            ctx,
+            connection_id,
+            provider=provider,
+            auth_type="oauth",
+            for_organization=for_organization,
+        )
+        from app.core.secret_kinds import MicrosoftOAuthAppSecret
+        from app.services.integrations import PRODUCTS
+
+        if provider not in {"google", "microsoft", "slack"}:
+            raise BadRequestError(message="This provider does not support account OAuth")
+        selected = [PRODUCTS[key] for key in products or () if key in PRODUCTS]
+        if products is not None and (
+            not selected
+            or len(selected) != len(products)
+            or any(p.provider != provider for p in selected)
+        ):
+            raise BadRequestError(message="Choose products belonging to this integration provider")
+        account_scopes = (
+            list(google_oauth.ACCOUNT_SCOPES)
+            if products is None and provider == "google"
+            else ["openid", "email"]
+            if provider == "google"
+            else ["openid", "profile", "offline_access", "User.Read"]
+        )
+        for product in selected:
+            for operation in product.operations:
+                if not operation.side_effecting or write:
+                    account_scopes.append(operation.scopes[0])
+        if provider == "slack":
+            account_scopes = list(
+                dict.fromkeys(
+                    scope
+                    for product in selected
+                    for operation in product.operations
+                    if write or not operation.side_effecting
+                    for scope in operation.scopes
+                )
+            )
+        account_scopes = list(dict.fromkeys(account_scopes))
         creds, source_id, source_generation = await OrganizationSecretService(
             self.db
-        ).oauth_app_identity(ctx, kind=SecretKind.GOOGLE_OAUTH_APP)
+        ).oauth_app_identity(
+            ctx,
+            kind={
+                "google": SecretKind.GOOGLE_OAUTH_APP,
+                "microsoft": SecretKind.MICROSOFT_OAUTH_APP,
+                "slack": SecretKind.SLACK_OAUTH_APP,
+            }[provider],
+        )
         redirect_uri = _oauth_redirect_uri()
+        verifier = secrets.token_urlsafe(48) if provider == "microsoft" else None
+        challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+            if verifier
+            else None
+        )
+        server_url = _GOOGLE_APIS if provider == "google" else "https://graph.microsoft.com"
+        tenant_id = creds.tenant_id if isinstance(creds, MicrosoftOAuthAppSecret) else "common"
+        authorization_endpoint = (
+            google_oauth.AUTHORIZE_ENDPOINT
+            if provider == "google"
+            else microsoft_oauth.authorize_endpoint_for(tenant_id)
+        )
+        token_endpoint = (
+            google_oauth.TOKEN_ENDPOINT
+            if provider == "google"
+            else microsoft_oauth.token_endpoint_for(tenant_id)
+        )
+        if provider == "slack":
+            server_url = "https://slack.com/api"
+            authorization_endpoint = slack_oauth.AUTHORIZE_ENDPOINT
+            token_endpoint = slack_oauth.TOKEN_ENDPOINT
         state = secrets.token_urlsafe(32)
         payload = McpOAuthPayload(
-            # Where the token is spent, as for a portal grant: Google's APIs.
-            server_url=_GOOGLE_APIS,
+            # The token is spent only at this provider's fixed API endpoint.
+            server_url=server_url,
             started_at=_now_epoch(),
-            authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
-            token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            authorization_endpoint=authorization_endpoint,
+            token_endpoint=token_endpoint,
             client_id=creds.client_id,
             client_secret=creds.client_secret,
-            scope=" ".join(google_oauth.ACCOUNT_SCOPES),
-            resource=_GOOGLE_APIS,
+            scope=" ".join(account_scopes),
+            resource=server_url,
             redirect_uri=redirect_uri,
-            provider=google_oauth.PROVIDER,
+            provider=provider,
+            integration_write_enabled=write,
+            account_reconnect_id=connection_id,
+            code_verifier=verifier,
             browser_nonce_digest=hashlib.sha256(browser_nonce.encode()).hexdigest(),
             account_initiator_id=ctx.subject_id,
             account_source_organization_id=ctx.organization_id,
@@ -1922,12 +2103,7 @@ class McpConnectionService:
             account_source_generation=source_generation,
         )
         # A placeholder until Google names the account; names are unique per owner.
-        name = f"google-account-{secrets.token_hex(6)}"
-        await mcp_connection_repo.lock_account_owner(
-            self.db,
-            user_id=None if for_organization else ctx.subject_id,
-            organization_id=ctx.organization_id if for_organization else None,
-        )
+        name = f"{provider}-account-{secrets.token_hex(6)}"
         from app.repositories import member_repo
 
         if (
@@ -1939,16 +2115,16 @@ class McpConnectionService:
             raise AuthorizationError(
                 message="Connecting an account requires current organization membership"
             )
-        existing = await mcp_connection_repo.get_pending_account(
+        existing = existing or await mcp_connection_repo.get_pending_account(
             self.db,
-            provider=google_oauth.PROVIDER,
+            provider=provider,
             user_id=None if for_organization else ctx.subject_id,
             organization_id=ctx.organization_id if for_organization else None,
         )
         if for_organization:
             await self._stage_pending_oauth(
                 name=name,
-                url=_GOOGLE_APIS,
+                url=server_url,
                 existing=existing,
                 vault_scope=VaultScope.organization(ctx.organization_id),
                 create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
@@ -1956,7 +2132,8 @@ class McpConnectionService:
                     organization_id=ctx.organization_id,
                     created_by_user_id=ctx.subject_id,
                     allowed_tools=None,
-                    catalog_key=google_oauth.PROVIDER,
+                    catalog_key=provider,
+                    label=label or None,
                     sealed_token=None,
                     purpose="account",
                     account_source_organization_id=ctx.organization_id,
@@ -1964,11 +2141,12 @@ class McpConnectionService:
                 ),
                 payload=payload,
                 state=state,
+                label=label or (existing.label if existing else None),
             )
         else:
             await self._stage_pending_oauth(
                 name=name,
-                url=_GOOGLE_APIS,
+                url=server_url,
                 existing=existing,
                 vault_scope=VaultScope.user(ctx.subject_id),
                 create=lambda **kwargs: mcp_connection_repo.create(
@@ -1976,28 +2154,605 @@ class McpConnectionService:
                     user_id=ctx.subject_id,
                     auth_token=None,
                     allowed_tools=None,
-                    catalog_key=google_oauth.PROVIDER,
+                    catalog_key=provider,
+                    label=label or None,
                     purpose="account",
                     account_source_organization_id=ctx.organization_id,
                     **kwargs,
                 ),
                 payload=payload,
                 state=state,
+                label=label or (existing.label if existing else None),
+            )
+        if provider == "slack":
+            return slack_oauth.authorization_url(
+                client_id=creds.client_id,
+                redirect_uri=redirect_uri,
+                scopes=account_scopes,
+                state=state,
+            )
+        if provider == "microsoft":
+            return microsoft_oauth.authorization_url(
+                tenant_id=tenant_id,
+                client_id=creds.client_id,
+                redirect_uri=redirect_uri,
+                scopes=account_scopes,
+                state=state,
+                code_challenge=challenge or "",
             )
         return google_oauth.authorization_url(
             client_id=creds.client_id,
             redirect_uri=redirect_uri,
-            scopes=google_oauth.ACCOUNT_SCOPES,
+            scopes=account_scopes,
             state=state,
         )
+
+    async def connect_application_account(
+        self,
+        ctx: AuthContext,
+        *,
+        provider: str,
+        secret_id: UUID,
+        subject: str | None,
+        products: list[str],
+        write: bool,
+        label: str,
+        for_organization: bool = True,
+        connection_id: UUID | None = None,
+    ) -> McpConnection:
+        """Bind a permitted vault credential as a named personal or organization account."""
+        refuse_binding_while_impersonating("Connecting an account")
+        existing = await self._reconnect_account(
+            ctx,
+            connection_id,
+            provider=provider,
+            auth_type="application",
+            for_organization=for_organization,
+        )
+        from app.services.integrations import PRODUCTS, application_scopes
+
+        expected = SecretKind.GCP_SERVICE_ACCOUNT if provider == "google" else SecretKind.ENTRA_APP
+        # Choosing an application subject can impersonate any provider user.
+        # Viewing a shared credential is not permission to delegate that authority.
+        row = await OrganizationSecretService(self.db).get_usable(
+            ctx, secret_id, kind=expected, perm=Perm.SECRETS_EDIT
+        )
+        selected = [PRODUCTS[key] for key in products if key in PRODUCTS]
+        if (
+            not selected
+            or len(selected) != len(products)
+            or any(p.provider != provider for p in selected)
+        ):
+            raise BadRequestError(message="Choose products belonging to this integration provider")
+        if provider == "google" and any(p.id == "gmail" for p in selected) and not subject:
+            raise BadRequestError(
+                message="A Gmail service account needs the mailbox user to impersonate"
+            )
+        if provider == "microsoft" and any(p.id == "excel" for p in selected):
+            raise BadRequestError(
+                message="Excel tools require delegated OAuth; Graph does not provide equivalent app-only access"
+            )
+        if (
+            provider == "microsoft"
+            and any(p.id in {"outlook_mail", "outlook_calendar", "teams"} for p in selected)
+            and not subject
+        ):
+            raise BadRequestError(
+                message="An application mailbox account needs the mailbox address it acts as"
+            )
+        if provider == "microsoft" and any(p.id == "teams" for p in selected):
+            try:
+                UUID(subject or "")
+            except ValueError:
+                raise BadRequestError(
+                    message="A Teams application account needs the directory object ID of the user it reads"
+                ) from None
+        scopes = sorted(
+            {
+                scopes[0]
+                for p in selected
+                for op in p.operations
+                if write or not op.side_effecting
+                if (
+                    scopes := application_scopes(p.id, op) if provider == "microsoft" else op.scopes
+                )
+            }
+        )
+        secrets_service = OrganizationSecretService(self.db)
+        application_id = None
+        if provider == "microsoft":
+            grant = await secrets_service.integration_grant(
+                organization_id=ctx.organization_id,
+                secret_id=row.id,
+                provider=provider,
+                subject=subject,
+                scopes=scopes,
+            )
+            allowed = {
+                role
+                for p in selected
+                for op in p.operations
+                if write or not op.side_effecting
+                for role in application_scopes(p.id, op)
+            }
+            application_id = grant.application_id
+            scopes = sorted(grant.granted_scopes & allowed)
+            if not scopes:
+                raise AuthorizationError(
+                    message="Microsoft granted none of the selected products' application permissions"
+                )
+        else:
+            await secrets_service.integration_token(
+                organization_id=ctx.organization_id,
+                secret_id=row.id,
+                provider=provider,
+                subject=subject,
+                scopes=scopes,
+            )
+        source = "google_service_account" if provider == "google" else "microsoft_app"
+        server_url = _GOOGLE_APIS if provider == "google" else "https://graph.microsoft.com"
+        payload = McpOAuthPayload(
+            server_url=server_url,
+            started_at=_now_epoch(),
+            authorization_endpoint="",
+            token_endpoint="",
+            client_id=str(row.id),
+            scope=" ".join(scopes),
+            resource=server_url,
+            redirect_uri="",
+            provider=source,
+            integration_subject=subject,
+            integration_application_id=application_id,
+            integration_write_enabled=write,
+            account_source_organization_id=ctx.organization_id,
+            account_source_secret_id=row.id,
+            account_source_generation=row.authorization_generation,
+        )
+        sealed = seal(
+            payload.model_dump_json(),
+            scope=VaultScope.organization(ctx.organization_id)
+            if for_organization
+            else VaultScope.user(ctx.subject_id),
+        )
+        if existing is not None:
+            account = existing
+        elif for_organization:
+            account = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                name=f"{provider}-account-{uuid4().hex}",
+                label=label or (subject or row.name)[:64],
+                url=server_url,
+                sealed_token=None,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key=provider,
+                purpose="account",
+                auth_type="application",
+                account_source_organization_id=ctx.organization_id,
+            )
+        else:
+            account = await mcp_connection_repo.create(
+                self.db,
+                user_id=ctx.subject_id,
+                name=f"{provider}-account-{uuid4().hex}",
+                label=label or (subject or row.name)[:64],
+                url=server_url,
+                auth_token=None,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key=provider,
+                purpose="account",
+                auth_type="application",
+                account_source_organization_id=ctx.organization_id,
+            )
+        saved = await mcp_connection_repo.update(
+            self.db,
+            db_connection=account,
+            update_data={
+                "url": server_url,
+                "auth_type": "application",
+                "auth_token": None,
+                "secret_key_version": sealed.key_version,
+                "is_enabled": True,
+                "oauth_state": None,
+                "oauth_pending_payload": None,
+                "poll_cursor": None,
+                "last_error": None,
+                "label": label or account.label,
+                "account_source_organization_id": ctx.organization_id,
+                "oauth_payload": sealed.ciphertext,
+                "granted_scopes": scopes,
+                "account_email": subject,
+                "last_status": "ok",
+                "authorization_generation": uuid4(),
+            },
+        )
+
+        return await self._record_native_connection(ctx, saved)
+
+    async def connect_imap_account(
+        self,
+        ctx: AuthContext,
+        *,
+        credential: ImapCredential,
+        label: str,
+        for_organization: bool,
+        connection_id: UUID | None = None,
+    ) -> McpConnection:
+        refuse_binding_while_impersonating("Connecting an account")
+        from app.repositories import member_repo
+        from app.services.integrations.imap import mailbox
+
+        if (
+            await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
+            is None
+        ):
+            raise AuthorizationError(
+                message="Connecting an account requires current organization membership"
+            )
+        existing = await self._reconnect_account(
+            ctx, connection_id, provider="imap", auth_type="imap", for_organization=for_organization
+        )
+        async with mailbox(credential):
+            pass
+        payload = McpOAuthPayload(
+            server_url="imap://mailbox",
+            started_at=_now_epoch(),
+            authorization_endpoint="",
+            token_endpoint="",
+            client_id="",
+            resource="",
+            redirect_uri="",
+            provider="imap",
+            integration_mail=credential,
+            account_source_organization_id=ctx.organization_id,
+        )
+        scope = (
+            VaultScope.organization(ctx.organization_id)
+            if for_organization
+            else VaultScope.user(ctx.subject_id)
+        )
+        sealed = seal(payload.model_dump_json(), scope=scope)
+        name = f"imap-account-{uuid4().hex}"
+        if existing is not None:
+            row = existing
+        elif for_organization:
+            row = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                name=name,
+                label=label or credential.username[:64],
+                url="imap://mailbox",
+                sealed_token=None,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key="imap",
+                purpose="account",
+                auth_type="imap",
+                account_source_organization_id=ctx.organization_id,
+            )
+        else:
+            row = await mcp_connection_repo.create(
+                self.db,
+                user_id=ctx.subject_id,
+                name=name,
+                label=label or credential.username[:64],
+                url="imap://mailbox",
+                auth_token=None,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key="imap",
+                purpose="account",
+                auth_type="imap",
+                account_source_organization_id=ctx.organization_id,
+            )
+        saved = await mcp_connection_repo.update(
+            self.db,
+            db_connection=row,
+            update_data={
+                "url": "imap://mailbox",
+                "auth_type": "imap",
+                "auth_token": None,
+                "secret_key_version": sealed.key_version,
+                "is_enabled": True,
+                "oauth_state": None,
+                "oauth_pending_payload": None,
+                "poll_cursor": None,
+                "last_error": None,
+                "label": label or row.label,
+                "account_source_organization_id": ctx.organization_id,
+                "authorization_generation": uuid4(),
+                "oauth_payload": sealed.ciphertext,
+                "granted_scopes": ["mail:read"],
+                "account_email": credential.username,
+                "last_status": "ok",
+            },
+        )
+
+        return await self._record_native_connection(ctx, saved)
+
+    def integration_mail_credential(
+        self, account: McpConnection, *, organization_id: UUID
+    ) -> ImapCredential:
+        if (
+            account.auth_type != "imap"
+            or account_source_organization(account) != organization_id
+            or not account.is_enabled
+        ):
+            raise AuthorizationError(message="This is not an authorized IMAP account")
+        payload = _decode_payload(account, account.oauth_payload)
+        if payload is None or payload.integration_mail is None:
+            raise AuthorizationError(message="This IMAP account needs to be connected again")
+        return payload.integration_mail
+
+    async def connect_odoo_account(
+        self,
+        ctx: AuthContext,
+        *,
+        credential: OdooCredential,
+        label: str,
+        write: bool,
+        for_organization: bool,
+        connection_id: UUID | None = None,
+    ) -> McpConnection:
+        refuse_binding_while_impersonating("Connecting an account")
+        from app.repositories import member_repo
+        from app.services.integrations.odoo import identify
+
+        if (
+            await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
+            is None
+        ):
+            raise AuthorizationError(
+                message="Connecting an account requires current organization membership"
+            )
+        existing = await self._reconnect_account(
+            ctx, connection_id, provider="odoo", auth_type="odoo", for_organization=for_organization
+        )
+        await identify(credential)
+        payload = McpOAuthPayload(
+            server_url=credential.origin,
+            started_at=_now_epoch(),
+            authorization_endpoint="",
+            token_endpoint="",
+            client_id="",
+            resource="",
+            redirect_uri="",
+            provider="odoo",
+            integration_write_enabled=write,
+            integration_odoo=credential,
+            account_source_organization_id=ctx.organization_id,
+        )
+        scope = (
+            VaultScope.organization(ctx.organization_id)
+            if for_organization
+            else VaultScope.user(ctx.subject_id)
+        )
+        sealed = seal(payload.model_dump_json(), scope=scope)
+        name = f"odoo-account-{uuid4().hex}"
+        if existing is not None:
+            row = existing
+        elif for_organization:
+            row = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                name=name,
+                label=label or credential.database[:64],
+                url=credential.origin,
+                sealed_token=None,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key="odoo",
+                purpose="account",
+                auth_type="odoo",
+                account_source_organization_id=ctx.organization_id,
+            )
+        else:
+            row = await mcp_connection_repo.create(
+                self.db,
+                user_id=ctx.subject_id,
+                name=name,
+                label=label or credential.database[:64],
+                url=credential.origin,
+                auth_token=None,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key="odoo",
+                purpose="account",
+                auth_type="odoo",
+                account_source_organization_id=ctx.organization_id,
+            )
+        saved = await mcp_connection_repo.update(
+            self.db,
+            db_connection=row,
+            update_data={
+                "url": credential.origin,
+                "auth_type": "odoo",
+                "auth_token": None,
+                "secret_key_version": sealed.key_version,
+                "is_enabled": True,
+                "oauth_state": None,
+                "oauth_pending_payload": None,
+                "poll_cursor": None,
+                "last_error": None,
+                "label": label or row.label,
+                "account_source_organization_id": ctx.organization_id,
+                "authorization_generation": uuid4(),
+                "oauth_payload": sealed.ciphertext,
+                "granted_scopes": ["odoo:read", "odoo:write"] if write else ["odoo:read"],
+                "account_email": credential.database,
+                "last_status": "ok",
+            },
+        )
+
+        return await self._record_native_connection(ctx, saved)
+
+    def integration_odoo_credential(
+        self, account: McpConnection, *, organization_id: UUID
+    ) -> OdooCredential:
+        if (
+            account.auth_type != "odoo"
+            or account_source_organization(account) != organization_id
+            or not account.is_enabled
+        ):
+            raise AuthorizationError(message="This is not an authorized Odoo account")
+        payload = _decode_payload(account, account.oauth_payload)
+        if payload is None or payload.integration_odoo is None:
+            raise AuthorizationError(message="This Odoo account needs to be connected again")
+        return payload.integration_odoo
+
+    async def connect_slack_token(
+        self,
+        ctx: AuthContext,
+        *,
+        token: SecretStr,
+        label: str,
+        for_organization: bool,
+        connection_id: UUID | None = None,
+        write: bool = False,
+    ) -> McpConnection:
+        """Validate and seal a workspace user or bot token as a named account."""
+        refuse_binding_while_impersonating("Connecting an account")
+        if not token.get_secret_value().startswith(("xoxp-", "xoxb-")):
+            raise BadRequestError(message="Use a Slack user token or bot token")
+        from app.repositories import member_repo
+
+        if (
+            await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
+            is None
+        ):
+            raise AuthorizationError(
+                message="Connecting an account requires current organization membership"
+            )
+        existing = await self._reconnect_account(
+            ctx,
+            connection_id,
+            provider="slack",
+            auth_type="bearer",
+            for_organization=for_organization,
+        )
+        try:
+            identity, scopes = await slack_oauth.identify(token)
+        except OAuthError as exc:
+            raise BadRequestError(message=str(exc)) from None
+        scope = (
+            VaultScope.organization(ctx.organization_id)
+            if for_organization
+            else VaultScope.user(ctx.subject_id)
+        )
+        sealed = seal(token.get_secret_value(), scope=scope)
+        name = f"slack-account-{uuid4().hex}"
+        if existing is not None:
+            row = existing
+        elif for_organization:
+            row = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                name=name,
+                label=label or identity[:64],
+                url="https://slack.com/api",
+                sealed_token=sealed.ciphertext,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key="slack",
+                purpose="account",
+                account_source_organization_id=ctx.organization_id,
+            )
+        else:
+            row = await mcp_connection_repo.create(
+                self.db,
+                user_id=ctx.subject_id,
+                name=name,
+                label=label or identity[:64],
+                url="https://slack.com/api",
+                auth_token=sealed.ciphertext,
+                secret_key_version=sealed.key_version,
+                allowed_tools=None,
+                catalog_key="slack",
+                purpose="account",
+                account_source_organization_id=ctx.organization_id,
+            )
+        policy = McpOAuthPayload(
+            server_url="https://slack.com/api",
+            started_at=_now_epoch(),
+            authorization_endpoint="",
+            token_endpoint="",
+            client_id="",
+            resource="",
+            redirect_uri="",
+            provider="slack",
+            integration_write_enabled=write,
+            account_source_organization_id=ctx.organization_id,
+        )
+        sealed_policy = seal(policy.model_dump_json(), scope=scope, key_version=sealed.key_version)
+        saved = await mcp_connection_repo.update(
+            self.db,
+            db_connection=row,
+            update_data={
+                "url": "https://slack.com/api",
+                "auth_type": "bearer",
+                "auth_token": sealed.ciphertext,
+                "oauth_payload": sealed_policy.ciphertext,
+                "secret_key_version": sealed.key_version,
+                "is_enabled": True,
+                "oauth_state": None,
+                "oauth_pending_payload": None,
+                "poll_cursor": None,
+                "last_error": None,
+                "label": label or row.label,
+                "account_source_organization_id": ctx.organization_id,
+                "authorization_generation": uuid4(),
+                "granted_scopes": scopes,
+                "account_email": identity,
+                "last_status": "ok",
+            },
+        )
+
+        return await self._record_native_connection(ctx, saved)
+
+    async def _record_native_connection(
+        self, ctx: AuthContext, account: McpConnection
+    ) -> McpConnection:
+        if account.scope == "org":
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="account.connected",
+                target_type="mcp_connection",
+                target_id=str(account.id),
+                details={"provider": account.catalog_key},
+            )
+        return account
+
+    @staticmethod
+    async def _native_account_email(provider: str, access_token: str) -> str | None:
+        if provider == "microsoft":
+            return await microsoft_oauth.account_email(access_token)
+        if provider == "slack":
+            identity, _ = await slack_oauth.identify(SecretStr(access_token))
+            return identity
+        return await google_oauth.account_email(access_token)
 
     async def _name_account(self, connection: McpConnection, access_token: str) -> McpConnection:
         """Label a just-connected account with its address, folding a re-consent into the
         grant the same address already has rather than holding the account twice."""
-        email = await google_oauth.account_email(access_token)
+        provider = connection.catalog_key or "google"
+        email = await self._native_account_email(provider, access_token)
         siblings = await mcp_connection_repo.list_accounts(
             self.db,
-            provider=google_oauth.PROVIDER,
+            provider=provider,
             user_id=connection.user_id if connection.scope == "user" else None,
             organization_id=connection.organization_id if connection.scope == "org" else None,
         )
@@ -2019,8 +2774,8 @@ class McpConnectionService:
                 update_data={
                     "account_source_organization_id": account_source_organization(connection),
                     "account_email": email,
-                    "label": (email or "Google account")[:64],
-                    "name": f"google-account-{connection.id.hex}",
+                    "label": connection.label or (email or f"{provider.title()} account")[:64],
+                    "name": f"{provider}-account-{connection.id.hex}",
                 },
             )
         payload = _decode_payload(connection, connection.oauth_payload)
@@ -2042,6 +2797,7 @@ class McpConnectionService:
                 "oauth_state": None,
                 "auth_token": None,
                 "account_email": email,
+                "label": connection.label or earlier.label,
                 "granted_scopes": connection.granted_scopes,
                 "last_status": "ok",
                 "last_error": None,
@@ -2052,12 +2808,12 @@ class McpConnectionService:
         return earlier
 
     async def list_accounts(
-        self, ctx: AuthContext, *, for_organization: bool
+        self, ctx: AuthContext, *, for_organization: bool, provider: str = "google"
     ) -> list[McpConnection]:
         """The caller's own connected accounts, or the organization's."""
         accounts = await mcp_connection_repo.list_accounts(
             self.db,
-            provider=google_oauth.PROVIDER,
+            provider=provider,
             user_id=None if for_organization else ctx.subject_id,
             organization_id=ctx.organization_id if for_organization else None,
         )
@@ -2096,6 +2852,13 @@ class McpConnectionService:
             raise NotFoundError(
                 message="Connected account not found", details={"account_id": account_id}
             )
+        from app.services.agent_trigger import AgentTriggerService
+
+        source_org = account.organization_id or account_source_organization(account)
+        if source_org is not None:
+            await AgentTriggerService(self.db).release_polled_connection(
+                organization_id=source_org, connection_id=account.id
+            )
         await mcp_connection_repo.delete(self.db, db_connection=account)
         if for_organization:
             await record_audit(
@@ -2130,11 +2893,90 @@ class McpConnectionService:
             )
             if membership is None:
                 return False
+            if account.auth_type == "application":
+                # A personal application grant carries the member's permission to
+                # use this vault credential; unlike delegated OAuth it has no
+                # provider-side user consent limiting the resulting authority.
+                try:
+                    await OrganizationSecretService(self.db).get_usable(
+                        membership,
+                        payload.account_source_secret_id,
+                        kind=SecretKind.GCP_SERVICE_ACCOUNT
+                        if payload.provider == "google_service_account"
+                        else SecretKind.ENTRA_APP,
+                        perm=Perm.SECRETS_EDIT,
+                    )
+                except NotFoundError:
+                    return False
         return (
             await organization_secret_repo.authorization_generation(
                 self.db, payload.account_source_secret_id, organization_id=organization_id
             )
             == payload.account_source_generation
+        )
+
+    @staticmethod
+    def integration_application_id(account: McpConnection) -> str:
+        payload = _decode_payload(account, account.oauth_payload)
+        if payload is None or payload.integration_application_id is None:
+            raise BadRequestError(
+                message="Reconnect this application account to identify its file edits"
+            )
+        return payload.integration_application_id
+
+    @staticmethod
+    def integration_writes_enabled(account: McpConnection) -> bool:
+        if account.auth_type == "bearer" and account.oauth_payload is None:
+            return True
+        payload = _decode_payload(account, account.oauth_payload)
+        return payload is not None and payload.integration_write_enabled
+
+    async def account_needs_reconnect(
+        self, account: McpConnection, *, organization_id: UUID
+    ) -> bool:
+        """Check stored authorization and its source generation without a provider call."""
+        if not account.account_authorized or account.authorization_expired:
+            return True
+        if account.auth_type not in {"oauth", "application"}:
+            return False
+        payload = _decode_payload(account, account.oauth_payload)
+        return payload is None or not await self._account_source_current(
+            account, payload, organization_id
+        )
+
+    async def integration_access_token(
+        self, account: McpConnection, *, organization_id: UUID
+    ) -> SecretStr | None:
+        """A current account's credential, handed only to the native API transport.
+
+        Account ownership is checked by IntegrationService before this call. OAuth
+        grants additionally remain tied to the organization's live client generation.
+        """
+        if account.auth_type == "bearer":
+            if account_source_organization(account) != organization_id or not account.is_enabled:
+                return None
+            headers = await resolve_auth_headers(account)
+            value = headers.get("Authorization", "") if headers else ""
+            return SecretStr(value.removeprefix("Bearer ")) if value.startswith("Bearer ") else None
+        payload = _decode_payload(account, account.oauth_payload)
+        if payload is None or not await self._account_source_current(
+            account, payload, organization_id
+        ):
+            return None
+        if account.auth_type == "application" and payload.account_source_secret_id is not None:
+            return await OrganizationSecretService(self.db).integration_token(
+                organization_id=organization_id,
+                secret_id=payload.account_source_secret_id,
+                provider="google" if payload.provider == "google_service_account" else "microsoft",
+                subject=payload.integration_subject,
+                scopes=list(account.granted_scopes or ()),
+            )
+        headers = await resolve_auth_headers(account)
+        authorization = headers.get("Authorization", "") if headers else ""
+        return (
+            SecretStr(authorization.removeprefix("Bearer "))
+            if authorization.startswith("Bearer ")
+            else None
         )
 
     async def account_grant(
@@ -2214,7 +3056,20 @@ class McpConnectionService:
                     organization_id=connection_scope(connection).subject_id,
                     user_id=acting_user_id,
                 )
-                if authority is None or not authority.has(Perm.MCP_MANAGE):
+                if (
+                    authority is None
+                    or not authority.has(Perm.MCP_MANAGE)
+                    or (
+                        payload.account_reconnect_id is not None
+                        and not await resolve_access(
+                            self.db,
+                            authority,
+                            connection,
+                            Perm.MCP_MANAGE,
+                            resource_type=MCP_CONNECTION,
+                        )
+                    )
+                ):
                     raise OAuthError(
                         "Your organization access changed; start account consent again."
                     )
@@ -2232,7 +3087,24 @@ class McpConnectionService:
             raise OAuthError(
                 "The account's organization or OAuth client changed; start consent again."
             )
-        if payload.provider == github_oauth.PROVIDER:
+        if payload.provider == "slack":
+            slack_token = await slack_oauth.exchange_code(
+                client_id=payload.client_id,
+                client_secret=_revealed(payload.client_secret) or "",
+                code=code,
+                redirect_uri=payload.redirect_uri,
+            )
+            payload = payload.model_copy(
+                update={
+                    "access_token": slack_token.access_token,
+                    "refresh_token": slack_token.refresh_token,
+                    "expires_at": _now_epoch() + slack_token.expires_in
+                    if slack_token.expires_in
+                    else None,
+                }
+            )
+            granted_scopes = slack_token.scope.split(",")
+        elif payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
         elif payload.provider in {google_oauth.PROVIDER, microsoft_oauth.PROVIDER}:
             complete = (
@@ -2269,6 +3141,49 @@ class McpConnectionService:
         # names its account, so the fresh snapshot is what tells them apart.
         poll_cursor = connection.poll_cursor
         access_token = _revealed(payload.access_token)
+        reconnect_identity = None
+        if payload.account_reconnect_id is not None:
+            if payload.account_reconnect_id != connection.id:
+                raise OAuthError("This reconnect session belongs to another account")
+            reconnect_identity = await self._native_account_email(
+                connection.catalog_key or "google", access_token or ""
+            )
+            siblings = await mcp_connection_repo.list_accounts(
+                self.db,
+                provider=connection.catalog_key or "google",
+                user_id=connection.user_id if connection.scope == "user" else None,
+                organization_id=connection.organization_id if connection.scope == "org" else None,
+            )
+            if reconnect_identity is not None and any(
+                row.id != connection.id
+                and row.account_email == reconnect_identity
+                and account_source_organization(row) == account_source_organization(connection)
+                for row in siblings
+            ):
+                raise OAuthError(
+                    "This identity is already connected to another account; reconnect that account instead"
+                )
+            poll_cursor = None
+        elif connection.purpose == "account":
+            siblings = await mcp_connection_repo.list_accounts(
+                self.db,
+                provider=connection.catalog_key or "google",
+                user_id=connection.user_id if connection.scope == "user" else None,
+                organization_id=connection.organization_id if connection.scope == "org" else None,
+            )
+            if any(row.auth_type != "oauth" for row in siblings):
+                identity = await self._native_account_email(
+                    connection.catalog_key or "google", access_token or ""
+                )
+                if identity is not None and any(
+                    row.auth_type != "oauth"
+                    and row.account_email == identity
+                    and account_source_organization(row) == account_source_organization(connection)
+                    for row in siblings
+                ):
+                    raise OAuthError(
+                        "This identity uses another authentication method; reconnect its existing account instead"
+                    )
         if connection.purpose == "portal" and connection.portal_key is not None:
             fresh = (
                 await _initial_poll_cursor(
@@ -2302,6 +3217,11 @@ class McpConnectionService:
                 # path can read them without unwrapping the token. Only that path
                 # reads it; tool-calling is unaffected.
                 "granted_scopes": granted_scopes,
+                **(
+                    {"account_email": reconnect_identity}
+                    if payload.account_reconnect_id is not None
+                    else {}
+                ),
                 "last_status": "ok",
                 "last_error": None,
                 "last_checked_at": datetime.now(UTC),
@@ -2310,7 +3230,11 @@ class McpConnectionService:
         if connection.purpose == "portal":
             return connection
         if connection.purpose == "account":
-            named = await self._name_account(connection, access_token or "")
+            named = (
+                connection
+                if payload.account_reconnect_id is not None
+                else await self._name_account(connection, access_token or "")
+            )
             if named.scope == "org":
                 await record_audit(
                     self.db,
@@ -2749,6 +3673,80 @@ class McpConnectionService:
                 },
             )
         return grant
+
+    async def get_polled_connection(
+        self,
+        ctx: AuthContext,
+        connection_id: UUID,
+        *,
+        portal_key: str,
+        channels: tuple[str, ...] | None = None,
+    ) -> McpConnection:
+        from app.services.integrations import (
+            PRODUCTS,
+            AccountSelection,
+            IntegrationService,
+            can_read_feed,
+        )
+
+        row = await mcp_connection_repo.get_by_id(self.db, connection_id)
+        if row is None:
+            raise NotFoundError(message="Connected account not found")
+        if row.purpose == "portal":
+            grant = await self.get_org_portal_connection(ctx, connection_id)
+            if grant.portal_key != portal_key:
+                raise BadRequestError(
+                    message="This connection is for another service",
+                    details={
+                        "fields": [
+                            {
+                                "field": "connection_id",
+                                "message": "This connection is for another service",
+                            }
+                        ]
+                    },
+                )
+            return grant
+        product_id = {
+            "google": "gmail",
+            "microsoft": "outlook_mail",
+            "google_calendar": "google_calendar",
+            "outlook_calendar": "outlook_calendar",
+            "google_drive": "google_drive",
+            "microsoft_files": "microsoft_files",
+            "google_sheets": "google_sheets",
+            "slack": "slack",
+            "teams": "teams",
+            "imap": "imap_mail",
+        }.get(portal_key, portal_key if portal_key.startswith("odoo_") else None)
+        if row.purpose != "account" or product_id is None:
+            raise NotFoundError(message="Connected account not found")
+        if row.scope == "user":
+            if (
+                row.user_id != ctx.subject_id
+                or account_source_organization(row) != ctx.organization_id
+            ):
+                raise NotFoundError(message="Connected account not found")
+            if row.catalog_key != PRODUCTS[product_id].provider or not row.is_enabled:
+                raise BadRequestError(
+                    message="This connection is disabled or belongs to another provider"
+                )
+        else:
+            row = await IntegrationService(self.db).binding_account(
+                PRODUCTS[product_id],
+                AccountSelection(account="organization", connection_id=row.id),
+                ctx,
+            )
+        if await self.account_needs_reconnect(row, organization_id=ctx.organization_id):
+            raise BadRequestError(message="Reconnect this native trigger account")
+        if not can_read_feed(row, product_id, channels):
+            raise BadRequestError(
+                message="Reconnect this account with the selected product's read permissions"
+            )
+        await IntegrationService(self.db).validate_feed_selection(
+            row, channels or (), organization_id=ctx.organization_id
+        )
+        return row
 
     async def get_org_portal_connection(
         self, ctx: AuthContext, connection_id: UUID

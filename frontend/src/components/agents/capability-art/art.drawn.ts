@@ -3,6 +3,28 @@
 // apart from `art.generated.ts`, which the canvas rewrites whole.
 
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
+  word: 220,
+  imap_mail: 220,
+  odoo_contacts: 280,
+  odoo_crm: 280,
+  odoo_sales: 280,
+  odoo_accounting: 280,
+  odoo_inventory: 280,
+  odoo_projects: 280,
+
+  gmail: 220,
+  google_calendar: 220,
+  google_drive: 220,
+  google_docs: 220,
+  google_sheets: 220,
+  google_slides: 220,
+  outlook_mail: 220,
+  outlook_calendar: 220,
+  microsoft_files: 220,
+  excel: 220,
+  teams: 220,
+  slack: 220,
+
   visuals: 140,
   background_tools: 222,
   background_tasks: 222,
@@ -294,7 +316,33 @@ const PHONE_CALLS =
   '<path class="ln w2" d="M16 15L24 12L30 25L25 30Q29 40 39 45L44 40L56 47L53 55Q31 60 16 32Z"/>' +
   '<path class="ln w2 breathe" d="M12 63H20L24 58L29 69L35 59L40 65H52"/></g></svg>';
 
+/** Connected products share the console's account-and-operation scene. */
+const INTEGRATION =
+  '<svg viewBox="0 0 240 135" aria-hidden="true"><polygon class="ishb" points="120,46 196,90 120,134 44,90"/><polygon class="ict" points="120,33 196,77 120,121 44,77"/><rect class="int" x="65" y="24" width="45" height="57" rx="5"/><path class="igrid2" d="M75 39H100M75 49H100M75 59H94"/><rect class="inr" x="139" y="46" width="38" height="42" rx="5"/><path class="ln w2 draw" d="M110 55H139M132 49L139 55L132 61"/></svg>';
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
+  word: INTEGRATION,
+  imap_mail: INTEGRATION,
+  odoo_contacts: INTEGRATION,
+  odoo_crm: INTEGRATION,
+  odoo_sales: INTEGRATION,
+  odoo_accounting: INTEGRATION,
+  odoo_inventory: INTEGRATION,
+  odoo_projects: INTEGRATION,
+
+  gmail: INTEGRATION,
+  google_calendar: INTEGRATION,
+  google_drive: INTEGRATION,
+  google_docs: INTEGRATION,
+  google_sheets: INTEGRATION,
+  google_slides: INTEGRATION,
+  outlook_mail: INTEGRATION,
+  outlook_calendar: INTEGRATION,
+  microsoft_files: INTEGRATION,
+  excel: INTEGRATION,
+  teams: INTEGRATION,
+  slack: INTEGRATION,
+
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   background_tasks: BACKGROUND_TASKS,

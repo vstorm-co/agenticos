@@ -93,7 +93,10 @@ export function pickerSections(
     items.sort((a, b) => operationRank(a.id) - operationRank(b.id));
   }
   const apps = appGroups(definitions, source);
-  for (const [category, group] of apps) byCategory.set(category, group.items);
+  for (const [category, group] of apps) {
+    const items = [...group.items, ...(byCategory.get(category) ?? [])];
+    byCategory.set(category, [...new Map(items.map((item) => [item.id, item])).values()]);
+  }
   const named = new Set<string>(PICKER_SECTIONS.flatMap((section) => section.groups));
   const sections: PickerSection[] = PICKER_SECTIONS.map((section) => ({
     id: section.id,

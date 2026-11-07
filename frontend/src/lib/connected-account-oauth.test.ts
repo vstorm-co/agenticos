@@ -63,3 +63,47 @@ describe("connected-account consent", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 });
+
+it.each(['{"provider":"microsoft","label":"Work","products":["outlook_mail"]}', "[]", "null"])(
+  "forwards selected OAuth options and prevents nonce substitution: %s",
+  async (payload) => {
+    const upstream = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", upstream);
+    const response = await startConnectedAccountOAuth(
+      new NextRequest("http://localhost:3000/api/me/connected-accounts/oauth/start", {
+        method: "POST",
+        headers: { cookie: `${ACCESS_TOKEN_COOKIE}=access` },
+        body: payload,
+      }),
+    );
+    expect(response.status).toBe(200);
+    const raw = upstream.mock.calls[0]?.[1]?.body;
+    if (!(raw instanceof ArrayBuffer)) throw new Error("Expected a buffered request body");
+    const sent: unknown = JSON.parse(new TextDecoder().decode(raw));
+    expect(sent).toEqual(
+      expect.objectContaining({ browser_nonce: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) }),
+    );
+    if (payload.startsWith("{"))
+      expect(sent).toEqual(
+        expect.objectContaining({
+          provider: "microsoft",
+          label: "Work",
+          products: ["outlook_mail"],
+        }),
+      );
+    else expect(sent).toEqual({ browser_nonce: expect.any(String) });
+  },
+);
+
+it("refuses malformed OAuth options without contacting the backend", async () => {
+  const upstream = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", upstream);
+  const response = await startConnectedAccountOAuth(
+    new NextRequest("http://localhost:3000/api/me/connected-accounts/oauth/start", {
+      method: "POST",
+      body: "{",
+    }),
+  );
+  expect(response.status).toBe(400);
+  expect(upstream).not.toHaveBeenCalled();
+});

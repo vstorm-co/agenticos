@@ -92,6 +92,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             organization_id=grant.organization_id,
             event_source=source,
             reason="mailbox_access_revoked",
+            connection_id=grant.id,
         )
         return 0
     if read is None:
@@ -101,6 +102,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             organization_id=grant.organization_id,
             event_source=source,
             reason="mailbox_folder_unreadable",
+            connection_id=grant.id,
             places=read.unreadable,
         )
         if source == "outlook":
@@ -196,6 +198,18 @@ async def poll_portal_grants() -> None:
             )
             if grant is None:
                 continue
+            if grant.purpose == "account":
+                from app.services.integrations import poll_account
+
+                try:
+                    async with db.begin_nested():
+                        queued += await poll_account(db, grant)
+                except Exception:
+                    logger.exception(
+                        "native_account_poll_failed", extra={"connection_id": str(connection_id)}
+                    )
+                    await connections.record_poll_processing_failure(connection_id)
+                continue
             portal_key = grant.portal_key
             source = _polled_source(portal_key)
             if source is None:
@@ -223,13 +237,14 @@ async def _ensure_trigger_dedupe() -> None:
     worker process.
     """
     from app.clients.redis import RedisClient
-    from app.services import trigger_dedupe
+    from app.services import rate_limit, trigger_dedupe
 
     if trigger_dedupe.is_configured():
         return
     client = RedisClient()
     await client.connect()
     trigger_dedupe.configure(client)
+    rate_limit.configure(client)
 
 
 async def sweep_sandbox_operations() -> None:

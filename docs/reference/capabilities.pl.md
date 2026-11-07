@@ -1,5 +1,5 @@
 ---
-source_sha: "0f5f9ee0e642"
+source_sha: "3ff9863ce69f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3286,3 +3286,10 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
  Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
+
+
+Wbudowane połączenia Google, Microsoft, Slack i IMAP również działają w tym obszarze. [Wbudowane integracje](../integrations.md) opisują konfigurację, wybór konta, capabilities, operacje workflow, synchronizację wiedzy i trwałe kursory zmian.
+
+### Obszary biznesowe Odoo { #odoo-business-areas }
+
+`odoo_contacts`, `odoo_crm`, `odoo_sales`, `odoo_accounting`, `odoo_inventory` i `odoo_projects` korzystają ze wspólnych ustawień konta integracji. Wyszukiwanie, odczyt i metadane pól są tylko do odczytu; tworzenie i edycja zawsze wymagają zatwierdzenia. Stany magazynowe są tylko do odczytu. Transport JSON-2, wymagane moduły, limity zmian i indeksowanie wybranych pól opisuje [Odoo](../integrations.md#odoo). Podpięcie konta organizacji wymaga dostępu do połączenia; wykonanie ponownie sprawdza aktualne uprawnienia autora opublikowanej wersji.

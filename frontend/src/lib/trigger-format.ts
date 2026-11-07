@@ -377,6 +377,16 @@ function summaryText(summary: TriggerSummary, t: Translate, zone: string): strin
           return t("event.hubspot");
         case "zendesk":
           return t("event.zendesk");
+        case "slack":
+          return t("event.slack");
+        case "teams":
+          return t("event.teams");
+        case "google_sheets":
+          return t("event.google_sheets");
+        case "odoo":
+          return t("event.odoo");
+        case "imap_mail":
+          return t("event.imap_mail");
         case "google_drive":
           return t("event.google_drive");
         case "microsoft_files":
