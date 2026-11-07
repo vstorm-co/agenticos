@@ -3,8 +3,8 @@
 The pinned SDK has no loader configuration (upstream issue #12781). Keep its
 execution and typed load exchanges, adapting only the presentation here. Custom
 parts remain native load parts, including after JSON replay. Our history codec
-uses duck-typed serialization because the SDK's built-in union otherwise selects
-the parent schema, whose name is a literal `load_capability`.
+uses generic copies of only these parts because the SDK's built-in union
+otherwise selects the parent's literal `load_capability` schema.
 """
 
 from collections.abc import Awaitable, Callable

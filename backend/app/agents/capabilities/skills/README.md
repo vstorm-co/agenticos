@@ -14,12 +14,12 @@ are isolated in this adapter. No globals or dependencies are patched.
 
 Its namespaced typed parts extend the SDK's native load parts, preserving load
 state, duplicate detection, tools and authoritative instruction delivery in text,
-streaming and realtime. Persist messages through `dump_messages`, whose
-`serialize_as_any=True` preserves the subclass schema instead of the SDK union's
-literal parent name. Legacy typed calls and returns are adapted before a run,
+streaming and realtime. Persist messages through `dump_messages`, which serializes
+generic copies of only the extended loader parts, retaining their kind and fields.
+Other SDK serializers, including instruction ids and cache baselines, stay in
+effect. Legacy typed calls and returns are adapted before a run,
 including pending approvals; their call ids and arguments remain unchanged.
 The spec's stable approval key remains `load_capability`.
-
 
 **Skills are passed in memory.** The library accepts `Skill` objects directly,
 so a run never touches the disk - no temp-file cleanup, no race between two runs

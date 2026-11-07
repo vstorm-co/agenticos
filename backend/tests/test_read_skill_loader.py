@@ -61,6 +61,18 @@ async def test_native_activation_and_typed_history_roundtrip():
     agent = Agent(FunctionModel(_read_then_finish), capabilities=[SkillLoader(), _skill()])
     result = await agent.run("Refund")
     stored = dump_messages(result.all_messages())
+    assert any(
+        isinstance(part, ReadSkillCallPart)
+        for message in result.all_messages()
+        for part in message.parts
+    )
+    instruction_ids = [
+        part["id"]
+        for message in stored
+        for part in message["parts"]
+        if part["part_kind"] == "instruction-delta"
+    ]
+    assert "capability:refunds" in instruction_ids
     assert "Available skills:" in json.dumps(stored)
     assert "The following capabilities are deferred" not in json.dumps(stored)
     history = ModelMessagesTypeAdapter.validate_python(stored)
@@ -357,3 +369,26 @@ async def test_the_toolset_can_forward_an_existing_tool():
     ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
     original = (await tools.get_tools(ctx))["clock"]
     assert await _SkillLoaderToolset(wrapped=tools).call_tool("clock", {}, ctx, original) == "now"
+
+
+async def test_code_mode_keeps_the_native_skill_loader_directly_available():
+    from app.agents.code_mode import code_mode
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        names = {tool.name for tool in info.function_tools}
+        assert "read_skill" in names
+        if any(isinstance(p, ToolReturnPart) for m in messages for p in m.parts):
+            assert "run_code" in names
+            assert "PRIVATE_POLICY" in repr(messages)
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(parts=[ToolCallPart("read_skill", {"id": "refunds"})])
+
+    agent = Agent(
+        FunctionModel(respond),
+        capabilities=[
+            SkillLoader(),
+            _skill(),
+            code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=10),
+        ],
+    )
+    assert (await agent.run("Refund")).output == "done"
