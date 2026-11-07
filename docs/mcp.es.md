@@ -1,5 +1,5 @@
 ---
-source_sha: "6528e1399b97"
+source_sha: "d50591772136"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1215,6 +1215,8 @@ permiso que faltaba.
 
 Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
 
+Las comprobaciones de conexión actualizan las herramientas descubiertas y el estado. Por eso `test_my_connection` espera aprobación tanto con `writes` como con `all`.
+
 | Herramienta | Necesita |
 |---|---|
 | `whoami` | — |
@@ -1230,7 +1232,7 @@ Aprobar rutinas y watches personales requiere el scope explícito `personal:cons
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
 | `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
-| `update_proactivity_settings` | `org:settings` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1245,7 +1247,7 @@ Aprobar rutinas y watches personales requiere el scope explícito `personal:cons
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
-| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama; una clave necesita `agents:run` para `test_my_connection`) |
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
 | `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
 

@@ -136,11 +136,12 @@ export function useLocalAccessGate<A extends unknown[]>(
 export async function askForComputer(
   agent: Agent,
   conversationId: string | null,
+  reason?: string,
 ): Promise<LocalTarget | null> {
   const owner = accountScope();
   const target = await useLocalAccessStore
     .getState()
-    .request({ id: agent.id, name: agent.name, coding: !!agent.local_coding_agent });
+    .request({ id: agent.id, name: agent.name, coding: !!agent.local_coding_agent, reason });
   if (
     target === null ||
     owner !== accountScope() ||
@@ -181,7 +182,7 @@ export function useComputerAccessOnUse({
       return;
     }
     const conversationId = useConversationStore.getState().currentConversationId;
-    askForComputer(agent, conversationId)
+    askForComputer(agent, conversationId, pending.reason)
       .then((target) => {
         respond(target !== null);
       })

@@ -626,20 +626,12 @@ async fn shell(
         return Err(Refusal::new("denied", "You did not allow that command."));
     }
     let timeout = args.get("timeout").and_then(Value::as_f64).unwrap_or(600.0);
-    let mut command = sandboxed(root, mode, &line)?;
+    let mut command = sandboxed(root, mode, &line, args.get("env").and_then(Value::as_object))?;
     command
-        .current_dir(root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if let Some(Value::Object(env)) = args.get("env") {
-        for (key, value) in env {
-            if let Some(value) = value.as_str() {
-                command.env(key, value);
-            }
-        }
-    }
     run_command(command, timeout).await
 }
 
@@ -715,10 +707,98 @@ async fn capped(stream: &mut (impl tokio::io::AsyncRead + Unpin)) -> Vec<u8> {
     kept
 }
 
+/// Retain a descriptor through spawn without making it inheritable in the
+/// multithreaded parent. The command owns it until exec or cancellation.
+#[cfg(target_os = "linux")]
+fn inherit_descriptor(
+    command: &mut tokio::process::Command,
+    descriptor: std::os::fd::OwnedFd,
+) -> Result<std::os::fd::RawFd, Refusal> {
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+
+    // Duplicate above the standard streams so configuring stdin/stdout cannot
+    // replace it. CLOEXEC stays set until the child has forked.
+    let fd = unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
+    if fd < 0 {
+        return Err(Refusal::new(
+            "io",
+            format!(
+                "The sandbox descriptor could not be retained: {}",
+                std::io::Error::last_os_error()
+            ),
+        ));
+    }
+    // fcntl returned a fresh descriptor; this closure owns and closes it on
+    // cancellation or spawn failure. Only async-signal-safe calls run after fork.
+    let held = unsafe { OwnedFd::from_raw_fd(fd) };
+    unsafe {
+        command.pre_exec(move || {
+            let fd = held.as_raw_fd();
+            let flags = libc::fcntl(fd, libc::F_GETFD);
+            if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    Ok(fd)
+}
+
+/// Pass sandbox parameters through an anonymous file so task environment values
+/// do not become visible in the wrapper's process command line.
+#[cfg(target_os = "linux")]
+fn inherit_arguments(
+    command: &mut tokio::process::Command,
+    arguments: &[String],
+) -> Result<std::os::fd::RawFd, Refusal> {
+    use std::io::{Seek, Write};
+    use std::os::fd::FromRawFd;
+
+    // The name is a static NUL-terminated C string; a successful memfd is owned
+    // by File immediately, including all write and seek failure paths.
+    let fd = unsafe { libc::memfd_create(c"agenticos-sandbox-args".as_ptr(), libc::MFD_CLOEXEC) };
+    if fd < 0 {
+        return Err(Refusal::new(
+            "io",
+            format!(
+                "The sandbox arguments could not be retained: {}",
+                std::io::Error::last_os_error()
+            ),
+        ));
+    }
+    let mut file = unsafe { std::fs::File::from_raw_fd(fd) };
+    for argument in arguments {
+        if argument.as_bytes().contains(&0) {
+            return Err(Refusal::new("denied", "Sandbox arguments cannot contain NUL bytes."));
+        }
+        file.write_all(argument.as_bytes())
+            .and_then(|()| file.write_all(&[0]))
+            .map_err(|error| Refusal::new("io", format!("The sandbox arguments could not be written: {error}")))?;
+    }
+    file.rewind()
+        .map_err(|error| Refusal::new("io", format!("The sandbox arguments could not be read: {error}")))?;
+    inherit_descriptor(command, file.into())
+}
+
 /// The command, wrapped in this OS's sandbox when the mode asks for one.
-fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Command, Refusal> {
+fn sandboxed(
+    root: &Path,
+    mode: Mode,
+    line: &str,
+    environment: Option<&Map<String, Value>>,
+) -> Result<tokio::process::Command, Refusal> {
+    let environment: Vec<(&str, &str)> = environment
+        .into_iter()
+        .flatten()
+        .filter_map(|(key, value)| value.as_str().map(|value| (key.as_str(), value)))
+        .collect();
     if mode == Mode::FullAccess {
-        return Ok(plain_shell(line));
+        let mut command = plain_shell(line);
+        command.current_dir(root);
+        for (key, value) in environment {
+            command.env(key, value);
+        }
+        return Ok(command);
     }
     let root_text = root.to_string_lossy();
     if cfg!(target_os = "macos") {
@@ -733,15 +813,19 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
              (subpath \"/dev/fd\") (literal \"/dev/stdout\") (literal \"/dev/stderr\") (literal \"/dev/tty\"))"
         );
         let mut command = tokio::process::Command::new("/usr/bin/sandbox-exec");
-        command.args(["-p", &profile, "/bin/sh", "-c", line]);
+        command.args(["-p", &profile, "/bin/sh", "-c", line]).current_dir(root);
         command
             .env_clear()
             .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin")
             .env("HOME", root)
             .env("TMPDIR", root);
+        for (key, value) in environment {
+            command.env(key, value);
+        }
         return Ok(command);
     }
-    if cfg!(target_os = "linux") {
+    #[cfg(target_os = "linux")]
+    {
         let bwrap = which("bwrap").ok_or_else(|| {
             Refusal::new(
                 "denied",
@@ -749,16 +833,24 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
             )
         })?;
         let mut command = tokio::process::Command::new(bwrap);
-        command.args([
-            "--unshare-pid",
-            "--dev",
-            "/dev",
-            "--proc",
-            "/proc",
-            "--tmpfs",
-            "/tmp",
-            "--die-with-parent",
-        ]);
+        let directory = crate::local_fs::open(root)
+            .map_err(|error| Refusal::new("denied", format!("The approved folder could not be opened: {error}")))?;
+        let root_fd = inherit_descriptor(&mut command, directory.into_std_file().into())?.to_string();
+        let mut options = Vec::new();
+        command.current_dir("/");
+        options.extend(
+            [
+                "--unshare-pid",
+                "--dev",
+                "/dev",
+                "--proc",
+                "/proc",
+                "--tmpfs",
+                "/tmp",
+                "--die-with-parent",
+            ]
+            .map(str::to_owned),
+        );
         // Runtime files only: binding `/` also exposes the person's SSH keys,
         // browser profiles and other files outside the approved workspace.
         for runtime in [
@@ -777,19 +869,24 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
             "/etc/pki",
         ] {
             if Path::new(runtime).exists() {
-                command.args(["--ro-bind", runtime, runtime]);
+                options.extend(["--ro-bind", runtime, runtime].map(str::to_owned));
             }
         }
-        command.args([
-            "--bind", &root_text, &root_text, "--chdir", &root_text, "--", "/bin/sh", "-c", line,
-        ]);
+        options.extend(["--bind-fd", &root_fd, &root_text, "--chdir", &root_text].map(str::to_owned));
+        for (key, value) in environment {
+            options.extend(["--setenv", key, value].map(str::to_owned));
+        }
+        options.extend(["--", "/bin/sh", "-c", line].map(str::to_owned));
+        let arguments_fd = inherit_arguments(&mut command, &options)?.to_string();
+        command.args(["--args", &arguments_fd]);
         command
             .env_clear()
             .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin")
             .env("HOME", root)
             .env("TMPDIR", "/tmp");
-        return Ok(command);
+        Ok(command)
     }
+    #[cfg(not(target_os = "linux"))]
     Err(Refusal::new(
         "denied",
         "This computer has no sandbox for writing in a folder; use full access.",
@@ -1024,6 +1121,60 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn replacing_a_root_after_command_preparation_cannot_change_the_mounted_directory() {
+        let root = folder();
+        let outside = folder();
+        let moved = root.with_extension("retained");
+        std::fs::write(root.join("allowed"), "workspace-data").unwrap();
+        std::fs::write(outside.join("secret"), "private-data").unwrap();
+        let mut command = sandboxed(
+            &root,
+            Mode::WorkspaceWrite,
+            "printf confined > marker; cat allowed; cat secret",
+            None,
+        )
+        .unwrap();
+        std::fs::rename(&root, &moved).unwrap();
+        std::os::unix::fs::symlink(&outside, &root).unwrap();
+        let output = command.output().await.unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            text.contains("workspace-data"),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!text.contains("private-data"));
+        assert_eq!(std::fs::read_to_string(moved.join("marker")).unwrap(), "confined");
+        assert!(!outside.join("marker").exists());
+        std::fs::remove_file(root).unwrap();
+        std::fs::remove_dir_all(moved).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn caller_environment_is_private_and_applied_only_inside_the_sandbox() {
+        let root = folder();
+        let environment = object(serde_json::json!({"LD_PRELOAD": "untrusted.so", "TASK": "example"}));
+        let command = sandboxed(&root, Mode::WorkspaceWrite, "true", Some(&environment)).unwrap();
+        assert!(!command
+            .as_std()
+            .get_envs()
+            .any(|(name, _)| name == "LD_PRELOAD" || name == "TASK"));
+        let arguments: Vec<_> = command.as_std().get_args().collect();
+        assert_eq!(arguments[0], "--args");
+        assert_eq!(arguments.len(), 2);
+        let retained = std::fs::read(format!("/proc/self/fd/{}", arguments[1].to_string_lossy())).unwrap();
+        assert!(retained
+            .windows(b"--setenv\0LD_PRELOAD\0untrusted.so\0".len())
+            .any(|bytes| bytes == b"--setenv\0LD_PRELOAD\0untrusted.so\0"));
+        let invalid = object(serde_json::json!({"TASK": "has\0nul"}));
+        assert!(sandboxed(&root, Mode::WorkspaceWrite, "true", Some(&invalid)).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[tokio::test]
     async fn workspace_shell_cannot_read_files_outside_the_grant() {
@@ -1035,7 +1186,7 @@ mod tests {
             "cat allowed; cat {}",
             shell_quote(&outside.join("secret").to_string_lossy())
         );
-        let output = sandboxed(&root, Mode::WorkspaceWrite, &line)
+        let output = sandboxed(&root, Mode::WorkspaceWrite, &line, None)
             .unwrap()
             .current_dir(&root)
             .output()

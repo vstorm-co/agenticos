@@ -23,6 +23,7 @@ dependencies = [
  "image",
  "infer",
  "keyring",
+ "libc",
  "objc2",
  "process-wrap",
  "reqwest",

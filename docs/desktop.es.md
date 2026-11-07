@@ -1,5 +1,5 @@
 ---
-source_sha: "17a6e7ec37a0"
+source_sha: "a94f681fabc6"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -370,7 +370,7 @@ todo el ordenador. Las lecturas y escrituras directas de archivos locales tienen
 escrituras mayores se rechazan antes de codificar o enviar los datos del archivo.
 
 Windows ofrece solo lectura y acceso completo. Linux ofrece escribir en la carpeta
-solo cuando `bwrap` está instalado.
+solo cuando está instalado `bwrap` con soporte para `--bind-fd`. La app mantiene abierto un descriptor de directorio sin seguir enlaces hasta el inicio del sandbox. Renombrar la carpeta o sustituirla por un enlace simbólico no puede cambiar el directorio aprobado. En Linux, las variables de entorno de la tarea se aplican dentro del sandbox, no a su proceso de lanzamiento; sus valores se pasan mediante un descriptor privado.
 
 **Decide el ordenador, no el servidor.** Las carpetas elegidas, con sus modos, se
 guardan en los ajustes de la app, y cada operación nombra una carpeta y un modo que

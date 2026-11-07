@@ -1,5 +1,5 @@
 ---
-source_sha: "6528e1399b97"
+source_sha: "d50591772136"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1180,6 +1180,8 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 
 Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
+Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_my_connection` czeka na zatwierdzenie zarówno przy `writes`, jak i `all`.
+
 | Narzędzie | Wymaga |
 |---|---|
 | `whoami` | — |
@@ -1195,7 +1197,7 @@ Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:co
 | `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
 | `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
-| `update_proactivity_settings` | `org:settings` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1210,7 +1212,7 @@ Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:co
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
-| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego; klucz wymaga `agents:run` dla `test_my_connection`) |
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
 | `create_watch`, `update_watch` | sama osoba - zalogowana, przez wydany przez nią klucz lub token MCP albo w jej prywatnym czacie; `agents:run` przy wyborze agenta |
 

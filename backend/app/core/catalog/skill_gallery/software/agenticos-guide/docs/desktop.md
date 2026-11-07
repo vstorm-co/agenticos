@@ -345,7 +345,7 @@ and writes are limited to 10 MiB so oversized transfers cannot disconnect the de
 Larger writes are refused before encoding or sending any file bytes.
 
 Windows offers read only and full access. Linux offers writing in the folder only
-when `bwrap` is installed.
+when `bwrap` with `--bind-fd` support is installed. The app holds a no-follow directory handle through sandbox startup, so renaming a folder or replacing it with a symbolic link cannot change the approved directory. On Linux, task environment variables are applied inside the sandbox rather than to its launcher; their values are passed through a private descriptor.
 
 **The computer decides, not the server.** The folders you picked, with their modes,
 are kept in the app's settings, and every operation names a folder and a mode that

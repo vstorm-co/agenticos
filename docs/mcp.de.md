@@ -1,5 +1,5 @@
 ---
-source_sha: "6528e1399b97"
+source_sha: "d50591772136"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1234,6 +1234,8 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 
 Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
 
+Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb wartet `test_my_connection` sowohl bei `writes` als auch bei `all` auf Genehmigung.
+
 | Tool | Braucht |
 |---|---|
 | `whoami` | — |
@@ -1249,7 +1251,7 @@ Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Sc
 | `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
 | `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
-| `update_proactivity_settings` | `org:settings` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1264,7 +1266,7 @@ Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Sc
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
-| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers; ein Schlüssel braucht `agents:run` für `test_my_connection`) |
 | `list_watches`, `delete_watch` | eigene Beobachtungen des Aufrufers |
 | `create_watch`, `update_watch` | die Person selbst - angemeldet, über einen von ihr ausgestellten Schlüssel oder ein MCP-Token oder in ihrem privaten Chat; `agents:run` bei der Agentenwahl |
 

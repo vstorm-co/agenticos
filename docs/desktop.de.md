@@ -1,5 +1,5 @@
 ---
-source_sha: "17a6e7ec37a0"
+source_sha: "a94f681fabc6"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -375,7 +375,7 @@ die Geräteverbindung nicht trennen. Größere Schreibvorgänge werden vor der
 Kodierung und Übertragung der Dateidaten abgelehnt.
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
-wenn `bwrap` installiert ist.
+wenn `bwrap` mit Unterstützung für `--bind-fd` installiert ist. Die App hält bis zum Sandbox-Start ein ohne Folgen symbolischer Links geöffnetes Verzeichnishandle fest. Umbenennen oder Ersetzen des Ordners durch einen symbolischen Link kann das genehmigte Verzeichnis dadurch nicht ändern. Unter Linux werden Umgebungsvariablen der Aufgabe innerhalb der Sandbox gesetzt, nicht in ihrem Startprozess; ihre Werte werden über einen privaten Deskriptor übergeben.
 
 **Der Computer entscheidet, nicht der Server.** Die gewählten Ordner mit ihren
 Modi stehen in den Einstellungen der App, und jede Operation nennt einen Ordner und

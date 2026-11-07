@@ -86,6 +86,7 @@ function LocalAccessChoice({
         <DialogTitle>{t("title", { agent: agent.name })}</DialogTitle>
         <DialogDescription>{t("description", { agent: agent.name })}</DialogDescription>
       </DialogHeader>
+      {agent.reason && <p className="text-sm whitespace-pre-wrap">{agent.reason}</p>}
       <div className="grid gap-2">
         <Button
           type="button"

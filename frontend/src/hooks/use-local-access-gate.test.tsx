@@ -333,7 +333,12 @@ describe("useComputerAccessOnUse", () => {
     const { respond, view, props } = onUse(local);
     const asked = { reason: "Read README" };
     view.rerender({ ...props, pending: asked });
-    await waitFor(() => expect(useLocalAccessStore.getState().asking?.id).toBe(local.id));
+    await waitFor(() =>
+      expect(useLocalAccessStore.getState().asking).toMatchObject({
+        id: local.id,
+        reason: "Read README",
+      }),
+    );
     await act(async () => useLocalAccessStore.getState().answer(whole));
     await waitFor(() => expect(respond).toHaveBeenCalledWith(true));
     expect(useWorkOnStore.getState().targetFor("chat")).toEqual(whole);

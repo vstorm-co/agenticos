@@ -1140,6 +1140,8 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
 
+Connection checks update discovered tools and status. `test_my_connection` therefore waits for approval under both `writes` and `all`.
+
 | Tool | Needs |
 |---|---|
 | `whoami` | — |
@@ -1155,7 +1157,7 @@ Approving personal routines and watches requires the explicit `personal:consent`
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
 | `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
-| `update_proactivity_settings` | `org:settings` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |

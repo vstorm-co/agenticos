@@ -1875,15 +1875,22 @@ async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
-def _without_sandbox(spec: AgentSpec) -> AgentSpec:
-    """The spec for a turn whose computer workspace is to be asked for, not opened.
+def _without_computer_tools(spec: AgentSpec, *, sandbox_missing: bool) -> AgentSpec:
+    """Defer tools that cannot work until the person chooses their computer.
 
-    The sandbox binding goes for this turn only: its tools would have nothing to
-    work in, and `request_computer_access` stands in for them.
+    Sandbox-backed coding needs the deferred workspace too; a private cloud
+    coding task stays available because it opens its own workspace.
     """
-    return spec.model_copy(
-        update={"capabilities": [b for b in spec.capabilities if b.id != "sandbox"]}
-    )
+    bindings: list[CapabilityBindingSpec] = []
+    for binding in spec.capabilities:
+        if binding.id == "sandbox" and sandbox_missing:
+            continue
+        if binding.id == CODING_AGENT_ID and binding.enabled:
+            runs_on = CodingAgentConfig.model_validate(binding.config).runs_on
+            if runs_on == "this_computer" or (runs_on == "sandbox" and sandbox_missing):
+                continue
+        bindings.append(binding)
+    return spec.model_copy(update={"capabilities": bindings})
 
 
 def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
@@ -4135,9 +4142,8 @@ class AgentRunnerService:
             local_workspace_missing = (
                 workspace is None and config is not None and config.backend == "local"
             )
-            if local_workspace_missing:
-                spec = _without_sandbox(spec)
             if local_coding or local_workspace_missing:
+                spec = _without_computer_tools(spec, sandbox_missing=local_workspace_missing)
                 computer_on_use = RequestComputerOnUse(request_access=request_computer_access)
         if existing_run is None and ctx.routine_activation_id is not None:
             from app.services.routine_devices import admit_activation

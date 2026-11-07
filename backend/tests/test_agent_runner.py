@@ -6490,6 +6490,10 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         [
             ("local", True),
             ("local", False),
+            ("local-sandbox-coding", True),
+            ("local-personal-coding", True),
+            ("local-computer-coding", True),
+            ("local-disabled-coding", True),
             ("coding-none", True),
             ("coding-cloud", True),
             ("coding-disabled", True),
@@ -6504,8 +6508,23 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         bindings = [CapabilityBindingSpec(id="web_research")]
-        if workspace_kind == "local":
+        if workspace_kind.startswith("local"):
             bindings.insert(0, CapabilityBindingSpec(id="sandbox", config={"backend": "local"}))
+            if workspace_kind != "local":
+                runs_on = {
+                    "local-sandbox-coding": "sandbox",
+                    "local-personal-coding": "personal_sandbox",
+                    "local-computer-coding": "this_computer",
+                    "local-disabled-coding": "unused-invalid-value",
+                }[workspace_kind]
+                bindings.insert(
+                    0,
+                    CapabilityBindingSpec(
+                        id="coding_agent",
+                        enabled=workspace_kind != "local-disabled-coding",
+                        config={"runs_on": runs_on},
+                    ),
+                )
         else:
             bindings.insert(
                 0,
@@ -6523,7 +6542,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
 
         with (
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None))
-            if workspace_kind != "local"
+            if not workspace_kind.startswith("local")
             else nullcontext(),
             patch.object(
                 service.registry,
@@ -6552,11 +6571,11 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         (asking,) = build.call_args.kwargs["extra_capabilities"]
         assert isinstance(asking, RequestComputerOnUse)
         built_spec = build.call_args.args[0]
-        expected = [
-            binding.id
-            for binding in spec.capabilities
-            if workspace_kind != "local" or binding.id != "sandbox"
-        ]
+        expected = ["web_research"]
+        if workspace_kind == "coding-cloud":
+            expected.insert(0, "sandbox")
+        elif workspace_kind in {"local-personal-coding", "local-disabled-coding"}:
+            expected.insert(0, "coding_agent")
         assert [binding.id for binding in built_spec.capabilities] == expected
 
     @pytest.mark.anyio

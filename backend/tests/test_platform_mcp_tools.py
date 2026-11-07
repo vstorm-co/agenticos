@@ -632,7 +632,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
             "briefing_hour": 10,
             "monthly_limit_usd": "30",
             "briefing_enabled": True,
-            "briefing_days": [0, 2],
+            "briefing_days": [1, 3],
         },
         (
             "PATCH",
@@ -641,7 +641,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                 "json": {
                     "proactive_watch_min_minutes": 20,
                     "proactive_enabled": True,
-                    "proactive_days": [0, 2],
+                    "proactive_days": [1, 3],
                     "proactive_hour": 10,
                     "proactive_timing": "fixed",
                     "proactive_limit_usd": "30",
@@ -1071,6 +1071,7 @@ class TestWhatNeverWaitsForApproval:
         assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
+        assert tools["test_my_connection"].writes and not tools["test_my_connection"].ungated
 
     @pytest.mark.security
     async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
@@ -1722,3 +1723,9 @@ async def test_a_connection_check_names_its_tools(api: MagicMock):
         "error": None,
         "tools": ["search"],
     }
+
+
+def test_proactivity_tool_explains_both_required_scopes(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "update_proactivity_settings")
+    assert tool.function.__doc__ is not None
+    assert "`org:settings` and `budgets:manage`" in tool.function.__doc__

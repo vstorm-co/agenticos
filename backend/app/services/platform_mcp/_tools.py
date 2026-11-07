@@ -460,7 +460,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         briefing_days: list[int] | None = None,
         monthly_limit_usd: str | None = None,
     ) -> dict[str, Any]:
-        """Change how the organization works on its own initiative. Needs `org:settings`.
+        """Change the organization's initiative. Needs `org:settings` and `budgets:manage`.
 
         `watches_enabled` lets people have their own connections watched;
         `watch_min_minutes` is the most often any watch may run. `briefing_*` is
@@ -1628,7 +1628,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (invite_member, True),
         (search_mcp_servers, False),
         (list_my_connections, False),
-        (test_my_connection, False),
+        (test_my_connection, True),
         (list_org_connections, False),
         (list_sandbox_connections, False),
         (list_sandbox_runtimes, False),
