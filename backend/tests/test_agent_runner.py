@@ -193,6 +193,8 @@ def _prepared(
     built = MagicMock()
     built.ledger = ledger or SpendLedger()
     built.model_label = "gpt-4.1"
+    built.deps.tool_definitions = {}
+    built.deps.tool_identities = {}
     # A real gauge: what a turn records against its conversation is read off
     # this, and a `MagicMock` answers "yes, summarised" to every turn.
     built.context = ContextGauge()
@@ -3339,6 +3341,7 @@ class TestParking:
         assert recorded["status"] == RunStatus.AWAITING_APPROVAL.value
         assert recorded["paused_state"] == {
             "messages": [],
+            "tool_identities": {},
             "channel_destination": None,
             "channel_file_attempts": 0,
             "channel_context": "",

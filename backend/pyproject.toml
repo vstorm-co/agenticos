@@ -644,6 +644,7 @@ include = [
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
     # service that records a privileged action is already in this list; the trail
@@ -1393,6 +1394,7 @@ include = [
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
     # service that records a privileged action is already in this list; the trail

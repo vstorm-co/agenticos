@@ -670,6 +670,8 @@ class ChatAgentRunner:
             status, output, _structured, paused = _classify_output(
                 result, parked=prepared.approvals.parked
             )
+            if paused is not None:
+                paused.tool_identities = dict(prepared.built.deps.tool_identities)
             finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled

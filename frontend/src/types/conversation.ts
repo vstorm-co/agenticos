@@ -135,6 +135,8 @@ export interface ConversationMessage {
 }
 
 export interface ConversationToolCall {
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   id: string;
   message_id: string;
   tool_call_id: string;

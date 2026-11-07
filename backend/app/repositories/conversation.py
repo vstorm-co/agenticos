@@ -79,7 +79,7 @@ async def coding_agents_in_conversations(
         .join(ToolCall, ToolCall.message_id == Message.id)
         .where(
             Message.conversation_id.in_(conversation_ids),
-            ToolCall.tool_name == "run_coding_agent",
+            _tool_named(("run_coding_agent",)),
             harness.in_(("claude_code", "codex")),
             report["outcome"].astext.in_(("completed", "failed", "timed_out")),
         )
@@ -1073,6 +1073,17 @@ class ToolCallArgs(NamedTuple):
     run_id: UUID | None = None
 
 
+def _tool_named(names: Collection[str]) -> ColumnElement[bool]:
+    return or_(
+        ToolCall.tool_id.in_(names),
+        and_(
+            ToolCall.tool_id.is_(None),
+            ToolCall.presentation_kind.is_distinct_from("generic"),
+            ToolCall.tool_name.in_(names),
+        ),
+    )
+
+
 def _succeeded(result_prefixes: Collection[str]) -> ColumnElement[bool]:
     """A completed call whose result says it did its work.
 
@@ -1096,11 +1107,16 @@ async def tool_calls_named(
     `result_prefixes` - see `_succeeded`.
     """
     newest = (
-        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, ToolCall.started_at)
+        select(
+            ToolCall.tool_call_id,
+            func.coalesce(ToolCall.tool_id, ToolCall.tool_name).label("tool_name"),
+            ToolCall.args,
+            ToolCall.started_at,
+        )
         .join(Message, Message.id == ToolCall.message_id)
         .where(
             Message.conversation_id == conversation_id,
-            ToolCall.tool_name.in_(names),
+            _tool_named(names),
             ToolCall.status == "completed",
             _succeeded(result_prefixes),
         )
@@ -1134,7 +1150,7 @@ async def tool_call_in_conversation(
     result = await db.execute(
         select(
             ToolCall.tool_call_id,
-            ToolCall.tool_name,
+            func.coalesce(ToolCall.tool_id, ToolCall.tool_name),
             ToolCall.args,
             Message.agent_id,
             Message.run_id,
@@ -1143,7 +1159,7 @@ async def tool_call_in_conversation(
         .where(
             Message.conversation_id == conversation_id,
             ToolCall.tool_call_id == tool_call_id,
-            ToolCall.tool_name.in_(names),
+            _tool_named(names),
             ToolCall.status == "completed",
             _succeeded(result_prefixes),
         )
@@ -1851,7 +1867,8 @@ async def create_tool_call(
     started_at: datetime,
     status: str = "running",
     mcp_connection_id: UUID | None = None,
-    presentation_kind: Literal["draft"] | None = None,
+    tool_id: str | None = None,
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -1869,6 +1886,7 @@ async def create_tool_call(
         started_at=started_at,
         status=status,
         mcp_connection_id=mcp_connection_id,
+        tool_id=tool_id,
         presentation_kind=presentation_kind,
     )
     db.add(tool_call)
