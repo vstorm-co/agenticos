@@ -1,5 +1,5 @@
 ---
-source_sha: "bff40c5750b6"
+source_sha: "0f5f9ee0e642"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3216,13 +3216,16 @@ jedem neuen Agent und jeder Vorlage standardmäßig aktiv und lässt sich abscha
 Wo noch niemand antworten kann — ein Zeitplan, ein Webhook, die API —, erfährt der
 Agent, dass die Person abgelehnt hat.
 
-Eine unbeantwortete Frage beendet die Arbeit des Agents nicht endgültig. Verlässt
-die Person die offene Karte, parkt der Run darauf — im Run-Verlauf als **Wartet
-auf eine Antwort** — und die Karte kehrt zurück, sobald sie die Unterhaltung
-wieder öffnet, auf jedem Gerät. Die Antwort setzt den Run dort fort, wo er
-stehen blieb. Antworten kann nur die gefragte Person, über
-`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` liest die Karte
-zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
+Im Konsolenchat speichert der Run seine Fragen und pausiert, bevor die Karte
+erscheint — im Run-Verlauf als **Wartet auf eine Antwort**. Ein Chatwechsel,
+Neuladen oder das Öffnen der Unterhaltung auf einem anderen Gerät stellt die
+unbeantwortete Karte wieder her. Die Konsole sendet Antworten über ihre aktive
+Chatverbindung, damit ein delegierter Agent während der Fortsetzung weitere
+Fragen stellen kann. Ohne Verbindung wartet die Karte auf die Wiederverbindung.
+
+Antworten kann nur die gefragte Person. API-Clients können
+`POST /runs/{run_id}/answers` verwenden; `GET /runs/{run_id}/questions` liest die
+Karte zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
 
