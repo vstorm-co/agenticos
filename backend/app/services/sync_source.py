@@ -266,6 +266,7 @@ class SyncSourceService:
         await _refuse_a_credential_in_the_config(data.config, data.connector_type)
         await _refuse_an_invalid_config(data.config, data.connector_type)
         hint = await self._checked_secret(data.secret_id, data.connector_type, ctx)
+        await self._checked_account(data.config, data.connector_type, data.secret_id, ctx)
 
         source = await sync_source_repo.create(
             self.db,
@@ -326,6 +327,45 @@ class SyncSourceService:
                 "secret_id": str(source.secret_id) if source.secret_id else None,
                 **(extra or {}),
             },
+        )
+
+    async def _checked_account(
+        self,
+        config: dict[str, object],
+        connector_type: str,
+        secret_id: UUID | None,
+        ctx: AuthContext,
+    ) -> None:
+        connection = config.get("connection_id")
+        if connection is None:
+            return
+        if secret_id is not None:
+            raise refused_field(
+                "config.connection_id", "Choose a connected account or a vault credential, not both"
+            )
+        provider = {"gdrive": "google", "sharepoint": "microsoft", "slack": "slack"}.get(
+            connector_type
+        )
+        if provider is None:
+            raise refused_field(
+                "config.connection_id", "This source cannot use a connected account"
+            )
+        from app.services.integrations import IntegrationService, AccountSelection, PRODUCTS
+
+        try:
+            connection_id = UUID(str(connection))
+        except ValueError, TypeError:
+            raise refused_field(
+                "config.connection_id", "Choose a valid organization connected account"
+            ) from None
+        product = PRODUCTS[
+            {"google": "google_drive", "microsoft": "microsoft_files", "slack": "slack"}[provider]
+        ]
+        await IntegrationService(self.db).account(
+            product,
+            AccountSelection(account="organization", connection_id=connection_id),
+            organization_id=ctx.organization_id,
+            person_id=ctx.user_id,
         )
 
     async def _checked_secret(
@@ -409,6 +449,9 @@ class SyncSourceService:
         # caller must be one who may bind it, as on create - a member's private
         # secret behind somebody else's source is not theirs to lend.
         await self._checked_secret(existing.secret_id, existing.connector_type, ctx)
+        await self._checked_account(
+            _raw_config(existing), existing.connector_type, existing.secret_id, ctx
+        )
 
         source = await sync_source_repo.create(
             self.db,
@@ -467,6 +510,9 @@ class SyncSourceService:
             # connector then answered an hour later in a sync log rather than to
             # the caller who sent it.
             await _refuse_an_invalid_config(merged, existing.connector_type)
+            await self._checked_account(
+                merged, existing.connector_type, updates.get("secret_id", existing.secret_id), ctx
+            )
             updates["config"] = merged
 
         previous_collection = existing.collection_name

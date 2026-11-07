@@ -51,6 +51,7 @@ from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import ClassVar
 from urllib.parse import quote, urljoin, urlsplit
+from uuid import UUID
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -58,6 +59,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.core.config import settings
 from app.core.exceptions import AppException, BadRequestError, ExternalServiceError, NotFoundError
 from app.core.secret_kinds import EntraAppSecret, SecretKind, StorableSecret
+from app.services.integrations import AccountToken
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
@@ -103,6 +105,12 @@ class SharePointConfig(BaseModel):
     `secret_id` (#937). `site_url` is the one required field: a library defaults
     to the site's own, the folder to the whole library.
     """
+
+    connection_id: UUID | None = Field(
+        default=None,
+        title="Connected Microsoft account",
+        description="An organization connected account. Leave the vault credential empty when using this.",
+    )
 
     site_url: str = Field(
         title="Site URL",
@@ -307,7 +315,7 @@ class _Graph:
     """
 
     def __init__(
-        self, credential: EntraAppSecret, client: httpx.AsyncClient, backoff: float
+        self, credential: EntraAppSecret | AccountToken, client: httpx.AsyncClient, backoff: float
     ) -> None:
         self._credential = credential
         self._client = client
@@ -485,6 +493,8 @@ class _Graph:
                 handle.write(chunk)
 
     async def _bearer(self) -> str:
+        if isinstance(self._credential, AccountToken):
+            return self._credential.api_key.get_secret_value()
         """The app's Graph token, signed in for once and renewed shortly before it expires.
 
         Raises:
@@ -749,7 +759,9 @@ class SharePointConnector(BaseSyncConnector):
                     "and choose it as the source's credential."
                 )
             )
-        if not isinstance(credential, EntraAppSecret):
+        if not isinstance(credential, EntraAppSecret) and not (
+            isinstance(credential, AccountToken) and credential.provider == "microsoft"
+        ):
             raise BadRequestError(
                 message="A SharePoint source needs a Microsoft Entra app credential, and the one it names is not one."
             )

@@ -1389,7 +1389,22 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # be kept (#937). `None` here is a source with no credential, or one
         # whose secret was deleted - the connector refuses rather than reaching
         # for a deployment-wide fallback, because there is not one.
-        credential = await _connector_credential(db, source.secret_id, organization_id)
+        if config.get("connection_id") is not None and source.connector_type in {
+            "gdrive",
+            "sharepoint",
+            "slack",
+        }:
+            from app.services.integrations import IntegrationService
+
+            credential = await IntegrationService(db).source_token(
+                organization_id=organization_id,
+                connection_id=UUID(str(config["connection_id"])),
+                provider={"gdrive": "google", "sharepoint": "microsoft", "slack": "slack"}[
+                    source.connector_type
+                ],
+            )
+        else:
+            credential = await _connector_credential(db, source.secret_id, organization_id)
 
         # The log the job was queued with - a manual trigger and the schedule both
         # open one - or, for a source that had no collection when it was

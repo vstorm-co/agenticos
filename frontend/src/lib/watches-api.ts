@@ -21,6 +21,7 @@ export type WatchAttemptStatus =
   | "delivery_unavailable";
 
 export interface Watch {
+  integration_product_id?: string | null;
   consecutive_failures?: number;
   auto_stopped_at?: string | null;
   max_failures?: number | null;
@@ -62,6 +63,7 @@ export interface WatchPreset {
 }
 
 export interface WatchDraft {
+  integration_product_id?: string | null;
   max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
   report_mode?: WatchReportMode;

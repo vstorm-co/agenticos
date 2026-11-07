@@ -488,6 +488,7 @@ class TestOneLook:
         status=RunStatus.COMPLETED,
         check=None,
         retain_check=True,
+        integration_cursor=None,
     ):
         async def execute(ctx, agent_id, prompt, **kwargs):
             if error is not None:
@@ -495,6 +496,7 @@ class TestOneLook:
             receipt = kwargs["watch_receipt"]
             assert isinstance(receipt, WatchReadReceipt)
             receipt.completed_calls = source_reads
+            receipt.integration_cursor = integration_cursor
             receipt.check = (check or AsyncMock()) if retain_check else None
             output = kwargs["structured"]
             assert isinstance(output, list)
@@ -1280,3 +1282,38 @@ async def test_watch_drafts_have_one_owned_working_chat_and_stale_attempts_do_no
     assert publish.await_args.kwargs["origin_kind"] == "watch"
     assert publish.await_args.kwargs["item"].content == "A proposed reply"
     assert publish.await_args.kwargs["notify"] is True
+
+
+@pytest.mark.parametrize("outcome", ["quiet", "record_failed", "revoked"])
+async def test_integration_cursor_is_persisted_only_after_an_authorized_consumed_check(outcome):
+    cursor = {"history_id": "consumed"}
+    check = AsyncMock(
+        side_effect=AuthorizationError(message="revoked") if outcome == "revoked" else None
+    )
+    patches, _ = TestOneLook._patches(_watch(), integration_cursor=cursor, check=check)
+    update = AsyncMock()
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(patch(f"{LOOK}.watch_repo.update_fields", new=update))
+        stack.enter_context(
+            patch.object(
+                WatchLook,
+                "_record",
+                new=AsyncMock(
+                    return_value=(0, False),
+                    side_effect=RuntimeError("write failed")
+                    if outcome == "record_failed"
+                    else None,
+                ),
+            )
+        )
+        if outcome == "record_failed":
+            with pytest.raises(RuntimeError):
+                await WatchLook(MagicMock()).look(uuid.uuid4())
+        else:
+            assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 0
+    if outcome == "quiet":
+        assert update.await_args.kwargs["changes"] == {"integration_cursor": cursor}
+    else:
+        update.assert_not_awaited()

@@ -7,12 +7,14 @@ continue to come from the selected published version.
 """
 
 import hashlib
+import json
 
 from app.agents.mcp import McpSourceIdentity
-from app.agents.spec import AgentSpec, PersonalMcpServerRef
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, PersonalMcpServerRef
 from app.core.exceptions import AuthorizationError
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.watch_sources import WatchSources
+from app.services.integrations import PRODUCTS, AccountSelection
 
 
 def _binding(spec: AgentSpec, catalog_key: str | None) -> PersonalMcpServerRef:
@@ -32,7 +34,92 @@ def _intersection(
     return tuple(tool for tool in left if right is None or tool in right)
 
 
-def approve_sources(spec: AgentSpec, connection: McpConnection) -> WatchSources:
+def _native_binding(spec: AgentSpec, product_id: str) -> CapabilityBindingSpec:
+    binding = next((b for b in spec.capabilities if b.id == product_id and b.enabled), None)
+    if binding is None or binding.approval == "required":
+        raise AuthorizationError(
+            message="The watched product must be enabled for unattended reading on this agent"
+        )
+    selection = AccountSelection.model_validate(binding.config)
+    readable = {
+        f"{product_id}_{op.id}" for op in PRODUCTS[product_id].operations if not op.side_effecting
+    }
+    if readable.intersection(selection.disabled_tools) or any(
+        binding.tool_approval.get(tool_id) == "required" for tool_id in readable
+    ):
+        raise AuthorizationError(
+            message="A watch cannot bypass disabled or approval-gated product reads"
+        )
+
+    if selection.account != "personal":
+        raise AuthorizationError(message="A watch reads only a personal integration account")
+    return binding
+
+
+def _native_hash(binding: CapabilityBindingSpec) -> str:
+    return hashlib.sha256(json.dumps(binding.config, sort_keys=True).encode()).hexdigest()
+
+
+def _approve_native(
+    spec: AgentSpec, connection: McpConnection, product_id: str | None = None
+) -> WatchSources:
+    product_id = product_id or {
+        "google": "gmail",
+        "microsoft": "outlook_mail",
+        "slack": "slack",
+        "imap": "imap_mail",
+    }.get(connection.catalog_key or "")
+    if (
+        product_id
+        not in {
+            "gmail",
+            "google_calendar",
+            "outlook_mail",
+            "outlook_calendar",
+            "teams",
+            "slack",
+            "imap_mail",
+        }
+        or PRODUCTS[product_id].provider != connection.catalog_key
+    ):
+        raise AuthorizationError(
+            message="This integration product cannot read the selected account"
+        )
+    binding = _native_binding(spec, product_id)
+    selection = AccountSelection.model_validate(binding.config)
+    if selection.account_name and selection.account_name not in {
+        connection.name,
+        connection.label,
+        connection.account_email,
+    }:
+        raise AuthorizationError(message="This agent targets a different named integration account")
+    if (
+        product_id in {"slack", "teams"}
+        and not selection.channels
+        and connection.auth_type != "application"
+    ):
+        raise AuthorizationError(
+            message="Choose the conversations in this agent's integration capability first"
+        )
+    return WatchSources(
+        integration_product_id=product_id,
+        integration_binding_hash=_native_hash(binding),
+        integration_channels=tuple(selection.channels),
+        connection_id=connection.id,
+        authorization_generation=connection.authorization_generation,
+        catalog_key=connection.catalog_key or "",
+        endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
+        allowed_tools=("read_integration_changes",),
+        collection_ids=tuple(spec.collection_ids),
+        context_ids=tuple(spec.context_ids),
+    )
+
+
+def approve_sources(
+    spec: AgentSpec, connection: McpConnection, product_id: str | None = None
+) -> WatchSources:
+    if connection.purpose == "account":
+        return _approve_native(spec, connection, product_id)
     ref = _binding(spec, connection.catalog_key)
     _unattended_reads(spec, ref)
     tools = _intersection(ref.allowed_tools, connection.allowed_tools)
@@ -51,6 +138,29 @@ def approve_sources(spec: AgentSpec, connection: McpConnection) -> WatchSources:
 
 def constrain_sources(spec: AgentSpec, approved: WatchSources) -> AgentSpec:
     """A later publication can narrow, but never widen, this watch's source approval."""
+    if approved.integration_product_id is not None:
+        binding = _native_binding(spec, approved.integration_product_id)
+        if _native_hash(binding) != approved.integration_binding_hash:
+            raise AuthorizationError(
+                message="Review this watch's integration account settings after the agent changed"
+            )
+        return spec.model_copy(
+            update={
+                "capabilities": [
+                    b
+                    for b in spec.capabilities
+                    if b.id
+                    in {"knowledge", "context", "guardrails", "planning", "system_reminders"}
+                ],
+                "mcp_servers": [],
+                "skill_ids": [],
+                "subagents": [],
+                "external_agents": [],
+                "collection_ids": [i for i in spec.collection_ids if i in approved.collection_ids],
+                "context_ids": [i for i in spec.context_ids if i in approved.context_ids],
+                "code_mode": spec.code_mode.model_copy(update={"enabled": False}),
+            }
+        )
     current = _binding(spec, approved.catalog_key)
     _unattended_reads(spec, current)
     tools = _intersection(approved.allowed_tools, current.allowed_tools)

@@ -10,6 +10,22 @@ import { ConnectedAccountsCard } from "./connected-accounts-card";
  */
 
 const hook = vi.fn();
+vi.mock("@/components/vault/imap-setup-dialog", () => ({
+  ImapSetupDialog: ({ onClose }: { onClose: () => void }) => (
+    <div role="dialog">
+      <button onClick={onClose}>Close IMAP</button>
+    </div>
+  ),
+}));
+vi.mock("@/components/vault/integration-setup-dialog", () => ({
+  IntegrationSetupDialog: ({ provider, onClose }: { provider: string; onClose: () => void }) => (
+    <div role="dialog">
+      Setup {provider}
+      <button onClick={onClose}>Close setup</button>
+    </div>
+  ),
+}));
+
 vi.mock("@/hooks/use-connected-accounts", () => ({
   useConnectedAccounts: (...args: unknown[]) => hook(...args),
 }));
@@ -52,7 +68,7 @@ describe("ConnectedAccountsCard", () => {
     expect(screen.getByText("Your connected accounts")).toBeInTheDocument();
     expect(screen.getByText("ana@acme.com")).toBeInTheDocument();
     expect(screen.getByText("2 permissions granted")).toBeInTheDocument();
-    expect(hook).toHaveBeenCalledWith("personal");
+    expect(hook).toHaveBeenCalledWith("personal", { provider: "google" });
   });
 
   it("connects another, coming back to this page", async () => {
@@ -60,7 +76,9 @@ describe("ConnectedAccountsCard", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Connect Google account" }));
 
-    expect(connect).toHaveBeenCalledWith("/en/vault");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Setup google");
+    await userEvent.click(screen.getByRole("button", { name: "Close setup" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("asks before disconnecting, and disconnects only on yes", async () => {
@@ -87,7 +105,7 @@ describe("ConnectedAccountsCard", () => {
 
     expect(screen.getByText(/stopped working/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
-    expect(connect).toHaveBeenCalledWith("/en/vault");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Setup google");
   });
 
   it("offers no change to somebody who may only look", () => {
@@ -95,24 +113,24 @@ describe("ConnectedAccountsCard", () => {
     render(<ConnectedAccountsCard owner="organization" canManage={false} />);
 
     expect(screen.getByText("The organization's connected accounts")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Connect|Reconnect|Disconnect/ })).toBeNull();
   });
 
   it("starts the first connection from the empty state", async () => {
     hook.mockReturnValue(state({ accounts: [] }));
     render(<ConnectedAccountsCard owner="organization" canManage />);
 
-    expect(screen.getByText(/can read one of these for everybody/)).toBeInTheDocument();
+    expect(screen.getByText(/Shared accounts can be used/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Connect Google account" }));
-    expect(connect).toHaveBeenCalledWith("/en/vault");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Setup google");
   });
 
   it("has nothing to offer from an empty state it may not change", () => {
     hook.mockReturnValue(state({ accounts: [] }));
     render(<ConnectedAccountsCard owner="personal" canManage={false} />);
 
-    expect(screen.getByText(/mounts these when you talk to it/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText(/Each person connects their own accounts/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Connect|Reconnect|Disconnect/ })).toBeNull();
   });
 
   it("says why the list could not be read rather than calling it empty", () => {
@@ -122,4 +140,14 @@ describe("ConnectedAccountsCard", () => {
     expect(screen.getByText("upstream timed out")).toBeInTheDocument();
     expect(screen.queryByText("No accounts connected yet")).toBeNull();
   });
+});
+
+it("opens IMAP setup from its provider tab and closes it", async () => {
+  render(<ConnectedAccountsCard owner="personal" canManage />);
+  await userEvent.click(screen.getByRole("button", { name: "IMAP" }));
+  expect(hook).toHaveBeenLastCalledWith("personal", { provider: "imap" });
+  await userEvent.click(screen.getByRole("button", { name: "Connect IMAP account" }));
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Close IMAP" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

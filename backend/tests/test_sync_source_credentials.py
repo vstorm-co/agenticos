@@ -342,6 +342,7 @@ class TestWhatTheConnectorsDeclare:
             "web": "none",
             "git": "git_token",
             "sharepoint": "entra_app",
+            "slack": "none",
         }
 
     def test_no_connector_config_schema_carries_a_credential_field(self):

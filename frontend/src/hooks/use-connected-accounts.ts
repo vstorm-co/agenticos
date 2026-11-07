@@ -10,6 +10,14 @@ import { rememberMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { qk } from "@/lib/query-keys";
 import type { ConnectedAccountList } from "@/types/mirage";
 
+export type IntegrationProvider = "google" | "microsoft" | "slack" | "imap";
+export interface AccountConnectOptions {
+  label?: string;
+  provider: IntegrationProvider;
+  products: string[];
+  write: boolean;
+}
+
 export type AccountOwner = "personal" | "organization";
 
 const PREFIX: Record<AccountOwner, string> = {
@@ -23,29 +31,77 @@ const KEY = {
 };
 
 /**
- * One owner's connected accounts: the Google sign-ins a virtual terminal's mount reads as.
+ * One owner's named provider accounts, shared by native tools and their other surfaces.
  *
  * Connecting leaves the page for the consent screen and comes back to
  * `returnTo`, where `useMcpOAuthOutcome` says how it went - the callback is the
  * one MCP consents use. `enabled` lets a caller that may not list the
  * organization's accounts not ask for them.
  */
-export function useConnectedAccounts(owner: AccountOwner, { enabled = true } = {}) {
+export function useConnectedAccounts(
+  owner: AccountOwner,
+  {
+    enabled = true,
+    provider = "google",
+  }: { enabled?: boolean; provider?: IntegrationProvider } = {},
+) {
   const t = useTranslations("errors");
   const queryClient = useQueryClient();
   const accounts = useQuery({
-    queryKey: KEY[owner](),
-    queryFn: () => apiClient.get<ConnectedAccountList>(PREFIX[owner]),
+    queryKey: provider === "google" ? KEY[owner]() : [...KEY[owner](), provider],
+    queryFn: () =>
+      apiClient.get<ConnectedAccountList>(
+        provider === "google" ? PREFIX[owner] : `${PREFIX[owner]}?provider=${provider}`,
+      ),
     enabled,
   });
   const connect = useMutation({
-    mutationFn: async (returnTo: string) => {
+    mutationFn: async ({
+      returnTo,
+      options,
+    }: {
+      returnTo: string;
+      options?: AccountConnectOptions;
+    }) => {
       const { authorization_url } = await apiClient.post<{ authorization_url: string }>(
         `${PREFIX[owner]}/oauth/start`,
+        options,
       );
       rememberMcpOAuthReturn(returnTo);
       window.location.assign(authorization_url);
     },
+    onError: (cause) => toast.error(getErrorMessage(cause, t)),
+  });
+  const connectImap = useMutation({
+    mutationFn: (data: {
+      credential: {
+        host: string;
+        port: number;
+        username: string;
+        password: string;
+        folder: string;
+      };
+      label: string;
+    }) => apiClient.post(`${PREFIX[owner]}/imap`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onError: (cause) => toast.error(getErrorMessage(cause, t)),
+  });
+  const connectApplication = useMutation({
+    mutationFn: (data: {
+      provider: IntegrationProvider;
+      secret_id: string;
+      subject: string | null;
+      products: string[];
+      write: boolean;
+      label: string;
+    }) => apiClient.post(`${PREFIX[owner]}/application`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onError: (cause) => toast.error(getErrorMessage(cause, t)),
+  });
+  const connectToken = useMutation({
+    mutationFn: (data: { token: string; label: string }) =>
+      apiClient.post(`${PREFIX[owner]}/slack/token`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
   const disconnect = useMutation({
@@ -57,8 +113,12 @@ export function useConnectedAccounts(owner: AccountOwner, { enabled = true } = {
     accounts: accounts.data?.items ?? [],
     isLoading: accounts.isLoading,
     error: accounts.error,
-    connect: (returnTo: string) => connect.mutate(returnTo),
+    connect: (returnTo: string, options?: AccountConnectOptions) =>
+      connect.mutate({ returnTo, options }),
     isConnecting: connect.isPending,
+    connectToken,
+    connectApplication,
+    connectImap,
     disconnect: (id: string) => disconnect.mutate(id),
   };
 }

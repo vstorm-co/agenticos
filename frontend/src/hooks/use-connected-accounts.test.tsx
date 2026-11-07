@@ -63,7 +63,7 @@ describe("useConnectedAccounts", () => {
     await waitFor(() =>
       expect(assign).toHaveBeenCalledWith("https://accounts.google.com/o/oauth2/v2/auth?x=1"),
     );
-    expect(apiClient.post).toHaveBeenCalledWith("/me/connected-accounts/oauth/start");
+    expect(apiClient.post).toHaveBeenCalledWith("/me/connected-accounts/oauth/start", undefined);
     expect(remember).toHaveBeenCalledWith("/vault");
   });
 

@@ -354,3 +354,48 @@ async def test_resumed_accounts_keep_their_original_alias_after_default_and_labe
         } == {identifier: source.tool_prefix for identifier, source in admitted.items()}
         assert auth.await_count == 2
         assert all(call.args[0].id != new.id for call in auth.await_args_list)
+
+
+@pytest.mark.parametrize(
+    ("provider", "product"),
+    [("google", "gmail"), ("microsoft", "outlook_mail"), ("slack", "slack")],
+)
+def test_native_watch_carries_one_account_and_removes_every_executable_capability(
+    provider: str, product: str
+) -> None:
+    connection = _connection()
+    connection.purpose = "account"
+    connection.catalog_key = provider
+    connection.label = "Work"
+    original = _spec()
+    original.capabilities.append(
+        CapabilityBindingSpec(id=product, config={"account_name": "Work", "channels": ["C123"]})
+    )
+    approved = approve_sources(original, connection)
+    assert approved.integration_product_id == product
+    assert approved.connection_id == connection.id
+    effective = constrain_sources(original, approved)
+    assert effective.mcp_servers == []
+    assert not effective.code_mode.enabled
+    assert all(
+        binding.id not in {product, "sandbox", "web", "skills"}
+        for binding in effective.capabilities
+    )
+    original.capabilities[-1].config["account_name"] = "Other account"
+    with pytest.raises(AuthorizationError, match="Review"):
+        constrain_sources(original, approved)
+
+
+@pytest.mark.parametrize(
+    "config", [{"account": "organization"}, {"account_name": "Another account"}, {"channels": []}]
+)
+def test_native_watch_refuses_organization_accounts_wrong_names_and_unselected_slack_channels(
+    config: dict[str, object],
+) -> None:
+    connection = _connection()
+    connection.purpose = "account"
+    connection.catalog_key = "slack"
+    spec = _spec()
+    spec.capabilities.append(CapabilityBindingSpec(id="slack", config=config))
+    with pytest.raises(AuthorizationError):
+        approve_sources(spec, connection)

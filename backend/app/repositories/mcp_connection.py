@@ -308,11 +308,24 @@ _POLL_SLACK = timedelta(seconds=5)
 
 def _portal_poll_query(*, portal_keys: list[str], now: datetime) -> Select[McpConnection]:
     interval = func.make_interval(0, 0, 0, 0, 0, McpConnection.poll_interval_minutes)
+    from app.db.models.agent_trigger import AgentTrigger
+
+    native = (
+        select(AgentTrigger.id)
+        .where(
+            AgentTrigger.connection_id == McpConnection.id,
+            AgentTrigger.is_active.is_(True),
+            AgentTrigger.portal_key.in_(portal_keys),
+        )
+        .exists()
+    )
     return select(McpConnection).where(
-        McpConnection.purpose == "portal",
-        McpConnection.portal_key.in_(portal_keys),
+        or_(
+            (McpConnection.purpose == "portal") & McpConnection.portal_key.in_(portal_keys),
+            (McpConnection.purpose == "account") & native,
+        ),
         McpConnection.is_enabled.is_(True),
-        McpConnection.oauth_payload.is_not(None),
+        or_(McpConnection.oauth_payload.is_not(None), McpConnection.auth_token.is_not(None)),
         or_(
             McpConnection.polled_at.is_(None),
             McpConnection.polled_at + interval <= now + _POLL_SLACK,
@@ -649,7 +662,7 @@ async def list_accounts(
             owner,
             McpConnection.purpose == "account",
             McpConnection.catalog_key == provider,
-            McpConnection.oauth_payload.is_not(None),
+            or_(McpConnection.oauth_payload.is_not(None), McpConnection.auth_token.is_not(None)),
         )
         .order_by(McpConnection.created_at)
     )

@@ -9,6 +9,9 @@ authors = [
 ]
 
 dependencies = [
+    # IMAP connected accounts reuse Mirage's email protocol and MIME parser.
+    # Keep this pin aligned with the optional terminal backends below.
+    "mirage-ai[email]==0.0.8",
     # Uncapped on purpose. FastAPI, Pydantic AI, Logfire and genai-prices track
     # the newest release: this platform's whole subject matter moves at their
     # pace, and genai-prices in particular *is* the model price snapshot, so an
@@ -671,6 +674,7 @@ include = [
     "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
+    "app/services/rag/connectors/slack.py",
     # The query strings a knowledge search runs, and the one place an expansion
     # failure is allowed to fall back to the plain query (#1649).
     "app/services/rag/query_analysis.py",
@@ -827,6 +831,8 @@ include = [
     "app/api/routes/v1/admin_announcements.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
+    "app/core/mail_credential.py",
+    "app/services/integrations/**",
     "app/services/portals/__init__.py",
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
@@ -1420,6 +1426,7 @@ include = [
     "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
+    "app/services/rag/connectors/slack.py",
     # The query strings a knowledge search runs, and the one place an expansion
     # failure is allowed to fall back to the plain query (#1649).
     "app/services/rag/query_analysis.py",
@@ -1609,6 +1616,8 @@ include = [
     "app/api/routes/v1/admin_announcements.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
+    "app/core/mail_credential.py",
+    "app/services/integrations/**",
     "app/services/portals/__init__.py",
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",

@@ -259,6 +259,24 @@ def event_matches(
     config: Mapping[str, Any],
 ) -> bool:
     """Whether a verified delivery passes the trigger's per-source filter."""
+    if source in {EventSource.SLACK.value, EventSource.TEAMS.value, EventSource.IMAP_MAIL.value}:
+        channels = config.get("channels") or []
+        if channels and payload.get("channel") not in channels:
+            return False
+        if config.get("mentions_only") and payload.get("mentions_me") is not True:
+            return False
+        if config.get("direct_only") and payload.get("direct_message") is not True:
+            return False
+        text = (
+            str(payload.get("text") or payload.get("body_text") or "")
+            + " "
+            + str(payload.get("subject") or "")
+        )
+        return not config.get("contains") or str(config["contains"]).casefold() in text.casefold()
+    if source == EventSource.GOOGLE_SHEETS.value:
+        return payload.get("spreadsheet_id") == config.get("spreadsheet_id") and payload.get(
+            "sheet_name"
+        ) == config.get("sheet_name", "Sheet1")
     if source == EventSource.GITHUB.value:
         return _github_matches(headers, payload, config)
     if source == EventSource.GMAIL.value:

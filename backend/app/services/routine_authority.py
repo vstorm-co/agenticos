@@ -368,7 +368,7 @@ class RoutineAuthority:
             or not connection.is_enabled
             or connection.user_id != self.user_id
             or connection.scope != "user"
-            or connection.purpose != "mcp"
+            or connection.purpose != ("account" if self.sources.integration_product_id else "mcp")
             or hashlib.sha256(connection.url.encode()).hexdigest() != self.sources.endpoint_hash
             or self.sources.authorization_generation is None
             or connection.authorization_generation != self.sources.authorization_generation

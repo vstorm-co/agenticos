@@ -26,8 +26,8 @@ import {
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { endInput, endInstant, EndsAtField } from "@/components/triggers/ends-at-field";
-import { useAgentEnvironments, useMcpConnections, useOrganizations } from "@/hooks";
-import { useWatchPresets, useWatches } from "@/hooks/use-watches";
+import { useAgentEnvironments, useOrganizations } from "@/hooks";
+import { useWatchPresets, useWatches, useWatchConnections } from "@/hooks/use-watches";
 import { submitFailure } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { RoutineDialogFrame } from "@/components/triggers/routine-dialog-frame";
@@ -51,6 +51,7 @@ const FIELDS = [
 ];
 
 interface Draft {
+  productId: string;
   agentId: string;
   environmentId: string | null;
   pinnedVersionId: string | null;
@@ -69,6 +70,7 @@ function startFrom(
   agentId: string | undefined,
 ): Draft {
   return {
+    productId: watch?.integration_product_id ?? "",
     agentId: watch?.agent_id ?? agentId ?? "",
     environmentId: watch?.environment_id ?? null,
     pinnedVersionId: watch?.pinned_version_id ?? null,
@@ -104,11 +106,13 @@ export function WatchDialog({
   initialTask?: { title: string; instructions: string };
 }) {
   const t = useTranslations("watches");
+  const tIntegrations = useTranslations("pages.vault.connectedAccounts.setup");
+  const tCapabilities = useTranslations("capabilityGuide");
   const tt = useTranslations("triggers");
   const [step, setStep] = useState<"configure" | "message" | "schedule">("configure");
   const tCadence = useTranslations("watches.cadence");
   const tErrors = useTranslations("errors");
-  const { connections } = useMcpConnections();
+  const { connections } = useWatchConnections();
   const presets = useWatchPresets();
   const { activeOrg } = useOrganizations();
   const { create, update } = useWatches();
@@ -206,6 +210,9 @@ export function WatchDialog({
           pinned_version_id: draft.pinnedVersionId,
           ends_at: end,
           connection_id: draft.connectionId,
+          ...(draft.productId || connection?.products?.[0]
+            ? { integration_product_id: draft.productId || connection?.products?.[0] }
+            : {}),
           preset_key: draft.presetKey === CUSTOM ? null : draft.presetKey,
           title: draft.title.trim(),
           instructions: draft.instructions.trim(),
@@ -318,7 +325,13 @@ export function WatchDialog({
           >
             <Select
               value={draft.connectionId}
-              onValueChange={(next) => edit({ connectionId: next, presetKey: CUSTOM })}
+              onValueChange={(next) =>
+                edit({
+                  connectionId: next,
+                  productId: connections.find((entry) => entry.id === next)?.products?.[0] ?? "",
+                  presetKey: CUSTOM,
+                })
+              }
               disabled={saving || watch !== undefined}
             >
               <SelectTrigger id="watch-connection">
@@ -340,6 +353,25 @@ export function WatchDialog({
               </SelectContent>
             </Select>
           </FormField>
+          {!watch && (connection?.products?.length ?? 0) > 0 && (
+            <FormField label={tIntegrations("product")} htmlFor="watch-product">
+              <Select
+                value={draft.productId || connection?.products?.[0]}
+                onValueChange={(productId) => edit({ productId })}
+              >
+                <SelectTrigger id="watch-product">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {connection?.products?.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {tCapabilities(`${id}.name`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          )}
           {!watch && (
             <FormField label={t("preset")} htmlFor="watch-preset" error={errors.preset_key ?? null}>
               <Select value={draft.presetKey} onValueChange={pick} disabled={saving}>

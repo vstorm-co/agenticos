@@ -1091,3 +1091,70 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
     else:
         reviewed = await RoutineSourceService(db)._review(ctx, trigger)
         assert bool(reviewed.unavailable) is (source != "disabled_phone")
+
+
+async def test_disconnecting_a_personal_input_stops_only_its_routines_even_from_another_org(
+    db: AsyncSession,
+):
+    from app.db.models.organization import Organization, OrganizationMember
+    from app.services.mcp_connection import McpConnectionService
+
+    ctx, trigger, _, _ = await world(db)
+    account = McpConnection(
+        user_id=ctx.user_id,
+        scope="user",
+        purpose="account",
+        name="Work",
+        url="https://www.googleapis.com",
+        catalog_key="google",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    other = McpConnection(
+        user_id=ctx.user_id,
+        scope="user",
+        purpose="account",
+        name="Private",
+        url="https://www.googleapis.com",
+        catalog_key="google",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    db.add_all([account, other])
+    await db.flush()
+    trigger.trigger_type, trigger.event_source, trigger.delivery_mode = "event", "gmail", "polling"
+    trigger.interval_seconds, trigger.next_fire_at, trigger.connection_id = None, None, account.id
+    second = AgentTrigger(
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        created_by_user_id=ctx.user_id,
+        trigger_type="event",
+        event_source="gmail",
+        delivery_mode="polling",
+        connection_id=other.id,
+        prompt="Check other mail",
+        is_active=True,
+    )
+    inactive = AgentTrigger(
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        created_by_user_id=ctx.user_id,
+        trigger_type="event",
+        event_source="gmail",
+        delivery_mode="polling",
+        connection_id=account.id,
+        prompt="Paused mail",
+        is_active=False,
+    )
+    selected = Organization(name="Another", slug=f"other-{uuid4()}", created_by_user_id=ctx.user_id)
+    db.add_all([second, inactive, selected])
+    await db.flush()
+    db.add(OrganizationMember(organization_id=selected.id, user_id=ctx.user_id, role="owner"))
+    await db.flush()
+    await McpConnectionService(db).delete_account(
+        replace(ctx, organization_id=selected.id), account.id, for_organization=False
+    )
+    await db.refresh(trigger)
+    await db.refresh(second)
+    assert not trigger.is_active and trigger.connection_id is None
+    assert second.is_active and second.connection_id == other.id

@@ -998,7 +998,8 @@
     "starterIcon": "Icon for first message {number}",
     "starterTitle": "Title of first message {number}",
     "starterTitlePlaceholder": "Short title (optional)",
-    "starterMessageLabel": "Message shown below the title and sent on click"
+    "starterMessageLabel": "Message shown below the title and sent on click",
+    "enableIntegrationTool": "Enable {tool}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -7292,17 +7293,65 @@
         "personalTitle": "Your connected accounts",
         "organizationTitle": "The organization's connected accounts",
         "count": "{count, plural, one {# account} other {# accounts}}",
-        "connect": "Connect Google account",
+        "connect": "Connect {provider} account",
         "noneYet": "No accounts connected yet",
-        "personalDetail": "An agent whose virtual terminal reads each person's own accounts mounts these when you talk to it.",
-        "organizationDetail": "An agent's virtual terminal can read one of these for everybody who talks to it.",
+        "personalDetail": "Choose an account for agents, workflows and personal watches. Each person connects their own accounts.",
+        "organizationDetail": "Shared accounts can be used by configured agents, workflows, knowledge sync and triggers.",
         "needsReconnect": "Its sign-in stopped working. Connect it again.",
         "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
         "reconnect": "Reconnect",
         "disconnect": "Disconnect {email}",
         "disconnectTitle": "Disconnect {email}?",
-        "disconnectDetail": "Agents that read this account lose its folders on their next run. The grant is deleted from the vault.",
-        "disconnectConfirm": "Disconnect"
+        "disconnectDetail": "Agents, workflows, knowledge sync and watches lose access to this account. The stored grant is deleted from Vault.",
+        "disconnectConfirm": "Disconnect",
+        "setup": {
+          "title": "Connect {provider}",
+          "description": "Register an OAuth app once for your organization, then connect your account.",
+          "redirect": "Redirect URL",
+          "copyRedirect": "Copy redirect URL",
+          "google": "Create a Cloud project, enable the APIs below, configure an Internal or External consent screen, and create a web OAuth client. External apps in Testing issue refresh tokens lasting seven days. Native integrations use ordinary APIs; no MCP preview or AI-powered client is required.",
+          "microsoft": "Register a web application in Entra. Choose a tenant or common for work and personal accounts, add the redirect URL and delegated permissions below. Add a client secret. Some permissions need tenant administrator consent.",
+          "slack": "Create an internal app in each workspace, or add these user scopes and redirect URL to your existing channel bot app. Installation may require administrator approval and counts toward the workspace app limit. Native tools do not need the Agents MCP Server toggle; enable it only when using Slack MCP.",
+          "openConsole": "Open provider console",
+          "saveClient": "Save OAuth app in Vault",
+          "write": "Include write permissions (agent writes still require approval)",
+          "scopes": "Requested product permissions",
+          "connect": "Continue to account consent",
+          "provider": {
+            "google": "Google",
+            "microsoft": "Microsoft",
+            "slack": "Slack",
+            "imap": "IMAP"
+          },
+          "tokenPath": "Use an existing Slack user or bot token",
+          "accountLabel": "Account label",
+          "token": "Slack token",
+          "saveToken": "Connect with token",
+          "oauth": "OAuth",
+          "serviceAccount": "Service account",
+          "application": "Application access",
+          "delegation": "For Workspace mail or calendars, an administrator must enable domain-wide delegation and allow exactly the scopes below. Set the mailbox address to impersonate. Without delegation, Drive must be shared with the service account.",
+          "appPermissions": "Grant application permissions and administrator consent in Entra. Mail and calendar need a target mailbox address; Teams needs a user directory object ID. Excel and normal Teams posting require delegated OAuth.",
+          "credential": "Vault credential",
+          "chooseCredential": "Choose a credential",
+          "subject": "Mailbox address or Teams user directory object ID",
+          "imap": "IMAP mail uses verified TLS and an app password. Ask the operator to add the hostname to MIRAGE_ALLOWED_HOSTS. Microsoft 365 does not support this password-based method.",
+          "host": "IMAP hostname",
+          "port": "Port",
+          "username": "Mailbox username",
+          "password": "App password",
+          "folder": "Mailbox folder",
+          "product": "Product",
+          "saveCredential": "Save credential in Vault",
+          "googleMcp": "For hosted Google MCP, join the Workspace MCP preview, enable both product and MCP APIs, configure consent and create a web OAuth client marked for an AI-powered agent. External Testing refresh tokens can expire in seven days. Copy the redirect exactly.",
+          "slackMcp": "For Slack MCP, register an internal or Marketplace app, add this redirect and server scopes, then enable Agents → MCP Server. Workspace app limits and admin approval still apply.",
+          "microsoftMcp": "Register an Entra web app with this redirect and the delegated scopes required by the MCP server. Microsoft Work IQ has separate licence requirements."
+        },
+        "accountOwner": "Account owner",
+        "chooseAccount": "Choose a connected account",
+        "accountNameLabel": "Personal account name",
+        "accountNameHint": "Use the same label, such as Work, for each person’s account. Leave empty only when each person has one matching account.",
+        "manageAccounts": "Manage connected accounts"
       }
     },
     "workspaces": {
@@ -7822,7 +7871,10 @@
     "targetCollection": "Target collection",
     "updatedCount": "{count} updated",
     "useExisting": "Use existing",
-    "useIntegration": "Use this integration"
+    "useIntegration": "Use this integration",
+    "connectedAccount": "Organization connected account",
+    "useVaultCredential": "Use a vault credential instead",
+    "usingConnectedAccount": "This source reads through the selected organization account. No additional credential is needed."
   },
   "ragStatus": {
     "cancelled": "Cancelled",
@@ -8685,7 +8737,11 @@
       "google_drive": "On a file in Google Drive",
       "microsoft_files": "On a file in OneDrive or SharePoint",
       "google_calendar": "Before a Google Calendar meeting",
-      "outlook_calendar": "Before an Outlook meeting"
+      "outlook_calendar": "Before an Outlook meeting",
+      "slack": "Slack",
+      "teams": "Teams",
+      "google_sheets": "Google Sheets",
+      "imap_mail": "IMAP"
     },
     "panelTitle": "Routines",
     "panelDescription": "When this agent runs itself - on a schedule, or when an event arrives.",
@@ -9032,7 +9088,13 @@
     "installationIdLabel": "Installation ID",
     "mailLabelFilter": "Gmail label ID",
     "mailFolderFilter": "Mailbox folder",
-    "sharedMailboxFilter": "Shared mailbox"
+    "sharedMailboxFilter": "Shared mailbox",
+    "integrationConversations": "Conversations (comma-separated IDs)",
+    "integrationMentions": "Only mentions of me",
+    "integrationDirect": "Only direct messages",
+    "integrationSpreadsheet": "Spreadsheet ID",
+    "integrationSheet": "Sheet name",
+    "integrationAccount": "Connected account"
   },
   "agentTemplates": {
     "browse": "Agent templates",
@@ -9281,7 +9343,11 @@
       "outlook_calendar": "Outlook Calendar",
       "onedrive": "OneDrive",
       "excel": "Excel",
-      "microsoft_365": "Microsoft 365"
+      "microsoft_365": "Microsoft 365",
+      "google_slides": "Google Slides",
+      "word": "Word",
+      "teams": "Teams",
+      "imap_mail": "IMAP"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -11366,6 +11432,118 @@
       "example3": "Read a table from your database and summarise it",
       "needs": "The services' credentials in the vault, or a connected Google account. A deployment installs the terminal with the mirage extra, and an operator allows the hosts of any server you type.",
       "never": "Never writes to a folder you mounted read-only, and asks a person before each write where you said so."
+    },
+    "gmail": {
+      "name": "Gmail",
+      "does": "Uses Gmail through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "google_calendar": {
+      "name": "Google Calendar",
+      "does": "Uses Google Calendar through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "google_drive": {
+      "name": "Google Drive",
+      "does": "Uses Google Drive through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "google_docs": {
+      "name": "Google Docs",
+      "does": "Uses Google Docs through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "google_sheets": {
+      "name": "Google Sheets",
+      "does": "Uses Google Sheets through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "google_slides": {
+      "name": "Google Slides",
+      "does": "Uses Google Slides through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "outlook_mail": {
+      "name": "Outlook mail",
+      "does": "Uses Outlook mail through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "outlook_calendar": {
+      "name": "Outlook Calendar",
+      "does": "Uses Outlook Calendar through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "microsoft_files": {
+      "name": "OneDrive / SharePoint",
+      "does": "Uses OneDrive / SharePoint through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "excel": {
+      "name": "Excel",
+      "does": "Uses Excel through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "teams": {
+      "name": "Teams",
+      "does": "Uses Teams through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "slack": {
+      "name": "Slack",
+      "does": "Uses Slack through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "imap_mail": {
+      "name": "IMAP mail",
+      "does": "Read a mailbox over IMAP with an app password.",
+      "example1": "Search information in the selected account",
+      "example2": "Read new messages in the mailbox",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "word": {
+      "name": "Word",
+      "does": "Read and write Word documents in OneDrive or SharePoint.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An account connected in Vault with the required product scopes.",
+      "never": "Never reads another person’s account; writes require approval."
     }
   },
   "capabilityCategories": {
@@ -11375,7 +11553,8 @@
     "reasoning": "Thinking and planning",
     "research": "The web",
     "utility": "Everyday",
-    "advanced": "Advanced"
+    "advanced": "Advanced",
+    "integrations": "Connected products"
   },
   "audience": {
     "label": "Who can use it",
@@ -11999,6 +12178,314 @@
       "hidden_paths": {
         "title": "Hidden paths",
         "description": "Paths the agent cannot see at all, e.g. /drive/HR/."
+      }
+    },
+    "gmail": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "google_calendar": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "google_drive": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "google_docs": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "google_sheets": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "google_slides": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "outlook_mail": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "outlook_calendar": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "microsoft_files": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "excel": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "teams": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "slack": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "imap_mail": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "word": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
       }
     }
   },

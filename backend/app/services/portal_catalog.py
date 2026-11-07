@@ -104,6 +104,7 @@ class PortalEntry:
     # from the environment would be a second mechanism for a credential at rest.
     # None for a portal that needs no account at all (the manual relay).
     oauth_app_kind: str | None = None
+    native_provider: str | None = None
 
 
 # Validated against the dataclasses at import, like every catalog here: a

@@ -613,6 +613,7 @@ export const qk = {
   },
   // What the platform proposed to the signed-in person overnight (#2301).
   watches: {
+    connections: () => ["watches", "connections"] as const,
     mine: () => ["watches"] as const,
     presets: () => ["watches", "presets"] as const,
   },
@@ -636,6 +637,7 @@ export const qk = {
     unreadCount: () => ["notifications", "unread-count"] as const,
   },
   connectedAccounts: {
+    setup: (provider: string) => ["connected-accounts", "setup", provider] as const,
     all: () => ["connected-accounts"] as const,
     // A person's own, and the organization's: two owners, two lists.
     mine: () => ["connected-accounts", "mine"] as const,

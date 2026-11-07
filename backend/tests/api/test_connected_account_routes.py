@@ -108,6 +108,10 @@ async def test_connecting_and_disconnecting_reach_the_right_owner(
     assert service.account_start.await_args.kwargs == {
         "for_organization": for_organization,
         "browser_nonce": "n" * 43,
+        "provider": "google",
+        "products": None,
+        "label": "",
+        "write": False,
     }
     assert service.delete_account.await_args.kwargs == {"for_organization": for_organization}
 
@@ -198,3 +202,88 @@ async def test_optional_oauth_identity_keeps_normal_authentication_failures(
     with pytest.raises(AuthenticationError, match="expired session"):
         await deps.get_optional_current_user(request, "expired", *services)
     authenticate.assert_awaited_once_with(request, "expired", *services)
+
+
+@pytest.mark.parametrize(
+    "prefix,organization", [("/me/connected-accounts", False), ("/connected-accounts", True)]
+)
+@pytest.mark.parametrize(
+    "kind,tail,payload",
+    [
+        ("slack_token", "/slack/token", {"token": "xoxp-private-token", "label": "Client"}),
+        (
+            "imap_account",
+            "/imap",
+            {
+                "credential": {
+                    "host": "imap.example.com",
+                    "username": "member",
+                    "password": "app-password",
+                },
+                "label": "Mail",
+            },
+        ),
+        (
+            "application_account",
+            "/application",
+            {
+                "provider": "microsoft",
+                "secret_id": str(uuid.uuid4()),
+                "subject": "00000000-0000-0000-0000-000000000001",
+                "products": ["teams"],
+            },
+        ),
+    ],
+)
+async def test_native_account_routes_preserve_owner_scope_and_never_return_credentials(
+    owner, service, prefix, organization, kind, tail, payload
+):
+    method = AsyncMock(return_value=_account())
+    setattr(service, f"connect_{kind}", method)
+    async with owner() as client:
+        response = await client.post(_url(prefix + tail), json=payload)
+    assert response.status_code == 201, response.text
+    assert method.await_args.kwargs.get("for_organization", True) is organization
+    assert all(
+        secret not in response.text
+        for secret in ["xoxp-private-token", "app-password", "sealed-refresh-token"]
+    )
+
+
+@pytest.mark.parametrize(
+    "tail,payload",
+    [
+        ("/slack/token", {"token": "xoxp-private-token"}),
+        (
+            "/imap",
+            {
+                "credential": {
+                    "host": "imap.example.com",
+                    "username": "member",
+                    "password": "app-password",
+                }
+            },
+        ),
+        (
+            "/application",
+            {"provider": "google", "secret_id": str(uuid.uuid4()), "products": ["gmail"]},
+        ),
+    ],
+)
+async def test_members_cannot_connect_an_organization_credential_without_manage_permission(
+    viewer, service, tail, payload
+):
+    async with viewer() as client:
+        response = await client.post(_url("/connected-accounts" + tail), json=payload)
+    assert response.status_code == 403
+
+
+async def test_setup_route_returns_the_same_scopes_and_callback_as_the_service(owner, service):
+    from app.services.integrations import setup_for
+
+    service.integration_setup.return_value = setup_for("slack", write=True)
+    async with owner() as client:
+        response = await client.get(_url("/me/connected-accounts/setup/slack?write=true"))
+    assert response.status_code == 200
+    assert response.json()["manifest_url"] == setup_for("slack", write=True).manifest_url
+    service.integration_setup.assert_called_once_with("slack", write=True)

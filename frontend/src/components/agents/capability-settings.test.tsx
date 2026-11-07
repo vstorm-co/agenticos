@@ -995,3 +995,38 @@ describe("resolveToolApproval", () => {
     expect(resolveToolApproval(binding("email"), "send_email")).toBe("never");
   });
 });
+
+it("switches native tools individually while retaining the selected account", async () => {
+  const definition = {
+    ...KNOWLEDGE,
+    id: "gmail",
+    category: "integrations",
+    config_schema: null,
+    tools: [
+      { id: "gmail_search_threads", name: "gmail_search_threads", description: "Search mail" },
+    ],
+  };
+  const change = vi.fn();
+  const initial = binding("gmail", { config: { account_name: "Work", disabled_tools: [] } });
+  const view = render(
+    <CapabilitySettings catalog={[definition]} selected={[initial]} onChange={change} />,
+  );
+  openTools();
+  await userEvent.click(screen.getByRole("switch", { name: "Enable gmail_search_threads" }));
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      config: { account_name: "Work", disabled_tools: ["gmail_search_threads"] },
+    }),
+  );
+  view.rerender(
+    <CapabilitySettings
+      catalog={[definition]}
+      selected={[change.mock.lastCall![0]]}
+      onChange={change}
+    />,
+  );
+  await userEvent.click(screen.getByRole("switch", { name: "Enable gmail_search_threads" }));
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({ config: { account_name: "Work", disabled_tools: [] } }),
+  );
+});

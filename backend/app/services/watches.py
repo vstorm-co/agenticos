@@ -31,7 +31,7 @@ from app.repositories import (
     watch_repo,
 )
 from app.schemas.routine_notifications import read_channels, read_report_mode
-from app.schemas.watch import WatchCreate, WatchRead, WatchStopped, WatchUpdate
+from app.schemas.watch import WatchConnectionRead, WatchCreate, WatchRead, WatchStopped, WatchUpdate
 from app.schemas.watch_sources import WatchSources
 from app.services import watch_presets
 from app.services.agent_registry import AgentRegistryService
@@ -65,6 +65,11 @@ def watch_read(
         pinned_version_id=watch.pinned_version_id,
         ends_at=watch.ends_at,
         source_conversation_id=watch.source_conversation_id,
+        integration_product_id=WatchSources.model_validate(
+            watch.approved_sources
+        ).integration_product_id
+        if watch.approved_sources is not None
+        else None,
         connection_id=watch.connection_id,
         connection_name=connection.label or connection.name,
         server=connection.catalog_key,
@@ -92,6 +97,44 @@ def watch_read(
 class WatchService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def connections(self, ctx: AuthContext) -> list[WatchConnectionRead]:
+        from app.services.mcp_connection import McpConnectionService
+
+        person = self._person(ctx)
+        connections, _ = await mcp_connection_repo.list_for_user(self.db, user_id=person)
+        for provider in ("google", "microsoft", "slack", "imap"):
+            connections.extend(
+                await McpConnectionService(self.db).list_accounts(
+                    ctx, for_organization=False, provider=provider
+                )
+            )
+        from app.services.integrations import PRODUCTS
+
+        reads = []
+        for row in connections:
+            if not row.is_enabled:
+                continue
+            read = WatchConnectionRead.model_validate(row)
+            read.products = (
+                [
+                    key
+                    for key in (
+                        "gmail",
+                        "google_calendar",
+                        "outlook_mail",
+                        "outlook_calendar",
+                        "teams",
+                        "slack",
+                        "imap_mail",
+                    )
+                    if PRODUCTS[key].provider == row.catalog_key
+                ]
+                if row.purpose == "account"
+                else []
+            )
+            reads.append(read)
+        return reads
 
     async def _selected_spec(
         self,
@@ -173,12 +216,14 @@ class WatchService:
             )
         return organization
 
-    async def _own_connection(self, person: UUID, connection_id: UUID) -> McpConnection:
+    async def _own_connection(
+        self, person: UUID, connection_id: UUID, organization_id: UUID | None = None
+    ) -> McpConnection:
         connection = await mcp_connection_repo.get_by_id(self.db, connection_id)
         if (
             connection is None
             or connection.scope != "user"
-            or connection.purpose != "mcp"
+            or connection.purpose not in {"mcp", "account"}
             or connection.user_id != person
         ):
             raise refused_field("connection_id", "That is not one of your connections")
@@ -228,7 +273,7 @@ class WatchService:
         person = self._person(ctx)
         self._require_personal_consent(ctx)
         organization = await self._organization(ctx)
-        connection = await self._own_connection(person, data.connection_id)
+        connection = await self._own_connection(person, data.connection_id, ctx.organization_id)
         stopped = stopped_by(organization, connection)
         if stopped == "watches_off":
             raise BadRequestError(message="Your organization has not turned watches on")
@@ -252,7 +297,7 @@ class WatchService:
             environment_id=data.environment_id,
             pinned_version_id=data.pinned_version_id,
         )
-        sources = approve_sources(spec, connection)
+        sources = approve_sources(spec, connection, data.integration_product_id)
         source_conversation_id = await self._source_conversation(ctx, data.agent_id)
         watch = await watch_repo.create(
             self.db,
@@ -289,7 +334,7 @@ class WatchService:
         if "is_active" in changes or "max_failures" in changes:
             changes["auto_stopped_at"] = None
 
-        connection = await self._own_connection(person, watch.connection_id)
+        connection = await self._own_connection(person, watch.connection_id, ctx.organization_id)
         agent_id = data.agent_id or watch.agent_id
         if agent_id is None and changes.get("is_active") is True:
             raise refused_field("agent_id", "Select the agent that will execute this watch")
@@ -309,9 +354,13 @@ class WatchService:
                 pinned_version_id=changes.get("pinned_version_id", watch.pinned_version_id),
             )
             if agent_id != watch.agent_id or data.review_sources or watch.approved_sources is None:
-                changes["approved_sources"] = approve_sources(spec, connection).model_dump(
-                    mode="json"
-                )
+                changes["approved_sources"] = approve_sources(
+                    spec,
+                    connection,
+                    WatchSources.model_validate(watch.approved_sources).integration_product_id
+                    if watch.approved_sources is not None
+                    else None,
+                ).model_dump(mode="json")
             else:
                 constrain_sources(spec, WatchSources.model_validate(watch.approved_sources))
             if watch.agent_id is None:

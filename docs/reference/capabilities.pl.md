@@ -1,5 +1,5 @@
 ---
-source_sha: "bff40c5750b6"
+source_sha: "1dbac9094a5d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3283,3 +3283,6 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
  Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
+
+
+Wbudowane połączenia Google, Microsoft, Slack i IMAP również działają w tym obszarze. [Wbudowane integracje](../integrations.md) opisują konfigurację, wybór konta, capabilities, operacje workflow, synchronizację wiedzy i trwałe kursory zmian.

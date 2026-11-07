@@ -229,6 +229,7 @@ retranslated is how a stale translation stops being visible.
 | The agent spec, field by field | `docs/reference/spec.md` |
 | Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
+| Built-in Google, Microsoft, Slack and IMAP accounts across tools, workflows, triggers and watches | `docs/integrations.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |

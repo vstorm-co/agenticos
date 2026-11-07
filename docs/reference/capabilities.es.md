@@ -1,5 +1,5 @@
 ---
-source_sha: "bff40c5750b6"
+source_sha: "1dbac9094a5d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3374,3 +3374,6 @@ La elección de acceso local pertenece al agente seleccionado, no a un valor glo
 La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
 
  Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.
+
+
+Las conexiones incorporadas de Google, Microsoft, Slack e IMAP también funcionan aquí. [Integraciones incorporadas](../integrations.md) explica configuración, selección de cuenta, capabilities, operaciones workflow, sincronización de conocimiento y cursores persistentes.

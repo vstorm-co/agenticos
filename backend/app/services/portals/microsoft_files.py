@@ -47,6 +47,13 @@ class _PlaceUnreadable(Exception):
 class MicrosoftFilesPortalAdapter(PortalAdapter):
     portal_key = "microsoft_files"
 
+    def __init__(self, *, subject: str | None = None) -> None:
+        self.subject = subject
+
+    @property
+    def _account_path(self) -> str:
+        return "/me" if self.subject is None else f"/users/{quote(self.subject, safe='')}"
+
     async def poll(
         self,
         *,
@@ -63,12 +70,24 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         now = datetime.now(UTC)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             if not cursor or not isinstance(cursor.get("account"), str):
-                user = await self._get(client, access_token, f"{_API_BASE}/me", {"$select": "id"})
-                identifier = user.get("id")
-                if not isinstance(identifier, str) or not identifier:
-                    raise PortalUnreachable(message="Microsoft Graph did not identify the account")
+                if self.subject is not None:
+                    identifier = self.subject
+                else:
+                    user = await self._get(
+                        client, access_token, f"{_API_BASE}{self._account_path}", {"$select": "id"}
+                    )
+                    identifier = user.get("id")
+                    if not isinstance(identifier, str) or not identifier:
+                        raise PortalUnreachable(
+                            message="Microsoft Graph did not identify the account"
+                        )
                 return PolledEvents(
-                    events=(), cursor={"account": identifier, "user_id": identifier, "places": {}}
+                    events=(),
+                    cursor={
+                        "account": identifier,
+                        "user_id": None if self.subject is not None else identifier,
+                        "places": {},
+                    },
                 )
             previous = cursor.get("places")
             states: dict[str, Any] = previous if isinstance(previous, dict) else {}
@@ -206,7 +225,7 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
             )
             url = f"{site}/drive"
         else:
-            url = f"{_API_BASE}/me/drive"
+            url = f"{_API_BASE}{self._account_path}/drive"
         try:
             drive = await self._get(client, access_token, url, {"$select": "id"})
         except PortalUnreachable as exc:
