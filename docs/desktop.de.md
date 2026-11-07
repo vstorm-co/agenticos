@@ -1,5 +1,5 @@
 ---
-source_sha: "e2196c2cc364"
+source_sha: "92fe26aa7971"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -70,6 +70,8 @@ Der Assistent beginnt mit der Sprache und der Wahl zwischen lokalem
 Arbeitsbereich und Organisationsserver. Bildschirmaufnahme, Bedienungshilfen
 und Mikrofon sind optionale Funktionen in App readiness oder bei ihrer Nutzung;
 sie sind keine Voraussetzung für die Wahl einer Verbindung.
+
+Beim Verbinden der Desktop-App können Sie statt der Serveradresse den ursprünglichen Einladungslink einfügen. Die App verbindet sich mit dessen Server und öffnet die Einladung; das Ziel bleibt beim Anmelden erhalten. Die Einladung wird nicht automatisch angenommen und ihr Token nicht in den nativen Einstellungen gespeichert. Die optionale Verbindungsprüfung wartet, bis die Einladung abgeschlossen ist.
 
 Nativer Start und Konsole unterstützen Englisch, Polnisch, Deutsch und Türkisch.
 Die Auswahl wird an die Konsole übergeben; die gespeicherte Kontosprache hat
@@ -729,5 +731,3 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
-
-Beim Verbinden der Desktop-App können Sie statt der Serveradresse den ursprünglichen Einladungslink einfügen. Die App verbindet sich mit dessen Server und öffnet die Einladung; das Ziel bleibt beim Anmelden erhalten. Die Einladung wird nicht automatisch angenommen und ihr Token nicht in den nativen Einstellungen gespeichert. Die optionale Verbindungsprüfung wartet, bis die Einladung abgeschlossen ist.

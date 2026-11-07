@@ -66,6 +66,8 @@ workspace or connect to your organization's server. Screen Recording,
 Accessibility and Microphone are optional features offered through App readiness
 or when used, rather than a required step before choosing a connection.
 
+When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.
+
 The native start and console support English, Polish, German and Turkish. Your
 native choice is carried to the console; an existing account's saved language
 still takes precedence. Local setup asks for one workspace name; a separate
@@ -683,5 +685,3 @@ Local access choices belong to the selected agent, not to a global default inher
 While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
 
  Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.
-
-When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.

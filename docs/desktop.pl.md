@@ -1,5 +1,5 @@
 ---
-source_sha: "e2196c2cc364"
+source_sha: "92fe26aa7971"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -69,6 +69,8 @@ Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/cre
 Kreator zaczyna od języka oraz wyboru lokalnej przestrzeni albo serwera firmy.
 Nagrywanie ekranu, Accessibility i mikrofon to opcjonalne funkcje dostępne w
 App readiness lub przy użyciu, a nie wymagany krok przed wyborem połączenia.
+
+Przy łączeniu aplikacji desktopowej możesz wkleić oryginalny link zaproszenia zamiast samego adresu serwera. Aplikacja połączy się z serwerem z tego linku i otworzy zaproszenie, zachowując cel podczas logowania. Nie zaakceptuje go automatycznie ani nie zapisze tokenu w ustawieniach natywnych. Opcjonalny przegląd połączenia poczeka na zakończenie zaproszenia.
 
 Natywny start i konsola obsługują angielski, polski, niemiecki i turecki. Wybór
 z instalatora trafia do konsoli; zapisany język istniejącego konta nadal ma
@@ -693,5 +695,3 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
  Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
-
-Przy łączeniu aplikacji desktopowej możesz wkleić oryginalny link zaproszenia zamiast samego adresu serwera. Aplikacja połączy się z serwerem z tego linku i otworzy zaproszenie, zachowując cel podczas logowania. Nie zaakceptuje go automatycznie ani nie zapisze tokenu w ustawieniach natywnych. Opcjonalny przegląd połączenia poczeka na zakończenie zaproszenia.
