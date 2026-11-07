@@ -71,13 +71,17 @@ class TestTracing:
 
         assert _tracing() == ("healthy", "Logfire, environment production")
 
-    def test_no_token_says_nothing_is_traced(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize("console", [False, True])
+    def test_no_token_reports_missing_export_even_with_console_spans(
+        self, monkeypatch: pytest.MonkeyPatch, console: bool
+    ) -> None:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
+        monkeypatch.setattr(settings, "LOGFIRE_CONSOLE", console)
 
         status, detail = _tracing()
 
         assert status == "unconfigured"
-        assert "LOGFIRE_TOKEN" in detail
+        assert detail == "LOGFIRE_TOKEN is unset - no request, query or run is exported to Logfire"
 
 
 class TestTheConsoleExporter:

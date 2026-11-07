@@ -666,6 +666,8 @@ except RuntimeError:
     logger.exception('failure marker')
 logging.getLogger('sqlalchemy.engine.Engine').info('SELECT private_column')
 logging.getLogger('httpx').info('HTTP Request payload')
+logging.getLogger('httpx2').info('HTTPX2 Request payload')
+logging.getLogger('httpcore2').debug('HTTPX2 transport payload')
 """,
         ],
         env={
@@ -690,3 +692,30 @@ logging.getLogger('httpx').info('HTTP Request payload')
     assert "user@example.com" not in result.stderr
     assert "SELECT private_column" not in result.stderr
     assert "HTTP Request payload" not in result.stderr
+    assert "HTTPX2 Request payload" not in result.stderr
+    assert "HTTPX2 transport payload" not in result.stderr
+
+
+def test_sql_debugging_uses_one_redacted_stderr_sink() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+from app.core.logging import setup_logging
+setup_logging()
+from app.db.session import engine, vector_engine, agent_vector_engine
+for configured in (engine, vector_engine, agent_vector_engine):
+    configured.sync_engine.logger.info('SQL marker for user@example.com')
+""",
+        ],
+        env={**os.environ, "LOG_LEVEL": "INFO", "DB_ECHO": "true"},
+        timeout=20,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout == ""
+    assert result.stderr.count("SQL marker") == 3
+    assert result.stderr.count("[EMAIL_REDACTED]") == 3
+    assert "user@example.com" not in result.stderr

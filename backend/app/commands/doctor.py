@@ -175,11 +175,13 @@ async def _query_statistics(db: AsyncSession) -> tuple[str, str]:
 
 
 def _tracing() -> tuple[str, str]:
-    """Whether spans leave this process. Production prints none to the console,
-    so with no token a slow request leaves no trace anywhere (#2228)."""
+    """Whether spans are exported to Logfire, independently of console output."""
     if settings.LOGFIRE_TOKEN:
         return "healthy", f"Logfire, environment {settings.LOGFIRE_ENVIRONMENT}"
-    return "unconfigured", "LOGFIRE_TOKEN is unset - no request, query or run is traced"
+    return (
+        "unconfigured",
+        "LOGFIRE_TOKEN is unset - no request, query or run is exported to Logfire",
+    )
 
 
 def _vault_configured() -> tuple[str, str]:

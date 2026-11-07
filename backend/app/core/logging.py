@@ -328,7 +328,7 @@ def setup_logging() -> None:
     logging.getLogger("sqlalchemy.engine").setLevel(
         logging.INFO if settings.DB_ECHO else logging.WARNING
     )
-    for name in ("httpx", "httpcore"):
+    for name in ("httpx", "httpcore", "httpx2", "httpcore2"):
         logging.getLogger(name).setLevel(logging.WARNING)
     handlers: list[logging.Handler] = list(root.handlers)
     # A snapshot: `getLogger` in another thread adds to this dict, and iterating it
