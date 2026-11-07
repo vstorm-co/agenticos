@@ -25,6 +25,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).
 
+### Changed
+
+- The organization switcher now sits at the top of the sidebar, showing the active organization's name and avatar without opening the account menu. It remains available in the collapsed sidebar and phone menu, with organization management and creation in the same dropdown.
+
 ## [1.54.1] - 2026-11-07
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-source_sha: "361689f179db"
+source_sha: "302bc847e98d"
 ---
 
 # La consola { #the-console }
@@ -218,6 +218,13 @@ mañana: a la hora que mantiene la proactividad de la organización, una
 notificación y un mensaje directo de cada uno de sus bots de Slack, Teams y
 Mattermost que te conoce enumeran lo nuevo. Cada hallazgo entra en un solo
 briefing.
+
+El selector de organización está debajo del logotipo, en la parte superior de la
+barra lateral, y muestra el nombre y el avatar de la organización activa. Ábrelo
+para cambiar de organización, gestionar organizaciones o crear una nueva. En la
+barra lateral contraída, el avatar sigue siendo el selector; el menú del teléfono
+ofrece el mismo control. Los ajustes de cuenta permanecen en el menú de cuenta
+de la parte inferior.
 
 La búsqueda está encima de los destinos de navegación, con su atajo de teclado
 visible en el ordenador. Las notificaciones y el menú de cuenta permanecen debajo

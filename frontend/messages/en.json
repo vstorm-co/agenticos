@@ -4806,6 +4806,10 @@
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
+      "organization-switcher": {
+        "title": "Choose your organization",
+        "body": "The name here is the organization you're working in. Open the menu to switch organizations, manage them or create another. Agents, knowledge and activity follow your selection."
+      },
       "notification-bell": {
         "title": "Stay in the loop",
         "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
@@ -8283,6 +8287,9 @@
     "loading": "Loading"
   },
   "teams": {
+    "organizationLabel": "Organization",
+    "organizationSwitcher": "Switch organization, current: {name}",
+    "selectOrganization": "Select organization",
     "acmeCom": "acme.com",
     "approvalWaiver": "Waiving approvals in chat",
     "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",

@@ -18,7 +18,6 @@ import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { AppearanceMenu, LanguageMenu } from "@/components/layout/account-preferences";
-import { OrganizationMenuItems } from "@/components/teams";
 import { useAuthStore } from "@/stores";
 
 /**
@@ -99,11 +98,6 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             <DropdownMenuSeparator />
           </>
         ) : null}
-        {/* The tenant, above the account's own entries: every request this
-            person makes is scoped by it, and it used to live at the far end of
-            the column from the name it belongs to. */}
-        <OrganizationMenuItems />
-        <DropdownMenuSeparator />
         {/* How this looks and what language it is in. Both were unlabelled
             glyphs in a strip at the foot of the column; here they are named,
             each showing its current value, in the menu that already answers
