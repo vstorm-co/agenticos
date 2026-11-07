@@ -2373,7 +2373,7 @@
       "inCategoryUse": "Kategorie już w użyciu",
       "inTagUse": "Tagi już w użyciu",
       "mcpToolLoad": "Te serwery MCP dają modelowi {count} narzędzi przy każdym zapytaniu - to około {tokens, number} tokenów, zanim ktokolwiek coś napisze, i więcej narzędzi, niż model dobrze rozróżnia. Wyszukiwanie narzędzi chowa je, dopóki agent nie poszuka konkretnego.",
-      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi",
+      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi MCP",
       "agentDescriptionLabel": "Opis",
       "agentNameLabel": "Nazwa",
       "agentNameRequired": "Agent potrzebuje nazwy.",
@@ -9194,6 +9194,26 @@
       "max_results": {
         "title": "Dopasowań na wyszukiwanie",
         "description": "Ile dopasowań zwraca lokalne wyszukiwanie; ignorowane przy wyszukiwaniu natywnym."
+      },
+      "defer_capabilities": {
+        "title": "Odrocz narzędzia capability",
+        "description": "Ukryj kwalifikujące się narzędzia włączonych capability do chwili, gdy agent ich wyszuka. Wyłączenie pozostawia narzędzia capability widoczne."
+      },
+      "defer_mcp_servers": {
+        "title": "Odrocz narzędzia MCP",
+        "description": "Ukryj kwalifikujące się narzędzia powiązanych serwerów MCP do chwili, gdy agent ich wyszuka. Wyłączenie pozostawia narzędzia MCP widoczne."
+      },
+      "exclude_capabilities": {
+        "title": "Zawsze widoczne capability",
+        "description": "Identyfikatory capability, których narzędzia pozostają widoczne, oddzielone przecinkami, np. knowledge lub visuals. Te capability nadal muszą być włączone."
+      },
+      "exclude_mcp_servers": {
+        "title": "Zawsze widoczne serwery MCP",
+        "description": "Prefiksy przestrzeni nazw narzędzi MCP, które pozostają widoczne, oddzielone przecinkami, np. github_work lub agenticos. Użyj prefiksu przed nazwą narzędzia, zastępując łączniki podkreśleniami."
+      },
+      "exclude_tools": {
+        "title": "Zawsze widoczne narzędzia",
+        "description": "Nazwy narzędzi widoczne dla modelu, które mają pozostać widoczne, oddzielone przecinkami. Użyj zmienionych nazw narzędzi capability i pełnych nazw narzędzi MCP z prefiksem, np. github_work_list_issues."
       }
     },
     "web_fetch": {
@@ -11974,7 +11994,7 @@
     "tool_search": {
       "name": "Wyszukiwanie narzędzi",
       "does": "Agent z wieloma narzędziami znajduje właściwe wtedy, gdy go potrzebuje, zamiast czytać wszystkie za każdym razem.",
-      "example1": "Agent podłączony do kilku serwerów MCP z dziesiątkami narzędzi",
+      "example1": "Agent z wieloma włączonymi capability i powiązanymi serwerami MCP",
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie dodaje narzędzi; tylko ukrywa je, dopóki agent ich nie poszuka."
     },
