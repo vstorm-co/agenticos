@@ -876,9 +876,10 @@ fn sandboxed(
         for (key, value) in environment {
             options.extend(["--setenv", key, value].map(str::to_owned));
         }
-        options.extend(["--", "/bin/sh", "-c", line].map(str::to_owned));
         let arguments_fd = inherit_arguments(&mut command, &options)?.to_string();
-        command.args(["--args", &arguments_fd]);
+        // Bubblewrap's --args file carries options only; its parser does not
+        // propagate a command read from that file back to the outer argv.
+        command.args(["--args", &arguments_fd, "--", "/bin/sh", "-c", line]);
         command
             .env_clear()
             .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin")
@@ -1165,7 +1166,8 @@ mod tests {
             .any(|(name, _)| name == "LD_PRELOAD" || name == "TASK"));
         let arguments: Vec<_> = command.as_std().get_args().collect();
         assert_eq!(arguments[0], "--args");
-        assert_eq!(arguments.len(), 2);
+        assert_eq!(arguments.len(), 6);
+        assert_eq!(&arguments[2..], ["--", "/bin/sh", "-c", "true"]);
         let retained = std::fs::read(format!("/proc/self/fd/{}", arguments[1].to_string_lossy())).unwrap();
         assert!(retained
             .windows(b"--setenv\0LD_PRELOAD\0untrusted.so\0".len())
