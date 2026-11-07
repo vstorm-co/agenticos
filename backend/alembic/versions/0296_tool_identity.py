@@ -15,4 +15,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The older API accepts only draft or NULL in this pre-existing column.
+    op.execute(
+        "UPDATE tool_calls SET presentation_kind = NULL WHERE presentation_kind IN ('generic', 'platform')"
+    )
     op.drop_column("tool_calls", "tool_id")
