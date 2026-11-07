@@ -41,3 +41,11 @@ Results are recorded below as checks complete. Full laptop suites are intentiona
 - Docker is not running on this host. The two real-PostgreSQL membership/constraint tests skip locally; migration upgrade/downgrade and `alembic check` must pass in CI against pgvector PostgreSQL.
 - Clean-machine installation, native OS prompts/signing on other platforms, real provider failure/recovery and full invitation/SSO journeys require runtime acceptance. Unit tests and screenshots do not certify these.
 - The audit's observed usability sessions, activation funnel measurements and time-to-value targets remain validation work. No synthetic success, recorded demonstration or closed tour is counted as an actual completed task. This change derives execution evidence from existing completed runs and does not add a new analytics collector.
+
+## UI refinement
+
+The start keeps the console's existing neutral palette, typography and deployment branding. Task-specific SVG paper illustrations, contextual icons, a stronger heading, a suggested primary action, rounded panels and responsive card layouts make the first choice easier to scan. Explicit recorded previews receive heading focus after opening; their labels still distinguish them from real execution.
+
+Entry animations and hover illustration movement use the shared MotionProvider's resolved preference. The reduced state has no entry or travel animation. Browser verification checks both reduced motion and enabled hover movement. The small-phone layout changes at 360px so translated actions remain usable.
+
+Inspected isolated renders: ready, returning, owner without an agent, member without an agent, recorded example, light/dark, Polish at 390px and German at 320px. No page errors or horizontal overflow appeared. Sixty focused tests pass, including the CI-discovered loading-shape guard and updated native startup/readiness tests. Frontend lint, type/i18n/dependency checks and the production build pass; the full CI rerun belongs to the pushed refinement commit.

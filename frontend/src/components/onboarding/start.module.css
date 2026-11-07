@@ -1,0 +1,433 @@
+.shell {
+  min-height: 100dvh;
+  background: var(--color-background);
+}
+.frame {
+  max-width: 1080px;
+  margin-inline: auto;
+  padding: 24px 32px 40px;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.hero {
+  max-width: 660px;
+  margin: 64px auto 38px;
+  text-align: center;
+}
+.workspace {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+}
+.title {
+  margin-top: 16px;
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+.intro {
+  max-width: 510px;
+  margin: 16px auto 0;
+  color: var(--color-muted-foreground);
+  font-size: 15px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.path {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+.path span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 660px;
+  margin: 0 auto 28px;
+  padding: 16px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-muted);
+  font-size: 14px;
+}
+.tasks {
+  display: grid;
+  gap: 22px;
+}
+.readiness {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 650px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-muted-foreground);
+}
+.status svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+.agent strong {
+  color: var(--color-foreground);
+  font-weight: 500;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  transition:
+    border-color 180ms,
+    box-shadow 180ms;
+}
+.card:hover,
+.card:focus-within {
+  border-color: color-mix(in srgb, var(--color-foreground) 35%, var(--color-border));
+  box-shadow: 0 8px 28px -18px color-mix(in srgb, var(--color-foreground) 25%, transparent);
+}
+.card[data-selected="true"] {
+  border-color: var(--color-foreground);
+}
+.selected {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 1;
+  color: var(--color-foreground);
+}
+.artwork {
+  display: grid;
+  place-items: center;
+  height: 148px;
+  background: var(--color-muted);
+  margin: 10px 10px 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.artwork svg {
+  width: 160px;
+  height: 112px;
+  color: var(--color-foreground);
+}
+.artPaper {
+  fill: var(--color-card);
+  stroke: var(--color-border);
+  stroke-width: 1.5;
+}
+.artInk {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.artFaint {
+  fill: none;
+  stroke: var(--color-muted-foreground);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+.cardBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px;
+}
+.cardTitle {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.cardDescription {
+  flex: 1;
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.cardAction {
+  margin-top: 12px;
+  width: 100%;
+  justify-content: space-between;
+  border-radius: 9px;
+}
+.cardAction svg {
+  transition: transform 180ms ease-out;
+}
+:global(html:not([data-motion="reduce"])) .card:hover .cardAction svg:last-child {
+  transform: translateX(3px);
+}
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.note svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.saved {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--color-muted-foreground);
+  margin-top: 18px;
+  font-size: 12px;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 36px;
+  padding-top: 22px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+}
+.footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-block: 8px;
+  transition: color 180ms;
+}
+.footer a:hover {
+  color: var(--color-foreground);
+}
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 24px;
+  background: var(--color-card);
+}
+.panelHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panelHeading svg {
+  flex-shrink: 0;
+}
+.example {
+  max-width: 720px;
+  margin-inline: auto;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+}
+.exampleHeader {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.example textarea {
+  background: var(--color-muted);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 18px;
+}
+.exampleResult {
+  background: var(--color-muted);
+  border-radius: 12px;
+  padding: 22px;
+}
+.next {
+  margin-top: 32px;
+}
+.nextLinks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.nextLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 13px;
+  transition: background 180ms;
+}
+.nextLink:hover {
+  background: var(--color-muted);
+}
+.nextLink svg {
+  flex-shrink: 0;
+}
+/* MotionProvider resolves both the app preference and the operating system. */
+:global(html:not([data-motion="reduce"])) .enter {
+  animation: arrive 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+:global(html:not([data-motion="reduce"])) .card {
+  animation: arrive 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+:global(html:not([data-motion="reduce"])) .card:nth-child(2) {
+  animation-delay: 60ms;
+}
+:global(html:not([data-motion="reduce"])) .card:nth-child(3) {
+  animation-delay: 120ms;
+}
+:global(html:not([data-motion="reduce"])) .card:hover .artwork svg {
+  transform: translateY(-3px) rotate(-2deg);
+}
+:global(html:not([data-motion="reduce"])) .artwork svg {
+  transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+:global(html[data-motion="reduce"]) .cardAction svg {
+  transition: none;
+  transform: none;
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 640px) {
+  .frame {
+    padding: 20px 20px 28px;
+  }
+  .hero {
+    margin: 40px auto 30px;
+  }
+  .path {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    font-size: 11px;
+  }
+  .path span {
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .card {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .artwork {
+    height: auto;
+    min-height: 164px;
+    margin: 8px 0 8px 8px;
+  }
+  .artwork svg {
+    width: 100%;
+    height: auto;
+  }
+  .cardBody {
+    padding: 18px;
+    gap: 7px;
+  }
+  .cardTitle {
+    font-size: 15px;
+  }
+  .cardDescription {
+    font-size: 12px;
+  }
+  .cardAction {
+    margin-top: 7px;
+  }
+  .readiness {
+    gap: 10px;
+  }
+  .panel,
+  .example {
+    padding: 20px;
+  }
+  .footer {
+    margin-top: 28px;
+    gap: 4px 16px;
+  }
+  .selected {
+    top: 9px;
+    right: 9px;
+  }
+}
+
+@media (max-width: 360px) {
+  .card {
+    display: flex;
+  }
+  .artwork {
+    height: 112px;
+    min-height: 112px;
+    margin: 8px 8px 0;
+  }
+  .artwork svg {
+    width: 140px;
+    height: 100px;
+  }
+  .cardBody {
+    padding: 18px;
+  }
+}

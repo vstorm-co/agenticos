@@ -34,6 +34,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Localize native desktop setup in English, Polish, German and Turkish, reduce
   required workspace fields, and keep system permissions optional. Explain local
   data versus remote AI processing and warn about loopback invitation links.
+- Give the first-task hub illustrated task cards, clearer primary actions,
+  responsive layouts, contextual icons and motion that respects reduced-motion
+  preferences. Move focus to explicitly opened recorded examples.
 
 
 ## [1.55.0] - 2026-11-07

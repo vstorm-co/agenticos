@@ -12918,6 +12918,9 @@
     "previewMissing": "İkinizin de çalıştırabildiği yayımlanmış ajan yok. Paylaşımı ve üyenin izinlerini kontrol edin.",
     "previewHint": "Bu kontrol ekip üyesi olarak oturum açmaz ve modeli çağırmaz. Gerçek görev sağlayıcıyı ve gereksinimleri doğrular.",
     "invite": "Ekip üyesi davet edin",
-    "loadHint": "Bağlantıyı kontrol edin veya üyesi olduğunuz başka bir alan seçin. Başarısız kontrol verilerinizi silmez."
+    "loadHint": "Bağlantıyı kontrol edin veya üyesi olduğunuz başka bir alan seçin. Başarısız kontrol verilerinizi silmez.",
+    "chooseStep": "Görev seçin",
+    "editStep": "Kendinize uyarlayın",
+    "runStep": "Sonucu görün"
   }
 }

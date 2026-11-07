@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import { Users, UserPlus } from "lucide-react";
+import styles from "./start.module.css";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -29,8 +31,11 @@ export function StartTeam({ orgId }: { orgId: string }) {
     () => false,
   );
   return (
-    <section className="space-y-3 rounded-xl border p-5">
-      <h2 className="font-semibold">{t("team")}</h2>
+    <section className={`${styles.panel} mt-4 space-y-3`}>
+      <h2 className={`${styles.panelHeading} font-semibold`}>
+        <Users size={20} aria-hidden />
+        {t("team")}
+      </h2>
       <p className="text-muted-foreground text-sm">{t("teamHint")}</p>
       {local && (
         <p role="note" className="text-muted-foreground text-sm">
@@ -76,6 +81,7 @@ export function StartTeam({ orgId }: { orgId: string }) {
       )}
       <p className="text-muted-foreground text-xs">{t("previewHint")}</p>
       <Button disabled={local} onClick={() => setInviting(true)}>
+        <UserPlus size={15} aria-hidden />
         {t("invite")}
       </Button>
       <InviteMemberDialog orgId={orgId} open={inviting} onOpenChange={setInviting} />

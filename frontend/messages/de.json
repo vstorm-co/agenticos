@@ -13229,6 +13229,9 @@
     "previewMissing": "Kein veröffentlichter Agent ist für Sie beide ausführbar. Prüfen Sie Freigabe und Berechtigungen.",
     "previewHint": "Die Prüfung erfolgt ohne Anmeldung als Teammitglied und ohne Modellaufruf. Erst eine echte Aufgabe prüft Anbieter und Anforderungen.",
     "invite": "Teammitglied einladen",
-    "loadHint": "Prüfen Sie die Verbindung oder wählen Sie einen anderen Arbeitsbereich, dem Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten."
+    "loadHint": "Prüfen Sie die Verbindung oder wählen Sie einen anderen Arbeitsbereich, dem Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten.",
+    "chooseStep": "Aufgabe wählen",
+    "editStep": "Anpassen",
+    "runStep": "Ergebnis ansehen"
   }
 }

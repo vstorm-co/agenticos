@@ -6,6 +6,8 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { useStart } from "@/hooks/use-start";
+import { LoaderCircle, PlugZap, ShieldCheck } from "lucide-react";
+import styles from "./start.module.css";
 import { getErrorMessage } from "@/lib/api-error";
 
 export function StartModel({ allowAdd }: { allowAdd: boolean }) {
@@ -15,10 +17,16 @@ export function StartModel({ allowAdd }: { allowAdd: boolean }) {
   const models = useModelProviders();
   const { prepare } = useStart();
   return (
-    <section className="space-y-4 rounded-xl border p-5">
-      <h2 className="text-lg font-semibold">{t("connectTitle")}</h2>
+    <section className={`${styles.panel} space-y-4`}>
+      <h2 className={`${styles.panelHeading} text-lg font-semibold tracking-tight`}>
+        <PlugZap size={22} aria-hidden />
+        {t("connectTitle")}
+      </h2>
       <p className="text-muted-foreground text-sm">{t("connectHint")}</p>
-      <p className="text-muted-foreground text-sm">{t("localPrivacy")}</p>
+      <p className={styles.note}>
+        <ShieldCheck size={14} aria-hidden />
+        {t("localPrivacy")}
+      </p>
       <ModelProfilePicker
         profiles={models.profiles}
         profilesStatus={models.profilesStatus}
@@ -37,6 +45,11 @@ export function StartModel({ allowAdd }: { allowAdd: boolean }) {
           if (model) prepare.mutate(model);
         }}
       >
+        {prepare.isPending ? (
+          <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden />
+        ) : (
+          <PlugZap size={16} aria-hidden />
+        )}
         {t(prepare.isPending ? "preparing" : "prepare")}
       </Button>
       <p className="text-muted-foreground text-xs">{t("prepareHint")}</p>

@@ -13332,6 +13332,9 @@
     "previewMissing": "Nie ma opublikowanego agenta, którego możecie oboje uruchomić. Sprawdź udostępnienie i uprawnienia tej osoby.",
     "previewHint": "Sprawdzamy wspólny dostęp bez logowania jako inna osoba i bez wywołania modelu. Prawdziwe zadanie nadal sprawdza dostawcę i wymagania.",
     "invite": "Zaproś osobę do zespołu",
-    "loadHint": "Sprawdź połączenie albo wybierz inną przestrzeń, do której należysz. Błąd sprawdzania nie usuwa Twoich danych."
+    "loadHint": "Sprawdź połączenie albo wybierz inną przestrzeń, do której należysz. Błąd sprawdzania nie usuwa Twoich danych.",
+    "chooseStep": "Wybierz zadanie",
+    "editStep": "Dostosuj do siebie",
+    "runStep": "Zobacz rezultat"
   }
 }

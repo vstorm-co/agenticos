@@ -13557,6 +13557,9 @@
     "previewMissing": "No published agent is runnable by both of you. Review its sharing and the member's permissions.",
     "previewHint": "This checks shared access, without signing in as your teammate or calling the model. A real task still verifies the provider and task requirements.",
     "invite": "Invite a teammate",
-    "loadHint": "Check the connection or choose another workspace you belong to. A failed check does not remove your data."
+    "loadHint": "Check the connection or choose another workspace you belong to. A failed check does not remove your data.",
+    "chooseStep": "Choose a task",
+    "editStep": "Make it yours",
+    "runStep": "See what happens"
   }
 }

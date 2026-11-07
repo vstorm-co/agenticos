@@ -49,7 +49,11 @@ beforeEach(async () => {
   await useDesktopPreferencesStore.persist.rehydrate();
   useDesktopPreferencesStore.setState({ reviewed: {}, notifications: {} });
 });
-it("checks an existing account after connection, honours Later and rechecks a new connection", async () => {
+it("offers a missing device connection, honours Later and rechecks a new connection", async () => {
+  setup.items = [
+    { key: "device", state: "missing" },
+    { key: "screen_capture", state: "missing" },
+  ];
   const user = userEvent.setup();
   const view = mount(<DesktopSetupGate />);
   expect(await screen.findByRole("dialog")).toBeVisible();

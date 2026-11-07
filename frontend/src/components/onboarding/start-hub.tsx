@@ -1,6 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import {
+  ArrowRight,
+  Building2,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Compass,
+  MessageSquare,
+  MousePointer2,
+  PencilLine,
+  Play,
+} from "lucide-react";
+import { BrandMark } from "@/components/branding/brand-mark";
+import styles from "./start.module.css";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/lib/locale-navigation";
 import { Button } from "@/components/ui";
@@ -38,7 +52,10 @@ export function StartHub() {
         </Link>
       </section>
     );
-  if (state.isLoading || state.waitingForScope) return <LoadingState />;
+  if (state.isLoading || state.waitingForScope)
+    return (
+      <LoadingState variant="skeleton-cards" rows={3} className="mx-auto max-w-5xl px-6 py-24" />
+    );
   if (state.error || !state.data)
     return (
       <section className="mx-auto max-w-2xl space-y-4 p-6">
@@ -54,48 +71,78 @@ export function StartHub() {
     );
   const data = state.data;
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-7 px-6 py-8">
-      <div className="flex items-center justify-between">
-        <Link href="/chat" className="font-semibold">
-          {appName}
-        </Link>
-        <StartLanguage />
+    <div className={styles.shell}>
+      <div className={styles.frame}>
+        <nav className={styles.topbar} aria-label={appName}>
+          <Link href="/chat" className={styles.brand}>
+            <BrandMark size={32} />
+            {appName}
+          </Link>
+          <StartLanguage />
+        </nav>
+        <header className={styles.hero}>
+          <p className={styles.workspace}>
+            <Building2 size={14} aria-hidden />
+            {data.organization_name}
+          </p>
+          <h1 className={styles.title}>{t(data.has_result ? "returnTitle" : "title")}</h1>
+          <p className={styles.intro}>{t("intro")}</p>
+          <div className={styles.path}>
+            <span>
+              <MousePointer2 size={13} aria-hidden />
+              {t("chooseStep")}
+            </span>
+            <ChevronRight size={12} aria-hidden />
+            <span>
+              <PencilLine size={13} aria-hidden />
+              {t("editStep")}
+            </span>
+            <ChevronRight size={12} aria-hidden />
+            <span>
+              <Play size={13} aria-hidden />
+              {t("runStep")}
+            </span>
+          </div>
+        </header>
+        {data.has_result && data.latest_conversation_id && (
+          <Link className={styles.result} href={`/chat?id=${data.latest_conversation_id}`}>
+            <span className="flex items-center gap-3">
+              <CheckCircle2 size={20} aria-hidden />
+              {t("lastResult")}
+            </span>
+            <ArrowRight size={16} aria-hidden />
+          </Link>
+        )}
+        <StartTasks key={data.organization_id} data={data} />
+        {data.goal && (
+          <p className={styles.saved}>
+            <Check size={14} aria-hidden />
+            {t("progressSaved")}
+          </p>
+        )}
+        {data.has_result && <StartNextSteps orgId={data.organization_id} />}
+        <footer className={styles.footer}>
+          <Link href="/chat">
+            <MessageSquare size={15} aria-hidden />
+            {t("ownTask")}
+          </Link>
+          <Link href="/orgs">
+            <Building2 size={15} aria-hidden />
+            {t("organizations")}
+          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              router.push("/dashboard");
+              openTour();
+            }}
+          >
+            <Compass size={15} aria-hidden />
+            {t("tour")}
+          </Button>
+        </footer>
       </div>
-      <header className="space-y-2">
-        <p className="text-muted-foreground text-sm">{data.organization_name}</p>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {t(data.has_result ? "returnTitle" : "title")}
-        </h1>
-        <p className="text-muted-foreground">{t("intro")}</p>
-      </header>
-      {data.has_result && data.latest_conversation_id && (
-        <Link
-          className="inline-flex rounded-lg border px-4 py-2 text-sm"
-          href={`/chat?id=${data.latest_conversation_id}`}
-        >
-          {t("lastResult")}
-        </Link>
-      )}
-      <StartTasks key={data.organization_id} data={data} />
-      {data.goal && <p className="text-muted-foreground text-xs">{t("progressSaved")}</p>}
-      {data.has_result && <StartNextSteps orgId={data.organization_id} />}
-      <footer className="flex flex-wrap items-center gap-4 border-t pt-5 text-sm">
-        <Link href="/chat" className="underline">
-          {t("ownTask")}
-        </Link>
-        <Link href="/orgs" className="underline">
-          {t("organizations")}
-        </Link>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            router.push("/dashboard");
-            openTour();
-          }}
-        >
-          {t("tour")}
-        </Button>
-      </footer>
     </div>
   );
 }
