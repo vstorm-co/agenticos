@@ -236,7 +236,7 @@ function finishedLabel(
   args: Record<string, unknown> | undefined,
   t: Translate,
 ): string {
-  if (name === "load_capability") {
+  if (name === "read_skill" || name === "load_capability") {
     const skill = text((args ?? {}).id);
     if (skill !== null) return titleWords(skill);
   }

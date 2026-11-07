@@ -201,7 +201,8 @@ describe("a tool call in the transcript", () => {
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
       [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
-      [{ name: "load_capability", args: {} }, "Load Skill"],
+      [{ name: "load_capability", args: {} }, "Read Skill"],
+      [{ name: "read_skill", args: { id: "refund_policy" } }, "Refund Policy"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
         { name: "grep", args: { pattern: "TODO", path: "/workspace/app.py" } },

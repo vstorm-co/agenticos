@@ -14,7 +14,7 @@ from app.schemas.resource_usage import AgentUsage
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 """The Agent Skills name format: lowercase letters and digits, joined by hyphens.
 
-A skill's name is the id the model passes to `load_capability`, and models
+A skill's name is the id the model passes to `read_skill`, and models
 trained on this format write the hyphenated form whatever the catalog lists. A
 gallery skill called `Product description writer` was loaded as
 `product-description-writer`, which is no id at all, and the second wrong guess
