@@ -9,25 +9,22 @@ import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
 /**
- * Picking the organization the whole product is scoped by - as menu items,
- * for whatever menu wants to carry them.
- *
- * It used to be a control of its own at the head of the column, above the
- * navigation. It is the account's tenant rather than a destination, so it now
- * sits in the account's menu at the foot of it, with the active one marked:
- * one place to answer "who am I and where am I", instead of that question
- * split across the two ends of the sidebar.
+ * The organization switcher's choices and management actions.
  *
  * Picking the wrong one does not produce an error - it produces the wrong
  * agents, the wrong keys and the wrong run history, all of which look exactly
  * like the right ones. So the active one is marked rather than merely listed
  * first.
  */
-export function OrganizationMenuItems() {
+export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void }) {
   const t = useTranslations("teams");
   const { orgs, activeOrg, fetchOrgs, switchOrg } = useOrganizations();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    void fetchOrgs();
+  }, [fetchOrgs]);
 
   /**
    * Switch, and take an organization-scoped route with it.
@@ -45,54 +42,56 @@ export function OrganizationMenuItems() {
    * losing, sending a Polish reader to the English `/orgs`.
    */
   const pick = (id: string) => {
-    switchOrg(id);
+    if (id !== activeOrg?.id) switchOrg(id);
     const scoped = pathname.match(/\/orgs\/[^/]+(\/.*)?$/);
-    if (scoped) router.push(`/orgs/${id}${scoped[1] ?? ""}`);
+    if (scoped) {
+      const destination = `/orgs/${id}${scoped[1] ?? ""}`;
+      if (pathname !== destination) router.push(destination);
+    }
+    onNavigate?.();
   };
 
-  useEffect(() => {
-    fetchOrgs();
-  }, [fetchOrgs]);
-
-  const activeId = (activeOrg ?? orgs[0])?.id;
+  const navigate = (href: string) => {
+    router.push(href);
+    onNavigate?.();
+  };
 
   return (
     <>
-      {orgs.map((org) => (
-        <DropdownMenuItem
-          key={org.id}
-          onSelect={() => pick(org.id)}
-          className="gap-2"
-          // The tick below is decoration, so which organization you are in was
-          // announced to nobody once this moved off a button whose label used to
-          // say it. `aria-current` is the same fact, reachable.
-          aria-current={org.id === activeId ? "true" : undefined}
-        >
-          <EntityAvatar
-            seed={org.id}
-            name={org.name}
-            imageSrc={`/api/orgs/${org.id}/avatar`}
-            hasImage={!!org.avatar_url}
-            colorSlot={org.avatar_color}
-            className="h-5 w-5 text-[11px]"
-          />
-          <span className="truncate">{org.name}</span>
-          {org.id === activeId ? (
-            <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" aria-hidden />
-          ) : (
-            org.is_personal && (
+      <div className="max-h-64 overflow-y-auto overscroll-contain">
+        {orgs.map((org) => (
+          <DropdownMenuItem
+            key={org.id}
+            onSelect={() => pick(org.id)}
+            className="gap-2"
+            aria-current={org.id === activeOrg?.id ? "true" : undefined}
+          >
+            <EntityAvatar
+              seed={org.id}
+              name={org.name}
+              imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
+              hasImage={!!org.avatar_url}
+              colorSlot={org.avatar_color}
+              className="h-5 w-5 text-[11px]"
+              ariaHidden
+            />
+            <span className="truncate">{org.name}</span>
+            {org.is_personal && (
               <span className="text-muted-foreground ml-auto text-xs">{t("personal")}</span>
-            )
-          )}
-        </DropdownMenuItem>
-      ))}
+            )}
+            {org.id === activeOrg?.id && (
+              <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" aria-hidden />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </div>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => router.push("/orgs")} className="gap-2">
-        <Building2 className="h-4 w-4" />
+      <DropdownMenuItem onSelect={() => navigate("/orgs")} className="gap-2">
+        <Building2 className="h-4 w-4" aria-hidden />
         {t("manageOrganizations")}
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => router.push("/orgs?create=1")} className="gap-2">
-        <Plus className="h-4 w-4" />
+      <DropdownMenuItem onSelect={() => navigate("/orgs?create=1")} className="gap-2">
+        <Plus className="h-4 w-4" aria-hidden />
         {t("newOrganization")}
       </DropdownMenuItem>
     </>

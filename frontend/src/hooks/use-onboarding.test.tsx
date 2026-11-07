@@ -172,6 +172,7 @@ describe("useOnboardingTour", () => {
 
     act(() => useOnboardingStore.getState().openPage());
     expect(result.current.steps.map((step) => step.id)).toEqual([
+      "organization-switcher",
       "dashboard-filters",
       "dashboard-customize",
       "notification-bell",
