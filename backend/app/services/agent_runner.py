@@ -4212,6 +4212,9 @@ class AgentRunnerService:
             local=local,
             defer_local=request_computer_access is not None and routine is None,
         )
+        # Defer the root's tools, preserving the author's shared requirements
+        # when resolving delegates that may ask for this same computer first.
+        delegation_capabilities = spec.capabilities
         spec, computer_on_use = _defer_computer_access(
             spec,
             callback=request_computer_access,
@@ -4481,7 +4484,7 @@ class AgentRunnerService:
             ctx,
             request_computer_access=request_computer_access,
             models_ctx=models_ctx,
-            spec=spec,
+            spec=spec.model_copy(update={"capabilities": delegation_capabilities}),
             agent=agent,
             run=run,
             surface=surface,

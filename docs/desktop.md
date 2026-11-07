@@ -674,6 +674,8 @@ Quick Ask has a microphone button for click-to-start dictation as well as hold-t
 
 ## Local routines { #local-routines }
 
+A refusal from a replacement computer does not prove that the approved computer lost its permission: it may simply be offline. The owner gets a deduplicated notice to reconnect or review access, while the routine and its event payloads keep waiting. A refusal from the originally selected active session still stops the routine for review.
+
 On Linux the app checks that the installed bubblewrap advertises `--bind-fd` before offering folder writes or starting a sandboxed command. Missing, unsupported or unresponsive builds are refused; upgrade bubblewrap to enable this mode.
 
 Routine permission JSON is verified against its current SHA-256 fingerprint in the operating system keychain. Editing it or restoring a copy made before revocation cannot grant access. An unavailable keychain or a mismatch blocks routine access. **Upgrade:** older routine grants have no fingerprint and require fresh approval: explicitly unlink the computer, link it again and review its routines. The same reset recovers an interrupted permission write; the app never trusts an unverified store automatically.

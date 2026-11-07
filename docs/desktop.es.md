@@ -1,5 +1,5 @@
 ---
-source_sha: "0c67e0493dda"
+source_sha: "b0d63e54b2c9"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -711,6 +711,8 @@ Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conse
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
 
 ## Rutinas locales { #local-routines }
+
+El rechazo de un equipo sustituto no demuestra que el equipo autorizado haya perdido su permiso: puede estar desconectado. El propietario recibe un aviso sin duplicados para reconectarlo o revisar el acceso; la rutina y sus eventos siguen esperando. Un rechazo de la sesión activa originalmente seleccionada sigue deteniendo la rutina para revisión.
 
 En Linux la app comprueba que bubblewrap anuncie `--bind-fd` antes de ofrecer escritura en carpetas o iniciar un comando aislado. Rechaza versiones ausentes, incompatibles o que no respondan; actualiza bubblewrap para habilitar este modo.
 

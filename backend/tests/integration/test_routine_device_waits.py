@@ -551,8 +551,11 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
     from app.services.agent_trigger import AgentTriggerService
     from app.services.routine_devices import RoutineDeviceOffline
 
-    w = await world(db)
-    activation = await park(db, w)
+    w = await world(db, event=change == "rebind_consent_missing")
+    context = (
+        "private event from the approved computer" if change == "rebind_consent_missing" else None
+    )
+    activation = await park(db, w, context=context)
     wait = await repo.get(db, activation)
     assert wait is not None
     if change == "wrong_owner":
@@ -573,11 +576,13 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
     monkeypatch.setattr(
         service.agents, "get", AsyncMock(return_value=await db.get(Agent, w.trigger.agent_id))
     )
+    notices = AsyncMock()
+    monkeypatch.setattr(module, "NotificationService", lambda _db: notices)
     execute = AsyncMock()
     monkeypatch.setattr(AgentRunnerService, "execute", execute)
 
     async def ready(*args: object, **kwargs: object) -> None:
-        if change == "offline":
+        if change in {"offline", "rebind_consent_missing"}:
             raise RoutineDeviceOffline(message="Offline")
         if change == "consent_missing":
             raise RoutineLocalConsentRequired(message="Consent expired")
@@ -600,8 +605,17 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
         await db.refresh(wait)
         if change in {"changed_intent", "changed_after_readiness", "local_removed"}:
             assert wait.status == "cancelled"
-        if change in {"consent_missing", "rebind_consent_missing"}:
+        if change == "consent_missing":
             assert not w.trigger.is_active
+        if change == "rebind_consent_missing":
+            assert w.trigger.is_active
+            assert wait.status == "waiting"
+            assert wait.event_context == context
+            notices.routine_blocked.assert_awaited_once()
+            assert (
+                "Waiting for its approved computer"
+                in notices.routine_blocked.await_args.kwargs["detail"]
+            )
     execute.assert_not_awaited()
 
 

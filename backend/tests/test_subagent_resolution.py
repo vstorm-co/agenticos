@@ -2617,3 +2617,46 @@ async def test_an_unattended_local_delegate_has_no_human_consent_callback(coding
     built = prepared.built("local-child")
     assert not any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
     assert WORKSPACE_RESOURCE not in built["resources"]
+
+
+@pytest.mark.parametrize("shared", [False, True])
+async def test_delegates_inherit_only_shared_computer_requirements_before_consent(shared: bool):
+    async def consent(request: ComputerAccessRequest) -> bool:
+        return False
+
+    root = _delegating(
+        inline=[_specialist()],
+        share=["sandbox"] if shared else [],
+        capabilities=[{"id": "sandbox", "config": {"backend": "local"}}],
+    )
+    prepared = await _prepare(root, request_computer_access=consent)
+    root_spec = prepared.build.call_args_list[0].args[0]
+    assert not any(binding.id == "sandbox" for binding in root_spec.capabilities)
+    built = prepared.built("summariser")
+    assert not any(binding.id == "sandbox" for binding in built["spec"].capabilities)
+    asking = [cap for cap in built["extra_capabilities"] if isinstance(cap, RequestComputerOnUse)]
+    assert len(asking) == int(shared)
+    assert prepared.runtime.subagents[0].workspace == "none"
+
+
+async def test_nested_delegates_retain_an_inherited_shared_computer_requirement():
+    async def consent(request: ComputerAccessRequest) -> bool:
+        return False
+
+    child_id = uuid.uuid4()
+    version = _version(
+        child_id, _delegating(name="Middle", inline=[_specialist()], share=["sandbox"])
+    )
+    prepared = await _prepare(
+        _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)],
+            max_depth=2,
+            share=["sandbox"],
+            capabilities=[{"id": "sandbox", "config": {"backend": "local"}}],
+        ),
+        versions={version.id: version},
+        request_computer_access=consent,
+    )
+    built = prepared.built("middle", "summariser")
+    assert not built["spec"].capabilities
+    assert any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])

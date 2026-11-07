@@ -2598,17 +2598,13 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
-        previous_local_intent = activation_intent(trigger)
+        unconfirmed_local_access = False
         try:
             await follow_signed_in_session(self.db, trigger, ctx)
         except RoutineLocalConsentRequired:
-            await self._block_local_activation(
-                trigger.id,
-                activation_id=activation_id,
-                intent=previous_local_intent,
-                name=trigger.name or agent.name,
-            )
-            return
+            # A different computer cannot establish that an offline holder's
+            # permission was revoked. Warn the owner without losing its events.
+            unconfirmed_local_access = True
         waiting = await device_wait_repo.get(self.db, activation_id)
         intent = activation_intent(trigger)
         if waiting is not None:
@@ -2629,6 +2625,17 @@ class AgentTriggerService:
                 )
                 return
             event_context = waiting.event_context
+        if unconfirmed_local_access:
+            await NotificationService(self.db).routine_blocked(
+                organization_id=trigger.organization_id,
+                owner_user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+                reason="run",
+                name=trigger.name or agent.name,
+                detail="Waiting for its approved computer. Reconnect it or review this routine's folder permission in the desktop app.",
+                observed_at=datetime.now(UTC),
+            )
         if trigger.local_target is not None:
             try:
                 local = LocalTarget.model_validate(trigger.local_target)
