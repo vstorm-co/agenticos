@@ -5305,6 +5305,7 @@ async def test_native_filter_edits_cannot_escape_account_scope_checks(missing_ac
     )
     service = _service()
     service._owned = AsyncMock(return_value=trigger)
+    service.connections.get_org_portal_grant = AsyncMock(return_value=None)
     service.connections.get_polled_connection = AsyncMock(
         side_effect=AuthorizationError(message="Channel scopes not granted")
     )
@@ -5328,3 +5329,33 @@ async def test_a_manual_github_preset_does_not_require_a_native_account():
         await service.create(_ctx(), trigger.agent_id, _preset_create(connection_id=None))
     create.assert_awaited_once()
     service.connections.webhook_access_token.assert_not_awaited()
+
+
+async def test_legacy_default_portal_filters_remain_editable_without_rebinding_the_stored_source():
+    ctx = _ctx()
+    trigger = _event_trigger(
+        event_source="gmail",
+        event_config={},
+        portal_key="google",
+        connection_id=None,
+        created_by_user_id=ctx.user_id,
+    )
+    service = _service()
+    service._owned = AsyncMock(return_value=trigger)
+    legacy = _named(
+        id=uuid.uuid4(), name="Organization mailbox", portal_key="google", auth_type="oauth"
+    )
+    service.connections.get_org_portal_grant = AsyncMock(return_value=legacy)
+    service.connections.get_polled_connection = AsyncMock(return_value=legacy)
+    with patch(
+        "app.services.agent_trigger.agent_trigger_repo.update", AsyncMock(return_value=trigger)
+    ) as update:
+        await service.update(
+            ctx,
+            trigger.agent_id,
+            trigger.id,
+            TriggerUpdate(event_config={"subject_contains": "invoice"}),
+        )
+    assert service.connections.get_polled_connection.await_args.args[1] == legacy.id
+    assert "connection_id" not in update.await_args.kwargs["update_data"]
+    assert trigger.connection_id is None

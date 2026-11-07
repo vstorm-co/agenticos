@@ -1267,13 +1267,17 @@ class AgentTriggerService:
         if "event_config" in changes and trigger.portal_key is not None:
             portal = portal_catalog.get_portal(trigger.portal_key)
             if portal is not None and portal.native_provider is not None:
-                if trigger.connection_id is None:
-                    raise refused_field(
-                        "connection_id", "Choose a connected account for this integration"
-                    )
+                connection_id = trigger.connection_id
+                if connection_id is None:
+                    legacy = await self.connections.get_org_portal_grant(ctx, portal.key)
+                    if legacy is None:
+                        raise refused_field(
+                            "connection_id", "Choose a connected account for this integration"
+                        )
+                    connection_id = legacy.id
                 source_account = await self.connections.get_polled_connection(
                     ctx,
-                    trigger.connection_id,
+                    connection_id,
                     portal_key=portal.key,
                     channels=tuple(changes["event_config"].get("channels") or ()),
                 )
