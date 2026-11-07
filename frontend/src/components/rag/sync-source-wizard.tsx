@@ -237,7 +237,11 @@ export function SyncSourceWizard({
       // needs a kind will not sync without it, so the wizard asks here rather
       // than letting the source be created and fail in a worker.
       if (!selectedConnector) return false;
-      return selectedConnector.secret_kind === "none" || Boolean(form.secret_id);
+      return (
+        selectedConnector.secret_kind === "none" ||
+        Boolean(form.secret_id) ||
+        Boolean(form.config.connection_id)
+      );
     }
     // An edit that changes nothing has nothing to save.
     if (step === "schedule") return changes === null || Object.keys(changes).length > 0;

@@ -118,11 +118,12 @@ interface PortalTriggerDialogProps {
  */
 export function PortalTriggerDialog({
   portal,
-  connectionId,
+  connectionId: initialConnectionId,
   open,
   onOpenChange,
 }: PortalTriggerDialogProps) {
   const t = useTranslations("portals");
+  const [connectionId, setConnectionId] = useState(initialConnectionId);
   const tt = useTranslations("triggers");
 
   const { agents } = useAgents();
@@ -204,11 +205,12 @@ export function PortalTriggerDialog({
 
   const canSubmit =
     preset !== null &&
+    (!portal.native_provider || connectionId !== null) &&
     effectiveAgentId !== "" &&
     prompt.trim().length > 0 &&
     (!needsTarget || target.trim().length > 0) &&
     !create.isPending &&
-    eventOptionsValid(extraConfig);
+    eventOptionsValid(extraConfig, eventSource);
 
   if (created !== null) {
     // Three outcomes, not two. `manual` is the only one with anything to hand
@@ -286,7 +288,9 @@ export function PortalTriggerDialog({
               step === "preset"
                 ? preset === null
                 : step === "configure"
-                  ? effectiveAgentId === "" || (needsTarget && target.trim().length === 0)
+                  ? effectiveAgentId === "" ||
+                    (needsTarget && target.trim().length === 0) ||
+                    !eventOptionsValid(extraConfig, eventSource)
                   : !canSubmit
             }
             isLast={step === "message"}
@@ -325,6 +329,13 @@ export function PortalTriggerDialog({
 
         {step === "configure" && (
           <div className="space-y-4">
+            {portal.native_provider && (
+              <NativeTriggerAccount
+                portal={portal}
+                value={connectionId}
+                onChange={setConnectionId}
+              />
+            )}
             <FormField label={tt("agent")} htmlFor="portal-agent">
               <Select
                 value={effectiveAgentId}
@@ -507,5 +518,37 @@ function WebhookField({ url }: { url: string }) {
       </div>
       <p className="text-muted-foreground text-xs">{t("webhookHelp")}</p>
     </div>
+  );
+}
+
+function NativeTriggerAccount({
+  portal,
+  value,
+  onChange,
+}: {
+  portal: PortalCatalogEntry;
+  value: string | null;
+  onChange: (value: string) => void;
+}) {
+  const t = useTranslations("portals");
+  const accounts = (portal.connection_choices ?? []).filter((account) => !account.needs_reconnect);
+  return (
+    <FormField label={t("integrationAccount")} htmlFor="trigger-native-account">
+      <Select value={value ?? ""} onValueChange={onChange}>
+        <SelectTrigger id="trigger-native-account">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {value && !accounts.some((account) => account.id === value) && (
+            <SelectItem value={value}>{portal.name}</SelectItem>
+          )}
+          {accounts.map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {account.email}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FormField>
   );
 }

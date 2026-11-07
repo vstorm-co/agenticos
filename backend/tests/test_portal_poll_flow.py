@@ -90,7 +90,7 @@ def _service(
         recorder.steps.append(f"match:{event_source}:{len(events)}")
         return decisions
 
-    async def disable(*, organization_id, event_source, reason, places=None):
+    async def disable(*, organization_id, event_source, reason, places=None, connection_id=None):
         recorder.steps.append(f"disable:{reason}:{sorted(places) if places else 'all'}")
         return 1
 
@@ -527,6 +527,10 @@ class TestWhichGrantsAreRead:
             "microsoft_files",
             "google_calendar",
             "outlook_calendar",
+            "slack",
+            "teams",
+            "google_sheets",
+            "imap",
         ]
 
 
@@ -1049,3 +1053,30 @@ async def test_a_claimed_candidate_without_a_pollable_source_is_skipped(monkeypa
     with patch("app.services.mcp_connection.McpConnectionService", return_value=connections):
         await trigger_tasks.poll_portal_grants()
     assert connections.record_poll_processing_failure.await_count == (0 if missing else 1)
+
+
+async def test_revoking_one_account_never_stops_another_accounts_triggers(monkeypatch):
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.services.agent_trigger import AgentTriggerService
+
+    first, second = uuid.uuid4(), uuid.uuid4()
+    rows = [
+        AgentTrigger(id=uuid.uuid4(), connection_id=identifier) for identifier in [first, second]
+    ]
+    monkeypatch.setattr(
+        "app.services.agent_trigger.agent_trigger_repo.list_active_for_event_source",
+        AsyncMock(return_value=rows),
+    )
+    service = AgentTriggerService(MagicMock())
+    stopped = AsyncMock()
+    monkeypatch.setattr(service, "_disable", stopped)
+    assert (
+        await service.disable_polled(
+            organization_id=uuid.uuid4(),
+            event_source="outlook",
+            connection_id=first,
+            reason="revoked",
+        )
+        == 1
+    )
+    assert stopped.await_args.args[0] is rows[0]

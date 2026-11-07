@@ -1,5 +1,5 @@
 ---
-source_sha: "276f8e90ab5e"
+source_sha: "fdc5938c3015"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1349,3 +1349,6 @@ Migracja `0293_connected_account_sources.py` wymaga ponownej zgody dla starszych
 Pauzy akceptacji Mirage przypinają tożsamość kont i generacje sekretów. Ich zmiana podczas oczekiwania wymaga nowego uruchomienia i zgody. Przegląd źródeł rutyny wiąże te same generacje, a zapis i komendy terminala wymagają zgody na skutki rutyny nawet przy wyłączonych akceptacjach zapisu dla montowania.
 
 Usunięcie członka trwale odwołuje jego osobiste zgody wydane przez tę organizację; ponowne zaproszenie wymaga nowej zgody.
+
+
+Wbudowane połączenia Google, Microsoft, Slack i IMAP również działają w tym obszarze. [Wbudowane integracje](integrations.md) opisują konfigurację, wybór konta, capabilities, operacje workflow, synchronizację wiedzy i trwałe kursory zmian.

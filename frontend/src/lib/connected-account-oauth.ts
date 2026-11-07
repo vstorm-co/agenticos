@@ -8,6 +8,17 @@ export const ACCOUNT_OAUTH_COOKIE = `${ACCESS_TOKEN_COOKIE}_account_oauth`;
 export const ACCOUNT_OAUTH_CALLBACK = "/api/me/mcp-connections/oauth/callback";
 
 export async function startConnectedAccountOAuth(request: NextRequest): Promise<Response> {
+  const text = await request.text();
+  let options: unknown = {};
+  if (text) {
+    try {
+      options = JSON.parse(text);
+    } catch {
+      return new NextResponse(null, { status: 400 });
+    }
+  }
+  const supplied =
+    typeof options === "object" && options !== null && !Array.isArray(options) ? options : {};
   const nonce = randomBytes(32).toString("base64url");
   const headers = new Headers(request.headers);
   headers.set("content-type", "application/json");
@@ -16,7 +27,7 @@ export async function startConnectedAccountOAuth(request: NextRequest): Promise<
     new NextRequest(request.url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ browser_nonce: nonce }),
+      body: JSON.stringify({ ...supplied, browser_nonce: nonce }),
     }),
   );
   const response = new NextResponse(upstream.body, {

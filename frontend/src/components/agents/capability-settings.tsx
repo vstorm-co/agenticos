@@ -30,6 +30,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
+import { IntegrationAccountFields } from "./integration-account-fields";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
@@ -317,13 +318,34 @@ export function CapabilityDetail({
       : { ...binding, config: { ...resolvedConfig, ...binding.config } };
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
   const copyFor = useCapabilityFieldCopy(binding.id);
+  const integrationProvider = definition.config_schema?.["x-integration-provider"];
   const settings = (
     <>
       {settingsExtra}
+      {integrationProvider && (
+        <IntegrationAccountFields
+          productId={binding.id}
+          provider={integrationProvider}
+          configErrors={configErrors}
+          config={keyed.config}
+          disabled={disabled || readOnly}
+          onChange={(config) => onChange({ ...binding, config })}
+        />
+      )}
 
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
-          hiddenFields={binding.id === "context" ? ["file_settings"] : undefined}
+          hiddenFields={
+            definition.category === "integrations"
+              ? [
+                  "disabled_tools",
+                  ...(integrationProvider ? ["account", "account_name", "connection_id"] : []),
+                  ...(["slack", "teams"].includes(binding.id) ? [] : ["channels"]),
+                ]
+              : binding.id === "context"
+                ? ["file_settings"]
+                : undefined
+          }
           idPrefix={binding.id}
           schema={definition.config_schema}
           value={binding.config}
@@ -398,6 +420,7 @@ export function CapabilityDetail({
     <ToolList
       binding={binding}
       tools={definition.tools}
+      native={definition.category === "integrations"}
       contracts={definition.contracts}
       onChange={onChange}
       disabled={disabled}
@@ -971,6 +994,7 @@ function StaleToolSettingsNotice({ binding, onChange, disabled }: StaleSecretNot
 }
 
 interface ToolListProps {
+  native?: boolean;
   binding: CapabilityBindingSpec;
   tools: CapabilityTool[];
   contracts: CapabilityToolContract[];
@@ -987,7 +1011,7 @@ interface ToolListProps {
  * because the alternative is walking back through every row to find which of
  * them stopped following it.
  */
-function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListProps) {
+function ToolList({ binding, tools, contracts, onChange, disabled, native }: ToolListProps) {
   const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
@@ -1023,6 +1047,7 @@ function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListPro
             key={tool.id}
             binding={binding}
             tool={tool}
+            native={native}
             contract={contracts.find((entry) => entry.tool_id === tool.id)}
             onChange={onChange}
             disabled={disabled}
@@ -1034,6 +1059,7 @@ function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListPro
 }
 
 interface ToolRowProps {
+  native?: boolean;
   binding: CapabilityBindingSpec;
   tool: CapabilityTool;
   /** What the model is really told. Absent only if the catalog could not read it. */
@@ -1042,7 +1068,7 @@ interface ToolRowProps {
   disabled?: boolean;
 }
 
-function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) {
+function ToolRow({ binding, tool, contract, onChange, disabled, native }: ToolRowProps) {
   const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
@@ -1050,6 +1076,9 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
   const nameKey = toolNameError(name);
   const nameError = nameKey === null ? null : t(nameKey);
   const changed = isToolOverridden(binding, tool.id);
+  const disabledTools = Array.isArray(binding.config.disabled_tools)
+    ? binding.config.disabled_tools.filter((id): id is string => typeof id === "string")
+    : [];
 
   const edit = (field: ToolTextField, value: string) =>
     onChange(withToolOverride(binding, tool.id, field, value));
@@ -1075,6 +1104,25 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground font-mono text-xs">{tool.id}</span>
+        {native && (
+          <Switch
+            aria-label={t("enableIntegrationTool", { tool: tool.id })}
+            checked={!disabledTools.includes(tool.id)}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onChange({
+                ...binding,
+                config: {
+                  ...binding.config,
+                  disabled_tools: checked
+                    ? disabledTools.filter((id) => id !== tool.id)
+                    : [...disabledTools, tool.id],
+                },
+              })
+            }
+          />
+        )}
+
         {changed && <Badge variant="secondary">{t("overridden")}</Badge>}
       </div>
 

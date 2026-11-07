@@ -1,5 +1,5 @@
 ---
-source_sha: "2df43efb8afc"
+source_sha: "f52214d6faaf"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -812,3 +812,6 @@ cualquier relé alojado - no pueden ver tu máquina. Dos maneras de salvarlo:
   remitente.
 - La hora de una programación se lee en su zona horaria, la tuya por defecto.
 - En un portátil, echa mano de **Run now** antes que de un túnel.
+
+
+Las conexiones incorporadas de Google, Microsoft, Slack e IMAP también funcionan aquí. [Integraciones incorporadas](integrations.md) explica configuración, selección de cuenta, capabilities, operaciones workflow, sincronización de conocimiento y cursores persistentes.

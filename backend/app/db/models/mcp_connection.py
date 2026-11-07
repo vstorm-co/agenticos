@@ -383,7 +383,7 @@ class McpConnection(Base, TimestampMixin):
         configured key, and an OAuth grant the provider has revoked or expired past
         its refresh - the sweep marks the latter `last_status="error"` beforehand.
         """
-        if self.auth_type == "oauth":
+        if self.auth_type in {"oauth", "application", "imap"}:
             return self.oauth_payload is not None and is_key_version_available(
                 self.secret_key_version
             )

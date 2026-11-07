@@ -1,5 +1,5 @@
 ---
-source_sha: "2df43efb8afc"
+source_sha: "f52214d6faaf"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -848,3 +848,6 @@ hindurch:
 - Die Uhrzeit eines Zeitplans wird in seiner Zeitzone gelesen, standardmäßig Ihrer.
 - Greifen Sie auf einem Laptop nach **Run now**, bevor Sie nach einem Tunnel
   greifen.
+
+
+Integrierte Google-, Microsoft-, Slack- und IMAP-Verbindungen funktionieren auch hier. [Integrierte Integrationen](integrations.md) beschreibt Einrichtung, Kontowahl, Capabilities, Workflow-Operationen, Wissenssynchronisierung und dauerhafte Änderungscursor.

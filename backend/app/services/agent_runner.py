@@ -3821,6 +3821,21 @@ class AgentRunnerService:
             ),
         )
         spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
+        if watch_sources is not None and watch_sources.integration_product_id is not None:
+            from app.services.integrations import build_watch_toolset
+
+            assert watch_receipt is not None
+            spec_toolsets = [
+                build_watch_toolset(
+                    watch_sources,
+                    watch_receipt,
+                    organization_id=ctx.organization_id,
+                    person_id=ctx.subject_id,
+                    watch_id=ctx.routine_id,
+                    agent_id=agent.id,
+                )
+            ]
+
         if routine is not None and routine.routine_kind == "trigger":
             spec_toolsets = [
                 toolset.filtered(lambda _ctx, tool: routine.allows_tool(tool))

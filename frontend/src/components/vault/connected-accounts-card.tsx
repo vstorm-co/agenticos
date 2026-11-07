@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
 import { Plus, Trash2, UserRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
 import { Button, ConfirmDialog, IconButton, ListCard, ListCardEmpty } from "@/components/ui";
+import { ImapSetupDialog } from "@/components/vault/imap-setup-dialog";
+import { IntegrationSetupDialog } from "@/components/vault/integration-setup-dialog";
+import type { IntegrationProvider } from "@/hooks/use-connected-accounts";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { useConnectedAccounts, type AccountOwner } from "@/hooks/use-connected-accounts";
 import { getErrorMessage } from "@/lib/api-error";
@@ -30,97 +32,127 @@ interface ConnectedAccountsCardProps {
 export function ConnectedAccountsCard({ owner, canManage }: ConnectedAccountsCardProps) {
   const t = useTranslations("pages.vault.connectedAccounts");
   const tErrors = useTranslations("errors");
-  const returnTo = usePathname();
-  const { accounts, isLoading, error, connect, isConnecting, disconnect } =
-    useConnectedAccounts(owner);
+  const [provider, setProvider] = useState<IntegrationProvider>("google");
+  const [settingUp, setSettingUp] = useState(false);
+  const { accounts, isLoading, error, isConnecting, disconnect } = useConnectedAccounts(owner, {
+    provider,
+  });
   const [removing, setRemoving] = useState<ConnectedAccount | null>(null);
 
   const connectButton = canManage ? (
-    <Button size="sm" variant="outline" disabled={isConnecting} onClick={() => connect(returnTo)}>
+    <Button size="sm" variant="outline" disabled={isConnecting} onClick={() => setSettingUp(true)}>
       <Plus className="h-3.5 w-3.5" />
-      {t("connect")}
+      {t("connect", { provider: t(`setup.provider.${provider}`) })}
     </Button>
   ) : undefined;
 
   return (
-    <ListCard
-      title={t(owner === "personal" ? "personalTitle" : "organizationTitle")}
-      counted={isLoading || error ? null : t("count", { count: accounts.length })}
-      controls={accounts.length > 0 ? connectButton : undefined}
-      contentClassName="p-0"
-    >
-      {error ? (
-        <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
-      ) : accounts.length === 0 ? (
-        <ListCardEmpty
-          icon={UserRound}
-          title={t("noneYet")}
-          description={t(owner === "personal" ? "personalDetail" : "organizationDetail")}
-          cta={
-            canManage
-              ? {
-                  label: (
-                    <>
-                      <Plus className="h-3.5 w-3.5" />
-                      {t("connect")}
-                    </>
-                  ),
-                  onClick: () => connect(returnTo),
-                }
-              : undefined
-          }
-        />
-      ) : (
-        <ul>
-          {accounts.map((account) => (
-            <li
-              key={account.id}
-              className="border-border flex items-center gap-3 border-b px-5 py-3 last:border-b-0"
-            >
-              <ProviderIcon provider={account.provider} className="h-5 w-5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{account.email}</p>
-                {account.needs_reconnect ? (
-                  <p className="text-destructive text-xs">{t("needsReconnect")}</p>
-                ) : (
-                  <p className="text-muted-foreground text-xs">
-                    {t("scopes", { count: account.scopes.length })}
-                  </p>
+    <>
+      <div className="mb-3 flex gap-2">
+        {(["google", "microsoft", "slack", "imap"] as const).map((id) => (
+          <Button
+            key={id}
+            variant={provider === id ? "secondary" : "ghost"}
+            aria-pressed={provider === id}
+            size="sm"
+            onClick={() => setProvider(id)}
+          >
+            {t(`setup.provider.${id}`)}
+          </Button>
+        ))}
+      </div>
+      <ListCard
+        title={t(owner === "personal" ? "personalTitle" : "organizationTitle")}
+        counted={isLoading || error ? null : t("count", { count: accounts.length })}
+        controls={accounts.length > 0 ? connectButton : undefined}
+        contentClassName="p-0"
+      >
+        {error ? (
+          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+        ) : accounts.length === 0 ? (
+          <ListCardEmpty
+            icon={UserRound}
+            title={t("noneYet")}
+            description={t(owner === "personal" ? "personalDetail" : "organizationDetail")}
+            cta={
+              canManage
+                ? {
+                    label: (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        {t("connect", { provider: t(`setup.provider.${provider}`) })}
+                      </>
+                    ),
+                    onClick: () => setSettingUp(true),
+                  }
+                : undefined
+            }
+          />
+        ) : (
+          <ul>
+            {accounts.map((account) => (
+              <li
+                key={account.id}
+                className="border-border flex items-center gap-3 border-b px-5 py-3 last:border-b-0"
+              >
+                <ProviderIcon provider={account.provider} className="h-5 w-5 shrink-0" />
+                {account.label && account.label !== account.email && (
+                  <span className="text-sm font-medium">{account.label}</span>
                 )}
-              </div>
-              {canManage && account.needs_reconnect && (
-                <Button size="sm" variant="outline" onClick={() => connect(returnTo)}>
-                  {t("reconnect")}
-                </Button>
-              )}
-              {canManage && (
-                <IconButton
-                  variant="ghost"
-                  aria-label={t("disconnect", { email: account.email })}
-                  onClick={() => setRemoving(account)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </IconButton>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{account.email}</p>
+                  {account.needs_reconnect ? (
+                    <p className="text-destructive text-xs">{t("needsReconnect")}</p>
+                  ) : (
+                    <p className="text-muted-foreground text-xs">
+                      {t("scopes", { count: account.scopes.length })}
+                    </p>
+                  )}
+                </div>
+                {canManage && account.needs_reconnect && (
+                  <Button size="sm" variant="outline" onClick={() => setSettingUp(true)}>
+                    {t("reconnect")}
+                  </Button>
+                )}
+                {canManage && (
+                  <IconButton
+                    variant="ghost"
+                    aria-label={t("disconnect", { email: account.email })}
+                    onClick={() => setRemoving(account)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </IconButton>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {removing && (
-        <ConfirmDialog
-          open
-          onOpenChange={(open) => !open && setRemoving(null)}
-          title={t("disconnectTitle", { email: removing.email })}
-          description={t("disconnectDetail")}
-          confirmLabel={t("disconnectConfirm")}
-          destructive
-          onConfirm={() => {
-            disconnect(removing.id);
-            setRemoving(null);
-          }}
+        {removing && (
+          <ConfirmDialog
+            open
+            onOpenChange={(open) => !open && setRemoving(null)}
+            title={t("disconnectTitle", { email: removing.email })}
+            description={t("disconnectDetail")}
+            confirmLabel={t("disconnectConfirm")}
+            destructive
+            onConfirm={() => {
+              disconnect(removing.id);
+              setRemoving(null);
+            }}
+          />
+        )}
+      </ListCard>
+      {settingUp && provider === "imap" && (
+        <ImapSetupDialog owner={owner} onClose={() => setSettingUp(false)} />
+      )}
+      {settingUp && provider !== "imap" && (
+        <IntegrationSetupDialog
+          owner={owner}
+          provider={provider}
+          onClose={() => setSettingUp(false)}
         />
       )}
-    </ListCard>
+    </>
   );
 }

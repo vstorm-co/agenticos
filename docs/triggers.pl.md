@@ -1,5 +1,5 @@
 ---
-source_sha: "2df43efb8afc"
+source_sha: "f52214d6faaf"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -797,3 +797,6 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
 - Filtr nadawcy odpala się tylko na poczcie podpisanej przez domenę nadawcy.
 - Pora dnia harmonogramu jest czytana w jego strefie czasowej, domyślnie twojej.
 - Na laptopie sięgnij po **Run now**, zanim sięgniesz po tunel.
+
+
+Wbudowane połączenia Google, Microsoft, Slack i IMAP również działają w tym obszarze. [Wbudowane integracje](integrations.md) opisują konfigurację, wybór konta, capabilities, operacje workflow, synchronizację wiedzy i trwałe kursory zmian.

@@ -92,6 +92,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             organization_id=grant.organization_id,
             event_source=source,
             reason="mailbox_access_revoked",
+            connection_id=grant.id,
         )
         return 0
     if read is None:
@@ -101,6 +102,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             organization_id=grant.organization_id,
             event_source=source,
             reason="mailbox_folder_unreadable",
+            connection_id=grant.id,
             places=read.unreadable,
         )
         if source == "outlook":
@@ -195,6 +197,18 @@ async def poll_portal_grants() -> None:
                 connection_id=connection_id, portal_keys=polled_keys
             )
             if grant is None:
+                continue
+            if grant.purpose == "account":
+                from app.services.integrations import poll_account
+
+                try:
+                    async with db.begin_nested():
+                        queued += await poll_account(db, grant)
+                except Exception:
+                    logger.exception(
+                        "native_account_poll_failed", extra={"connection_id": str(connection_id)}
+                    )
+                    await connections.record_poll_processing_failure(connection_id)
                 continue
             portal_key = grant.portal_key
             source = _polled_source(portal_key)

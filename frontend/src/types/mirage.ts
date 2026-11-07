@@ -41,8 +41,10 @@ export interface MirageMountSpec {
 
 /** A connected account: an OAuth grant a mount signs in as. */
 export interface ConnectedAccount {
+  name?: string;
+  label?: string | null;
   id: string;
-  provider: "google";
+  provider: "google" | "microsoft" | "slack" | "imap";
   email: string;
   scopes: string[];
   owner: "personal" | "organization";

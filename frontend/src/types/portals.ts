@@ -1,3 +1,4 @@
+import type { ConnectedAccount } from "@/types/mirage";
 /**
  * Types for trigger portals, mirroring the backend's `PortalRead`.
  *
@@ -30,6 +31,8 @@ export interface PortalPreset {
 
 /** One connectable service and the events it fires an agent on. */
 export interface PortalCatalogEntry {
+  connection_choices?: ConnectedAccount[];
+  native_provider?: "google" | "microsoft" | "slack" | "imap" | null;
   key: string;
   name: string;
   description: string;

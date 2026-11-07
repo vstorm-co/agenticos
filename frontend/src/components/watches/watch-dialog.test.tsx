@@ -39,12 +39,6 @@ vi.mock("@/hooks", () => ({
     isLoading: false,
   }),
   useAgentEnvironments: () => ({ environments: [] }),
-  useMcpConnections: () => ({
-    connections: [
-      { id: "c-gh", name: "github", label: null, catalog_key: "github" },
-      { id: "c-mine", name: "intranet", label: "Our wiki", catalog_key: null },
-    ],
-  }),
   useOrganizations: () => ({
     activeOrg: state.floor === null ? null : { proactive_watch_min_minutes: state.floor },
   }),
@@ -57,6 +51,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: state.push }),
 }));
 vi.mock("@/hooks/use-watches", () => ({
+  useWatchConnections: () => ({
+    connections: [
+      { id: "c-gh", name: "github", label: null, catalog_key: "github" },
+      { id: "c-mine", name: "intranet", label: "Our wiki", catalog_key: null },
+    ],
+  }),
+
   useWatchPresets: () => state.presets,
   useWatches: () => ({ create: state.create, update: state.update }),
 }));

@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).
+
 - Tool search can defer eligible tools from enabled capabilities as well as bound
   MCP servers. Choose either group or both, and keep whole capabilities, MCP
   server namespaces or individual exposed tools visible from the first request.

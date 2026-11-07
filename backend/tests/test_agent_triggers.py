@@ -100,6 +100,18 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.connections.get_org_portal_connection = AsyncMock(
         return_value=_named(id=uuid.uuid4(), name="grant", portal_key="google")
     )
+    service.connections.list_accounts = AsyncMock(return_value=[])
+
+    async def polled_connection(ctx, identifier, *, portal_key):
+        grant = await service.connections.get_org_portal_connection(ctx, identifier)
+        if grant.portal_key != portal_key:
+            raise BadRequestError(
+                message="This connection is for another service",
+                details={"fields": [{"field": "connection_id"}]},
+            )
+        return grant
+
+    service.connections.get_polled_connection = AsyncMock(side_effect=polled_connection)
     service._polled_source_current = AsyncMock(return_value=True)
     service.sources = MagicMock()
     service.sources.initial = AsyncMock(return_value=_source_policy())
@@ -3905,6 +3917,7 @@ class TestPortalCatalogConnectionState:
         manual.mcp_catalog_key = None
         manual.oauth_app_kind = None
         manual.webhook_admin_scopes = ()
+        manual.native_provider = None
         manual.presets = []
         service = _service()
         with (

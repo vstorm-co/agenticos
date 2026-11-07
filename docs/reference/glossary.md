@@ -64,6 +64,20 @@ in [Capabilities](capabilities.md).
 | Ask the user | `ask_user` |
 | Drafts | `drafts` |
 | Web browser | `browser_use` |
+| Word | `word` |
+| IMAP mail | `imap_mail` |
+| Slack | `slack` |
+| Teams | `teams` |
+| Excel | `excel` |
+| OneDrive / SharePoint | `microsoft_files` |
+| Outlook Calendar | `outlook_calendar` |
+| Outlook mail | `outlook_mail` |
+| Google Slides | `google_slides` |
+| Google Sheets | `google_sheets` |
+| Google Docs | `google_docs` |
+| Google Drive | `google_drive` |
+| Google Calendar | `google_calendar` |
+| Gmail | `gmail` |
 | Chat channel lookup | `channel_tools` |
 | Telephone calls | `phone_calls` |
 | Charts | `charts` |

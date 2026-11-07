@@ -271,7 +271,8 @@
         }
       }
     ],
-    "oauth_app_kind": "google_oauth_app"
+    "oauth_app_kind": "google_oauth_app",
+    "native_provider": "google"
   },
   {
     "key": "microsoft",
@@ -313,7 +314,8 @@
         }
       }
     ],
-    "oauth_app_kind": "microsoft_oauth_app"
+    "oauth_app_kind": "microsoft_oauth_app",
+    "native_provider": "microsoft"
   },
   {
     "key": "google_drive",
@@ -345,7 +347,8 @@
         "event_config": {}
       }
     ],
-    "oauth_app_kind": "google_oauth_app"
+    "oauth_app_kind": "google_oauth_app",
+    "native_provider": "google"
   },
   {
     "key": "microsoft_files",
@@ -380,7 +383,8 @@
         "event_config": {}
       }
     ],
-    "oauth_app_kind": "microsoft_oauth_app"
+    "oauth_app_kind": "microsoft_oauth_app",
+    "native_provider": "microsoft"
   },
   {
     "key": "google_calendar",
@@ -421,7 +425,8 @@
         }
       }
     ],
-    "oauth_app_kind": "google_oauth_app"
+    "oauth_app_kind": "google_oauth_app",
+    "native_provider": "google"
   },
   {
     "key": "outlook_calendar",
@@ -462,6 +467,105 @@
         }
       }
     ],
-    "oauth_app_kind": "microsoft_oauth_app"
+    "oauth_app_kind": "microsoft_oauth_app",
+    "native_provider": "microsoft"
+  },
+  {
+    "key": "slack",
+    "name": "Slack",
+    "description": "Run an agent when new items arrive in a connected Slack account.",
+    "category": "communication",
+    "event_source": "slack",
+    "delivery": "polling",
+    "icon": "slack",
+    "native_provider": "slack",
+    "presets": [
+      {
+        "key": "message",
+        "label": "New message",
+        "description": "New message.",
+        "event_config": {}
+      },
+      {
+        "key": "mention",
+        "label": "A mention of me",
+        "description": "A mention of me.",
+        "event_config": {
+          "mentions_only": true
+        }
+      },
+      {
+        "key": "direct",
+        "label": "A direct message",
+        "description": "A direct message.",
+        "event_config": {
+          "direct_only": true
+        }
+      }
+    ]
+  },
+  {
+    "key": "teams",
+    "name": "Teams",
+    "description": "Run an agent when new items arrive in a connected Teams account.",
+    "category": "communication",
+    "event_source": "teams",
+    "delivery": "polling",
+    "icon": "microsoft",
+    "native_provider": "microsoft",
+    "presets": [
+      {
+        "key": "message",
+        "label": "New or changed message",
+        "description": "New or changed message.",
+        "event_config": {}
+      },
+      {
+        "key": "mention",
+        "label": "A mention of me",
+        "description": "A mention of me.",
+        "event_config": {
+          "mentions_only": true
+        }
+      }
+    ]
+  },
+  {
+    "key": "google_sheets",
+    "name": "Google Sheets",
+    "description": "Run an agent when new items arrive in a connected Google Sheets account.",
+    "category": "productivity",
+    "event_source": "google_sheets",
+    "delivery": "polling",
+    "icon": "google",
+    "native_provider": "google",
+    "presets": [
+      {
+        "key": "new_row",
+        "label": "New appended row",
+        "description": "New appended row.",
+        "event_config": {
+          "sheet_name": "Sheet1"
+        }
+      }
+    ]
+  },
+  {
+    "key": "imap",
+    "name": "IMAP mail",
+    "description": "Run an agent when new items arrive in a connected IMAP mail account.",
+    "category": "communication",
+    "event_source": "imap_mail",
+    "delivery": "polling",
+    "icon": "mail",
+    "native_provider": "imap",
+    "presets": [
+      {
+        "key": "new_message",
+        "label": "New mail",
+        "description": "New mail.",
+        "event_config": {}
+      }
+    ]
   }
 ]

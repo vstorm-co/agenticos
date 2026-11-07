@@ -730,7 +730,11 @@
       "outlook_calendar": "Outlook Takvimi",
       "onedrive": "OneDrive",
       "excel": "Excel",
-      "microsoft_365": "Microsoft 365"
+      "microsoft_365": "Microsoft 365",
+      "google_slides": "Google Slides",
+      "word": "Word",
+      "teams": "Teams",
+      "imap_mail": "IMAP"
     },
     "inputFields": {
       "title": "Giriş alanları",
@@ -3578,7 +3582,61 @@
       "storedCount": "{count, plural, =1 {1 anahtar saklandı} other {# anahtar saklandı}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz."
+      "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz.",
+      "connectedAccounts": {
+        "setup": {
+          "title": "Connect {provider}",
+          "description": "Register an OAuth app once for your organization, then connect your account.",
+          "redirect": "Redirect URL",
+          "copyRedirect": "Copy redirect URL",
+          "google": "Create a Cloud project, enable the APIs below, configure an Internal or External consent screen, and create a web OAuth client. External apps in Testing issue refresh tokens lasting seven days. Native integrations use ordinary APIs; no MCP preview or AI-powered client is required.",
+          "microsoft": "Register a web application in Entra. Choose a tenant or common for work and personal accounts, add the redirect URL and delegated permissions below. Add a client secret. Some permissions need tenant administrator consent.",
+          "slack": "Create an internal app in each workspace, or add these user scopes and redirect URL to your existing channel bot app. Installation may require administrator approval and counts toward the workspace app limit. Native tools do not need the Agents MCP Server toggle; enable it only when using Slack MCP.",
+          "openConsole": "Open provider console",
+          "saveClient": "Save OAuth app in Vault",
+          "write": "Include write permissions (agent writes still require approval)",
+          "scopes": "Requested product permissions",
+          "connect": "Continue to account consent",
+          "provider": {
+            "google": "Google",
+            "microsoft": "Microsoft",
+            "slack": "Slack",
+            "imap": "IMAP"
+          },
+          "tokenPath": "Mevcut Slack kullanıcı veya bot tokenını kullan",
+          "accountLabel": "Hesap etiketi",
+          "token": "Slack tokenı",
+          "saveToken": "Token ile bağlan",
+          "oauth": "OAuth",
+          "serviceAccount": "Hizmet hesabı",
+          "application": "Uygulama erişimi",
+          "delegation": "Workspace posta ve takvim erişimi için yönetici domain-wide delegation özelliğini ve aşağıdaki kapsamları etkinleştirmelidir. Temsil edilecek posta adresini girin. Yetkilendirme olmadan Drive klasörü hizmet hesabıyla paylaşılmalıdır.",
+          "appPermissions": "Entra içinde uygulama izinlerini ve yönetici onayını verin. Posta/takvim bir posta kutusu adresi, Teams kullanıcı dizin nesnesi kimliği ister. Excel ve normal Teams gönderileri delegated OAuth gerektirir.",
+          "credential": "Vault kimlik bilgisi",
+          "chooseCredential": "Kimlik bilgisi seç",
+          "subject": "Posta kutusu adresi veya Teams kullanıcı nesnesi kimliği",
+          "imap": "IMAP doğrulanmış TLS ve uygulama parolası kullanır. Operatör ana bilgisayar adını MIRAGE_ALLOWED_HOSTS listesine eklemelidir. Microsoft 365 bu parola yöntemini desteklemez.",
+          "host": "IMAP ana bilgisayarı",
+          "port": "Port",
+          "username": "Posta kutusu kullanıcı adı",
+          "password": "Uygulama parolası",
+          "folder": "Posta kutusu klasörü",
+          "product": "Ürün",
+          "saveCredential": "Kimlik bilgisini Vault içine kaydet",
+          "googleMcp": "Google MCP için Workspace MCP Preview programına katılın, ürün ve MCP API’lerini etkinleştirin ve AI-powered agent olarak işaretlenmiş Web OAuth istemcisi oluşturun. External Testing yenileme belirteçleri yedi günde sona erebilir. Yönlendirmeyi tam kopyalayın.",
+          "slackMcp": "Slack MCP için Internal veya Marketplace uygulaması kaydedin, bu yönlendirmeyi ve sunucu kapsamlarını ekleyin, sonra Agents → MCP Server seçeneğini açın. Uygulama sınırları ve yönetici onayı geçerlidir.",
+          "microsoftMcp": "Bu yönlendirme ve MCP sunucusunun delegated kapsamlarıyla Entra Web uygulaması kaydedin. Microsoft Work IQ ayrı lisans gereksinimlerine sahiptir."
+        },
+        "connect": "{provider} hesabını bağla",
+        "personalDetail": "Aracılar, iş akışları ve kişisel izlemeler için hesap seçin. Her kişi kendi hesaplarını bağlar.",
+        "organizationDetail": "Paylaşılan hesaplar yapılandırılmış aracıları, iş akışlarını, bilgi senkronizasyonunu ve tetikleyicileri destekler.",
+        "disconnectDetail": "Aracılar, iş akışları, bilgi senkronizasyonu ve izlemeler bu hesaba erişimini kaybeder. Kayıtlı yetkilendirme Vault içinden silinir.",
+        "accountOwner": "Hesap sahibi",
+        "chooseAccount": "Bağlı bir hesap seçin",
+        "accountNameLabel": "Kişisel hesap adı",
+        "accountNameHint": "Her kişinin hesabı için İş gibi aynı etiketi kullanın. Yalnızca her kişinin tek bir eşleşen hesabı varsa boş bırakın.",
+        "manageAccounts": "Bağlı hesapları yönet"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspace içerikleri yüklenemedi",
@@ -5480,6 +5538,314 @@
         "title": "Canlı önizleme",
         "description": "Agent masaüstünde çalışırken görüntüyü chat'te canlı göster."
       }
+    },
+    "gmail": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "google_calendar": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "google_drive": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "google_docs": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "google_sheets": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "google_slides": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "outlook_mail": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "outlook_calendar": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "microsoft_files": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "excel": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "teams": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "slack": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "imap_mail": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "word": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
     }
   },
   "capabilityGuide": {
@@ -5762,6 +6128,118 @@
       "name": "Arka plan konuları",
       "needs": "Yayınlanmış bir konsol agent’ı, etkin bir üye ve yerel çalışma için onaylanmış bir klasör.",
       "never": "Konuşmanın tamamını kopyalamaz, onayları atlamaz, kesilen işlemleri yeniden başlatmaz; watch veya routine başlatmaz."
+    },
+    "gmail": {
+      "name": "Gmail",
+      "does": "Bağlı bir hesap üzerinden Gmail kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "google_calendar": {
+      "name": "Google Calendar",
+      "does": "Bağlı bir hesap üzerinden Google Calendar kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "google_drive": {
+      "name": "Google Drive",
+      "does": "Bağlı bir hesap üzerinden Google Drive kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "google_docs": {
+      "name": "Google Docs",
+      "does": "Bağlı bir hesap üzerinden Google Docs kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "google_sheets": {
+      "name": "Google Sheets",
+      "does": "Bağlı bir hesap üzerinden Google Sheets kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "google_slides": {
+      "name": "Google Slides",
+      "does": "Bağlı bir hesap üzerinden Google Slides kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "outlook_mail": {
+      "name": "Outlook mail",
+      "does": "Bağlı bir hesap üzerinden Outlook mail kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "outlook_calendar": {
+      "name": "Outlook Calendar",
+      "does": "Bağlı bir hesap üzerinden Outlook Calendar kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "microsoft_files": {
+      "name": "OneDrive / SharePoint",
+      "does": "Bağlı bir hesap üzerinden OneDrive / SharePoint kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "excel": {
+      "name": "Excel",
+      "does": "Bağlı bir hesap üzerinden Excel kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "teams": {
+      "name": "Teams",
+      "does": "Bağlı bir hesap üzerinden Teams kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "slack": {
+      "name": "Slack",
+      "does": "Bağlı bir hesap üzerinden Slack kullanır.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "imap_mail": {
+      "name": "IMAP mail",
+      "does": "Bir uygulama parolasıyla IMAP üzerinden posta kutusunu okur.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Posta kutusundaki yeni iletileri okuyun",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "word": {
+      "name": "Word",
+      "does": "OneDrive veya SharePoint üzerindeki Word belgelerini okur ve yazar.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
     }
   },
   "agents": {
@@ -6682,7 +7160,8 @@
     "stavEndpointHint": "api.stav.ai için boş bırakın. Yalnızca Stav.ai’nin bölgesel veya test uç noktası için değiştirin.",
     "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Modelleri yükle",
-    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın."
+    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın.",
+    "enableIntegrationTool": "{tool} etkinleştir"
   },
   "dashboard": {
     "edit": {
@@ -10284,7 +10763,10 @@
     "targetCollection": "Hedef koleksiyon",
     "updatedCount": "{count} güncellendi",
     "useExisting": "Mevcut olanı kullan",
-    "useIntegration": "Bu entegrasyonu kullan"
+    "useIntegration": "Bu entegrasyonu kullan",
+    "connectedAccount": "Bağlı kuruluş hesabı",
+    "useVaultCredential": "Bunun yerine Vault kimlik bilgisi kullan",
+    "usingConnectedAccount": "Bu kaynak seçili kuruluş hesabıyla okunur. Ek kimlik bilgisi gerekmez."
   },
   "triggers": {
     "runAsMe": "Run’ı benim adıma çalıştır",
@@ -10329,7 +10811,11 @@
       "google_drive": "Google Drive’da dosya oluştuğunda",
       "microsoft_files": "OneDrive veya SharePoint’te dosya oluştuğunda",
       "google_calendar": "Google Calendar toplantısından önce",
-      "outlook_calendar": "Outlook toplantısından önce"
+      "outlook_calendar": "Outlook toplantısından önce",
+      "slack": "Slack",
+      "teams": "Teams",
+      "google_sheets": "Google Sheets",
+      "imap_mail": "IMAP"
     },
     "panelTitle": "Routines",
     "panelDescription": "Bu agent’ın kendi kendine çalıştığı zamanlar: schedule’a göre veya bir event geldiğinde.",
@@ -11828,7 +12314,13 @@
     "installationIdLabel": "Installation ID",
     "mailLabelFilter": "Gmail etiket ID’si",
     "mailFolderFilter": "Posta kutusu klasörü",
-    "sharedMailboxFilter": "Paylaşılan posta kutusu"
+    "sharedMailboxFilter": "Paylaşılan posta kutusu",
+    "integrationConversations": "Sohbetler (virgülle ayrılmış kimlikler)",
+    "integrationMentions": "Yalnızca benden bahsedenler",
+    "integrationDirect": "Yalnızca doğrudan mesajlar",
+    "integrationSpreadsheet": "E-tablo kimliği",
+    "integrationSheet": "Sayfa adı",
+    "integrationAccount": "Bağlı hesap"
   },
   "context": {
     "created": "{name} oluşturuldu",
@@ -11984,7 +12476,8 @@
     "reasoning": "Akıl yürütme ve planlama",
     "research": "Web",
     "utility": "Günlük araçlar",
-    "advanced": "Gelişmiş"
+    "advanced": "Gelişmiş",
+    "integrations": "Bağlı ürünler"
   },
   "mobile": {
     "settings": {

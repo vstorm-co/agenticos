@@ -1,8 +1,19 @@
 "use client";
 
+import { ErrorState } from "@/components/states";
+import { getErrorMessage } from "@/lib/api-error";
 import { Cog } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useConnectedAccounts, type IntegrationProvider } from "@/hooks/use-connected-accounts";
+import {
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { SchemaForm } from "@/components/agents/schema-form";
 import type { ConnectorInfo, SyncSourceCreate } from "@/lib/rag-api";
 
@@ -25,6 +36,24 @@ export function ConfigureStep({
   errors?: Readonly<Record<string, string>>;
 }) {
   const t = useTranslations("rag");
+  const provider: IntegrationProvider | undefined =
+    connector.type === "gdrive"
+      ? "google"
+      : connector.type === "sharepoint"
+        ? "microsoft"
+        : connector.type === "slack"
+          ? "slack"
+          : undefined;
+  const schema = provider
+    ? {
+        ...connector.config_schema,
+        properties: Object.fromEntries(
+          Object.entries(connector.config_schema.properties ?? {}).filter(
+            ([key]) => key !== "connection_id",
+          ),
+        ),
+      }
+    : connector.config_schema;
   const hasFields = Object.keys(connector.config_schema.properties ?? {}).length > 0;
 
   if (!hasFields) {
@@ -52,13 +81,63 @@ export function ConfigureStep({
           required: (chunks) => <span className="text-muted-foreground">{chunks}</span>,
         })}
       </p>
+      {provider && (
+        <ConnectedSourceAccount
+          provider={provider}
+          value={typeof form.config.connection_id === "string" ? form.config.connection_id : ""}
+          onChange={(id) =>
+            setForm((current) => ({
+              ...current,
+              secret_id: null,
+              config: { ...current.config, connection_id: id || null },
+            }))
+          }
+        />
+      )}
       <SchemaForm
-        schema={connector.config_schema}
+        schema={schema}
         value={form.config}
         onChange={(config) => setForm((f) => ({ ...f, config }))}
         idPrefix="cfg"
         errors={errors}
       />
+    </div>
+  );
+}
+
+function ConnectedSourceAccount({
+  provider,
+  value,
+  onChange,
+}: {
+  provider: IntegrationProvider;
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const t = useTranslations("rag");
+  const tErrors = useTranslations("errors");
+  const { accounts, isLoading, error } = useConnectedAccounts("organization", { provider });
+  if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="source-connected-account">{t("connectedAccount")}</Label>
+      <Select
+        disabled={isLoading}
+        value={value || "none"}
+        onValueChange={(id) => onChange(id === "none" ? "" : id)}
+      >
+        <SelectTrigger id="source-connected-account">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">{t("useVaultCredential")}</SelectItem>
+          {accounts.map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {account.label || account.email}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

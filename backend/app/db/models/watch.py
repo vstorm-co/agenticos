@@ -107,6 +107,7 @@ class Watch(Base, TimestampMixin):
     environment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agent_environments.id", ondelete="SET NULL"), nullable=True
     )
+    integration_cursor: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True

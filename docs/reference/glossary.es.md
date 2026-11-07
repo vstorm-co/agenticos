@@ -1,5 +1,5 @@
 ---
-source_sha: "bfeef046e22e"
+source_sha: "a2d79c0b2edb"
 ---
 
 # Glosario { #glossary }
@@ -69,6 +69,20 @@ se describe en [Capabilities](capabilities.md).
 | Ask the user | `ask_user` |
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
+| Word | `word` |
+| IMAP mail | `imap_mail` |
+| Slack | `slack` |
+| Teams | `teams` |
+| Excel | `excel` |
+| OneDrive / SharePoint | `microsoft_files` |
+| Outlook Calendar | `outlook_calendar` |
+| Outlook mail | `outlook_mail` |
+| Google Slides | `google_slides` |
+| Google Sheets | `google_sheets` |
+| Google Docs | `google_docs` |
+| Google Drive | `google_drive` |
+| Google Calendar | `google_calendar` |
+| Gmail | `gmail` |
 | Chat channel lookup | `channel_tools` |
 | Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |

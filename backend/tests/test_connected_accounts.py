@@ -49,6 +49,9 @@ def live_source(monkeypatch):
         AsyncMock(return_value=SOURCE_GENERATION),
     )
     monkeypatch.setattr(service_module, "record_audit", AsyncMock())
+    monkeypatch.setattr(
+        "app.services.agent_trigger.AgentTriggerService.release_polled_connection", AsyncMock()
+    )
     monkeypatch.setattr(member_repo, "get_active", AsyncMock(return_value=MagicMock(role="owner")))
 
 
@@ -658,3 +661,504 @@ async def test_account_start_rechecks_membership_under_the_account_owner_lock(
         )
     repo.create.assert_not_awaited()
     repo.get_pending_account.assert_not_awaited()
+
+
+@pytest.fixture
+def native_repo(repo, ctx, monkeypatch):
+    monkeypatch.setattr("app.services.integrations.service.mcp_connection_repo", repo)
+
+    async def create(db, **fields):
+        organization_id = fields.get("organization_id")
+        return _account(
+            scope="org" if organization_id else "user",
+            organization_id=organization_id,
+            user_id=None if organization_id else ctx.user_id,
+            catalog_key=fields["catalog_key"],
+            name=fields["name"],
+            label=fields.get("label"),
+            url=fields["url"],
+            auth_type=fields.get("auth_type", "bearer"),
+            auth_token=fields.get("auth_token") or fields.get("sealed_token"),
+            secret_key_version=fields["secret_key_version"],
+            account_source_organization_id=ctx.organization_id,
+            is_enabled=True,
+        )
+
+    async def update(db, *, db_connection, update_data):
+        for key, value in update_data.items():
+            setattr(db_connection, key, value)
+        return db_connection
+
+    repo.create.side_effect = repo.create_org_scoped.side_effect = create
+    repo.update.side_effect = update
+    return repo
+
+
+@pytest.mark.parametrize("provider", ["google", "microsoft", "slack"])
+@pytest.mark.parametrize("write", [False, True])
+async def test_native_consent_matches_the_setup_scopes_and_provider_client(
+    ctx, native_repo, client, monkeypatch, provider, write
+):
+    from urllib.parse import parse_qs, urlsplit
+
+    from app.core.secret_kinds import MicrosoftOAuthAppSecret, SlackOAuthAppSecret
+    from app.services.integrations import setup_for
+
+    credentials = (
+        client
+        if provider == "google"
+        else MicrosoftOAuthAppSecret(
+            client_id="00000000-0000-0000-0000-000000000001",
+            client_secret="client-secret",
+            tenant_id="common",
+        )
+        if provider == "microsoft"
+        else SlackOAuthAppSecret(client_id="client", client_secret="client-secret")
+    )
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService,
+        "oauth_app_identity",
+        AsyncMock(return_value=(credentials, SOURCE_SECRET, SOURCE_GENERATION)),
+    )
+    product = {"google": "gmail", "microsoft": "outlook_mail", "slack": "slack"}[provider]
+    info = setup_for(provider, write=write)
+    selected = next(item for item in info.products if item.id == product)
+    result = await McpConnectionService(MagicMock()).account_start(
+        ctx,
+        for_organization=False,
+        browser_nonce=NONCE,
+        provider=provider,
+        products=[product],
+        write=write,
+    )
+    query = parse_qs(urlsplit(result).query)
+    actual = (
+        set(query["user_scope"][0].split(","))
+        if provider == "slack"
+        else set(query["scope"][0].split())
+    )
+    assert actual == set(
+        info.identity_scopes + selected.read_scopes + (selected.write_scopes if write else [])
+    )
+    assert query["redirect_uri"] == [info.redirect_uri]
+    if provider == "google":
+        assert query["access_type"] == ["offline"] and query["prompt"] == ["consent"]
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_slack_token_connect_validates_then_seals_a_named_workspace_account(
+    ctx, native_repo, monkeypatch, for_organization
+):
+    from pydantic import SecretStr
+
+    monkeypatch.setattr(
+        service_module.slack_oauth,
+        "identify",
+        AsyncMock(return_value=("Workspace / member", ["chat:write"])),
+    )
+    service = McpConnectionService(MagicMock())
+    row = await service.connect_slack_token(
+        ctx,
+        token=SecretStr("xoxp-private-token"),
+        label="Client workspace",
+        for_organization=for_organization,
+    )
+    assert row.catalog_key == "slack" and row.label == "Client workspace"
+    assert row.granted_scopes == ["chat:write"]
+    assert row.auth_token != "xoxp-private-token"
+    assert (
+        await service.integration_access_token(row, organization_id=ctx.organization_id)
+    ).get_secret_value() == "xoxp-private-token"
+    assert await service.integration_access_token(row, organization_id=uuid4()) is None
+    row.is_enabled = False
+    assert await service.integration_access_token(row, organization_id=ctx.organization_id) is None
+
+
+async def test_slack_token_connect_requires_a_real_token_and_current_membership(
+    ctx, native_repo, monkeypatch
+):
+    from pydantic import SecretStr
+
+    from app.core.exceptions import BadRequestError
+    from app.repositories import member_repo
+
+    service = McpConnectionService(MagicMock())
+    with pytest.raises(BadRequestError):
+        await service.connect_slack_token(
+            ctx, token=SecretStr("wrong-token"), label="", for_organization=False
+        )
+    monkeypatch.setattr(member_repo, "get_active", AsyncMock(return_value=None))
+    with pytest.raises(AuthorizationError):
+        await service.connect_slack_token(
+            ctx, token=SecretStr("xoxb-private-token"), label="", for_organization=True
+        )
+    native_repo.create_org_scoped.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "provider,products,subject",
+    [
+        ("google", ["gmail"], "person@example.com"),
+        ("microsoft", ["outlook_mail"], "person@example.com"),
+        ("microsoft", ["teams"], "00000000-0000-0000-0000-000000000001"),
+    ],
+)
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_application_accounts_revalidate_the_source_credential_before_minting_tokens(
+    ctx, native_repo, monkeypatch, provider, products, subject, for_organization
+):
+    from pydantic import SecretStr
+
+    source = MagicMock(
+        id=SOURCE_SECRET, name="Automation", authorization_generation=SOURCE_GENERATION
+    )
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService, "get_usable", AsyncMock(return_value=source)
+    )
+    token = AsyncMock(return_value=SecretStr("provider-access-token"))
+    monkeypatch.setattr(service_module.OrganizationSecretService, "integration_token", token)
+    service = McpConnectionService(MagicMock())
+    row = await service.connect_application_account(
+        ctx,
+        provider=provider,
+        secret_id=SOURCE_SECRET,
+        subject=subject,
+        products=products,
+        write=True,
+        label="Automation",
+        for_organization=for_organization,
+    )
+    assert row.auth_type == "application" and row.account_email == subject
+    assert "provider-access-token" not in row.oauth_payload
+    assert await service.integration_access_token(
+        row, organization_id=ctx.organization_id
+    ) == SecretStr("provider-access-token")
+    assert (
+        token.await_args.kwargs["provider"] == provider
+        and token.await_args.kwargs["subject"] == subject
+    )
+    assert await service.integration_access_token(row, organization_id=uuid4()) is None
+
+
+@pytest.mark.parametrize(
+    "provider,products,subject",
+    [
+        ("google", [], None),
+        ("google", ["unknown"], None),
+        ("google", ["teams"], None),
+        ("microsoft", ["excel"], None),
+        ("microsoft", ["outlook_calendar"], None),
+        ("microsoft", ["teams"], "email@example.com"),
+    ],
+)
+async def test_unsupported_application_operations_are_refused_before_a_credential_exchange(
+    ctx, native_repo, monkeypatch, provider, products, subject
+):
+    from app.core.exceptions import BadRequestError
+
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService, "get_usable", AsyncMock(return_value=MagicMock())
+    )
+    token = AsyncMock()
+    monkeypatch.setattr(service_module.OrganizationSecretService, "integration_token", token)
+    with pytest.raises(BadRequestError):
+        await McpConnectionService(MagicMock()).connect_application_account(
+            ctx,
+            provider=provider,
+            secret_id=SOURCE_SECRET,
+            subject=subject,
+            products=products,
+            write=False,
+            label="",
+        )
+    token.assert_not_awaited()
+    native_repo.create_org_scoped.assert_not_awaited()
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_imap_connection_keeps_the_password_only_in_its_vault_envelope(
+    ctx, native_repo, monkeypatch, for_organization
+):
+    from contextlib import asynccontextmanager
+
+    from app.core.mail_credential import ImapCredential
+    from app.services.integrations import imap
+
+    @asynccontextmanager
+    async def mailbox(credential):
+        yield object()
+
+    monkeypatch.setattr(imap, "mailbox", mailbox)
+    credential = ImapCredential(
+        host="imap.example.com", username="person@example.com", password="private-password"
+    )
+    service = McpConnectionService(MagicMock())
+    row = await service.connect_imap_account(
+        ctx, credential=credential, label="Mail", for_organization=for_organization
+    )
+    assert row.auth_type == "imap" and row.granted_scopes == ["mail:read"]
+    assert "private-password" not in row.oauth_payload
+    assert (
+        service.integration_mail_credential(row, organization_id=ctx.organization_id) == credential
+    )
+    with pytest.raises(AuthorizationError):
+        service.integration_mail_credential(row, organization_id=uuid4())
+    row.oauth_payload = None
+    with pytest.raises(AuthorizationError):
+        service.integration_mail_credential(row, organization_id=ctx.organization_id)
+
+
+async def test_imap_connection_does_not_attempt_login_for_a_removed_member(
+    ctx, native_repo, monkeypatch
+):
+    from app.core.mail_credential import ImapCredential
+    from app.repositories import member_repo
+
+    monkeypatch.setattr(member_repo, "get_active", AsyncMock(return_value=None))
+    with pytest.raises(AuthorizationError):
+        await McpConnectionService(MagicMock()).connect_imap_account(
+            ctx,
+            credential=ImapCredential(
+                host="imap.example.com", username="member", password="password"
+            ),
+            label="",
+            for_organization=False,
+        )
+    native_repo.create.assert_not_awaited()
+
+
+@pytest.mark.parametrize("provider", ["google", "microsoft", "slack"])
+async def test_service_setup_is_the_same_typed_catalog_the_ui_uses(provider):
+    setup = McpConnectionService(AsyncMock()).integration_setup(provider, write=True)
+    assert setup.provider == provider and setup.redirect_uri.endswith(
+        "/api/me/mcp-connections/oauth/callback"
+    )
+
+
+async def test_service_setup_refuses_an_unknown_provider():
+    from app.core.exceptions import BadRequestError
+
+    with pytest.raises(BadRequestError):
+        McpConnectionService(AsyncMock()).integration_setup("unknown")
+
+
+@pytest.mark.parametrize("provider", ["microsoft", "slack"])
+async def test_oauth_accounts_are_named_by_the_provider_subject_after_consent(
+    ctx, native_repo, monkeypatch, provider
+):
+    expected = "member@example.com" if provider == "microsoft" else "Client workspace / member"
+    monkeypatch.setattr(
+        service_module.microsoft_oauth, "account_email", AsyncMock(return_value=expected)
+    )
+    monkeypatch.setattr(
+        service_module.slack_oauth, "identify", AsyncMock(return_value=(expected, []))
+    )
+    row = _account(catalog_key=provider, account_source_organization_id=ctx.organization_id)
+    named = await McpConnectionService(AsyncMock())._name_account(row, "access-token")
+    assert named.account_email == expected
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        None,
+        "foreign",
+        "wrong_source",
+        "disabled",
+        "wrong_provider",
+        "wrong_purpose",
+        "unknown_portal",
+    ],
+)
+async def test_native_trigger_connection_cannot_cross_owners_or_providers(ctx, native_repo, change):
+    from app.core.exceptions import BadRequestError
+
+    row = _account(
+        user_id=ctx.user_id,
+        scope="user",
+        purpose="account",
+        is_enabled=True,
+        account_source_organization_id=ctx.organization_id,
+    )
+    portal = "google"
+    if change == "foreign":
+        row.user_id = uuid4()
+    if change == "wrong_source":
+        row.account_source_organization_id = uuid4()
+    if change == "disabled":
+        row.is_enabled = False
+    if change == "wrong_provider":
+        row.catalog_key = "slack"
+    if change == "wrong_purpose":
+        row.purpose = "mcp"
+    if change == "unknown_portal":
+        portal = "unknown"
+    native_repo.get_by_id = AsyncMock(return_value=None if change is None else row)
+    with pytest.raises((NotFoundError, BadRequestError)):
+        await McpConnectionService(AsyncMock()).get_polled_connection(
+            ctx, row.id, portal_key=portal
+        )
+
+
+@pytest.mark.parametrize("scope", ["user", "org", "portal"])
+async def test_native_and_legacy_trigger_accounts_resolve_their_own_authority(
+    ctx, native_repo, scope
+):
+
+    row = _account(
+        user_id=ctx.user_id,
+        scope="user",
+        purpose="account",
+        is_enabled=True,
+        account_source_organization_id=ctx.organization_id,
+    )
+    service = McpConnectionService(AsyncMock())
+    if scope == "portal":
+        row.purpose, row.portal_key = "portal", "google"
+        service.get_org_portal_connection = AsyncMock(return_value=row)
+    elif scope == "org":
+        row.scope, row.organization_id = "org", ctx.organization_id
+        native_repo.get_account = AsyncMock(return_value=row)
+    native_repo.get_by_id = AsyncMock(return_value=row)
+    assert await service.get_polled_connection(ctx, row.id, portal_key="google") is row
+    if scope == "portal":
+        from app.core.exceptions import BadRequestError
+
+        with pytest.raises(BadRequestError):
+            await service.get_polled_connection(ctx, row.id, portal_key="microsoft")
+
+
+@pytest.mark.parametrize("provider,expiry", [("slack", None), ("slack", 3600), ("microsoft", 3600)])
+async def test_native_oauth_callback_keeps_browser_binding_and_actual_granted_scopes(
+    repo, monkeypatch, provider, expiry
+):
+    from app.services.integrations.slack_oauth import SlackToken
+
+    pending = _account(oauth_state="state", catalog_key=provider)
+    pending.oauth_pending_payload = _sealed(
+        pending,
+        _payload(
+            provider=provider, access_token=None, refresh_token=None, code_verifier="verifier"
+        ),
+    )
+    repo.get_by_oauth_state = AsyncMock(return_value=pending)
+    if provider == "slack":
+        exchange = AsyncMock(
+            return_value=SlackToken(
+                access_token="AT",
+                refresh_token="RT",
+                expires_in=expiry,
+                scope="channels:history,chat:write",
+            )
+        )
+        monkeypatch.setattr(service_module.slack_oauth, "exchange_code", exchange)
+    else:
+        exchange = AsyncMock(
+            return_value=service_module.microsoft_oauth.MicrosoftToken(
+                access_token="AT", refresh_token="RT", expires_in=3600, granted_scopes=["Mail.Read"]
+            )
+        )
+        monkeypatch.setattr(service_module.microsoft_oauth, "exchange_code", exchange)
+    monkeypatch.setattr(McpConnectionService, "_name_account", AsyncMock(return_value=pending))
+    await McpConnectionService(AsyncMock()).oauth_callback(
+        state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+    )
+    assert exchange.await_count == 1
+    scopes = next(
+        call.kwargs["update_data"]["granted_scopes"]
+        for call in repo.update.await_args_list
+        if "granted_scopes" in call.kwargs["update_data"]
+    )
+    assert scopes == (["channels:history", "chat:write"] if provider == "slack" else ["Mail.Read"])
+
+
+async def test_two_oauth_accounts_keep_their_personal_labels_and_are_selected_by_name(
+    ctx, native_repo, monkeypatch
+):
+    from app.services.integrations import PRODUCTS, AccountSelection, IntegrationService
+
+    monkeypatch.setattr(
+        google_oauth,
+        "account_email",
+        AsyncMock(side_effect=["work@example.com", "personal@example.com"]),
+    )
+    service = McpConnectionService(AsyncMock())
+    first = _account(
+        user_id=ctx.user_id,
+        account_source_organization_id=ctx.organization_id,
+        label="Work",
+        is_enabled=True,
+    )
+    second = _account(
+        user_id=ctx.user_id,
+        account_source_organization_id=ctx.organization_id,
+        label="Private",
+        is_enabled=True,
+    )
+    await service._name_account(first, "token-one")
+    await service._name_account(second, "token-two")
+    native_repo.list_accounts.return_value = [first, second]
+    operations = IntegrationService(AsyncMock())
+    assert (
+        await operations.account(
+            PRODUCTS["gmail"],
+            AccountSelection(account_name="Work"),
+            organization_id=ctx.organization_id,
+            person_id=ctx.user_id,
+        )
+        is first
+    )
+    assert (
+        await operations.account(
+            PRODUCTS["gmail"],
+            AccountSelection(account_name="Private"),
+            organization_id=ctx.organization_id,
+            person_id=ctx.user_id,
+        )
+        is second
+    )
+
+
+async def test_label_entered_before_consent_is_staged_on_a_reused_pending_row(
+    ctx, native_repo, client
+):
+    pending = _account(
+        user_id=ctx.user_id,
+        label="Old attempt",
+        account_source_organization_id=ctx.organization_id,
+        is_enabled=True,
+    )
+    native_repo.get_pending_account.return_value = pending
+    await McpConnectionService(AsyncMock()).account_start(
+        ctx, for_organization=False, browser_nonce=NONCE, products=["gmail"], label="Work"
+    )
+    assert pending.label == "Work"
+
+
+async def test_revoking_a_personal_application_credentials_grant_stops_future_token_minting(
+    ctx, native_repo, monkeypatch
+):
+    from pydantic import SecretStr
+
+    source = MagicMock(
+        id=SOURCE_SECRET, name="Automation", authorization_generation=SOURCE_GENERATION
+    )
+    usable = AsyncMock(return_value=source)
+    monkeypatch.setattr(service_module.OrganizationSecretService, "get_usable", usable)
+    exchange = AsyncMock(return_value=SecretStr("provider-access-token"))
+    monkeypatch.setattr(service_module.OrganizationSecretService, "integration_token", exchange)
+    service = McpConnectionService(AsyncMock())
+    row = await service.connect_application_account(
+        ctx,
+        provider="google",
+        secret_id=SOURCE_SECRET,
+        subject="person@example.com",
+        products=["gmail"],
+        write=False,
+        label="Work",
+        for_organization=False,
+    )
+    usable.side_effect = NotFoundError(message="Secret not found")
+    exchange.reset_mock()
+    assert await service.integration_access_token(row, organization_id=ctx.organization_id) is None
+    exchange.assert_not_awaited()

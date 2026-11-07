@@ -2280,3 +2280,6 @@ The Inbox MCP tools are for signed-in sessions and trusted private-chat run
 credentials; the latter are restricted to cases belonging to that chat. Ordinary
 API keys, unattended runs and publisher fallback identities cannot read or settle
 private Inbox cases.
+
+
+Built-in Google, Microsoft, Slack and IMAP connections also work here. See [built-in integrations](integrations.md) for setup, account selection, capabilities, workflow operations, knowledge sync and durable change feeds.

@@ -1,5 +1,5 @@
 ---
-source_sha: "276f8e90ab5e"
+source_sha: "fdc5938c3015"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1389,3 +1389,6 @@ La migración `0293_connected_account_sources.py` exige renovar el consentimient
 Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de fuentes de rutinas fijan las mismas generaciones; escrituras y comandos del terminal requieren consentimiento para efectos de la rutina incluso con las aprobaciones de escritura del montaje desactivadas.
 
 Eliminar a un miembro revoca permanentemente sus autorizaciones personales emitidas mediante esta organización; volver a invitarlo requiere un nuevo consentimiento.
+
+
+Las conexiones incorporadas de Google, Microsoft, Slack e IMAP también funcionan aquí. [Integraciones incorporadas](integrations.md) explica configuración, selección de cuenta, capabilities, operaciones workflow, sincronización de conocimiento y cursores persistentes.

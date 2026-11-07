@@ -1,5 +1,5 @@
 ---
-source_sha: "bff40c5750b6"
+source_sha: "1dbac9094a5d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3529,3 +3529,6 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+
+Integrierte Google-, Microsoft-, Slack- und IMAP-Verbindungen funktionieren auch hier. [Integrierte Integrationen](../integrations.md) beschreibt Einrichtung, Kontowahl, Capabilities, Workflow-Operationen, Wissenssynchronisierung und dauerhafte Änderungscursor.

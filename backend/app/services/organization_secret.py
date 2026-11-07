@@ -13,11 +13,14 @@ and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
 flow and to nowhere else. `smtp_email_service` opens one permitted SMTP account
 straight into its transport, never returning credentials to an API caller.
+`integration_token` exchanges an approved service-account credential directly at
+its provider token endpoint and returns only the short-lived access token.
 """
 
 from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
+from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import secret_purposes
@@ -31,6 +34,7 @@ from app.core.secret_kinds import (
     MicrosoftOAuthAppSecret,
     SecretKind,
     SecretValue,
+    SlackOAuthAppSecret,
     SmtpAccountSecret,
     StorableSecret,
     describe_kind,
@@ -53,7 +57,9 @@ if TYPE_CHECKING:
 
 # The credentials a connect flow spends: separate kinds even where the fields are
 # identical, because a kind names what a credential is for.
-OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret | MicrosoftOAuthAppSecret
+OAuthAppSecret = (
+    GithubOAuthAppSecret | GoogleOAuthAppSecret | MicrosoftOAuthAppSecret | SlackOAuthAppSecret
+)
 
 
 class OrganizationSecretService:
@@ -636,6 +642,41 @@ class OrganizationSecretService:
             scope=VaultScope.organization(organization_id),
             key_version=row.key_version,
         )
+
+    async def integration_token(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        provider: str,
+        subject: str | None,
+        scopes: list[str],
+    ) -> SecretStr:
+        """Hand a previously authorized native account's credential directly to its token transport.
+
+        This narrow plaintext reader returns only the provider token. The account
+        service checks the source secret's generation before calling it.
+        """
+        from app.core.secret_kinds import EntraAppSecret, GcpServiceAccountSecret
+        from app.services.integrations import google_token, microsoft_token
+
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        expected = SecretKind.GCP_SERVICE_ACCOUNT if provider == "google" else SecretKind.ENTRA_APP
+        if row is None or row.kind != expected.value:
+            raise NotFoundError(message="The integration credential is no longer available")
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=expected,
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
+        if provider == "google" and isinstance(value, GcpServiceAccountSecret):
+            return await google_token(value, subject=subject, scopes=scopes)
+        if provider == "microsoft" and isinstance(value, EntraAppSecret):
+            return await microsoft_token(value)
+        raise NotFoundError(message="The integration credential belongs to another provider")
 
     async def get_usable(
         self, ctx: AuthContext, secret_id: UUID, *, kind: SecretKind

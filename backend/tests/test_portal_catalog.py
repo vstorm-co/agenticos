@@ -8,6 +8,8 @@ for its portal's `event_source`, so a preset with a typo'd key is caught in CI
 rather than as a 422 the first time someone clicks the card.
 """
 
+from pydantic import ValidationError
+
 from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import _EVENT_CONFIG_MODELS
 from app.services import mcp_catalog, portal_catalog
@@ -20,15 +22,26 @@ def test_the_catalog_loads_and_is_not_empty() -> None:
     assert portal_catalog.get_portal("does-not-exist") is None
 
 
-def test_every_preset_validates_against_its_sources_model() -> None:
+def test_every_preset_contains_only_valid_source_fields() -> None:
     """The self-check: a preset template is normalized through the same per-source
     model a hand-typed config is (`_EVENT_CONFIG_MODELS`), so it cannot ship a key
     the source would refuse."""
     for portal in portal_catalog.CATALOG:
         model = _EVENT_CONFIG_MODELS[portal.event_source]
         for preset in portal.presets:
-            # Raises pydantic.ValidationError if the template is not a valid config.
-            model.model_validate(preset.event_config)
+            try:
+                model.model_validate(preset.event_config)
+            except ValidationError as exc:
+                # A preset supplies defaults; required identifiers are entered in
+                # the wizard. Invalid supplied values and unknown keys still fail.
+                required = {
+                    name for name, field in model.model_fields.items() if field.is_required()
+                }
+                assert all(
+                    error["type"] == "missing"
+                    and error["loc"][0] in required - preset.event_config.keys()
+                    for error in exc.errors()
+                )
 
 
 def test_every_portal_names_a_real_event_source() -> None:
