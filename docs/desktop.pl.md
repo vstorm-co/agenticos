@@ -1,5 +1,5 @@
 ---
-source_sha: "50909fb55378"
+source_sha: "05ebd788836e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -385,9 +385,15 @@ Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana l
 W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
 natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
 Taki agent nie ma przestrzeni w chmurze, więc **Work on** nie oferuje dla niego
-chmury. Pierwsza wiadomość pyta raz, gdzie może pracować - **Cały komputer** albo
-folder - a odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego
-kolejne czaty startują tam bez pytania. Przy
+chmury.
+
+Możesz do niego
+pisać, zanim cokolwiek udzielisz: odpowiada na to, co nie wymaga plików, i dopiero
+gdy prośba potrzebuje twoich plików, pyta, gdzie może pracować - **Cały komputer**
+albo folder. Przebieg czeka na twój wybór, a potem czat sam kontynuuje z plikami.
+Odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego kolejne
+czaty startują tam bez pytania. W konsoli w przeglądarce, gdzie nie ma komputera do
+udostępnienia, agent mówi, że nie ma dostępu do twoich plików. Przy
 tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
 prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 

@@ -1520,8 +1520,9 @@
     "approvalRememberFailed": "Nie udało się usunąć zgody. Spróbuj ponownie.",
     "approvalRememberRetry": "Spróbuj ponownie",
     "localAccess": {
+      "continue": "Dostęp udzielony - kontynuuj.",
       "title": "Gdzie {agent} może pracować?",
-      "description": "{agent} pracuje na Twoim komputerze. Pytamy raz dla tego agenta; zmienisz lub cofniesz to później w Chat controls → Work on.",
+      "description": "{agent} potrzebuje plików z Twojego komputera do tej prośby. Wybór zapamiętamy dla tego agenta; zmienisz lub cofniesz to później w Chat controls → Work on.",
       "computer": "Cały komputer",
       "computerHint": "Może czytać i zmieniać pliki wszędzie, gdzie ma dostęp Twoje konto, i uruchamiać polecenia jako Ty. Komputer poprosi o potwierdzenie.",
       "folder": "Wybierz folder",

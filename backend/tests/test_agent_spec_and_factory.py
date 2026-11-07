@@ -32,6 +32,7 @@ from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.code_mode import CodeCalls
+from app.agents.computer_on_use import ComputerAccessRequest, RequestComputerOnUse
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import (
     _AUDIENCE_AWARE,
@@ -703,6 +704,38 @@ class TestToolSearchDefersMcp:
             await built.agent.run("hello", deps=built.deps)
 
         assert asked == ["notion"]
+        approval.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_asking_about_everything_does_not_ask_about_the_computer(self):
+        """`request_computer_access` is itself the question, like `connect_account`."""
+        asked: list[str] = []
+
+        async def request_access(request: ComputerAccessRequest) -> bool:
+            asked.append(request.reason)
+            return False
+
+        approval = AsyncMock()
+        built = build_agent(
+            AgentSpec(name="x"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+            request_approval=approval,
+            extra_capabilities=[RequestComputerOnUse(request_access=request_access)],
+        )
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(
+                    parts=[ToolCallPart("request_computer_access", {"reason": "README"})]
+                )
+            return ModelResponse(parts=[TextPart("done")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+
+        assert asked == ["README"]
         approval.assert_not_awaited()
 
     @pytest.mark.anyio

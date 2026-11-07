@@ -90,6 +90,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEnt
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.subagents import Delegation
 from app.agents.compaction_events import CompactionEvent
+from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.deps import AgentDeps
 from app.agents.loop_guard import ToolLoopStopped
@@ -1708,6 +1709,47 @@ class TestAskingTheUser:
         assert await ask2 == "usd"
 
 
+class TestAskingForTheComputer:
+    """The pause `request_computer_access` puts in a run while the person picks a folder."""
+
+    _ASK = ComputerAccessRequest(reason="Read the project's README")
+
+    async def test_granting_releases_the_run_that_asked(self):
+        session = _session()
+        asked = _next_frame(session)
+
+        waiting = asyncio.create_task(session._request_computer_access(self._ASK))
+        await _wait(asked)
+        assert _sent_events(session) == [
+            ("computer_access", {"reason": "Read the project's README"})
+        ]
+
+        await session.handle_frame({"type": "computer_access_response", "granted": True})
+
+        assert await waiting is True
+        assert session._computer_future is None
+
+    @pytest.mark.parametrize("answer", [False, None, "yes"])
+    async def test_anything_but_a_plain_yes_is_a_decline(self, answer: object):
+        session = _session()
+        asked = _next_frame(session)
+
+        waiting = asyncio.create_task(session._request_computer_access(self._ASK))
+        await _wait(asked)
+        await session.handle_frame({"type": "computer_access_response", "granted": answer})
+
+        assert await waiting is False
+
+    async def test_an_answer_nobody_asked_for_is_ignored(self):
+        session = _session()
+
+        with patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth:
+            await session.handle_frame({"type": "computer_access_response", "granted": True})
+
+        assert _sent_events(session) == []
+        auth.assert_not_awaited()
+
+
 class TestConnectingAnAccount:
     """The pause `connect_account` puts in a run while somebody connects a service.
 
@@ -3268,6 +3310,27 @@ class TestASocketThatWentAway:
         task = asyncio.create_task(turn())
         await asked.wait()
         assert session._connect_future is not None
+        session._turn_task = task
+
+        await session.shutdown()
+
+        assert answered == [False]
+        assert not task.cancelled()
+
+    async def test_a_computer_nobody_can_grant_no_longer_holds_the_turn_open(self):
+        session = _session()
+        answered: list[bool] = []
+        asked = asyncio.Event()
+
+        async def turn() -> None:
+            asked.set()
+            answered.append(
+                await session._request_computer_access(ComputerAccessRequest(reason="Files"))
+            )
+
+        task = asyncio.create_task(turn())
+        await asked.wait()
+        assert session._computer_future is not None
         session._turn_task = task
 
         await session.shutdown()

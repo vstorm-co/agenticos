@@ -9704,8 +9704,9 @@
     "approvalRememberFailed": "Onay kaldırılamadı. Tekrar deneyin.",
     "approvalRememberRetry": "Tekrar dene",
     "localAccess": {
+      "continue": "Erişim verildi - lütfen devam et.",
       "title": "{agent} nerede çalışabilir?",
-      "description": "{agent} bilgisayarında çalışır. Bu agent için bir kez sorulur; daha sonra Chat controls → Work on altında değiştirebilir ya da geri alabilirsin.",
+      "description": "{agent} bu istek için bilgisayarındaki dosyalara ihtiyaç duyuyor. Seçimin bu agent için hatırlanır; daha sonra Chat controls → Work on altında değiştirebilir ya da geri alabilirsin.",
       "computer": "Tüm bilgisayar",
       "computerHint": "Hesabının erişebildiği her yerde dosyaları okuyup değiştirebilir ve senin adına komut çalıştırabilir. Bilgisayarın onay ister.",
       "folder": "Klasör seç",

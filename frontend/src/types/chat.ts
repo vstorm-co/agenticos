@@ -294,6 +294,7 @@ export type WSEventType =
   | "steer_applied"
   | "steer_unapplied"
   | "connect_account"
+  | "computer_access"
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
@@ -855,6 +856,15 @@ export interface PersonalServiceGap {
  * up front; answered with `connect_account_response`. Never "nobody to speak
  * as" - a run with nobody signed in cannot wait for anybody.
  */
+/**
+ * A run paused on `computer_access`: an agent that works on this computer needs
+ * its files, and waits while the person chooses a folder or the whole computer.
+ * Answered with `computer_access_response`.
+ */
+export interface ComputerAccessRequest {
+  reason: string;
+}
+
 export interface ConnectionRequest {
   catalog_key: string;
   name: string;

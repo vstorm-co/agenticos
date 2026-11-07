@@ -371,10 +371,15 @@ The server checks the sign-in before forwarding each local operation. Revoked or
 
 In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
 native consent. Each person approves their own target in desktop chat. Such an
-agent has no cloud workspace, so **Work on** offers no Cloud for it. Its first
-message asks once where it may work - **Whole computer** or a folder - and the
-answer is remembered for that agent on this computer, so its later chats start
-there without asking. When creating a
+agent has no cloud workspace, so **Work on** offers no Cloud for it.
+
+You can write to
+it before granting anything: it answers what needs no files, and only when a
+request needs your files does it ask where it may work - **Whole computer** or a
+folder. The run waits for your choice, then the chat continues with the files on
+its own. The answer is remembered for that agent on this computer, so its later
+chats start there without asking. In the web console, where there is no computer
+to grant, it says it cannot reach your files. When creating a
 project, **Project sandbox → Computer · your files** opens the personal folder
 selector; other members keep the project’s shared workspace.
 

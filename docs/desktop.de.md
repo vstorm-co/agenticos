@@ -1,5 +1,5 @@
 ---
-source_sha: "50909fb55378"
+source_sha: "05ebd788836e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -405,9 +405,16 @@ Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abge
 Im Builder speichert **Sandbox → Computer** `backend: local` ohne Pfad oder
 native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ein
 solcher Agent hat keinen Cloud-Workspace, daher bietet **Work on** für ihn keine
-Cloud an. Seine erste Nachricht fragt einmal, wo er arbeiten darf - **Gesamter
-Computer** oder ein Ordner -, und die Antwort wird für diesen Agenten auf diesem
-Computer gespeichert, sodass seine späteren Chats ohne Nachfrage dort beginnen. Beim Erstellen
+Cloud an.
+
+Du kannst ihm
+schreiben, bevor du etwas erlaubst: Er beantwortet, was keine Dateien braucht, und
+erst wenn eine Anfrage deine Dateien braucht, fragt er, wo er arbeiten darf -
+**Gesamter Computer** oder ein Ordner. Der Lauf wartet auf deine Wahl, danach setzt
+der Chat von selbst mit den Dateien fort. Die Antwort wird für diesen Agenten auf
+diesem Computer gespeichert, sodass seine späteren Chats ohne Nachfrage dort
+beginnen. In der Web-Konsole, wo es keinen Computer freizugeben gibt, sagt er, dass
+er deine Dateien nicht erreicht. Beim Erstellen
 eines Projekts öffnet **Projekt-Sandbox → Computer · Ihre Dateien** die persönliche
 Ordnerauswahl; andere Mitglieder behalten den gemeinsamen Projekt-Workspace.
 

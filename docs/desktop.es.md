@@ -1,5 +1,5 @@
 ---
-source_sha: "50909fb55378"
+source_sha: "05ebd788836e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -398,9 +398,15 @@ El servidor comprueba la sesión antes de reenviar cada operación local. Las se
 En el Builder, **Sandbox → Computer** guarda `backend: local` sin rutas ni
 consentimiento nativo. Cada persona autoriza su propio destino en el chat de
 escritorio. Ese agente no tiene espacio en la nube, así que **Work on** no le
-ofrece la nube. Su primer mensaje pregunta una vez dónde puede trabajar - **Todo el
-equipo** o una carpeta - y la respuesta se recuerda para ese agente en este equipo,
-de modo que sus chats posteriores empiezan allí sin preguntar. Al crear un proyecto, **Project sandbox → Computer · your files** abre
+ofrece la nube.
+
+Puedes escribirle
+antes de conceder nada: responde lo que no necesita archivos y solo cuando una
+petición necesita tus archivos pregunta dónde puede trabajar - **Todo el equipo** o
+una carpeta. La ejecución espera tu elección y luego el chat continúa solo con los
+archivos. La respuesta se recuerda para ese agente en este equipo, de modo que sus
+chats posteriores empiezan allí sin preguntar. En la consola web, donde no hay
+equipo que conceder, dice que no puede acceder a tus archivos. Al crear un proyecto, **Project sandbox → Computer · your files** abre
 el selector de carpeta personal; los demás miembros conservan el espacio compartido.
 
 **Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin

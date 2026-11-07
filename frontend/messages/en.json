@@ -2372,8 +2372,9 @@
     "approvalRememberFailed": "Could not forget this approval. Try again.",
     "approvalRememberRetry": "Retry",
     "localAccess": {
+      "continue": "Access granted - please continue.",
       "title": "Where may {agent} work?",
-      "description": "{agent} works on your computer. You are asked once for this agent; change or revoke it later under Chat controls → Work on.",
+      "description": "{agent} needs files on your computer for this request. Your choice is remembered for this agent; change or revoke it later under Chat controls → Work on.",
       "computer": "Whole computer",
       "computerHint": "It may read and change files anywhere your account can, and run commands as you. Your computer asks you to confirm.",
       "folder": "Choose a folder",

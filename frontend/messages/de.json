@@ -2372,8 +2372,9 @@
     "approvalRememberFailed": "Die Freigabe konnte nicht entfernt werden. Erneut versuchen.",
     "approvalRememberRetry": "Erneut versuchen",
     "localAccess": {
+      "continue": "Zugriff erteilt - bitte fortfahren.",
       "title": "Wo darf {agent} arbeiten?",
-      "description": "{agent} arbeitet auf deinem Computer. Du wirst einmal für diesen Agenten gefragt; ändere oder widerrufe es später unter Chat controls → Work on.",
+      "description": "{agent} braucht für diese Anfrage Dateien auf deinem Computer. Deine Wahl wird für diesen Agenten gespeichert; ändere oder widerrufe es später unter Chat controls → Work on.",
       "computer": "Ganzer Computer",
       "computerHint": "Darf überall, wo dein Konto Zugriff hat, Dateien lesen und ändern und Befehle als du ausführen. Dein Computer fragt nach einer Bestätigung.",
       "folder": "Ordner wählen",
