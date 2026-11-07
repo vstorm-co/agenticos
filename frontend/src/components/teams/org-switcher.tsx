@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
 /**
- * The workspace selector's organization choices and management actions.
+ * The organization switcher's choices and management actions.
  *
  * Picking the wrong one does not produce an error - it produces the wrong
  * agents, the wrong keys and the wrong run history, all of which look exactly
@@ -37,10 +37,11 @@ export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void 
    * losing, sending a Polish reader to the English `/orgs`.
    */
   const pick = (id: string) => {
-    if (id !== activeOrg?.id) {
-      switchOrg(id);
-      const scoped = pathname.match(/\/orgs\/[^/]+(\/.*)?$/);
-      if (scoped) router.push(`/orgs/${id}${scoped[1] ?? ""}`);
+    if (id !== activeOrg?.id) switchOrg(id);
+    const scoped = pathname.match(/\/orgs\/[^/]+(\/.*)?$/);
+    if (scoped) {
+      const destination = `/orgs/${id}${scoped[1] ?? ""}`;
+      if (pathname !== destination) router.push(destination);
     }
     onNavigate?.();
   };

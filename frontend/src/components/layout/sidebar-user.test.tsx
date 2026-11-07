@@ -18,7 +18,7 @@ vi.mock("@/components/layout/account-preferences", () => ({
   LanguageMenu: () => null,
 }));
 vi.mock("@/components/teams", () => ({
-  OrganizationMenuItems: () => <div role="menuitem">workspace selection</div>,
+  OrganizationMenuItems: () => <div role="menuitem">organization selection</div>,
 }));
 beforeEach(() => {
   desktop.shell = null;
@@ -85,14 +85,16 @@ describe("SidebarUser", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("keeps workspace selection out of the account menu", async () => {
+  it("keeps organization selection out of the account menu", async () => {
     currentUser.mockReturnValue(OWNER);
     render(<SidebarUser />);
 
     await userEvent.click(screen.getByRole("button"));
 
     expect(await screen.findByRole("menu")).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "workspace selection" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "organization selection" }),
+    ).not.toBeInTheDocument();
   });
 });
 

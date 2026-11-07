@@ -159,9 +159,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Sidebar controls belong to the dashboard's help tour. Optional because the
   // phone drawer may be closed when the tour reaches this step.
   {
-    id: "workspace-switcher",
+    id: "organization-switcher",
     page: ROUTES.DASHBOARD,
-    target: "workspace-switcher",
+    target: "organization-switcher",
     optional: true,
   },
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },

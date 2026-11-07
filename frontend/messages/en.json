@@ -4805,8 +4805,8 @@
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
-      "workspace-switcher": {
-        "title": "Choose your workspace",
+      "organization-switcher": {
+        "title": "Choose your organization",
         "body": "The name here is the organization you're working in. Open the menu to switch organizations, manage them or create another. Agents, knowledge and activity follow your selection."
       },
       "notification-bell": {
@@ -8229,9 +8229,9 @@
     "loading": "Loading"
   },
   "teams": {
-    "workspace": "Workspace",
-    "workspaceSwitcher": "Switch workspace, current: {name}",
-    "selectWorkspace": "Select workspace",
+    "organizationLabel": "Organization",
+    "organizationSwitcher": "Switch organization, current: {name}",
+    "selectOrganization": "Select organization",
     "acmeCom": "acme.com",
     "approvalWaiver": "Waiving approvals in chat",
     "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",

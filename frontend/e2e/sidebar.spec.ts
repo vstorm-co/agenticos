@@ -24,7 +24,7 @@ test.use({ storageState: AUTH_STATE });
 const SECOND_ORG = "E2E Second Org";
 
 const ACCOUNT = new RegExp(OWNER_EMAIL);
-const WORKSPACE = /^Switch workspace, current:/;
+const ORGANIZATION = /^Switch organization, current:/;
 
 /** The persistent column. `<aside>` is the only complementary landmark here. */
 function column(page: Page) {
@@ -43,11 +43,11 @@ test.describe("Sidebar", () => {
     await expect(sidebar.getByRole("button", { name: "Search" })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: /notifications/i })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: ACCOUNT })).toBeVisible();
-    await expect(sidebar.getByRole("button", { name: WORKSPACE })).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: ORGANIZATION })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: "Language" })).toHaveCount(0);
 
-    // Workspace context stays visible at the top, with account preferences below.
-    await sidebar.getByRole("button", { name: WORKSPACE }).click();
+    // Organization context stays visible at the top, with account preferences below.
+    await sidebar.getByRole("button", { name: ORGANIZATION }).click();
     await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
     await page.keyboard.press("Escape");
 
@@ -70,14 +70,14 @@ test.describe("Sidebar", () => {
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   });
 
-  test("switching workspace from the sidebar persists after reload", async ({ page }) => {
+  test("switching organization from the sidebar persists after reload", async ({ page }) => {
     // Established on entry rather than cleaned up afterwards: a run that fails
     // half way leaves the next one a working starting point, and bootstrap only
     // ever creates the owner's personal organization.
     await ensureSecondOrganization(page);
 
     await page.goto("/dashboard");
-    await column(page).getByRole("button", { name: WORKSPACE }).click();
+    await column(page).getByRole("button", { name: ORGANIZATION }).click();
     await page.getByRole("menuitem", { name: SECOND_ORG }).click();
 
     // Everything org-scoped reads the selection back on the next page load, so
@@ -86,7 +86,7 @@ test.describe("Sidebar", () => {
     // which one it is on.
     await page.reload();
     const switcher = column(page).getByRole("button", {
-      name: `Switch workspace, current: ${SECOND_ORG}`,
+      name: `Switch organization, current: ${SECOND_ORG}`,
     });
     await expect(switcher).toBeVisible();
     await switcher.click();
@@ -111,17 +111,17 @@ test.describe("Sidebar", () => {
 
       await header.getByRole("button", { name: "Toggle menu" }).click();
 
-      // Workspace selection and account preferences are both available in the
+      // Organization selection and account preferences are both available in the
       // drawer. Search is deliberately not asserted here: the bottom tab
       // bar has always carried its own entrance to the same palette, so counting
       // them proves nothing about the drawer.
       await expect(visible(page, ACCOUNT)).toHaveCount(1);
-      await expect(visible(page, WORKSPACE)).toHaveCount(1);
-      await visible(page, WORKSPACE).click();
+      await expect(visible(page, ORGANIZATION)).toHaveCount(1);
+      await visible(page, ORGANIZATION).click();
       await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
       await page.getByRole("menuitem", { name: "Manage organizations" }).click();
       await expect(page).toHaveURL(/\/orgs$/);
-      await expect(visible(page, WORKSPACE)).toHaveCount(0);
+      await expect(visible(page, ORGANIZATION)).toHaveCount(0);
     });
   });
 });

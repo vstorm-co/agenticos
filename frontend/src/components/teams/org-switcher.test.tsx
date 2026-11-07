@@ -118,7 +118,7 @@ describe("OrganizationMenuItems", () => {
     expect(push).toHaveBeenCalledWith(`/orgs/${GLOBEX}`);
   });
 
-  it("marks only the actual current workspace", async () => {
+  it("marks only the actual current organization", async () => {
     activeOrg = organizations[1];
     mount();
 
@@ -129,7 +129,7 @@ describe("OrganizationMenuItems", () => {
     expect(screen.getByRole("menuitem", { name: "Acme" })).not.toHaveAttribute("aria-current");
   });
 
-  it("does not present the first workspace as current before one is selected", async () => {
+  it("does not present the first organization as current before one is selected", async () => {
     activeOrg = null;
     mount();
 
@@ -139,7 +139,7 @@ describe("OrganizationMenuItems", () => {
     expect(screen.getByRole("menuitem", { name: "Globex" })).not.toHaveAttribute("aria-current");
   });
 
-  it("dismisses the drawer after switching workspace", async () => {
+  it("dismisses the drawer after switching organization", async () => {
     const onNavigate = vi.fn();
     mount(onNavigate);
 
@@ -149,7 +149,7 @@ describe("OrganizationMenuItems", () => {
     expect(onNavigate).toHaveBeenCalledOnce();
   });
 
-  it("closes the drawer without reloading the current workspace", async () => {
+  it("closes the drawer without reloading the current organization", async () => {
     pathname = `/orgs/${ACME}/members`;
     const onNavigate = vi.fn();
     mount(onNavigate);
@@ -159,6 +159,28 @@ describe("OrganizationMenuItems", () => {
     expect(switchOrg).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledOnce();
+  });
+
+  it("rewrites another organization's path when choosing the active organization", async () => {
+    pathname = `/orgs/${GLOBEX}/members`;
+    const onNavigate = vi.fn();
+    mount(onNavigate);
+
+    await choose("Acme");
+
+    expect(switchOrg).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith(`/orgs/${ACME}/members`);
+    expect(onNavigate).toHaveBeenCalledOnce();
+  });
+
+  it("adopts the organization already named by the path without navigating again", async () => {
+    pathname = `/orgs/${GLOBEX}/roles`;
+    mount();
+
+    await choose("Globex");
+
+    expect(useOrgStore.getState().activeOrgId).toBe(GLOBEX);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it.each([

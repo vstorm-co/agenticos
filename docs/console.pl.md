@@ -1,5 +1,5 @@
 ---
-source_sha: "5f64be1dd9e7"
+source_sha: "302bc847e98d"
 ---
 
 # Konsola { #the-console }
@@ -209,7 +209,7 @@ powiadomienie i jedna wiadomość prywatna od każdego jej bota w Slacku, Teams 
 Mattermost, który cię zna, wymieniają to, co nowe. Każde znalezisko trafia tylko
 do jednego briefingu.
 
-Przełącznik workspace'u znajduje się pod logo u góry paska bocznego i pokazuje
+Przełącznik organizacji znajduje się pod logo u góry paska bocznego i pokazuje
 nazwę oraz awatar aktywnej organizacji. Otwórz go, aby zmienić organizację,
 zarządzać organizacjami lub utworzyć nową. W zwiniętym pasku bocznym przełącznik
 ma postać awatara; menu telefonu udostępnia ten sam element. Ustawienia konta

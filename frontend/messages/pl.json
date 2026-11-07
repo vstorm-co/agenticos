@@ -5510,9 +5510,9 @@
     }
   },
   "teams": {
-    "workspace": "Workspace",
-    "workspaceSwitcher": "Zmień workspace, obecny: {name}",
-    "selectWorkspace": "Wybierz workspace",
+    "organizationLabel": "Organizacja",
+    "organizationSwitcher": "Zmień organizację, obecna: {name}",
+    "selectOrganization": "Wybierz organizację",
     "acmeCom": "acme.com",
     "approvalWaiver": "Pomijanie zatwierdzeń w czacie",
     "approvalWaiverDescription": "Czy rozmowa może działać bez zatrzymywania się na zatwierdzenia.",
@@ -6405,8 +6405,8 @@
         "title": "Znajdź serwer",
         "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
       },
-      "workspace-switcher": {
-        "title": "Wybierz swój workspace",
+      "organization-switcher": {
+        "title": "Wybierz swoją organizację",
         "body": "Ta nazwa wskazuje organizację, w której pracujesz. Otwórz menu, aby zmienić organizację, zarządzać organizacjami lub utworzyć nową. Agenty, wiedza i aktywność zmieniają się wraz z wyborem."
       },
       "notification-bell": {

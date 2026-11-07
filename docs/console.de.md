@@ -1,5 +1,5 @@
 ---
-source_sha: "5f64be1dd9e7"
+source_sha: "302bc847e98d"
 ---
 
 # Die Konsole { #the-console }
@@ -221,7 +221,7 @@ eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
 und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
 Briefing.
 
-Der Workspace-Wechsler steht unter dem Logo oben in der Seitenleiste und zeigt
+Der Organisationswechsler steht unter dem Logo oben in der Seitenleiste und zeigt
 den Namen und Avatar der aktiven Organisation. Öffnen Sie ihn, um die
 Organisation zu wechseln, Organisationen zu verwalten oder eine neue anzulegen.
 In der eingeklappten Seitenleiste bleibt der Avatar als Wechsler erhalten; das

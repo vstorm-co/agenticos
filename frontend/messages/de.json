@@ -4683,8 +4683,8 @@
         "title": "Einen Server finden",
         "body": "Durchsuchen Sie den Katalog oder grenzen Sie ihn nach Kategorie ein und danach, ob Sie ihn schon verbunden haben."
       },
-      "workspace-switcher": {
-        "title": "Wählen Sie Ihren Workspace",
+      "organization-switcher": {
+        "title": "Wählen Sie Ihre Organisation",
         "body": "Der Name zeigt die Organisation, in der Sie arbeiten. Öffnen Sie das Menü, um die Organisation zu wechseln, Organisationen zu verwalten oder eine neue anzulegen. Agents, Wissen und Aktivität folgen Ihrer Auswahl."
       },
       "notification-bell": {
@@ -8107,9 +8107,9 @@
     "loading": "Wird geladen"
   },
   "teams": {
-    "workspace": "Workspace",
-    "workspaceSwitcher": "Workspace wechseln, aktuell: {name}",
-    "selectWorkspace": "Workspace auswählen",
+    "organizationLabel": "Organisation",
+    "organizationSwitcher": "Organisation wechseln, aktuell: {name}",
+    "selectOrganization": "Organisation auswählen",
     "acmeCom": "acme.com",
     "approvalWaiver": "Freigaben im Chat übergehen",
     "approvalWaiverDescription": "Ob eine Unterhaltung laufen darf, ohne für Freigaben anzuhalten.",

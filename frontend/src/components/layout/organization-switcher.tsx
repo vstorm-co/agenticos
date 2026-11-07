@@ -15,7 +15,7 @@ import { useOrganizations } from "@/hooks";
 import { cn } from "@/lib/utils";
 
 /** The tenant stays visible above navigation, even when the destinations scroll. */
-export function WorkspaceSwitcher({
+export function OrganizationSwitcher({
   collapsed = false,
   onNavigate,
 }: {
@@ -24,14 +24,16 @@ export function WorkspaceSwitcher({
 }) {
   const t = useTranslations("teams");
   const { activeOrg } = useOrganizations();
-  const label = activeOrg ? t("workspaceSwitcher", { name: activeOrg.name }) : t("selectWorkspace");
+  const label = activeOrg
+    ? t("organizationSwitcher", { name: activeOrg.name })
+    : t("selectOrganization");
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          data-tour="workspace-switcher"
+          data-tour="organization-switcher"
           aria-label={label}
           title={label}
           className={cn(
@@ -58,9 +60,11 @@ export function WorkspaceSwitcher({
           {!collapsed && (
             <>
               <span className="min-w-0 flex-1">
-                <span className="text-muted-foreground block text-xs">{t("workspace")}</span>
+                <span className="text-muted-foreground block text-xs">
+                  {t("organizationLabel")}
+                </span>
                 <span className="block truncate text-sm font-medium">
-                  {activeOrg?.name ?? t("selectWorkspace")}
+                  {activeOrg?.name ?? t("selectOrganization")}
                 </span>
               </span>
               <ChevronsUpDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
@@ -75,7 +79,7 @@ export function WorkspaceSwitcher({
         className="w-64"
       >
         <DropdownMenuLabel className="text-muted-foreground text-xs font-medium">
-          {t("workspace")}
+          {t("organizationLabel")}
         </DropdownMenuLabel>
         <OrganizationMenuItems onNavigate={onNavigate} />
       </DropdownMenuContent>

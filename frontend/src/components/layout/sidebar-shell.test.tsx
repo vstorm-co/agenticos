@@ -25,8 +25,8 @@ vi.mock("@/components/layout/sidebar-user", () => ({
     <button>{compact ? "the account avatar" : "the account menu"}</button>
   ),
 }));
-vi.mock("@/components/layout/workspace-switcher", () => ({
-  WorkspaceSwitcher: ({
+vi.mock("@/components/layout/organization-switcher", () => ({
+  OrganizationSwitcher: ({
     collapsed,
     onNavigate,
   }: {
@@ -34,7 +34,7 @@ vi.mock("@/components/layout/workspace-switcher", () => ({
     onNavigate?: () => void;
   }) => (
     <button onClick={onNavigate}>
-      {collapsed ? "the workspace avatar" : "the workspace switcher"}
+      {collapsed ? "the organization avatar" : "the organization switcher"}
     </button>
   ),
 }));
@@ -56,9 +56,9 @@ function follows(earlier: HTMLElement, later: HTMLElement): boolean {
 }
 
 describe("SidebarShell", () => {
-  it("shows workspace context before chat, search and destinations", () => {
+  it("shows organization context before chat, search and destinations", () => {
     renderShell();
-    const switcher = screen.getByRole("button", { name: "the workspace switcher" });
+    const switcher = screen.getByRole("button", { name: "the organization switcher" });
     for (const following of [
       screen.getByRole("link", { name: "New chat" }),
       screen.getByRole("button", { name: "the search row" }),
@@ -97,7 +97,7 @@ describe("SidebarShell", () => {
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the account menu" }));
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the search row" }));
     expect(scroller).not.toContainElement(
-      screen.getByRole("button", { name: "the workspace switcher" }),
+      screen.getByRole("button", { name: "the organization switcher" }),
     );
   });
 
@@ -131,20 +131,20 @@ describe("SidebarShell", () => {
     renderShell({ collapsed: true });
 
     expect(screen.getByRole("button", { name: "the account avatar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "the workspace avatar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "the organization avatar" })).toBeInTheDocument();
     expect(
       follows(
-        screen.getByRole("button", { name: "the workspace avatar" }),
+        screen.getByRole("button", { name: "the organization avatar" }),
         screen.getByRole("navigation"),
       ),
     ).toBe(true);
   });
 
-  it("lets workspace selection dismiss the mobile navigation", () => {
+  it("lets organization selection dismiss the mobile navigation", () => {
     const onNavigate = vi.fn();
     renderShell({ onNavigate });
 
-    fireEvent.click(screen.getByRole("button", { name: "the workspace switcher" }));
+    fireEvent.click(screen.getByRole("button", { name: "the organization switcher" }));
 
     expect(onNavigate).toHaveBeenCalledOnce();
   });

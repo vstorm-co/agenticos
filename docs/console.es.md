@@ -1,5 +1,5 @@
 ---
-source_sha: "5f64be1dd9e7"
+source_sha: "302bc847e98d"
 ---
 
 # La consola { #the-console }
@@ -219,7 +219,7 @@ notificación y un mensaje directo de cada uno de sus bots de Slack, Teams y
 Mattermost que te conoce enumeran lo nuevo. Cada hallazgo entra en un solo
 briefing.
 
-El selector de workspace está debajo del logotipo, en la parte superior de la
+El selector de organización está debajo del logotipo, en la parte superior de la
 barra lateral, y muestra el nombre y el avatar de la organización activa. Ábrelo
 para cambiar de organización, gestionar organizaciones o crear una nueva. En la
 barra lateral contraída, el avatar sigue siendo el selector; el menú del teléfono
