@@ -64,10 +64,11 @@ WATCH_CAPABILITIES = frozenset(
 cheap - a long page or result is trimmed before the model reads it, and an
 overgrown history is summarized rather than resent every step."""
 
-WATCH_MAX_STEPS = 12
-"""Model requests one check may make. A check reads one account's changes since the
-last look and answers; with the account's tool schemas and results resent each
-step, an unbounded check of a Notion workspace ran 40 steps and cost $2."""
+WATCH_MAX_STEPS = 30
+"""Model requests one check may make: a ceiling against a runaway check, not a
+working budget. An unbounded check of a Notion workspace ran 40 steps and cost $2;
+a GitHub check needs about 15 with its parallel reads, so 12 stopped it short
+with nothing to show for what it had spent."""
 
 
 def constrain_sources(spec: AgentSpec, approved: WatchSources) -> AgentSpec:

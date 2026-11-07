@@ -164,7 +164,7 @@ snapshot you meant to keep.
 Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
 event, with its configured tools; runs appear in Activity. **My watches** only
 reads your personal connected accounts and sends findings to your private Inbox.
-Each check makes at most 12 model requests, with long results trimmed, so a watch
+Each check makes at most 30 model requests, with long results trimmed, so a watch
 on a large workspace stays cheap. Each tab has its own creation controls. `/routines?tab=watches` opens watches.
 
 Organization → Proactivity separates suggestions, monitoring, shared limits, delivery timing and welcome messages. Unsaved changes can be discarded. Background services show status and usage, with model and budget controls expanded per service.

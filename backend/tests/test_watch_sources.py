@@ -366,7 +366,7 @@ async def test_resumed_accounts_keep_their_original_alias_after_default_and_labe
         assert all(call.args[0].id != new.id for call in auth.await_args_list)
 
 
-@pytest.mark.parametrize(("published", "effective"), [(None, 12), (5, 5), (80, 12)])
+@pytest.mark.parametrize(("published", "effective"), [(None, 30), (5, 5), (80, 30)])
 def test_a_check_is_bounded_whatever_the_agent_allows(published, effective) -> None:
     """An unbounded check of a Notion workspace ran 40 steps and cost $2."""
     original = _spec()

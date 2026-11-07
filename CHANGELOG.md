@@ -27,7 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - An API key you issued, or an MCP client you authorized, can now create and change your own routines that act as you and your watches, review a routine's sources, and publish an agent without withdrawing your routines' consent. It used to be refused as if it were somebody else; an agent's run credential outside your private chat and an administrator impersonating you are still refused.
 - A routine its agent cannot run - for example one whose agent works on your computer and that names no folder - no longer leaves a run that the stale-run sweep later reports as a crash; it stops with a notification that says why.
-- A watch check is bounded: at most 12 model requests, with long tool results trimmed and an overgrown history summarized. A first check of a whole Notion workspace had made about 40 requests and cost $2.
+- A watch check is bounded: at most 30 model requests, with long tool results trimmed and an overgrown history summarized. A first check of a whole Notion workspace had made about 40 requests and cost $2.
 - Connecting an MCP server in the desktop app opens the provider's sign-in in your own browser instead of inside the app window, so saved passwords, passkeys and existing sign-ins work there. Finish signing in and return to the app; the server appears once it is authorised.
 
 ## [1.52.0] - 2026-11-06
