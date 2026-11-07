@@ -481,12 +481,38 @@ class TestWhichFilesAFrameMayAttach:
             assert _attached_ids(["invalid"] * 10_000) == []
         assert not [record for record in caplog.records if record.name == MODULE]
 
-    async def test_malformed_empty_messages_consume_the_visitor_allowance(self) -> None:
+    async def test_malformed_empty_messages_consume_the_connection_allowance(self) -> None:
         session = _session(_embed(allow_files=True))
         session.embed.rate_limit_per_minute = 1
         await session.handle({"type": "message", "file_ids": ["invalid"] * 10_000})
         await session.handle({"type": "message", "file_ids": ["invalid"]})
         assert _sent(session)[-1][1]["message"] == "You are sending messages too quickly."
+
+    @pytest.mark.parametrize("visitor", ["anonymous", "signed-in-visitor"])
+    async def test_malformed_frames_do_not_spend_another_connections_visitor_allowance(
+        self, visitor: str
+    ) -> None:
+        embed = _embed(allow_files=True)
+        embed.rate_limit_per_minute = 1
+        noisy, legitimate = _session(embed), _session(embed)
+        noisy.visitor = legitimate.visitor = visitor
+        await noisy.handle({"type": "message", "file_ids": ["invalid"] * 10_000})
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)) as turn:
+            await legitimate.handle({"type": "message", "text": "hello"})
+        turn.assert_awaited_once()
+        assert _kinds(legitimate) == ["complete"]
+
+    async def test_valid_messages_still_share_the_visitor_allowance_across_connections(
+        self,
+    ) -> None:
+        embed = _embed(allow_files=True)
+        embed.rate_limit_per_minute = 1
+        first, second = _session(embed), _session(embed)
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)) as turn:
+            await first.handle({"type": "message", "text": "hello"})
+            await second.handle({"type": "message", "text": "hello"})
+        turn.assert_awaited_once()
+        assert _sent(second)[-1][1]["message"] == "You are sending messages too quickly."
 
     def test_invalid_ids_produce_one_log_without_rendering_untrusted_values(
         self, caplog: pytest.LogCaptureFixture

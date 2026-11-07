@@ -385,15 +385,21 @@ def _no_answer(run: AgentRun) -> str:
     return "Sorry, I could not produce an answer to that. Please try again."
 
 
-def _allowed(key: tuple[str, str], limit: int) -> bool:
-    count, started = _buckets.get(key, (0, 0.0))
+def _allowed(
+    key: tuple[str, str],
+    limit: int,
+    *,
+    buckets: dict[tuple[str, str], tuple[int, float]] | None = None,
+) -> bool:
+    store = _buckets if buckets is None else buckets
+    count, started = store.get(key, (0, 0.0))
     now = time.monotonic()
     if now - started > _WINDOW_SECONDS:
-        _buckets[key] = (1, now)
+        store[key] = (1, now)
         return True
     if count >= limit:
         return False
-    _buckets[key] = (count + 1, started)
+    store[key] = (count + 1, started)
     return True
 
 
@@ -416,6 +422,7 @@ class EmbedSession:
         # and pretending otherwise (per socket) would make the limit free to
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
+        self._frame_buckets: dict[tuple[str, str], tuple[int, float]] = {}
         self.websocket = websocket
         self.visitor_key = visitor_key
         # Resolved once at admission rather than per frame: it is read off the row
@@ -497,9 +504,10 @@ class EmbedSession:
         if frame.get("type") != "message":
             return
 
-        # Invalid and empty messages spend the allowance too: otherwise a public
-        # socket can parse and log arbitrary input without ever reaching the limit.
-        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
+        # Bound malformed input on this connection before parsing. It must not
+        # spend the visitor bucket anonymous sessions share with other visitors.
+        key = (str(self.embed.id), self.visitor)
+        if not _allowed(key, self.embed.rate_limit_per_minute, buckets=self._frame_buckets):
             await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 
@@ -526,6 +534,10 @@ class EmbedSession:
             return
         if len(text) > MAX_MESSAGE_CHARS:
             await self._emit("error", {"message": "That message is too long. Try a shorter one."})
+            return
+
+        if not _allowed(key, self.embed.rate_limit_per_minute):
+            await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 
         unanswered = await self._turn_frames(text, attached)
