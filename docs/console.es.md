@@ -1,5 +1,5 @@
 ---
-source_sha: "361689f179db"
+source_sha: "a2f67cfffb1e"
 ---
 
 # La consola { #the-console }
@@ -181,7 +181,9 @@ Routines tiene dos pestañas. **Tareas de agentes** ejecuta un agente elegido po
 horario o evento con sus herramientas; las ejecuciones aparecen en Activity.
 **Mis seguimientos** solo consulta cuentas personales conectadas y envía hallazgos
 a la bandeja privada. Cada pestaña tiene sus acciones de creación.
-`/routines?tab=watches` abre los seguimientos.
+`/routines?tab=watches` abre los seguimientos. Cada comprobación hace como máximo
+12 solicitudes al modelo y recorta los resultados largos, así que seguir un
+workspace grande sigue siendo barato.
 
 Organización → Proactividad separa sugerencias, seguimiento, límites compartidos, horarios de entrega y mensajes de bienvenida. Los cambios sin guardar se pueden descartar. Los servicios en segundo plano muestran estado y consumo; los ajustes de modelo y presupuesto se despliegan por servicio.
 

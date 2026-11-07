@@ -1,5 +1,5 @@
 ---
-source_sha: "361689f179db"
+source_sha: "a2f67cfffb1e"
 ---
 
 # Die Konsole { #the-console }
@@ -182,7 +182,9 @@ Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nac
 Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
 **Meine Beobachtungen** liest nur persönliche verbundene Konten und sendet
 Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
-`/routines?tab=watches` öffnet die Beobachtungen.
+`/routines?tab=watches` öffnet die Beobachtungen. Eine Prüfung stellt höchstens
+12 Modellanfragen, lange Ergebnisse werden gekürzt; so bleibt eine Beobachtung
+eines großen Workspace günstig.
 
 Organisation → Proaktivität trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
 
