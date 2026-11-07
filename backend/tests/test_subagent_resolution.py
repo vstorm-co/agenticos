@@ -32,11 +32,17 @@ from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.workspaces import Workspace
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.computer_on_use import (
+    ComputerAccessCallback,
+    ComputerAccessRequest,
+    RequestComputerOnUse,
+)
 from app.agents.manifest import RecordedRequest, RunRecorder
 from app.agents.spec import (
     AgentSpec,
@@ -66,6 +72,7 @@ from app.services.agent_runner import (
     VoiceRun,
     month_start,
 )
+from app.services.device_hub import DeviceWorkspace
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 
 pytestmark = pytest.mark.anyio
@@ -291,6 +298,7 @@ async def _prepare(
     voice: VoiceRun | None = None,
     surface: RunSurface = RunSurface.API,
     acts_for_sender: bool = False,
+    request_computer_access: ComputerAccessCallback | None = None,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
 
@@ -382,7 +390,12 @@ async def _prepare(
         patch(f"{RUNNER}.build_agent") as build,
     ):
         prepared = await service.prepare(
-            ctx, agent.id, voice=voice, surface=surface, acts_for_sender=acts_for_sender
+            ctx,
+            agent.id,
+            voice=voice,
+            surface=surface,
+            acts_for_sender=acts_for_sender,
+            request_computer_access=request_computer_access,
         )
 
     return _Prepared(prepared, build, fetch_version, list_profiles, resolved)
@@ -2433,3 +2446,82 @@ async def test_inline_mirage_cannot_bypass_an_unlinked_channel_gate(
     )
     built = prepared.built("summariser")["spec"]
     assert approval_required_tools(built) == (frozenset() if linked else tools)
+
+
+@pytest.mark.parametrize("coding", [False, True])
+async def test_a_local_published_delegate_requests_the_root_runs_computer(coding: bool):
+    child_id = uuid.uuid4()
+    child = AgentSpec(
+        name="Local child",
+        instructions="Work locally",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="coding_agent" if coding else "sandbox",
+                config={"runs_on": "this_computer"} if coding else {"backend": "local"},
+            )
+        ],
+    )
+    version = _version(child_id, child)
+    asked: list[ComputerAccessRequest] = []
+
+    async def consent(request: ComputerAccessRequest) -> bool:
+        asked.append(request)
+        return True
+
+    prepared = await _prepare(
+        _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)]),
+        versions={version.id: version},
+        request_computer_access=consent,
+    )
+    built = prepared.built("local-child")
+    assert not built["spec"].capabilities
+    [capability] = [
+        cap for cap in built["extra_capabilities"] if isinstance(cap, RequestComputerOnUse)
+    ]
+    await capability._request(MagicMock(), "Read local files")
+    assert asked == [ComputerAccessRequest(reason="Read local files", coding=coding)]
+    assert prepared.runtime.subagents[0].workspace == "none"
+
+
+@pytest.mark.parametrize("coding", [False, True])
+async def test_nested_local_delegates_use_the_approved_root_device_not_the_cloud_parent(
+    coding: bool,
+):
+    child_id, middle_id = uuid.uuid4(), uuid.uuid4()
+    child = AgentSpec(
+        name="Local child",
+        instructions="Work locally",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="coding_agent" if coding else "sandbox",
+                config={"runs_on": "this_computer"} if coding else {"backend": "local"},
+            )
+        ],
+    )
+    version = _version(child_id, child)
+    middle = _version(
+        middle_id,
+        _delegating(
+            name="Cloud middle",
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)],
+            max_depth=2,
+        ),
+    )
+    device = MagicMock(spec=Workspace)
+    device.backend = MagicMock(spec=DeviceWorkspace)
+    prepared = await _prepare(
+        _delegating(
+            subagents=[SubagentRef(agent_id=middle_id, agent_version_id=middle.id)], max_depth=2
+        ),
+        versions={version.id: version, middle.id: middle},
+        workspace=device,
+    )
+    middle_built = prepared.built("cloud-middle")
+    assert WORKSPACE_RESOURCE not in middle_built["resources"]
+    assert prepared.runtime.subagents[0].workspace == "none"
+    built = prepared.built("cloud-middle", "local-child")
+    assert built["resources"][WORKSPACE_RESOURCE] is device
+    assert built["spec"].capabilities[0].id == ("coding_agent" if coding else "sandbox")
+    assert not any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+    nested = middle_built["resources"][SUBAGENT_RUNTIME_RESOURCE]
+    assert nested.subagents[0].workspace is device

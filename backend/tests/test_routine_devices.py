@@ -401,7 +401,8 @@ class TestFollowingTheSignedInSession:
             module, "ready", AsyncMock(side_effect=module.RoutineLocalConsentRequired("revoked"))
         )
         db = AsyncMock()
-        await module.follow_signed_in_session(db, trigger, self._context(trigger))
+        with pytest.raises(module.RoutineLocalConsentRequired, match="Connected computers refused"):
+            await module.follow_signed_in_session(db, trigger, self._context(trigger))
         assert trigger.local_target == before
         db.flush.assert_not_awaited()
 

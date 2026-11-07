@@ -536,6 +536,7 @@ async def test_old_offline_waits_rotate_out_so_another_organizations_device_is_i
         "changed_intent",
         "offline",
         "consent_missing",
+        "rebind_consent_missing",
         "changed_after_readiness",
         "local_removed",
     ],
@@ -585,6 +586,12 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
             await db.flush()
 
     monkeypatch.setattr(module, "local_device_ready", ready)
+    if change == "rebind_consent_missing":
+        monkeypatch.setattr(
+            module,
+            "follow_signed_in_session",
+            AsyncMock(side_effect=RoutineLocalConsentRequired(message="Old session grant refused")),
+        )
     if change == "wrong_owner":
         with pytest.raises(AuthorizationError):
             await service._fire_loaded(w.trigger, activation_id=activation)
@@ -593,7 +600,7 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
         await db.refresh(wait)
         if change in {"changed_intent", "changed_after_readiness", "local_removed"}:
             assert wait.status == "cancelled"
-        if change == "consent_missing":
+        if change in {"consent_missing", "rebind_consent_missing"}:
             assert not w.trigger.is_active
     execute.assert_not_awaited()
 

@@ -1,12 +1,14 @@
 ---
-source_sha: "529ca359c570"
+source_sha: "9226bb4c1c56"
 ---
 
 # La app de escritorio { #the-desktop-app }
 
 El inicio de sesión OAuth nativo utiliza PKCE S256. La aplicación conserva un verificador privado; el callback solo contiene su desafío público. El verificador se envía en el cuerpo de la solicitud de intercambio, nunca en una URL. Cerrar sesión elimina las vistas previas nativas de las notificaciones del teléfono.
 
-Al desconectar, cerrar sesión, volver a vincular o cambiar de servidor se eliminan los permisos de carpetas, servicios locales, todo el equipo y pantalla. La vinculación muestra la cuenta antes de consumir el código de un solo uso. Cancelar un comando o superar su tiempo límite también termina sus procesos secundarios.
+Al desconectar, cerrar sesión o cambiar de servidor se eliminan los permisos de carpetas, servicios locales, todo el equipo y pantalla. La vinculación muestra la cuenta antes de consumir el código de un solo uso. Los permisos compartidos de carpetas para rutinas sobreviven al vencimiento de la sesión y a una nueva vinculación con la misma cuenta y servidor verificados. Permanecen inactivos hasta verificar otra vez esa identidad; la desconexión explícita, cerrar sesión o cambiar de servidor o cuenta los elimina.
+
+Un delegado publicado que necesite este equipo puede pedir permiso en el mismo chat, aunque el agente principal se ejecute en la nube. El consentimiento pertenece al agente principal que inicia la ejecución. Los delegados de programación locales piden acceso completo; los delegados anidados usan ese espacio aprobado del dispositivo sin compartirlo con otros delegados en la nube. Cancelar un comando o superar su tiempo límite también termina sus procesos secundarios.
 
 AgenticOS funciona en el navegador, y así lo usa la mayoría. La app de escritorio
 es para quien quiere más en su propio ordenador: la consola en una ventana propia,

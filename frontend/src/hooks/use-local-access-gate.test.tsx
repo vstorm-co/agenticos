@@ -345,6 +345,25 @@ describe("useComputerAccessOnUse", () => {
     expect(useWorkOnStore.getState().agentTargetFor(local.id)).toEqual(whole);
   });
 
+  it("asks for a local coding delegate under its cloud root agent", async () => {
+    const { respond, view, props } = onUse(cloud);
+    view.rerender({ ...props, pending: { reason: "Delegate needs files", coding: true } });
+    await waitFor(() =>
+      expect(useLocalAccessStore.getState().asking).toMatchObject({
+        id: cloud.id,
+        coding: true,
+        reason: "Delegate needs files",
+      }),
+    );
+    await act(async () =>
+      useLocalAccessStore.getState().answer({ ...whole, computer_grant_agent: cloud.id }),
+    );
+    await waitFor(() => expect(respond).toHaveBeenCalledWith(true));
+    expect(useWorkOnStore.getState().agentTargetFor(cloud.id)).toMatchObject({
+      computer_grant_agent: cloud.id,
+    });
+  });
+
   it("discards a native answer after the organization changes in a draft chat", async () => {
     useConversationStore.setState({ currentConversationId: null });
     const { respond, view, props } = onUse(local);
@@ -386,7 +405,7 @@ describe("useComputerAccessOnUse", () => {
 
   it.each([
     ["outside the desktop app", local, false],
-    ["for an agent that does not work here", cloud, true],
+    ["for an unknown agent", undefined, true],
   ])("declines at once %s", (_case, agent, desktop) => {
     shell.desktop = desktop;
     const { respond, view, props } = onUse(agent);

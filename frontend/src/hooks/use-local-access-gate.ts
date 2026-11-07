@@ -137,11 +137,15 @@ export async function askForComputer(
   agent: Agent,
   conversationId: string | null,
   reason?: string,
+  coding?: boolean,
 ): Promise<LocalTarget | null> {
   const owner = accountScope();
-  const target = await useLocalAccessStore
-    .getState()
-    .request({ id: agent.id, name: agent.name, coding: !!agent.local_coding_agent, reason });
+  const target = await useLocalAccessStore.getState().request({
+    id: agent.id,
+    name: agent.name,
+    coding: coding ?? !!agent.local_coding_agent,
+    reason,
+  });
   if (
     target === null ||
     owner !== accountScope() ||
@@ -177,12 +181,12 @@ export function useComputerAccessOnUse({
   useEffect(() => {
     if (pending === null || asked.current === pending) return;
     asked.current = pending;
-    if (!desktop || !worksOnThisComputer(agent)) {
+    if (!desktop || !agent) {
       respond(false);
       return;
     }
     const conversationId = useConversationStore.getState().currentConversationId;
-    askForComputer(agent, conversationId, pending.reason)
+    askForComputer(agent, conversationId, pending.reason, pending.coding)
       .then((target) => {
         respond(target !== null);
       })

@@ -91,6 +91,31 @@ pub fn clear(app: &AppHandle) -> Result<(), String> {
     save(&store(app)?, &[])
 }
 
+/// Keep owner-bound shared grants dormant while no device session is active.
+/// A verified new identity narrows them again before its connection starts.
+pub fn retain_shared(app: &AppHandle, identity: Option<&DeviceIdentity>) -> Result<(), String> {
+    let state = app.state::<Access>();
+    let _guard = state
+        .0
+        .lock()
+        .map_err(|_| "Routine permissions are unavailable".to_owned())?;
+    retain_shared_at(&store(app)?, identity)
+}
+
+fn retain_shared_at(path: &Path, identity: Option<&DeviceIdentity>) -> Result<(), String> {
+    let mut grants = load(path)?;
+    grants.retain(|grant| {
+        grant.routine_id.is_none()
+            && match identity {
+                Some(identity) => owns(grant, identity),
+                None => true,
+            }
+    });
+    // Filter the current store rather than restoring a snapshot: a concurrent
+    // explicit revocation must never be resurrected during pairing.
+    save(path, &grants)
+}
+
 pub fn revoke_folder(app: &AppHandle, root: &str) -> Result<(), String> {
     let state = app.state::<Access>();
     let _guard = state
@@ -488,6 +513,65 @@ mod tests {
         grant.routine_id = Some(Uuid::new_v4());
         assert!(owns(&grant, &identity));
         assert!(!owns(&grant, &again));
+    }
+
+    #[test]
+    fn relinking_keeps_only_shared_grants_for_the_verified_person_and_never_restores_revocations() {
+        let base = std::env::temp_dir().join(format!("agenticos-relink-grants-{}", Uuid::new_v4()));
+        let path = base.join("routine-access.json");
+        let identity = DeviceIdentity {
+            origin: "https://console.example.com".into(),
+            user_id: Uuid::new_v4(),
+            device_id: Uuid::new_v4(),
+        };
+        let shared = RoutineGrant {
+            id: Uuid::new_v4(),
+            identity: identity.clone(),
+            organization_id: Uuid::new_v4(),
+            routine_id: None,
+            name: "All routines".into(),
+            root: "/work".into(),
+            operations: Operations {
+                read: true,
+                write: false,
+                execute: false,
+            },
+        };
+        let specific = RoutineGrant {
+            id: Uuid::new_v4(),
+            routine_id: Some(Uuid::new_v4()),
+            ..shared.clone()
+        };
+        save(&path, &[shared.clone(), specific]).unwrap();
+        retain_shared_at(&path, Some(&identity)).unwrap();
+        let again = DeviceIdentity {
+            device_id: Uuid::new_v4(),
+            ..identity.clone()
+        };
+        retain_shared_at(&path, Some(&again)).unwrap();
+        assert_eq!(load(&path).unwrap(), vec![shared.clone()]);
+        // The old session can expire and its keychain identity can be forgotten.
+        retain_shared_at(&path, None).unwrap();
+        retain_shared_at(&path, Some(&again)).unwrap();
+        assert_eq!(load(&path).unwrap(), vec![shared.clone()]);
+        for changed in [
+            DeviceIdentity {
+                user_id: Uuid::new_v4(),
+                ..again.clone()
+            },
+            DeviceIdentity {
+                origin: "https://other.example".into(),
+                ..again.clone()
+            },
+        ] {
+            save(&path, std::slice::from_ref(&shared)).unwrap();
+            retain_shared_at(&path, Some(&changed)).unwrap();
+            assert!(load(&path).unwrap().is_empty());
+        }
+        save(&path, &[]).unwrap(); // explicit revoke while pairing
+        retain_shared_at(&path, Some(&again)).unwrap();
+        assert!(load(&path).unwrap().is_empty());
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

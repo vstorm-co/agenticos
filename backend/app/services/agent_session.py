@@ -1437,7 +1437,9 @@ class AgentSession:
             waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
             self._computer_future = waiting
             try:
-                payload = {"reason": request.reason}
+                payload: dict[str, str | bool] = {"reason": request.reason}
+                if request.coding:
+                    payload["coding"] = True
                 if self._turn_agent_id is not None:
                     payload["agent_id"] = str(self._turn_agent_id)
                 if not await self._emit("computer_access", payload):

@@ -2598,7 +2598,17 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
-        await follow_signed_in_session(self.db, trigger, ctx)
+        previous_local_intent = activation_intent(trigger)
+        try:
+            await follow_signed_in_session(self.db, trigger, ctx)
+        except RoutineLocalConsentRequired:
+            await self._block_local_activation(
+                trigger.id,
+                activation_id=activation_id,
+                intent=previous_local_intent,
+                name=trigger.name or agent.name,
+            )
+            return
         waiting = await device_wait_repo.get(self.db, activation_id)
         intent = activation_intent(trigger)
         if waiting is not None:

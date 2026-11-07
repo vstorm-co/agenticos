@@ -33,6 +33,7 @@ class ComputerAccessRequest:
     """What the app shows while the run waits."""
 
     reason: str
+    coding: bool = False
 
 
 ComputerAccessCallback = Callable[[ComputerAccessRequest], Awaitable[bool]]
@@ -53,6 +54,7 @@ class RequestComputerOnUse(AbstractCapability[AgentDeps]):
     """`request_computer_access`, for a run whose computer has not been granted yet."""
 
     request_access: ComputerAccessCallback = field(repr=False, compare=False)
+    coding: bool = False
 
     _granted: bool = field(default=False, init=False, repr=False, compare=False)
     # Declined once, not asked again this turn: a model that retries the call
@@ -89,7 +91,9 @@ class RequestComputerOnUse(AbstractCapability[AgentDeps]):
                 )
             if self._declined:
                 return "They declined earlier in this turn. Carry on without their files."
-            if not await self.request_access(ComputerAccessRequest(reason=reason.strip())):
+            if not await self.request_access(
+                ComputerAccessRequest(reason=reason.strip(), coding=self.coding)
+            ):
                 self._declined = True
                 return (
                     "They did not grant access to their computer, so you have no files or "

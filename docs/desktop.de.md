@@ -1,12 +1,14 @@
 ---
-source_sha: "529ca359c570"
+source_sha: "9226bb4c1c56"
 ---
 
 # Die Desktop-App { #the-desktop-app }
 
 Die native OAuth-Anmeldung verwendet S256 PKCE. Die App behält einen privaten Verifier; der Callback enthält nur dessen öffentliche Challenge. Der Verifier wird im Inhalt der Austauschanfrage gesendet, niemals in einer URL. Abmelden entfernt native Benachrichtigungsvorschauen auf dem Telefon.
 
-Beim Trennen, Abmelden, erneuten Koppeln oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
+Beim Trennen, Abmelden oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Gemeinsame Ordnerfreigaben für Routinen bleiben bei Sitzungsablauf und erneuter Kopplung mit demselben verifizierten Konto und Server erhalten. Bis zur erneuten Identitätsprüfung bleiben sie inaktiv; explizites Trennen, Abmelden oder ein Server- oder Kontowechsel entfernt sie.
+
+Ein veröffentlichter Delegat, der diesen Computer benötigt, kann im selben Chat um Freigabe bitten, auch wenn der Hauptagent in der Cloud läuft. Die Zustimmung gehört dem Hauptagenten, der den Lauf startet. Lokale Coding-Delegaten verlangen Vollzugriff; verschachtelte Delegaten nutzen den freigegebenen Gerätearbeitsbereich, ohne ihn anderen Cloud-Delegaten zugänglich zu machen. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
 
 AgenticOS läuft im Browser, und so nutzen es die meisten. Die Desktop-App ist für
 alle, die mehr davon auf dem eigenen Computer wollen: die Konsole in einem eigenen

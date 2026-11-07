@@ -867,6 +867,8 @@ export interface PersonalServiceGap {
  */
 export interface ComputerAccessRequest {
   reason: string;
+  /** A local coding delegate also needs full computer access. */
+  coding?: boolean;
   /** The requesting turn's agent, including when the picker changes while it runs. */
   agent_id?: string | null;
 }

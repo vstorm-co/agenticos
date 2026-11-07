@@ -196,11 +196,15 @@ async def follow_signed_in_session(
     if await session_repo.active_device(db, session_id=local.device_id, user_id=user_id, now=now):
         return
     previous_intent = activation_intent(trigger)
+    refused = False
     for device in await device_hub.connected(user_id):
         moved = local.model_copy(update={"device_id": device.session_id})
         try:
             await ready(db, ctx, moved)
-        except RoutineDeviceOffline, RoutineLocalConsentRequired:
+        except RoutineDeviceOffline:
+            continue
+        except RoutineLocalConsentRequired:
+            refused = True
             continue
         locked = await agent_trigger_repo.get(
             db, trigger.id, organization_id=trigger.organization_id, for_update=True
@@ -224,3 +228,7 @@ async def follow_signed_in_session(
         )
         await db.flush()
         return
+    if refused:
+        raise RoutineLocalConsentRequired(
+            message="Connected computers refused this routine's grant; review its folder permission"
+        )

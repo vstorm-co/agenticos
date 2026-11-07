@@ -1881,6 +1881,29 @@ class TestAskingForTheComputer:
         assert await waiting is True
         assert session._computer_future is None
 
+    async def test_a_coding_delegate_requests_full_access_under_the_root_agent(self):
+        session = _session()
+        session._turn_agent_id = uuid4()
+        asked = _next_frame(session)
+        waiting = asyncio.create_task(
+            session._request_computer_access(
+                ComputerAccessRequest(reason="Delegate needs files", coding=True)
+            )
+        )
+        await _wait(asked)
+        assert _sent_events(session) == [
+            (
+                "computer_access",
+                {
+                    "reason": "Delegate needs files",
+                    "coding": True,
+                    "agent_id": str(session._turn_agent_id),
+                },
+            )
+        ]
+        await session.handle_frame({"type": "computer_access_response", "granted": False})
+        assert await waiting is False
+
     async def test_the_prompt_identifies_the_requesting_agent(self):
         session = _session()
         session._turn_agent_id = uuid4()

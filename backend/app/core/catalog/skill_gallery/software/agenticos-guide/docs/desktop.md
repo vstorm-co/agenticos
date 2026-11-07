@@ -2,7 +2,9 @@
 
 Native OAuth uses S256 PKCE. The app retains a private verifier; the callback carries only its public challenge. The verifier is sent in the exchange request body, never a URL. Signing out clears native phone notification previews.
 
-Unlinking, signing out, relinking or changing servers clears approved folders, local services, whole-computer and screen consents. Pairing previews the account before consuming the single-use code. Cancelling or timing out a command terminates its descendant processes too.
+Unlinking, signing out or changing servers clears approved folders, local services, whole-computer and screen consents. Pairing previews the account before consuming the single-use code. Shared routine folder permissions survive session expiry and re-pairing to the same verified account and server. They remain inactive until that identity is verified again; explicit unlinking, sign-out or changing server/account removes them.
+
+A published delegate that needs this computer can ask through the same chat, even when its main agent runs in the cloud. Consent belongs to the main agent starting the run. Local coding delegates request full access; nested delegates use that approved device workspace without sharing it with unrelated cloud delegates. Cancelling or timing out a command terminates its descendant processes too.
 
 AgenticOS runs in a browser, and that is how most people use it. The desktop app is
 for whoever wants more of it on their own computer: the console in a window of its

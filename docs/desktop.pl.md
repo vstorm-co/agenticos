@@ -1,12 +1,14 @@
 ---
-source_sha: "529ca359c570"
+source_sha: "9226bb4c1c56"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
 
 Natywne logowanie OAuth korzysta z PKCE S256. Aplikacja zachowuje prywatny weryfikator, a callback przenosi tylko jego publiczny skrót. Weryfikator jest wysyłany w treści żądania wymiany, nigdy w adresie URL. Wylogowanie usuwa natywne podglądy powiadomień telefonu.
 
-Odłączenie, wylogowanie, ponowne sparowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
+Odłączenie, wylogowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Wspólne zgody na foldery procedur przetrwają wygaśnięcie sesji i ponowne sparowanie z tym samym zweryfikowanym kontem i serwerem. Pozostają nieaktywne do ponownej weryfikacji tej tożsamości; jawne odłączenie, wylogowanie lub zmiana serwera albo konta je usuwa.
+
+Opublikowany delegat potrzebujący tego komputera może poprosić o zgodę w tej samej rozmowie, także gdy główny agent działa w chmurze. Zgoda należy do głównego agenta rozpoczynającego uruchomienie. Lokalny delegat kodujący prosi o pełny dostęp; zagnieżdżeni delegaci korzystają z zatwierdzonej przestrzeni urządzenia, bez udostępniania jej innym delegatom chmurowym. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
 
 AgenticOS działa w przeglądarce i tak używa go większość ludzi. Aplikacja
 desktopowa jest dla tych, którzy chcą więcej na własnym komputerze: konsola we
