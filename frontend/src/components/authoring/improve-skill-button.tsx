@@ -84,7 +84,7 @@ function ImproveButton({
         {working ? labels.working : labels.improve}
       </Button>
       {assistant.latest?.status === "failed" && (
-        <p role="alert" className="text-destructive text-xs">
+        <p role="alert" className="text-destructive-ink text-xs">
           {assistant.latest.error}
         </p>
       )}

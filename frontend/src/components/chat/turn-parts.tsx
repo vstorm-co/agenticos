@@ -1,30 +1,35 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { Lightbulb, MessageCircleQuestion } from "lucide-react";
+import { memo } from "react";
+import { ChevronRight, Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { BROWSER_TOOLS, DESKTOP_TOOLS } from "@/lib/browse";
 import { toolEntry } from "@/lib/tool-catalog";
 import { drawnUnderTheAnswer } from "@/lib/turn-extras";
+import { draftOf } from "@/lib/drafts";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
-import type { McpServerRef } from "@/lib/tool-steps";
-import type { MessagePart, ToolCall } from "@/types";
+import { toolStep, type McpServerRef } from "@/lib/tool-steps";
+import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
+import { TurnDrafts } from "./draft-card";
 import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { ToolGroup } from "./tool-group";
+import { PhoneCallCard } from "@/components/phone/phone-call-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
-import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
+import { ReplyQuote } from "./reply-quote";
+import { useTurnElapsed, WorkFold } from "./work-fold";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -59,6 +64,7 @@ export function TurnParts({
   startedAt,
   durationMs,
   stopped = false,
+  waitingFor,
 }: {
   parts: MessagePart[];
   isStreaming: boolean;
@@ -76,42 +82,58 @@ export function TurnParts({
   durationMs?: number;
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
+  /** Includes a delegate paused outside the parent's own tool parts. */
+  waitingFor?: "approval" | "answer";
 }) {
-  const [mobileWorkOpen, setMobileWorkOpen] = useState(false);
   const runs = runsOf(parts);
-  const elapsed = useTurnElapsed(startedAt, isStreaming);
+  const waiting =
+    waitingFor === "answer"
+      ? "awaiting_answer"
+      : waitingFor === "approval"
+        ? "awaiting_approval"
+        : parts.some((part) => part.toolCall?.status === "awaiting_answer")
+          ? "awaiting_answer"
+          : parts.some((part) => part.toolCall?.status === "awaiting_approval")
+            ? "awaiting_approval"
+            : undefined;
+  const elapsed = useTurnElapsed(startedAt, isStreaming && !waiting);
+  const tChat = useTranslations("chat");
+  const tTools = useTranslations("chat.tools");
+  const latest = parts.at(-1);
+  const activity = latest?.toolCall
+    ? toolStep(latest.toolCall.name, latest.toolCall.args, false, tTools, mcpServers).label
+    : latest?.type === "thinking"
+      ? tChat("thinking")
+      : undefined;
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
   const render = (run: PartRun, visuals = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
-        {/* The rail folds its own earlier steps away, but it cannot see what is
-                in them - so whether this run holds something a person has to answer
-                is decided here, where the statuses and the names are. */}
-        <AgentSteps
-          showAll={mustShowEveryStep(run.parts)}
-          done={run.parts.length > 1 && !isStreaming && !stopped}
-        >
-          {run.parts.map((part, step) => (
-            <ToolCallCard
-              key={part.id}
-              toolCall={part.toolCall!}
-              fileSource={fileSource}
-              mcpServers={mcpServers}
-              agents={agents}
-              // The last call of that turn, which is the one whose result the
-              // reader is here for.
-              startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-            />
-          ))}
-        </AgentSteps>
+        <ToolGroup calls={run.parts.map((part) => part.toolCall!)} mcpServers={mcpServers}>
+          <AgentSteps showAll>
+            {run.parts.map((part, step) => (
+              <ToolCallCard
+                key={part.id}
+                toolCall={part.toolCall!}
+                fileSource={fileSource}
+                mcpServers={mcpServers}
+                agents={agents}
+                // Rich outputs may open on arrival; routine action details stay opt-in.
+                startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
+                autoExpand={toolEntry(part.toolCall!.name)?.opensOnSight === true}
+              />
+            ))}
+          </AgentSteps>
+        </ToolGroup>
         {visuals && <TurnVisuals calls={visualCalls([run])} />}
+        {visuals && <TurnDrafts calls={draftCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
         key={run.part.id}
         text={run.content}
-        open={isStreaming && run.isLast}
+        open={false}
         // The block still taking deltas, not every block in a streaming
         // turn: the orb marks where the thinking is arriving, and a turn
         // that thought twice would otherwise show two of them.
@@ -119,6 +141,8 @@ export function TurnParts({
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
+    ) : run.part.type === "phone_call" && run.part.phoneCallId ? (
+      <PhoneCallCard key={run.part.id} callId={run.part.phoneCallId} />
     ) : run.part.type === "workflow_run" && run.part.workflowRun ? (
       <WorkflowRunCard key={run.part.id} run={run.part.workflowRun} />
     ) : run.part.type === "ask_user" ? (
@@ -139,67 +163,41 @@ export function TurnParts({
       />
     );
 
-  if (isStreaming) {
-    return (
-      <>
-        {runs.some(isWork) && (
-          <>
-            <div className="hidden md:block">
-              <WorkingLine elapsedMs={elapsed} />
-            </div>
-            <div className="md:hidden">
-              <WorkingLine
-                elapsedMs={elapsed}
-                expanded={mobileWorkOpen}
-                onToggle={() => setMobileWorkOpen((open) => !open)}
-              />
-            </div>
-          </>
-        )}
-        <TurnBrowses calls={browseCalls(runs)} />
-        {runs.map((run, index) => {
-          // Questions, approvals, failures and tool payloads stay reachable while
-          // routine progress folds on small screens. Text keeps its turn order.
-          const foldable = isWork(run) && (run.kind !== "tools" || !mustShowEveryStep(run.parts));
-          return foldable ? (
-            <Fragment key={run.kind === "tools" ? run.parts[0].id : run.part.id}>
-              <div className={cn(!mobileWorkOpen && "hidden md:block")} data-work-detail>
-                {render(run, false)}
-              </div>
-              <TurnVisuals calls={visualCalls([run])} />
-            </Fragment>
-          ) : (
-            render(run, true, index > 0 && isWork(runs[index - 1]!))
-          );
-        })}
-      </>
-    );
-  }
-  const split = foldWork(runs, stopped);
+  const active = isStreaming || waiting !== undefined;
+  const split = foldWork(runs, stopped, active);
   if (split === null) {
-    return (
-      <>
-        <TurnBrowses calls={browseCalls(runs)} />
-        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
-      </>
-    );
+    return <>{runs.map((run) => render(run))}</>;
   }
   return (
     <>
-      <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
-        {split.folded.map((run) => render(run, false))}
+      <WorkFold
+        key={active ? "live" : "finished"}
+        live={active}
+        steps={split.steps}
+        durationMs={durationMs ?? elapsed}
+        stopped={stopped}
+        running={isStreaming && !waiting}
+        activity={activity}
+        waiting={waiting}
+      >
+        {split.folded.map((run, index) => {
+          const previous = split.folded[index - 1];
+          return render(
+            run,
+            false,
+            previous?.kind === "tools" || previous?.part.type === "thinking",
+          );
+        })}
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
-      {split.shown.map((run, index) =>
-        // The first thing after the fold opens the answer, as anything after a step does.
-        render(run, true, index === 0 || isWork(split.shown[index - 1]!)),
-      )}
+      <TurnDrafts calls={draftCalls(split.folded)} />
+      {split.shown.map((run, index) => render(run, true, index === 0))}
     </>
   );
 }
 
-export function ThinkingBlock({
+export const ThinkingBlock = memo(function ThinkingBlock({
   text,
   open,
   isStreaming,
@@ -235,7 +233,7 @@ export function ThinkingBlock({
       </div>
     </details>
   );
-}
+});
 
 /**
  * What the person sent into the running task (#2087), drawn as their every other
@@ -294,20 +292,27 @@ export function AskUserBlock({
 }) {
   const t = useTranslations("chat");
   return (
-    <div className="border-foreground/10 text-muted-foreground space-y-1.5 border-l pl-3.5 text-[13px]">
-      <div className="flex items-center gap-2">
-        <MessageCircleQuestion className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        {/* Who asked, where a delegate did. The main agent asking is the ordinary
-            case and says nothing extra; a specialist asking is the thing a reader
-            cannot reconstruct from the transcript otherwise (#1042). */}
-        <span className="font-medium">
+    <details className="group text-muted-foreground text-[13px]">
+      <summary className="hover:text-foreground flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2">
+        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
+          <MessageCircleQuestion className="size-3.5" />
+        </span>
+        <span className="shrink-0 font-medium">
           {askedBy ? t("askUserAskedBy", { name: askedBy }) : t("askUserAsked")}
         </span>
+        <span className="line-clamp-1 min-w-0 break-words group-open:line-clamp-none">
+          {question}
+        </span>
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+        />
+      </summary>
+      <div className="border-border mt-1 ml-1.5 space-y-2 border-l py-1 pl-4">
+        <div className="text-xs font-medium">{t("askUserAnswered")}</div>
+        <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
       </div>
-      <p className="text-foreground/80 break-words whitespace-pre-wrap">{question}</p>
-      <div className="font-medium">{t("askUserAnswered")}</div>
-      <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
-    </div>
+    </details>
   );
 }
 
@@ -333,8 +338,12 @@ export function TextBubble({
   onCiteClick,
   mentions,
   afterWork = false,
+  replyTo,
+  replyAgents = [],
 }: {
   text: string;
+  replyTo?: MessageReply;
+  replyAgents?: readonly DelegateRef[];
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
@@ -361,8 +370,10 @@ export function TextBubble({
         className={cn(
           "bg-foreground/[0.07] text-foreground relative rounded-2xl",
           compact ? "px-3 py-1.5" : "px-3 py-2 sm:px-4 sm:py-2.5",
+          replyTo && "max-w-[min(85%,28rem)] min-w-[min(100%,12rem)]",
         )}
       >
+        {replyTo && <ReplyQuote reply={replyTo} agents={replyAgents} embedded />}
         <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
           <RichText text={text} mentions={mentions ?? []} />
         </p>
@@ -432,7 +443,7 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user" || part.type === "workflow_run") {
+    if (part.type === "ask_user" || part.type === "workflow_run" || part.type === "phone_call") {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }
@@ -453,20 +464,6 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
   return runs;
 }
 
-/**
- * Whether this run must show every step rather than fold all but the last.
- *
- * Three reasons, and they are all "the reader would otherwise miss something":
- * a call that failed, one parked waiting for their approval, and a step whose
- * result *is* the answer - a chart. The rail's default is right for work nobody
- * asked to watch, and wrong for a turn that drew three charts: two of them
- * became the line "2 earlier steps", so the same turn showed three pictures live
- * and one after a reload.
- *
- * Which steps are payloads comes from `opensOnSight` in `lib/tool-catalog.ts`,
- * the same row the card reads to decide whether to open itself - so a tool is
- * described in one place and the rail and the card cannot disagree about it.
- */
 /** All browser operations in turn order, so the card tracks each tab's latest page. */
 export function browseCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
@@ -496,58 +493,41 @@ export function visualCalls(runs: PartRun[]): ToolCall[] {
   );
 }
 
-export function mustShowEveryStep(parts: MessagePart[]): boolean {
-  return parts.some((part) => {
-    const call = part.toolCall;
-    if (!call) return false;
-    if (
-      call.status === "error" ||
-      call.status === "awaiting_approval" ||
-      call.status === "awaiting_answer"
-    ) {
-      return true;
-    }
-    return toolEntry(call.name)?.opensOnSight === true;
-  });
-}
-
-/** Narration short enough to be part of the work rather than part of the answer. */
-const NARRATION_CHARS = 400;
-
-/** Whether a stretch is the agent working - calling tools or thinking. */
-function isWork(run: PartRun): boolean {
-  return run.kind === "tools" || run.part.type === "thinking";
+/** The calls that write a draft in these runs, in the order they were made. */
+export function draftCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) =>
+          part.toolCall && draftOf(part.toolCall) !== null ? [part.toolCall] : [],
+        )
+      : [],
+  );
 }
 
 /**
- * A finished turn's work before its answer, split from what stays on the page.
- *
- * Folded: every run of tool calls and every thought before the last text, and the
- * short narration between them ("Let me check the list."). Kept, in order: a run a
- * person has to see (`mustShowEveryStep`), a question the agent asked, what the
- * person added mid-turn, and a passage long enough to be an answer of its own.
- * Null when there is no answer to fold the work above, or no work in front of it -
- * except for a stopped turn, whose work folds whole: it ends where it was cut off,
- * and the line saying so is the account of it.
+ * Keep the live timeline chronological. Only a settled turn separates its final
+ * text from the complete work history; prose length and reasoning markup never
+ * decide whether something was a progress update.
  */
 export function foldWork(
   runs: PartRun[],
   stopped = false,
+  active = false,
 ): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
-  const lastText = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
-  const answer = lastText <= 0 && stopped ? runs.length : lastText;
-  if (answer <= 0) return null;
-  const folded: PartRun[] = [];
-  const kept: PartRun[] = [];
-  for (const run of runs.slice(0, answer)) {
-    const foldable =
-      run.kind === "tools"
-        ? !mustShowEveryStep(run.parts)
-        : run.part.type === "thinking" ||
-          (run.part.type === "text" && run.content.length <= NARRATION_CHARS);
-    (foldable ? folded : kept).push(run);
+  const hasWork = runs.some((run) => run.kind === "tools" || run.part.type === "thinking");
+  if (!hasWork) return null;
+  let answer = runs.length;
+  if (!active && !stopped) {
+    while (answer > 0) {
+      const previous = runs[answer - 1]!;
+      if (previous.kind !== "other" || previous.part.type !== "text") break;
+      answer -= 1;
+    }
   }
-  if (!folded.some(isWork)) return null;
-  const steps = folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0);
-  return { folded, shown: [...kept, ...runs.slice(answer)], steps };
+  const folded = runs.slice(0, answer);
+  return {
+    folded,
+    shown: runs.slice(answer),
+    steps: folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0),
+  };
 }

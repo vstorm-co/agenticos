@@ -164,14 +164,15 @@ class SharingService:
     ) -> SharingState:
         """Grants on a resource, with the addresses and group names to display them by.
 
-        Seeing the share list requires being able to view the resource; the
-        name lookups are a convenience so the UI does not fan out one request
-        per grant.
+        Seeing the share list requires view or edit access to the resource. An
+        API key can carry edit without view and must be able to retrieve the
+        resulting state after changing visibility. Name lookups avoid one UI
+        request per grant.
         """
-        allowed = await resolve_access(
-            self.db, ctx, resource, resource_type.view, resource_type=resource_type
-        )
-        if not allowed:
+        for perm in dict.fromkeys((resource_type.view, resource_type.edit)):
+            if await resolve_access(self.db, ctx, resource, perm, resource_type=resource_type):
+                break
+        else:
             raise NotFoundError(
                 message="Resource not found",
                 details={"resource_id": str(resource.id)},

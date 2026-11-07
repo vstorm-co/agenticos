@@ -197,6 +197,8 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
     };
   }
   switch (path) {
+    case "/conversations/background-tasks":
+      return [];
     case "/admin/background-jobs/activity":
       return {
         window: "day",
@@ -264,7 +266,7 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
             current_version_id: "v1",
           },
         ],
-        total: 4,
+        total: 1,
       };
     case "/kb":
       return { items: [{ id: "k1" }, { id: "k2" }, { id: "k3" }] };
@@ -394,6 +396,9 @@ describe("the steward's dashboard", () => {
 
   it("renders the organization's sections and reads org-scoped usage", async () => {
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     expect(screen.getByText("dashboard.sections.attention")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.usage")).toBeInTheDocument();
@@ -412,6 +417,9 @@ describe("the steward's dashboard", () => {
 
   it("names the people who used it, and says how far the list reaches", async () => {
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     expect(await screen.findByText("Katarzyna Nowak")).toBeInTheDocument();
     // No display name stored, so the row is the address - the *whole* address,
@@ -437,6 +445,9 @@ describe("the steward's dashboard", () => {
     );
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     const failures = await screen.findAllByText("dashboard.errors.title");
     expect(failures.length).toBeGreaterThan(0);
@@ -454,6 +465,9 @@ describe("the steward's dashboard", () => {
   it("switching the period asks the window again and writes the URL", async () => {
     const replaceState = vi.spyOn(window.history, "replaceState");
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     const before = callsTo("/stats/usage").length;
 
@@ -473,6 +487,9 @@ describe("the steward's dashboard", () => {
     params.set("sections", "usage,deployment");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     expect(screen.getByText("dashboard.sections.usage")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.sections.attention")).not.toBeInTheDocument();
@@ -489,6 +506,9 @@ describe("the sandbox cards", () => {
     auth.can = holds("agents:view", "agents:run", "approvals:decide", "runs:view");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     expect(callsTo("/sandbox-connections")).toHaveLength(0);
@@ -501,12 +521,18 @@ describe("the app admin's dashboard", () => {
     auth.role = "";
 
     const { unmount } = render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     expect(callsTo("/admin/stats")).toHaveLength(0);
     unmount();
 
     params.set("view", "deployment");
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     await waitFor(() => expect(callsTo("/admin/stats").length).toBeGreaterThan(0));
     await userEvent.click(screen.getAllByRole("button", { name: "common.moreInformation" })[0]!);
@@ -516,16 +542,22 @@ describe("the app admin's dashboard", () => {
 });
 
 describe("the view switcher", () => {
-  it("opens a steward on their own view, not the organization's", () => {
+  it("opens a steward on their own view, not the organization's", async () => {
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
-    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
     expect(screen.queryByText("dashboard.edit.customize")).not.toBeInTheDocument();
   });
 
   it("moves to the organization's view and writes it to the URL", async () => {
     const replaceState = vi.spyOn(window.history, "replaceState");
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     await userEvent.click(screen.getByText("dashboard.views.org.label"));
 
@@ -533,21 +565,27 @@ describe("the view switcher", () => {
     expect(String(replaceState.mock.calls.at(-1)?.[2])).toContain("view=org");
   });
 
-  it("offers no deployment view to an organization admin", () => {
+  it("offers no deployment view to an organization admin", async () => {
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     expect(screen.getByText("dashboard.views.org.label")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.views.deployment.label")).not.toBeInTheDocument();
   });
 
-  it("is not drawn for a reader who has only their own view", () => {
+  it("is not drawn for a reader who has only their own view", async () => {
     auth.role = "member";
     auth.can = holds("agents:view", "agents:run");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     expect(screen.queryByRole("group", { name: "dashboard.views.label" })).not.toBeInTheDocument();
-    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
   });
 
   it("narrows every usage question to the chosen group", async () => {
@@ -562,6 +600,9 @@ describe("the view switcher", () => {
     params.set("group", "g2");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     const asked = callsTo("/stats/usage").map(
@@ -579,6 +620,9 @@ describe("the viewer's dashboard", () => {
     auth.can = holds("agents:view", "collections:view");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     // The my-agents card under its overridden title.
     expect(screen.getByText("dashboard.widgets.my-agents.sharedTitle")).toBeInTheDocument();
@@ -599,6 +643,9 @@ describe("the member's dashboard", () => {
     auth.can = holds("agents:view", "agents:edit", "agents:run", "collections:view");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     for (const [, options] of callsTo("/stats/usage")) {
@@ -617,6 +664,9 @@ describe("the member's dashboard", () => {
     auth.can = holds("agents:view", "agents:edit", "agents:run", "collections:view");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     const named = callsTo("/stats/usage").filter(
@@ -646,6 +696,9 @@ describe("the arrangeable dashboard", () => {
     auth.can = holds("agents:view", "agents:run");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     // The saved arrangement settles in: the member default's other cards give
     // way to the two the person saved (of which only one survives the gate).
@@ -667,6 +720,9 @@ describe("the arrangeable dashboard", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     // The steward default's section spine gives way to the person's own flat
     // arrangement - the cards render, the headings do not.
@@ -686,6 +742,9 @@ describe("the arrangeable dashboard", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     // The unknown id is dropped rather than rendered as a blank card; the known
     // one still renders.
@@ -697,6 +756,9 @@ describe("the arrangeable dashboard", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeInTheDocument();
     expect(screen.getByText("dashboard.edit.reset")).toBeInTheDocument();
@@ -709,6 +771,9 @@ describe("the arrangeable dashboard", () => {
     auth.can = holds("agents:view", "agents:run", "runs:view");
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await screen.findByText("dashboard.widgets.summary.title");
 
     await userEvent.click(screen.getByText("dashboard.edit.customize"));
@@ -733,6 +798,9 @@ describe("the arrangeable dashboard", () => {
     auth.role = "owner";
 
     const { container } = render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
 
     // The stored height reaches the grid as a row-span class, not just the width.
     await waitFor(() => expect(container.querySelector(".lg\\:row-span-5")).toBeTruthy());
@@ -743,6 +811,9 @@ describe("the arrangeable dashboard", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await screen.findByText("dashboard.widgets.runs.title");
 
     await userEvent.click(screen.getByText("dashboard.edit.customize"));
@@ -774,6 +845,9 @@ describe("the saved-dashboards switcher", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await screen.findByText("dashboard.widgets.runs.title");
 
     await userEvent.click(screen.getByText("dashboard.presets.menu"));
@@ -809,6 +883,9 @@ describe("the saved-dashboards switcher", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await screen.findByText("dashboard.widgets.runs.title");
 
     await userEvent.click(screen.getByText("dashboard.presets.menu"));
@@ -833,6 +910,9 @@ describe("the saved-dashboards switcher", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await screen.findByText("dashboard.widgets.spend.title");
 
     await userEvent.click(screen.getByText("dashboard.presets.menu"));
@@ -849,6 +929,9 @@ describe("the saved-dashboards switcher", () => {
     auth.role = "owner";
 
     render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
     await screen.findByText("dashboard.widgets.runs.title");
 
     await userEvent.click(screen.getByText("dashboard.edit.customize"));
@@ -877,7 +960,10 @@ describe("the saved-dashboards switcher", () => {
 describe("dashboard links while the page stays mounted", () => {
   it("applies a report's view and exact period after navigation on the same page", async () => {
     const page = render(<DashboardPage />, { wrapper });
-    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
+    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
 
     params.set("view", "org");
     params.set("period", "2026-09-01..2026-09-07");
@@ -919,6 +1005,9 @@ describe("dashboard links while the page stays mounted", () => {
     params.set("sections", "usage");
     const page = render(<DashboardPage />, { wrapper });
     await waitFor(() =>
+      expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+    );
+    await waitFor(() =>
       expect(
         callsTo("/stats/usage").some(
           ([, options]) => new URLSearchParams(options?.params).get("group_id") === "g1",
@@ -946,6 +1035,25 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("sections");
     params.delete("group");
     page.rerender(<DashboardPage />);
-    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
   });
+});
+
+it("waits for a saved arrangement before mounting and fetching default widgets", async () => {
+  params.set("view", "org");
+  let finish: (value: { entries: { widget: string; span: string }[] }) => void = () => {};
+  const pending = new Promise<{ entries: { widget: string; span: string }[] }>((resolve) => {
+    finish = resolve;
+  });
+  vi.mocked(apiClient.get).mockImplementation((path: string) =>
+    path === "/me/dashboard-layout" ? pending : Promise.resolve(respond(path)),
+  );
+  const view = render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(callsTo("/me/dashboard-layout")).toHaveLength(1));
+  expect(callsTo("/stats/usage")).toHaveLength(0);
+  expect(callsTo("/approvals")).toHaveLength(0);
+  finish({ entries: [{ widget: "my-agents", span: "s6" }] });
+  await waitFor(() => expect(callsTo("/agents").length).toBeGreaterThan(0));
+  expect(callsTo("/approvals")).toHaveLength(0);
+  view.unmount();
 });

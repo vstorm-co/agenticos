@@ -50,7 +50,7 @@ export function GenerationStatus({ generation }: { generation: CaseGeneration | 
     );
   }
   return (
-    <p className="text-destructive flex flex-wrap items-center gap-2 text-sm" role="alert">
+    <p className="text-destructive-ink flex flex-wrap items-center gap-2 text-sm" role="alert">
       <AlertTriangle className="h-4 w-4" aria-hidden />
       {generation.error ?? t("generationFailed")}
       {leftOut}

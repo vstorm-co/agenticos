@@ -83,6 +83,9 @@ class OrganizationSecret(Base, TimestampMixin):
     )
     # Envelope produced by app.core.secret_kinds.seal_secret. Unlike a
     # credential, this is never NULL: "none" is not a secret anyone can store.
+    authorization_generation: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=False, default=uuid.uuid4
+    )
     sealed_secret: Mapped[str] = mapped_column(String, nullable=False)
     hint: Mapped[str] = mapped_column(String(8), nullable=False, default="")
     key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

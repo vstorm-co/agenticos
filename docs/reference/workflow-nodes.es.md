@@ -1,5 +1,5 @@
 ---
-source_sha: "7e54b3f5be8a"
+source_sha: "112189419852"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -51,12 +51,24 @@ superficie en `triggered_by`.
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
 Sus **campos de entrada** convierten la entrada en un contrato. Un campo tiene un
-nombre, un tipo - texto, número, número entero, sí o no, fecha u opción - y si es
+nombre, un tipo - texto, lista de textos, número, número entero, sí o no, fecha u opción - y si es
 obligatorio. Sin campos, un run acepta cualquier objeto JSON. Con campos, **Start a
 run** pide cada uno por su nombre, un run cuya entrada omite uno, envía uno del tipo
 equivocado o uno no declarado se rechaza antes de empezar con
 `WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
 al publicar.
+
+**Lista de textos** (`string_list`) acepta un array JSON de cadenas, por ejemplo
+`{"devices": ["leaf-01", "leaf-02"]}`. Se rechazan los valores escalares y los elementos que no sean cadenas.
+La API acepta un array vacío; un campo obligatorio debe estar presente y no puede ser
+`null`, mientras que uno opcional puede omitirse o ser `null`. Los pasos posteriores leen
+`payload.devices` como un array de cadenas.
+
+En **Start a run**, **Test draft** y los formularios públicos, introduce un elemento por línea.
+El formulario elimina los espacios en blanco de los extremos de cada línea y descarta las líneas vacías, conservando el orden y los duplicados.
+Una lista obligatoria vacía necesita un elemento; una lista opcional vacía se omite. Los valores de la API
+se conservan exactamente, incluidos los espacios en blanco y las cadenas vacías. El mismo tipo de campo
+está disponible en los triggers Manual, Form y Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 
@@ -839,14 +851,20 @@ Cuando la llamada se corta, lo que sigue depende de si pudo llegar al servidor:
 
 ## notification.send { #notification-send }
 
-Notifica a miembros de la organización en la aplicación, por email o por ambos,
-a través del centro de notificaciones. Los destinatarios son miembros indicados
+Notifica a miembros mediante el centro de notificaciones: en la aplicación, por
+email, push, Slack, Telegram, Mattermost, Microsoft Teams, SMS o iMessage. Los destinatarios son miembros indicados
 por id. En el momento de ejecutarse, cada uno debe seguir siendo un miembro
 activo que puede ver el workflow, y los demás se descartan. Si no queda nadie, el
 paso falla con `NO_PERMITTED_RECIPIENTS`. Las preferencias de cada persona para
 **Workflow notifications** siguen aplicándose. El paso termina cuando la
 notificación queda escrita, y el email se entrega después. Un paso reintentado no
 escribe una segunda notificación.
+
+Los canales privados requieren una ruta de notificaciones configurada y aceptada
+por cada destinatario. Seleccionar un canal no concede consentimiento ni permite
+enviar a un chat indicado por el workflow. La entrega vuelve a comprobar acceso,
+preferencias y autorización de la ruta antes de enviar. La entrega ocurre después
+de finalizar el paso; finalizar no demuestra recepción.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
@@ -970,6 +988,45 @@ de la ejecución responde `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Esperar respuesta por correo.** Selecciona el buzón Gmail u Outlook conectado de
+la organización, el `thread_id` del proveedor, el remitente exacto
+`expected_sender`, `not_before` y `deadline` con zona horaria, y opcionalmente el
+RFC `anchor_message_id` original. Outlook admite un buzón compartido que la cuenta
+pueda leer. Solo consulta metadatos cada 60–3600 segundos (300 por defecto) con el
+temporizador duradero del workflow, sin ocupar un worker ni un modelo mientras
+espera. Conserva la cuenta y su generación de consentimiento tras reinicios;
+nunca cambia automáticamente a una cuenta nueva.
+
+La salida `reply` gana cuando el remitente autenticado responde en ese hilo después
+de `not_before` y antes del plazo, inclusive. Los encabezados RFC opcionales solo
+restringen la coincidencia. No cuentan los mensajes enviados, borradores, respuestas
+automáticas ni recibos. Una última consulta correcta sin coincidencia verificada
+sale por `deadline`; `ignored_unverified` cuenta coincidencias sin autenticación.
+Significa **ninguna respuesta coincidente verificada**, no demuestra que nadie
+haya escrito. Un buzón ilegible, excesivo o revocado falla explícitamente y nunca
+sale por el plazo. El límite es de 500 mensajes y cinco páginas Graph. También
+considera respuestas recibidas antes de que el paso empezara a esperar.
+
+La pestaña Pasos muestra la expectativa. Quien inició el workflow o un editor puede
+pausarla o corregirla mientras espera; en pruebas, solo un editor. Una consulta en
+curso devuelve 409. La pausa conserva el plazo y no consulta el buzón. La revisión
+explícita de un consentimiento renovado solo acepta la misma cuenta. Un paso que
+requiere atención necesita además su decisión de reintento. Cancelar cierra el
+temporizador e impide pasos posteriores. Dura como máximo treinta días; el plazo
+general puede finalizar antes. Prepara seguimientos en `deadline` con los nodos
+habituales de notificación y aprobación; este nodo no envía correo.
+
+Si el plazo vence durante la pausa, el paso falla sin consultar el buzón ni afirmar
+que no llegó respuesta. Reanúdalo o corrígelo antes del plazo.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

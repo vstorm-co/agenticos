@@ -79,7 +79,13 @@ def _value_type(field: InputField) -> Any:
         return Annotated[str, AfterValidator(_offered)]
     if field.type == "date":
         return Annotated[str, AfterValidator(_iso_date)]
-    return {"text": str, "number": float, "integer": int, "boolean": bool}[field.type]
+    return {
+        "text": str,
+        "string_list": list[str],
+        "number": float,
+        "integer": int,
+        "boolean": bool,
+    }[field.type]
 
 
 def payload_model(fields: list[InputField]) -> type[BaseModel]:

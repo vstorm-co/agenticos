@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, MessageSquare, MessageSquarePlus, Search } from "lucide-react";
+import { ArrowLeft, MessageSquarePlus, Search } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConversationAgents } from "@/components/agents/conversation-agents";

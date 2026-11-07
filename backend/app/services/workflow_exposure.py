@@ -1004,6 +1004,14 @@ class WorkflowExposureService:
                     admitted_all = False
         return admitted_all
 
+    async def has_polled_email(self, *, organization_id: UUID, source: str) -> bool:
+        """Whether an active workflow listens to this provider, independently of routines."""
+        return bool(
+            await workflow_exposure_repo.list_active(
+                self.db, organization_id=organization_id, adapter=_MAILBOXES[source].adapter.value
+            )
+        )
+
     async def polled_places(self, *, organization_id: UUID) -> dict[str, datetime]:
         """The Outlook places - a mailbox and a folder - the organization's live
         workflows read, each with the moment from which its mail is news.

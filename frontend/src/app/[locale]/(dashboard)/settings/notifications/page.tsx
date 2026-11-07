@@ -24,15 +24,22 @@ import {
   Sparkles,
   UserPlus,
   UserRoundCog,
-  Workflow,
   XCircle,
 } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { Switch } from "@/components/ui";
 import { ErrorState } from "@/components/states";
+import { PhoneSettings } from "@/components/phone/phone-settings";
+import { NotificationRoutes } from "@/components/settings/notification-routes";
+import {
+  CHAT_NOTIFICATION_CHANNELS,
+  type ChatNotificationChannel,
+} from "@/lib/notification-preferences-api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { PushSettings } from "@/components/settings/push-settings";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth, useNotificationPreferences } from "@/hooks";
@@ -107,6 +114,13 @@ const CHANNEL_LABEL: Record<NotificationChannel, string> = {
   in_app: "inAppChannel",
   email: "emailChannel",
   push: "pushChannel",
+  slack: "slackChannel",
+  telegram: "telegramChannel",
+  mattermost: "mattermostChannel",
+  teams: "teamsChannel",
+  sms: "smsChannel",
+  imessage: "imessageChannel",
+  discord: "discordChannel",
 };
 
 const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
@@ -288,6 +302,7 @@ export default function NotificationsSettingsPage() {
   const tErrors = useTranslations("errors");
 
   const t = useTranslations("pages.settings");
+  const [chatChannel, setChatChannel] = useState<ChatNotificationChannel>("slack");
   const { user } = useAuth();
   const { setUser } = useAuthStore();
   const [saving, setSaving] = useState<PreferenceKey | null>(null);
@@ -377,6 +392,9 @@ export default function NotificationsSettingsPage() {
 
       <PushSettings />
 
+      <NotificationRoutes />
+      <PhoneSettings />
+
       <SectionCard
         title={t("notificationPreferences")}
         description={t("notificationPreferencesDescription")}
@@ -387,45 +405,68 @@ export default function NotificationsSettingsPage() {
           // dressed as a preference (#32's shape).
           <ErrorState description={preferencesError} />
         ) : (
-          <ul className="divide-border divide-y">
-            {PREFERENCE_EVENTS.map((event) => (
-              <li
-                key={event.eventType}
-                className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 py-4 first:pt-0 last:pb-0 sm:flex"
+          <>
+            <Select
+              value={chatChannel}
+              onValueChange={(value) => {
+                const channel = CHAT_NOTIFICATION_CHANNELS.find((item) => item === value);
+                if (channel) setChatChannel(channel);
+              }}
+            >
+              <SelectTrigger
+                aria-label={t("chatChannelPreferences")}
+                className="mb-4 w-full sm:w-56"
               >
-                <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                  <event.icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-foreground text-sm font-medium">{t(event.words)}</p>
-                  <p className="text-muted-foreground text-xs leading-relaxed">
-                    {t(`${event.words}Trigger`)}
-                  </p>
-                </div>
-                <div className="col-start-2 flex shrink-0 items-center gap-6 sm:gap-4">
-                  {event.channels.map((channel) => {
-                    const pendingKey = `${event.eventType}:${channel}`;
-                    const label = `${t(event.words)} - ${t(CHANNEL_LABEL[channel])}`;
-                    return (
-                      <div key={channel} className="flex flex-col items-center gap-1">
-                        <span className="text-muted-foreground text-xs tracking-wide uppercase">
-                          {t(CHANNEL_LABEL[channel])}
-                        </span>
-                        <Switch
-                          aria-label={label}
-                          checked={isEnabled(event.eventType, channel)}
-                          disabled={preferencesLoading || pending.has(pendingKey)}
-                          onCheckedChange={(enabled) =>
-                            handlePreferenceToggle(event.eventType, channel, enabled)
-                          }
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </li>
-            ))}
-          </ul>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHAT_NOTIFICATION_CHANNELS.map((channel) => (
+                  <SelectItem key={channel} value={channel}>
+                    {t(CHANNEL_LABEL[channel])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ul className="divide-border divide-y">
+              {PREFERENCE_EVENTS.map((event) => (
+                <li
+                  key={event.eventType}
+                  className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 py-4 first:pt-0 last:pb-0 sm:flex"
+                >
+                  <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                    <event.icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-foreground text-sm font-medium">{t(event.words)}</p>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      {t(`${event.words}Trigger`)}
+                    </p>
+                  </div>
+                  <div className="col-start-2 flex shrink-0 flex-wrap items-center gap-6 sm:gap-4">
+                    {[...event.channels, chatChannel].map((channel) => {
+                      const pendingKey = `${event.eventType}:${channel}`;
+                      const label = `${t(event.words)} - ${t(CHANNEL_LABEL[channel])}`;
+                      return (
+                        <div key={channel} className="flex flex-col items-center gap-1">
+                          <span className="text-muted-foreground text-xs tracking-wide uppercase">
+                            {t(CHANNEL_LABEL[channel])}
+                          </span>
+                          <Switch
+                            aria-label={label}
+                            checked={isEnabled(event.eventType, channel)}
+                            disabled={preferencesLoading || pending.has(pendingKey)}
+                            onCheckedChange={(enabled) =>
+                              handlePreferenceToggle(event.eventType, channel, enabled)
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </SectionCard>
 

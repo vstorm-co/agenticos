@@ -4,6 +4,7 @@ description: Turns a clinical discharge summary into the version the patient rea
   at home, without changing a fact.
 capabilities:
 - ask_user
+- drafts
 - context
 - skills
 - clock

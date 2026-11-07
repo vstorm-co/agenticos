@@ -16,6 +16,12 @@ approvals follow.
 records what a run cost, so a failure here has to be logged rather than raised -
 otherwise a full workspace or a name collision replaces whatever actually
 happened to the run.
+
+*Whoever reads a proposal is whoever may decide it.* A proposal carries the full
+body an agent wrote for a skill, so it is listed and read only by a caller who may
+edit that skill - grants included, as `resolve_access` decides - and is reported
+as missing to anyone else (#2422). A proposal for a new skill has no skill to ask,
+and is anyone's who holds `skills:edit`, which the routes already require.
 """
 
 import logging
@@ -193,23 +199,23 @@ class SkillProposalService:
         proposal = await skill_proposal_repo.get(
             self.db, proposal_id, organization_id=ctx.organization_id
         )
-        skill = (
-            None
-            if proposal is None or proposal.skill_id is None
-            else await skill_repo.get(
-                self.db, proposal.skill_id, organization_id=ctx.organization_id
-            )
-        )
-        hidden = skill is not None and not await resolve_access(
-            self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
-        )
-        if proposal is None or hidden:
+        if proposal is None or not await self._may_decide(ctx, proposal):
             raise NotFoundError(
                 message="Skill change not found", details={"proposal_id": str(proposal_id)}
             )
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(message="Reading assistant suggestions requires runs:view")
         return proposal
+
+    async def _may_decide(self, ctx: AuthContext, proposal: SkillProposal) -> bool:
+        if proposal.skill_id is None:
+            return True
+        skill = await skill_repo.get(
+            self.db, proposal.skill_id, organization_id=ctx.organization_id
+        )
+        return skill is not None and await resolve_access(
+            self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        )
 
     async def apply(
         self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision

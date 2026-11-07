@@ -59,10 +59,8 @@ export function ConnectionsTable({
         key: "name",
         // Takes what the others leave and cuts a long name short, rather than
         // pushing the actions off a phone.
-        // The room the other columns leave, which they take first: they keep to
-        // one line (the address used to wrap while the name sat in a sea of
-        // space), and the name truncates only when the row truly runs out.
-        className: "w-full max-w-0 pl-5",
+        // Bound the name on wider screens instead of separating it from its metadata.
+        className: "w-full max-w-0 sm:w-[32%] pl-5",
         header: t("name"),
         sortable: true,
         sortValue: (connection) => connection.name,
@@ -73,7 +71,9 @@ export function ConnectionsTable({
             ) : (
               <Box className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
             )}
-            <span className="truncate font-medium">{connection.name}</span>
+            <span title={connection.name} className="truncate font-medium">
+              {connection.name}
+            </span>
             {connection.is_default && (
               <Badge variant="secondary" className="shrink-0 gap-1">
                 <Star className="h-3 w-3" aria-hidden />

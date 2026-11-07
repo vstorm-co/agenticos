@@ -57,6 +57,8 @@ export type TurnFileSource =
   | { readonly kind: "conversation"; readonly id: string };
 
 export interface ChatMessage {
+  /** A synthetic HTTP resume segment, replaced by its persisted run transcript. */
+  isLocalContinuation?: boolean;
   /** Submission correlation, retained when the persistence frame was lost. */
   clientMessageId?: string;
   /** A saved bubble still addressed by its local id while deltas arrive. */
@@ -67,6 +69,9 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Run-level pause, including gated delegate tools absent from this message. */
+  runWaitingFor?: "approval" | "answer";
+  runStartedAt?: Date;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */
@@ -157,6 +162,7 @@ export interface ChatMessage {
 }
 
 export interface ToolCall {
+  presentation_kind?: "draft" | null;
   id: string;
   name: string;
   args: Record<string, unknown>;
@@ -185,7 +191,8 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run";
+export type MessagePartType =
+  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -217,6 +224,7 @@ export interface MessagePart {
   askedBy?: string;
   /** The run, for a "workflow_run" part. */
   workflowRun?: WorkflowRunPart;
+  phoneCallId?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -297,6 +305,7 @@ export type WSEventType =
   // Following a turn another socket is writing - the reader came back to a
   // conversation whose agent was still answering (`app/services/live_turn.py`).
   | "turn_attached"
+  | "background_task_turn"
   | "turn_prompt"
   | "presence"
   | "typing"
@@ -480,6 +489,8 @@ export interface WSEvent {
    handler. Deleting four wrong ones is not that refactor. */
 
 export interface ActionRequest {
+  can_remember?: boolean;
+  subagent_name?: string | null;
   /** The `approvals` row. What a decision is recorded against. */
   id: string;
   /** The model's own id for the call, so the card drawn for it can be resolved. */
@@ -531,6 +542,7 @@ export interface PendingApproval {
 export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
+  remember_scope?: "conversation" | "agent";
   type: DecisionType;
   editedAction?: {
     id: string;

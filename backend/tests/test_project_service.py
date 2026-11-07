@@ -82,6 +82,7 @@ def _service(project: MagicMock | None, *held: Perm) -> ProjectService:
     )
     patcher = [
         patch.object(module.project_repo, "get", AsyncMock(return_value=project)),
+        patch.object(module.project_repo, "unread_projects", AsyncMock(return_value=set())),
         patch.object(module, "resolve_access", _Access(*held)),
     ]
     for started in patcher:
@@ -303,9 +304,18 @@ class TestCreatingAndChanging:
             patch.object(module.project_repo, "detach_conversations", AsyncMock()) as detached,
             patch.object(module.resource_grant_repo, "delete_for_resource", AsyncMock()) as grants,
             patch.object(module.project_repo, "delete", AsyncMock()) as deleted,
+            patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purged,
+            patch("app.repositories.memory_claim.delete_for_scope", new=AsyncMock()) as memories,
+            patch(
+                "app.services.agent_trigger.AgentTriggerService.deregister_project_webhooks",
+                new=AsyncMock(),
+            ) as webhooks,
             patch.object(module, "record_audit", AsyncMock()),
         ):
             await service.delete(_ctx(), project.id)
+        purged.assert_awaited_once_with(
+            "project", project.id, organization_id=_ctx().organization_id
+        )
         service.workspaces.purge_project.assert_awaited_once()
         # The chats deleted with it take their files: nothing else would unlink them.
         assert forgot.await_args.args[1] == [orphan]
@@ -313,6 +323,16 @@ class TestCreatingAndChanging:
         detached.assert_awaited_once()
         assert grants.await_args.kwargs["resource_type"] == "project"
         deleted.assert_awaited_once()
+        from app.core.memory_keys import project_owner_key
+
+        memories.assert_awaited_once_with(
+            service.db,
+            organization_id=_ctx().organization_id,
+            scope_key=project_owner_key(project.id),
+        )
+        webhooks.assert_awaited_once()
+        assert webhooks.await_args.args[1] == project.id
+        assert webhooks.await_args.args[0].organization_id == _ctx().organization_id
 
 
 class TestListing:
@@ -332,6 +352,7 @@ class TestListing:
         stale = _project(default_agent_id=archived.id)
         service = _service(None)
         with (
+            patch.object(module.project_repo, "unread_projects", AsyncMock(return_value={mine.id})),
             patch.object(module, "visible_resource_ids", AsyncMock(return_value=None)),
             patch.object(module, "shared_with_group", AsyncMock(return_value=None)),
             patch.object(
@@ -367,6 +388,7 @@ class TestListing:
 
         assert listed.await_args.kwargs["see_all"] is True
         first, second, third = page.items
+        assert first.has_unread_chats and not second.has_unread_chats
         assert (third.default_agent_id, third.default_agent_name) == (None, None)
         assert (first.chat_count, first.can_use, first.can_edit) == (3, True, True)
         assert (first.default_agent_id, first.default_agent_name) == (agent.id, "Researcher")

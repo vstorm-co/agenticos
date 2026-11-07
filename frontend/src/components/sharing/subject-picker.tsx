@@ -1,5 +1,7 @@
 "use client";
 
+import { COMMAND_ITEM_FOCUS } from "@/components/ui/control-styles";
+
 import { useState } from "react";
 import { Command } from "cmdk";
 import { ChevronDown } from "lucide-react";
@@ -19,8 +21,10 @@ const TEN_ROWS = "max-h-[min(26rem,60vh)]";
 const HEADINGS =
   "[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase";
 
-const ROW =
-  "data-[selected=true]:bg-accent flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm";
+const ROW = cn(
+  COMMAND_ITEM_FOCUS,
+  "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+);
 
 interface SubjectPickerProps {
   id: string;

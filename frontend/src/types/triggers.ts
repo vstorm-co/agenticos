@@ -1,3 +1,4 @@
+import type { RoutineNotificationChannel } from "@/types/routines";
 /**
  * Types for agent triggers - when an agent runs with nobody at the keyboard.
  *
@@ -37,6 +38,10 @@ export type EventSource =
   | "zendesk";
 
 export interface Trigger {
+  consecutive_failures?: number;
+  auto_stopped_at?: string | null;
+  max_failures?: number | null;
+  notification_channels?: RoutineNotificationChannel[] | null;
   id: string;
   agent_id: string;
   /** Set only on the org-wide listing, where a row is shown away from its agent. */
@@ -58,11 +63,27 @@ export interface Trigger {
    * trigger read carries it; the per-row controls gate on it rather than on a
    * role.
    */
+  project_id?: string | null;
   can_manage: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
+  pinned_version_id?: string | null;
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
+  /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
+  result_mode?: "report" | "inbox";
+  answer_to?: TriggerAnswerTo;
+  delivery_conversation_id?: string | null;
+  /** When the routine stops by itself; null runs until stopped (#2575). */
+  ends_at?: string | null;
+  /** What this routine's runs may cost a month, or null for no limit of its own (#2575). */
+  monthly_budget_usd?: number | string | null;
+  /** What its runs cost this month; present only with a limit. */
+  spent_this_month?: number | string | null;
+  /** Its month's limit is spent, so fires are skipped until the first. */
+  paused_for_budget?: boolean;
+  waiting_device_count?: number;
+  waiting_device_since?: string | null;
   /**
    * Whether a fire acts as the person who made it - their memory and their own
    * MCP connections (#2027). Only they may turn it on.
@@ -85,6 +106,9 @@ export interface Trigger {
   /** Null on an event trigger, which has no scheduled next fire. */
   next_fire_at: string | null;
   last_fired_at: string | null;
+  /** Last console delivery; null until a fire records it. */
+  last_delivery_status?:
+    "delivered" | "unavailable" | "run_log" | "no_answer" | "not_completed" | null;
   last_run_id: string | null;
   /** The one run-log conversation every fire appends to, opened eagerly on create. */
   conversation_id: string | null;
@@ -124,13 +148,25 @@ export interface TriggerList {
  * `event_config` and `event_secret`. The secret is sent once, on create, and never
  * returned - the server seals it and only its ciphertext is stored.
  */
+/** Where a fire's answer is delivered to its person: their own chat with the agent, one chosen chat, or only the log. */
+export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
+
 export interface TriggerCreate {
+  max_failures?: number | null;
+  is_active?: boolean;
+  notification_channels?: RoutineNotificationChannel[] | null;
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */
   name?: string | null;
   trigger_type: TriggerType;
   environment_id?: string | null;
+  pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
+  result_mode?: "report" | "inbox";
+  answer_to?: TriggerAnswerTo;
+  delivery_conversation_id?: string | null;
+  ends_at?: string | null;
+  monthly_budget_usd?: number | null;
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   schedule_kind?: ScheduleKind;
@@ -180,6 +216,8 @@ export interface TriggerCreated extends Trigger {
  * is remade by deleting and recreating, the secret by rotating.
  */
 export interface TriggerUpdate {
+  max_failures?: number | null;
+  notification_channels?: RoutineNotificationChannel[] | null;
   prompt?: string;
   name?: string | null;
   schedule_kind?: ScheduleKind;
@@ -189,7 +227,13 @@ export interface TriggerUpdate {
   overlap?: TriggerOverlap;
   is_active?: boolean;
   environment_id?: string | null;
+  pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
+  result_mode?: "report" | "inbox";
+  answer_to?: TriggerAnswerTo;
+  delivery_conversation_id?: string | null;
+  ends_at?: string | null;
+  monthly_budget_usd?: number | null;
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;

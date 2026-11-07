@@ -116,6 +116,21 @@ class TestTheStarterTemplate:
         assert starter
         assert set(starter) <= registered
 
+    def test_a_new_agent_starts_with_drafts(self):
+        assert "drafts" in agent_templates.starter_capabilities()
+
+    def test_every_shipped_template_offers_drafts_beside_ask_user(self):
+        bound = {
+            template.key: {binding["id"] for binding in template.capabilities}
+            for industry in agent_templates.catalog()
+            for template in industry.templates
+        }
+
+        assert bound
+        assert [
+            key for key, ids in bound.items() if "ask_user" in ids and "drafts" not in ids
+        ] == []
+
     @pytest.mark.anyio
     async def test_the_capability_catalog_carries_the_starters_binding(self):
         """Marked Recommended in the Toolbox, config and all, and nothing else is."""
@@ -388,3 +403,46 @@ class TestShippedInstructions:
 
         assert anchors
         assert pointed_at == {}
+
+
+def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
+    from app.services import agent_templates
+
+    for key in ["general/agenticos", "general/platform-assistant"]:
+        template = agent_templates.get(key)
+        assert template is not None
+        bindings = {binding["id"]: binding for binding in template.capabilities}
+        assert {
+            "monitor",
+            "background_tasks",
+            "background_tools",
+            "tool_search",
+            "conversation_search",
+            "subagents",
+        } <= bindings.keys()
+        assert bindings["tool_search"]["config"] == {"strategy": "local_bm25", "max_results": 5}
+        assert bindings["conversation_search"]["config"]["max_results"] == 5
+        config = bindings["subagents"]["config"]
+        assert config["allow_dynamic"] and config["mode"] == "auto"
+        assert {entry["name"] for entry in config["inline"]} == {"research", "explore", "review"}
+        if key == "general/agenticos":
+            assert {"computer_use", "coding_agent", "browser_use"} <= bindings.keys()
+        else:
+            assert not (bindings.keys() & agent_templates.AGENTICOS_ONLY)
+    assert not (agent_templates.starter_capabilities().keys() & agent_templates.AGENTICOS_ONLY)
+
+
+def test_explicit_desktop_browser_survives_without_a_deployment_cdp_endpoint(monkeypatch):
+    monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+    binding = {"id": "browser_use", "config": {"connection": "local"}}
+    assert agent_templates.for_this_deployment((binding,)) == [binding]
+
+
+def test_shipped_agents_and_new_agent_defaults_do_not_offer_planning_tools() -> None:
+    for key in ("general/agenticos", "general/platform-assistant"):
+        template = agent_templates.get(key)
+        assert template is not None
+        assert "planning" not in {binding["id"] for binding in template.capabilities}
+        assert "write_plan" not in template.instructions
+        assert "planning tool" not in template.instructions
+    assert "planning" not in agent_templates.starter_capabilities()

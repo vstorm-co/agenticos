@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Delegation } from "@/types";
 
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+
 import { DelegationChat } from "./delegation-chat";
 
 vi.mock("./markdown-content", () => ({
@@ -147,7 +149,7 @@ describe("the team at work", () => {
   });
 });
 
-it("shows the entire multiline instruction to a coding worker without clipping", () => {
+it("keeps multiline coding instructions in a compact preview", () => {
   const prompt =
     "Change the theme.\n" + "Keep every existing link intact. ".repeat(30) + "Run the tests.";
   render(
@@ -158,6 +160,33 @@ it("shows the entire multiline instruction to a coding worker without clipping",
     />,
   );
   const brief = screen.getByText(prompt, { normalizer: (value) => value });
-  expect(brief).not.toHaveClass("line-clamp-2");
+  expect(brief).toHaveClass("line-clamp-2");
   expect(brief).toHaveClass("whitespace-pre-wrap");
+});
+
+it("keeps delegate reasoning available and attributes a nested exchange to its actual parent", async () => {
+  render(
+    <DelegationChat
+      parent={CHIEF}
+      agents={AGENTS}
+      delegations={[
+        delegation({ taskId: "parent", thinking: "Checking the revenue sources" }),
+        delegation({
+          taskId: "child",
+          subagent: "reviewer",
+          parentTaskId: "parent",
+          depth: 1,
+          prompt: "Check these calculations",
+          status: "completed",
+          text: "Numbers verified",
+        }),
+      ]}
+    />,
+  );
+  expect(screen.getByText("Checking the revenue sources")).toBeVisible();
+  expect(screen.getByText(/Finance Analyst.*reviewer/i)).toBeVisible();
+  const reply = screen.getByRole("button", { name: /Checking the revenue sources/ });
+  await userEvent.click(reply);
+  const details = screen.getByText("Thought about it").closest("details");
+  expect(details).not.toHaveAttribute("open");
 });

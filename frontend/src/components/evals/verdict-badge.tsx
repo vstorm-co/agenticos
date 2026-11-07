@@ -11,10 +11,10 @@ const TONE: Record<
   VerdictTone,
   { variant: "success" | "destructive" | "secondary" | "warning"; icon: LucideIcon; color: string }
 > = {
-  pass: { variant: "success", icon: CheckCircle2, color: "text-success" },
-  fail: { variant: "destructive", icon: XCircle, color: "text-destructive" },
+  pass: { variant: "success", icon: CheckCircle2, color: "text-success-ink" },
+  fail: { variant: "destructive", icon: XCircle, color: "text-destructive-ink" },
   undecided: { variant: "secondary", icon: MinusCircle, color: "text-muted-foreground" },
-  error: { variant: "warning", icon: AlertTriangle, color: "text-warning" },
+  error: { variant: "warning", icon: AlertTriangle, color: "text-warning-ink" },
 };
 
 export const SCORER_TONE: Record<ScorerStatus, VerdictTone> = {

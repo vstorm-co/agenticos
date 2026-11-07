@@ -115,7 +115,7 @@ class OrganizationUpdate(BaseSchema):
         default=None,
         description=(
             "Whether people may have the platform watch their own MCP connections and "
-            "report what is new. Runs on the proactive model and limit. Needs "
+            "report what is new. Uses the selected agent model and the per-person proactive limit; no nightly suggestions model is required. Needs "
             "'budgets:manage'."
         ),
     )
@@ -225,7 +225,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     welcome_dm_enabled: bool = False
     welcome_dm_text: str | None = None
     chat_may_waive_approvals: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Whether a chat session here may grant standing consent to gated tool "
             "calls. The chat reads it to decide whether to offer the control at "

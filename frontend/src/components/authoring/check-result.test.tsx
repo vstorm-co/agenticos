@@ -72,7 +72,7 @@ describe("CheckResult", () => {
       name: "audit-smoke would fail: breaks “Do you ship to Canada?”",
     });
     expect(line).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(line.className).toContain("text-destructive");
+    expect(line.className).toContain("text-destructive-ink");
     expect(screen.getByRole("listitem")).toBeInTheDocument();
   });
 
@@ -138,12 +138,12 @@ describe("CheckResult", () => {
     );
 
     expect(screen.getByRole("link", { name: "On refunds: fixes 1 case" }).className).toContain(
-      "text-success",
+      "text-success-ink",
     );
     expect(
       screen.getByRole("link", { name: "audit-smoke would pass: no reproducible change" })
         .className,
-    ).toContain("text-success");
+    ).toContain("text-success-ink");
     expect(
       screen.getByRole("link", { name: "On refunds: the two sides cannot be compared" }),
     ).toBeInTheDocument();
@@ -230,6 +230,6 @@ it("keeps an incomparable dataset check neutral despite its raw flip counts", ()
   given("invalid", {}, { verdict: "invalid", regressions_confirmed: 4 });
   render(<CheckResult agentId="agent-1" runId="invalid" />);
   const link = screen.getByRole("link", { name: /the two sides cannot be compared/ });
-  expect(link).not.toHaveClass("text-destructive");
-  expect(link).not.toHaveClass("text-success");
+  expect(link).not.toHaveClass("text-destructive-ink");
+  expect(link).not.toHaveClass("text-success-ink");
 });

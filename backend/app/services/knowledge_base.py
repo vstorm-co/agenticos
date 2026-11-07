@@ -279,7 +279,9 @@ class KnowledgeBaseService:
             embedding_provider=provider.provider,
         )
 
-    async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
+    async def delete_for_rag_collection(
+        self, kb: KnowledgeBase, *, force_drop: bool = False
+    ) -> None:
         """Clear a dropped collection: its documents, its KB row and its vectors.
 
         Serves `DELETE /rag/collections/{name}` and `rag-drop`. A default KB keeps
@@ -296,10 +298,11 @@ class KnowledgeBaseService:
         another organization's, where two of them share a collection name.
 
         The teardown is `_tear_down`, the one `delete` runs too (#2568).
+        `force_drop` is its override, for `rag-drop` alone.
         """
-        await self._tear_down(kb)
+        await self._tear_down(kb, force_drop=force_drop)
 
-    async def _tear_down(self, kb: KnowledgeBase) -> None:
+    async def _tear_down(self, kb: KnowledgeBase, *, force_drop: bool = False) -> None:
         """Remove a base's documents, its vectors and - unless it is a default - its row.
 
         The one teardown `DELETE /kb/{id}` (`delete`), `DELETE
@@ -321,23 +324,34 @@ class KnowledgeBaseService:
         would otherwise go on listing and serving them, and a deleted base would
         hand them to its tenant's next base on the name.
 
-        If no other base holds the name, the table goes, and the same rows do: the
-        base's own and the unfiled rows of its tenant, with their files. Another
-        tenant's unfiled rows under the name stay with their files - the caller
-        holds no authority over them, so what happens to them is their tenant's
-        call - but their chunks go with the table, so they are marked as failed
-        (`mark_unindexed`): an upload has to be made again, and a sync indexes a
-        synced one again. The two routes had drifted here:
-        `delete` left the tenant's unfiled rows behind the dropped table, still
-        listed as indexed, and the collection drop deleted every row under the
-        name, whichever tenant it belonged to (#2568).
+        If no other base holds the name, the same rows go, and so does the table
+        unless it holds an unfiled chunk the base does not take: an operator's
+        `rag-ingest` or CLI sync into the held name, or another tenant's. A claim
+        cannot refuse content that arrives after it, and the caller holds no
+        authority over it, so the table stays with every chunk the base takes
+        purged (#2747). Unless the base is a kept default, that leaves the name as
+        such a writer left it: no base on it, a claim refused except to an app admin
+        or the organization the chunks left all belong to, and `rag-drop` to remove
+        it. `force_drop` is that operator's override, so a `rag-drop` of a held name
+        still drops the table. An unfiled write holds the name through its commit
+        (`insert_document`), so the table is asked after any such write in flight,
+        and one that reaches the name while it is reserved is refused.
+
+        When the table does go, another tenant's unfiled rows under the name stay
+        with their files - the caller holds no authority over them, so what happens
+        to them is their tenant's call - but anything they describe goes with the
+        table, so they are marked as failed (`mark_unindexed`): an upload has to be
+        made again, and a sync indexes a synced one again. The two routes had
+        drifted here: `delete` left the tenant's unfiled rows behind the dropped
+        table, still listed as indexed, and the collection drop deleted every row
+        under the name, whichever tenant it belonged to (#2568).
 
         The stored files, the purge and the drop are a cleanup job queued in this
         transaction (`queue_external_state_cleanup`), not run in the request, so
         they happen only once the delete has committed: an in-request drop
         stranded a rolled-back delete on a dropped table, lost it to a worker
         restart, and raced a concurrent claim (#1293, #1347, #1349, #1355). The
-        job re-reads the reference check on its own session before dropping. The
+        job drops only while the name is reserved. The
         name is held against a claim while the reference check and the
         reservation are made, and reserved in `collection_teardowns` until the
         drop runs, so neither a create (`claim`) nor an upload
@@ -367,7 +381,11 @@ class KnowledgeBaseService:
         base_purges: list[BasePurge] = []
         # The documents go before the KB row: `ON DELETE SET NULL` would unfile
         # them first, and a delete by the base's id would then find nothing.
-        if others:
+        keeps_table = bool(others) or (
+            not force_drop
+            and await rag_document_repo.table_holds_unfiled_outside(self.db, CollectionScope.of(kb))
+        )
+        if keeps_table:
             storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
         else:
             _, unfiled = await self._delete_unfiled_taken(kb, [])
@@ -375,8 +393,8 @@ class KnowledgeBaseService:
                 await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
                 + unfiled.storage_paths
             )
-            # Another tenant's unfiled rows stay, but not as indexed: their chunks
-            # go with the table.
+            # Another tenant's unfiled rows stay, but not as indexed: nothing stands
+            # behind them once the table is gone.
             await rag_document_repo.mark_unindexed(self.db, collection)
             collections_to_drop = [collection]
             # Reserve the name against reuse until the deferred drop runs, so a
@@ -410,7 +428,9 @@ class KnowledgeBaseService:
         The name is not tenant-unique (#913), so when several bases hold it the
         operator names one by `knowledge_base_id`; without one this refuses rather
         than pick. A name no base holds - a collection `rag-ingest` filled from
-        the command line - is dropped whole, its document rows with it.
+        the command line - is dropped whole, its document rows with it. So is a
+        table the last holder leaves when it holds what the base does not take: the
+        operator asked for this drop, and owns that content (#2747).
 
         Returns the base cleared, or `None` for a name no base holds.
         """
@@ -443,23 +463,27 @@ class KnowledgeBaseService:
 
             await queue_external_state_cleanup(self.db, storage_paths, [collection])
             return None
-        await self.delete_for_rag_collection(kb)
+        await self.delete_for_rag_collection(kb, force_drop=True)
         return kb
 
     async def _delete_documents_from_kept_table(
         self, kb: KnowledgeBase, others: list[KnowledgeBase]
     ) -> tuple[list[str], list[BasePurge]]:
-        """Delete a base's document rows from a table `others` still hold.
+        """Delete a base's document rows from a table that stays.
 
+        It stays for `others`, or, with none, for what no base holds (`_tear_down`).
         Returns the stored files to unlink and the purges of the base's chunks
         from the kept table. Its own rows go by its id; a kept default's purge
         snapshots committed vector ids while holding the base lock, including
         inserts not yet settled onto tracking rows, since it takes uploads again
-        under the same id. The unfiled rows the base takes - its tenant's - go
-        with it, unless another base of that tenant on the name takes them too
-        and still reads them: a kept default would otherwise go on listing them,
-        and a deleted base would hand them to its tenant's next base on the name
-        (#2560). Their chunks are purged by document id within the tenant.
+        under the same id. A last holder's does too: the drop it stands in for took
+        every chunk the base takes, the ones no row names included, and a chunk its
+        own document names even when the base takes no unfiled ones
+        (`delete_document`, #2537). The unfiled rows the base takes - its tenant's -
+        go with it, unless another base of that tenant on the name takes them too
+        and still reads them: a kept default would otherwise go on listing them, and
+        a deleted base would hand them to its tenant's next base on the name (#2560).
+        Their chunks are purged by document id within the tenant.
 
         Runs before the KB row is deleted: `ON DELETE SET NULL` would unfile the
         base's rows first, and a delete by its id would then find nothing.
@@ -467,8 +491,7 @@ class KnowledgeBaseService:
         collection = kb.collection_name
         scope = CollectionScope.of(kb)
         takes_unfiled, unfiled = await self._delete_unfiled_taken(kb, others)
-        base_purges: list[BasePurge] = []
-        if kb.is_default:
+        if kb.is_default or not others:
             stored = await rag_document_repo.stored_vector_ids_at_clear(
                 self.db, kb, takes_unfiled=takes_unfiled
             )
@@ -483,7 +506,11 @@ class KnowledgeBaseService:
                 + unfiled.storage_paths
             )
             named = unfiled.vector_document_ids
-            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        base_purges = (
+            [] if kb.is_default else [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        )
+        # With no other base on the name, every id here is this base's own document.
+        unfiled_too = takes_unfiled or not others
         # Split, so a large purge spreads across entries and jobs rather than
         # one payload and one array holding every document.
         base_purges += [
@@ -491,8 +518,8 @@ class KnowledgeBaseService:
                 collection=collection,
                 knowledge_base_id=kb.id,
                 vector_document_ids=named[i : i + _PURGE_IDS_PER_ENTRY],
-                takes_unfiled=takes_unfiled,
-                tenant=scope.tenant if takes_unfiled else None,
+                takes_unfiled=unfiled_too,
+                tenant=scope.tenant if unfiled_too else None,
             )
             for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
         ]
@@ -600,7 +627,7 @@ class KnowledgeBaseService:
                 named embedding configuration disagrees with the one the
                 collection already indexes with.
             AlreadyExistsError: If the collection name is already held outside
-                this caller's reach.
+                this caller's reach, or is busy and worth asking for again.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
         await self._check_system_agents(
@@ -1053,7 +1080,8 @@ class KnowledgeBaseService:
         the collection name still blocking reuse (#1266). So the documents go,
         then the row, then the table - dropped only when no other base still
         references the name, which is not tenant-unique (#913). The teardown is
-        `_tear_down`, the one `DELETE /rag/collections/{name}` runs too (#2568).
+        `_tear_down`, the one `DELETE /rag/collections/{name}` runs too (#2568),
+        which also keeps a table holding content the base does not take (#2747).
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for

@@ -71,7 +71,7 @@ async def _updated(bot: ChannelBot, **fields: object) -> dict:
         ) as repo_update,
     ):
         service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-        await service.update(bot.id, ChannelBotUpdate(**fields))
+        await service.update(bot.id, ChannelBotUpdate(**fields), MagicMock())
     return repo_update.call_args.kwargs["update_data"]
 
 

@@ -404,6 +404,10 @@ class TestOrganizationService:
                 "app.services.organization.knowledge_base_repo.list_org_scoped",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.repositories.telephony.organization_has_unfinished_calls",
+                new=AsyncMock(return_value=False),
+            ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())
@@ -666,13 +670,13 @@ class TestOrganizationService:
         return proactivity, welcome
 
     @pytest.mark.anyio
-    async def test_watches_are_not_turned_on_without_a_model_either(self, service, mock_db):
-        with pytest.raises(BadRequestError) as refused:
-            await self._update(
-                service, self._stored(), OrganizationUpdate(proactive_watches_enabled=True)
-            )
-
-        assert refused.value.details["fields"][0]["field"] == "proactive_model_profile_id"
+    async def test_monitoring_needs_no_nightly_suggestions_model(self, service, mock_db):
+        proactivity, _ = await self._update(
+            service, self._stored(), OrganizationUpdate(proactive_watches_enabled=True)
+        )
+        assert proactivity.await_args.kwargs["enabled"] is False
+        assert proactivity.await_args.kwargs["model_profile_id"] is None
+        assert self.watch_policy.await_args.kwargs["enabled"] is True
 
     @pytest.mark.anyio
     async def test_watches_on_with_a_floor_and_the_look_untouched(self, service, mock_db):

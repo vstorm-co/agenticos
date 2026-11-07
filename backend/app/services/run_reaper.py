@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.repositories import agent_run_repo, authoring_repo, eval_run_repo
 from app.services.change_feed import ChangeEvent, run_event
 from app.services.notifications import NotificationService
+from app.services.routine_health import RoutineHealthService
 from app.worker.jobs import RUN_EVAL, SettleLater
 
 logger = logging.getLogger(__name__)
@@ -71,9 +72,9 @@ class RunReaperService:
           recorded anywhere a sweep could read - the ledger died with the
           process - so the row keeps the zeros it was opened with rather than
           being given a number somebody would reconcile against a bill.
-        - **Nobody is notified.** The failure mail rides `finish`, which has
-          the agent and its spec in hand; a sweep has neither, and a
-          notification built from a bare row would name nothing actionable.
+        - **Native routine owners hear about their incident.** The saved
+          responsibility identifies its owner without inventing an agent spec.
+          Other runs retain the existing history-only recovery behavior.
         - **Parked runs are left alone.** `awaiting_approval` has a resolver -
           the person its approval waits on - and its own sweep.
 
@@ -101,7 +102,14 @@ class RunReaperService:
             error=_REAPED_ERROR,
         )
         for run in reaped:
+            await RoutineHealthService(self.db).run_result(run)
             logger.warning("stale_run_reaped", extra={"run_id": str(run.id)})
+            try:
+                async with self.db.begin_nested():
+                    await NotificationService(self.db).routine_result(run)
+            except Exception:
+                # A notification defect must not undo the sweep's terminal writes.
+                logger.exception("reaped_run_notification_failed", extra={"run_id": str(run.id)})
         # Built while the rows are attached; published once they are committed.
         return [run_event(run, "updated") for run in reaped]
 

@@ -24,15 +24,15 @@ One row pointing at a remote server. The transport — streamable HTTP or
 server-sent events — is inferred from the URL, so an SSE-only server like
 Atlassian works alongside a streamable-HTTP one with nothing to configure.
 
-| | |
-|---|---|
-| `name` | Also the tool prefix. See [Name collisions](#name-collisions) |
-| `url` | SSRF-validated before we ever request it |
-| `auth_token` | Sealed in the [vault](secrets.md), never returned by any endpoint |
-| `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
-| `is_enabled` | Off without losing the credential |
+|                        |                                                                                                                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                 | Also the tool prefix. See [Name collisions](#name-collisions)                                                                                                                                  |
+| `url`                  | SSRF-validated before we ever request it                                                                                                                                                       |
+| `auth_token`           | Sealed in the [vault](secrets.md), never returned by any endpoint                                                                                                                              |
+| `allowed_tools`        | An allowlist, or null for "everything the server offers". A binding narrows within it — see below                                                                                              |
+| `is_enabled`           | Off without losing the credential                                                                                                                                                              |
 | `include_instructions` | Add the server's own `initialize` instructions to the agent's. Off by default - they are the server operator's text, read as the agent's own - and switched on in the connection's Edit dialog |
-| `last_status` | What the last probe found, and when |
+| `last_status`          | What the last probe found, and when                                                                                                                                                            |
 
 !!! warning "An address this deployment must not reach is refused, and the refusal says so"
 
@@ -99,13 +99,13 @@ takes a key recommends the shared one.
 assistant, and by an agent bound to each person's own account when they are the
 one talking to it.
 
-Its credential is sealed to the *member*, not to an organization — a personal
+Its credential is sealed to the _member_, not to an organization — a personal
 connection has none, and its owner may belong to several, so binding it to
 whichever was active when they added it would make the token unreadable the moment
 they switched.
 
 **Organization** is scoped to the organization, gated on `mcp:manage`, and is the
-only kind a published agent's spec may name *by id*.
+only kind a published agent's spec may name _by id_.
 
 An organization server can belong to a department. Under **Who can use it** the
 connect dialog offers **Everyone**, the default, or **Some people**,
@@ -185,6 +185,12 @@ says so and points at the servers page, which is where a connection is checked.
 A binding that already names tools shows those, so what it is bound to stays
 visible and can still be narrowed.
 
+With [Tool search](reference/capabilities.md#tool-search), eligible MCP tools are
+hidden until the agent searches for them. Its settings let you defer MCP tools,
+capability tools or both, and keep selected server namespaces or individual tools
+visible from the first request. These exclusions change when a tool's schema is
+shown; the connection and binding allowlists still decide whether it is available.
+
 ### Which calls wait for a person
 
 Every binding has an `approval` policy for its server's tools. The default,
@@ -195,12 +201,12 @@ arguments, and the approved ones are what runs. `all` holds every call. The
 read-only hint is the server's own claim, so `writes` is only as strict as the
 server is honest — choose `all` for a server you do not control.
 
-The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
-the person it acts for. Any agent's binding to that server is held to at least
-`writes`, `none` included: its tools act with the authority of whoever is asking,
-an Admin's too. Two reads wait like writes: `read_conversation` releases a
-whole past conversation, and `get_project` releases a chosen project's
-instructions. A page the agent read must not silently trigger either disclosure.
+The Architect's template uses `writes` for the platform server. Bindings to that
+server enforce at least `writes`, including when configured as `none`, because
+tools act with the caller's permissions. Read-only tools, including `get_project`
+and `read_conversation`, run automatically under `writes`. Creating, updating,
+deleting and other state-changing operations require approval. Use `all` to
+require approval for reads as well.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -222,7 +228,7 @@ to Notion as them: in the dashboard, in a direct message and in a channel
 alike. The audit trail at Notion then says who did what, which a shared service
 account never can.
 
-The account is the author of *this message*, never the thread's. Ania asks in
+The account is the author of _this message_, never the thread's. Ania asks in
 `#ops` and gets an answer from her Notion; Bartek asks the same question in the
 same thread and gets his, or is told to connect one. A thread is not a boundary
 anybody's credentials should cross — were the first person to connect to answer
@@ -274,7 +280,7 @@ connection may narrow further, and the two intersect.
     fix.
 
 An agent may bind a service both ways - the organization's handbook Notion
-*and* each person's own - as long as the organization's connection is not named
+_and_ each person's own - as long as the organization's connection is not named
 after the catalog key, which is the prefix each person's own account takes.
 
 ### Several accounts of one server
@@ -303,7 +309,7 @@ and the API refuses an unnamed second account on `label`.
 The approval then says which account is acting. A call through a labelled
 connection, or through one of several accounts on one service, carries that
 account's name: the chat, Activity and the dashboard show it beside the action,
-a Slack or Telegram message asks "to *send in Gmail* as *Work*", and the
+a Slack or Telegram message asks "to _send in Gmail_ as _Work_", and the
 approval email lists it after the tool. A single unlabelled account has nothing
 to tell apart, so nothing is added.
 
@@ -404,7 +410,7 @@ Two edges remain, both narrow and both deliberate:
   resolve yet can still be saved. The OAuth requests of a connection whose own host
   is listed may reach the listed hosts, pinned like every other hop.
 
-Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
+Nothing a _model_ chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
 
 !!! info "Behind an egress proxy, the proxy does the connecting"
@@ -442,7 +448,7 @@ address". One says the server aimed us somewhere this deployment will not go, th
 other that it wrote an address nothing can dial, and reporting either as the other
 would be a confident claim about whose fault a failure was.
 
-An unusable `WWW-Authenticate` hint ends that discovery *candidate* rather than the
+An unusable `WWW-Authenticate` hint ends that discovery _candidate_ rather than the
 flow, because the well-known URIs after it are derived from the URL an operator
 typed and may well answer.
 
@@ -667,7 +673,7 @@ Held in the database because a file cannot be paged. Thousands of entries in mem
 could answer "servers matching 'linear'" and could not answer "the fourth page of
 all of them" without loading the lot and slicing it. The ranking moved into SQL
 with it, for the same reason: ranking a page is ranking whatever that page
-happened to contain. Three bands — the server *called* Linear, then names merely
+happened to contain. Three bands — the server _called_ Linear, then names merely
 containing it, then descriptions that mention it — shorter name first inside a
 band, so `Stripe` beats `Sweden Payments (Stripe)`.
 
@@ -685,26 +691,43 @@ listing:
   the join — 99 curated rows against a page size of 50 — so the arithmetic lives
   in `mcp_listing.page` with a test on the boundary, because an off-by-one there
   skips a server or shows it twice on a list where nobody would notice which.
+
+  **Connected** includes every accessible service with a saved organization or
+  personal account, including custom servers and catalog or registry entries on
+  other pages. Multiple accounts share one server card. Disabled accounts and
+  accounts needing attention stay visible for management. Search, category,
+  sign-in and connection-state filters apply before counting and paging the
+  results.
+
+  Saved server links reopen the account dialog even when a failed or duplicate
+  registry check hides the server from **All**. URL matching preserves the case
+  of paths and query values, so distinct endpoints remain separate. Reauthorizing
+  an account uses that account's saved URL.
+
+  Connected and registry searches prioritize exact server keys over related results, so a
+  saved link resolves even when other descriptions mention the same key. Registry entries with
+  identical names keep a stable order across pages.
+
+  If a registry entry is removed during sync, its saved catalog key still opens the existing
+  accounts. Returning from popup sign-in refreshes both server pages and bookmarked accounts.
+
 - **A category reaches the mirror too.** The registry has no categories, so each
   listing is given one at sync from its own name and description, counting the
   words each category is known by; a listing that names none of them is filed
-  under *other* rather than guessed into a heading. The **Sign-in** filter asks
+  under _other_ rather than guessed into a heading. The **Sign-in** filter asks
   for what a server wants - OAuth, a token, nothing - which for a mirrored
   listing is what the catalog check found.
-- **No baked logo.** The console inlines a favicon per curated host so a badge
-  renders offline; at 1.9 KB each, doing that for the mirror would be 10.5 MB of
-  base64 in a module the browser loads. Registry rows fall through to the
-  runtime favicon service, which is what it was written for.
+- **Local icons.** Curated services use bundled brand marks. Registry rows without a known logo use service or category pictograms rather than fetching a favicon for every server. Private, unclassified connections retain a monogram. Browsing the catalog works offline and does not disclose the viewed server domains to a third-party favicon service.
 - **A snapshot, not a proxy.** An install must not stop working because somebody
   else's registry is down, and a name that resolved yesterday resolving to
   nothing today is worse than one that was never there.
 
-    `make platform-bootstrap` loads it, so a new deployment has it without
-    anybody reading this. `agenticos cmd mcp-registry-sync` refreshes it, and
-    `--fetch` reads the live registry rather than the bundled snapshot. On a
-    deployment that predates the table the list is the curated hundred until the
-    sync runs — which is what it was before any of this, so nothing regresses
-    while somebody gets round to it.
+  `make platform-bootstrap` loads it, so a new deployment has it without
+  anybody reading this. `agenticos cmd mcp-registry-sync` refreshes it, and
+  `--fetch` reads the live registry rather than the bundled snapshot. On a
+  deployment that predates the table the list is the curated hundred until the
+  sync runs — which is what it was before any of this, so nothing regresses
+  while somebody gets round to it.
 
 A server in neither list is still reachable: **Custom server** takes any URL and
 needs no catalog entry at all.
@@ -765,146 +788,146 @@ per-account endpoint.
 
 ### Development
 
-| Server | Auth | URL |
-|---|---|---|
-| GitHub | token | `https://api.githubcopilot.com/mcp/` |
-| Cloudflare docs | none | `https://docs.mcp.cloudflare.com/mcp` |
-| GitLab | token | self-hosted |
-| Postman | token | `https://mcp.postman.com/mcp` |
-| Vercel | oauth | `https://mcp.vercel.com/` |
-| Netlify | oauth | `https://mcp.netlify.com/mcp` |
-| Railway | token | `https://mcp.railway.app/mcp` |
-| Replit | oauth | `https://mcp.replit.com/server/mcp` |
-| Hugging Face | token | `https://huggingface.co/mcp` |
-| Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
-| Semgrep | token | `https://mcp.semgrep.ai/mcp` |
-| Clerk | oauth | `https://mcp.clerk.com/mcp` |
-| WorkOS | oauth | `https://mcp.workos.com/mcp` |
-| Render | token | `https://mcp.render.com/mcp` |
-| CircleCI | oauth | `https://mcp.circleci.com/v1/mcp` |
+| Server          | Auth  | URL                                   |
+| --------------- | ----- | ------------------------------------- |
+| GitHub          | token | `https://api.githubcopilot.com/mcp/`  |
+| Cloudflare docs | none  | `https://docs.mcp.cloudflare.com/mcp` |
+| GitLab          | token | self-hosted                           |
+| Postman         | token | `https://mcp.postman.com/mcp`         |
+| Vercel          | oauth | `https://mcp.vercel.com/`             |
+| Netlify         | oauth | `https://mcp.netlify.com/mcp`         |
+| Railway         | token | `https://mcp.railway.app/mcp`         |
+| Replit          | oauth | `https://mcp.replit.com/server/mcp`   |
+| Hugging Face    | token | `https://huggingface.co/mcp`          |
+| Buildkite       | oauth | `https://mcp.buildkite.com/mcp`       |
+| Semgrep         | token | `https://mcp.semgrep.ai/mcp`          |
+| Clerk           | oauth | `https://mcp.clerk.com/mcp`           |
+| WorkOS          | oauth | `https://mcp.workos.com/mcp`          |
+| Render          | token | `https://mcp.render.com/mcp`          |
+| CircleCI        | oauth | `https://mcp.circleci.com/v1/mcp`     |
 
 ### Project management
 
-| Server | Auth | URL |
-|---|---|---|
-| Linear | oauth | `https://mcp.linear.app/mcp` |
+| Server            | Auth  | URL                                |
+| ----------------- | ----- | ---------------------------------- |
+| Linear            | oauth | `https://mcp.linear.app/mcp`       |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
-| Asana | oauth | `https://mcp.asana.com/sse` |
-| ClickUp | oauth | `https://mcp.clickup.com/mcp` |
-| Trello | oauth | `https://mcp.trello.com/v1` |
-| Todoist | oauth | `https://ai.todoist.net/mcp` |
-| monday.com | oauth | `https://mcp.monday.com/mcp` |
+| Asana             | oauth | `https://mcp.asana.com/sse`        |
+| ClickUp           | oauth | `https://mcp.clickup.com/mcp`      |
+| Trello            | oauth | `https://mcp.trello.com/v1`        |
+| Todoist           | oauth | `https://ai.todoist.net/mcp`       |
+| monday.com        | oauth | `https://mcp.monday.com/mcp`       |
 
 ### Data and analytics
 
-| Server | Auth | URL |
-|---|---|---|
-| PostgreSQL | token | self-hosted |
-| Supabase | token | `https://mcp.supabase.com/mcp` |
-| Elasticsearch | token | self-hosted |
-| Airtable | token | `https://mcp.airtable.com/mcp` |
-| Snowflake | token | self-hosted |
-| Databricks | token | self-hosted |
-| Google BigQuery | oauth | self-hosted |
-| PostHog | token | `https://mcp.posthog.com/mcp` |
-| Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
-| Google Analytics 4 | token | self-hosted |
-| Neon | oauth | `https://mcp.neon.tech/mcp` |
-| Amplitude | token | `https://mcp.amplitude.com/mcp` |
-| Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
-| Exa | token | `https://mcp.exa.ai/mcp` |
-| Tavily | token | `https://mcp.tavily.com/mcp` |
-| Bright Data | token | `https://mcp.brightdata.com/mcp` |
-| Qdrant | none | `https://mcp.qdrant.tech/mcp` |
-| Statsig | token | `https://api.statsig.com/v1/mcp` |
+| Server             | Auth  | URL                                   |
+| ------------------ | ----- | ------------------------------------- |
+| PostgreSQL         | token | self-hosted                           |
+| Supabase           | token | `https://mcp.supabase.com/mcp`        |
+| Elasticsearch      | token | self-hosted                           |
+| Airtable           | token | `https://mcp.airtable.com/mcp`        |
+| Snowflake          | token | self-hosted                           |
+| Databricks         | token | self-hosted                           |
+| Google BigQuery    | oauth | `https://bigquery.googleapis.com/mcp` |
+| PostHog            | token | `https://mcp.posthog.com/mcp`         |
+| Mixpanel           | token | `https://mcp.mixpanel.com/mcp`        |
+| Google Analytics 4 | token | self-hosted                           |
+| Neon               | oauth | `https://mcp.neon.tech/mcp`           |
+| Amplitude          | token | `https://mcp.amplitude.com/mcp`       |
+| Firecrawl          | token | `https://mcp.firecrawl.dev/mcp`       |
+| Exa                | token | `https://mcp.exa.ai/mcp`              |
+| Tavily             | token | `https://mcp.tavily.com/mcp`          |
+| Bright Data        | token | `https://mcp.brightdata.com/mcp`      |
+| Qdrant             | none  | `https://mcp.qdrant.tech/mcp`         |
+| Statsig            | token | `https://api.statsig.com/v1/mcp`      |
 
 ### Communication, support, knowledge
 
-| Server | Auth | URL |
-|---|---|---|
-| Slack | oauth | `https://mcp.slack.com/mcp` |
-| Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
-| Google Workspace (self-hosted) | oauth | self-hosted |
-| Microsoft 365 (self-hosted) | oauth | self-hosted |
-| Zoom | oauth | self-hosted |
-| Intercom | oauth | `https://mcp.intercom.com/sse` |
-| Notion | oauth | `https://mcp.notion.com/mcp` |
-| GitBook | token | `https://mcp.gitbook.com/mcp` |
-| Sanity | token | `https://mcp.sanity.io/mcp` |
-| DeepWiki | none | `https://mcp.deepwiki.com/mcp` |
-| Supermemory | token | `https://mcp.supermemory.ai/mcp` |
-| Contentful | token | `https://mcp.contentful.com/mcp` |
-| Storyblok | token | `https://mcp.storyblok.com/mcp` |
-| Vapi | token | `https://mcp.vapi.ai/mcp` |
+| Server                         | Auth  | URL                                      |
+| ------------------------------ | ----- | ---------------------------------------- |
+| Slack                          | oauth | `https://mcp.slack.com/mcp`              |
+| Microsoft Work IQ              | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
+| Google Workspace (self-hosted) | oauth | self-hosted                              |
+| Microsoft 365 (self-hosted)    | oauth | self-hosted                              |
+| Zoom                           | oauth | self-hosted                              |
+| Intercom                       | oauth | `https://mcp.intercom.com/sse`           |
+| Notion                         | oauth | `https://mcp.notion.com/mcp`             |
+| GitBook                        | token | `https://mcp.gitbook.com/mcp`            |
+| Sanity                         | token | `https://mcp.sanity.io/mcp`              |
+| DeepWiki                       | none  | `https://mcp.deepwiki.com/mcp`           |
+| Supermemory                    | token | `https://mcp.supermemory.ai/mcp`         |
+| Contentful                     | token | `https://mcp.contentful.com/mcp`         |
+| Storyblok                      | token | `https://mcp.storyblok.com/mcp`          |
+| Vapi                           | token | `https://mcp.vapi.ai/mcp`                |
 
 ### Finance, sales, commerce
 
-| Server | Auth | URL |
-|---|---|---|
-| Stripe | token | `https://mcp.stripe.com` |
-| PayPal | oauth | `https://mcp.paypal.com/sse` |
-| Xero | oauth | `https://mcp.xero.com/mcp` |
-| HubSpot | oauth | `https://mcp.hubspot.com/` |
-| Shopify | oauth | self-hosted |
-| Attio | oauth | `https://mcp.attio.com/mcp` |
+| Server    | Auth  | URL                            |
+| --------- | ----- | ------------------------------ |
+| Stripe    | token | `https://mcp.stripe.com`       |
+| PayPal    | oauth | `https://mcp.paypal.com/sse`   |
+| Xero      | oauth | `https://mcp.xero.com/mcp`     |
+| HubSpot   | oauth | `https://mcp.hubspot.com/`     |
+| Shopify   | oauth | self-hosted                    |
+| Attio     | oauth | `https://mcp.attio.com/mcp`    |
 | Pipedrive | oauth | `https://mcp.pipedrive.ai/mcp` |
-| Lusha | oauth | `https://mcp.lusha.com` |
+| Lusha     | oauth | `https://mcp.lusha.com`        |
 
 ### Observability
 
-| Server | Auth | URL |
-|---|---|---|
-| Sentry | oauth | `https://mcp.sentry.dev/mcp` |
-| Grafana | token | `https://mcp.grafana.com/mcp` |
-| PagerDuty | oauth | `https://mcp.pagerduty.com/mcp` |
-| Datadog | token | `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp` |
-| Pydantic Logfire | token | `https://logfire-us.pydantic.dev/mcp` |
-| LangSmith | token | `https://api.smith.langchain.com/mcp` |
-| Honeycomb | token | `https://mcp.honeycomb.io/mcp` |
-| New Relic | token | `https://mcp.newrelic.com/mcp` |
+| Server           | Auth  | URL                                                     |
+| ---------------- | ----- | ------------------------------------------------------- |
+| Sentry           | oauth | `https://mcp.sentry.dev/mcp`                            |
+| Grafana          | token | `https://mcp.grafana.com/mcp`                           |
+| PagerDuty        | oauth | `https://mcp.pagerduty.com/mcp`                         |
+| Datadog          | token | `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp` |
+| Pydantic Logfire | token | `https://logfire-us.pydantic.dev/mcp`                   |
+| LangSmith        | token | `https://api.smith.langchain.com/mcp`                   |
+| Honeycomb        | token | `https://mcp.honeycomb.io/mcp`                          |
+| New Relic        | token | `https://mcp.newrelic.com/mcp`                          |
 
 ### Marketing and design
 
-| Server | Auth | URL |
-|---|---|---|
-| Mailchimp | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2` |
-| Resend | token | `https://mcp.resend.com/mcp` |
-| Webflow | oauth | `https://mcp.webflow.com/mcp` |
-| Wix | oauth | `https://mcp.wix.com/mcp` |
+| Server        | Auth  | URL                                                |
+| ------------- | ----- | -------------------------------------------------- |
+| Mailchimp     | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2`       |
+| Resend        | token | `https://mcp.resend.com/mcp`                       |
+| Webflow       | oauth | `https://mcp.webflow.com/mcp`                      |
+| Wix           | oauth | `https://mcp.wix.com/mcp`                          |
 | WordPress.com | oauth | `https://public-api.wordpress.com/wpcom/v2/mcp/v1` |
-| Semrush | oauth | `https://mcp.semrush.com/v1/mcp` |
-| Meta Ads | oauth | `https://mcp.facebook.com/ads` |
-| Google Ads | token | self-hosted |
-| Similarweb | token | `https://mcp.similarweb.com/mcp` |
-| Figma | oauth | `https://mcp.figma.com/mcp` |
-| Miro | oauth | `https://mcp.miro.com/mcp` |
-| Lucid | oauth | `https://mcp.lucid.app/mcp` |
-| Excalidraw | none | `https://mcp.excalidraw.com/mcp` |
-| Canva | oauth | `https://mcp.canva.com/mcp` |
-| Klaviyo | oauth | `https://mcp.klaviyo.com/mcp` |
+| Semrush       | oauth | `https://mcp.semrush.com/v1/mcp`                   |
+| Meta Ads      | oauth | `https://mcp.facebook.com/ads`                     |
+| Google Ads    | token | self-hosted                                        |
+| Similarweb    | token | `https://mcp.similarweb.com/mcp`                   |
+| Figma         | oauth | `https://mcp.figma.com/mcp`                        |
+| Miro          | oauth | `https://mcp.miro.com/mcp`                         |
+| Lucid         | oauth | `https://mcp.lucid.app/mcp`                        |
+| Excalidraw    | none  | `https://mcp.excalidraw.com/mcp`                   |
+| Canva         | oauth | `https://mcp.canva.com/mcp`                        |
+| Klaviyo       | oauth | `https://mcp.klaviyo.com/mcp`                      |
 
 ### Automation, storage, productivity, media
 
-| Server | Auth | URL |
-|---|---|---|
-| Zapier | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
-| Make | token | self-hosted |
-| n8n | token | self-hosted |
-| Box | oauth | `https://mcp.box.com/mcp` |
-| Dropbox | oauth | `https://mcp.dropbox.com/mcp` |
-| Calendly | oauth | `https://mcp.calendly.com/` |
-| Typeform | oauth | `https://api.typeform.com/mcp` |
-| SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp` |
-| DeepL | oauth | `https://mcp.deepl.com/v1/mcp` |
-| ElevenLabs | oauth | `https://api.elevenlabs.io/v1/mcp` |
-| Fireflies | token | `https://mcp.fireflies.ai/mcp` |
-| Egnyte | oauth | `https://mcp-server.egnyte.com/mcp` |
-| Apify | token | `https://mcp.apify.com` |
-| Tally | token | `https://api.tally.so/mcp` |
-| Pipedream | oauth | `https://mcp.pipedream.net/v2` |
-| Composio | token | self-hosted |
-| Activepieces | token | `https://mcp.activepieces.com/mcp` |
-| Cal.com | token | `https://mcp.cal.com/mcp` |
+| Server       | Auth  | URL                                  |
+| ------------ | ----- | ------------------------------------ |
+| Zapier       | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
+| Make         | token | self-hosted                          |
+| n8n          | token | self-hosted                          |
+| Box          | oauth | `https://mcp.box.com/mcp`            |
+| Dropbox      | oauth | `https://mcp.dropbox.com/mcp`        |
+| Calendly     | oauth | `https://mcp.calendly.com/`          |
+| Typeform     | oauth | `https://api.typeform.com/mcp`       |
+| SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp`   |
+| DeepL        | oauth | `https://mcp.deepl.com/v1/mcp`       |
+| ElevenLabs   | oauth | `https://api.elevenlabs.io/v1/mcp`   |
+| Fireflies    | token | `https://mcp.fireflies.ai/mcp`       |
+| Egnyte       | oauth | `https://mcp-server.egnyte.com/mcp`  |
+| Apify        | token | `https://mcp.apify.com`              |
+| Tally        | token | `https://api.tally.so/mcp`           |
+| Pipedream    | oauth | `https://mcp.pipedream.net/v2`       |
+| Composio     | token | self-hosted                          |
+| Activepieces | token | `https://mcp.activepieces.com/mcp`   |
+| Cal.com      | token | `https://mcp.cal.com/mcp`            |
 
 ### Anything else
 
@@ -962,6 +985,113 @@ bind **Microsoft 365 (self-hosted)** or **Microsoft Work IQ** instead.
 
 ### Gmail and Google Workspace
 
+### Official Google remote servers
+
+The catalog includes Google's hosted Workspace servers: Gmail, Calendar, Drive,
+Docs, Sheets, Slides, Chat, People, Classroom and Universal Search. These are
+Developer Preview services, separate from the self-hosted Workspace integration.
+Join Google's preview program, enable the product API and MCP service, and create
+a web OAuth client marked for an AI-powered agent. Register the exact callback
+shown in the connection dialog and enter the client ID and secret there. Chat
+also requires a configured Chat app; Classroom requires a test class and student.
+See [Google's Workspace setup guide](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Google-hosted MCP connections open the required client setup before sign-in, including the callback URL and a link to Google’s setup guide. Both the client ID and secret are required; AgenticOS does not attempt automatic client registration at Google. Other providers that reject registration return recovery instructions instead of a generic rejection.
+
+Cloud entries include BigQuery, Cloud Storage, Cloud Run, Compute Engine, GKE,
+Firestore, Cloud SQL, Spanner, Logging, Monitoring and more. Enable each service's
+APIs and grant the account MCP Tool User plus its product-specific IAM roles.
+Consult the linked guide for availability, billing and regional restrictions.
+Secure Source Manager defaults to US Central code review, and Gemini Enterprise
+Agent Platform to its generate toolset; edit the endpoint for another documented
+region or toolset. [Google's directory](https://docs.cloud.google.com/mcp/supported-products)
+also lists services whose endpoints or authentication are not yet included here.
+
+Google OAuth requests offline access and fresh consent so the account can receive
+a refresh token. Reconnect an existing Google account if it lacks one. Public
+handshake and tool discovery do not mean tools can access account data anonymously:
+the catalog audit checks OAuth metadata too. Catalog entries appear on existing
+installations after updating and restarting; accounts are connected explicitly,
+and existing connection URLs and credentials are preserved.
+
+| Server                                    | Official endpoint                                                            |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| Gmail                                     | `https://gmailmcp.googleapis.com/mcp/v1`                                     |
+| Google Calendar                           | `https://calendarmcp.googleapis.com/mcp/v1`                                  |
+| Google Chat                               | `https://chatmcp.googleapis.com/mcp/v1`                                      |
+| Google Classroom                          | `https://classroommcp.googleapis.com/mcp/v1`                                 |
+| Google Docs                               | `https://docsmcp.googleapis.com/mcp/v1`                                      |
+| Google Drive                              | `https://drivemcp.googleapis.com/mcp/v1`                                     |
+| Google People API                         | `https://people.googleapis.com/mcp/v1`                                       |
+| Google Sheets                             | `https://sheetsmcp.googleapis.com/mcp/v1`                                    |
+| Google Slides                             | `https://slidesmcp.googleapis.com/mcp/v1`                                    |
+| Google Workspace Universal Search         | `https://workspacemcp.googleapis.com/mcp/v1`                                 |
+| Google API keys                           | `https://apikeys.googleapis.com/mcp`                                         |
+| Google Agent Registry                     | `https://agentregistry.googleapis.com/mcp`                                   |
+| Google Agent Search                       | `https://discoveryengine.googleapis.com/mcp`                                 |
+| Google AlloyDB for PostgreSQL             | `https://alloydb.googleapis.com/mcp`                                         |
+| Google Android Management API             | `https://androidmanagement.googleapis.com/mcp`                               |
+| Google Apigee API hub                     | `https://apihub.googleapis.com/mcp`                                          |
+| Google App Lifecycle Manager              | `https://saasservicemgmt.googleapis.com/mcp`                                 |
+| Google App Topology                       | `https://apptopology.googleapis.com/mcp`                                     |
+| Google Audit Manager                      | `https://auditmanager.googleapis.com/mcp`                                    |
+| Google Backup and DR Service              | `https://backupdr.googleapis.com/mcp`                                        |
+| Google BigQuery Data Transfer Service     | `https://bigquerydatatransfer.googleapis.com/mcp`                            |
+| Google BigQuery Migration Service         | `https://bigquerymigration.googleapis.com/mcp`                               |
+| Google Bigtable                           | `https://bigtableadmin.googleapis.com/mcp`                                   |
+| Google Capacity Planner                   | `https://capacityplanner.googleapis.com/mcp`                                 |
+| Google Cloud Asset Inventory              | `https://cloudasset.googleapis.com/mcp`                                      |
+| Google Cloud CLI                          | `https://cloudcli.googleapis.com/mcp`                                        |
+| Google Cloud Location Finder              | `https://cloudlocationfinder.googleapis.com/mcp`                             |
+| Google Cloud Logging                      | `https://logging.googleapis.com/mcp`                                         |
+| Google Cloud Monitoring                   | `https://monitoring.googleapis.com/mcp`                                      |
+| Google Cloud NetApp Volumes               | `https://netapp.googleapis.com/mcp`                                          |
+| Google Cloud Quotas                       | `https://cloudquotas.googleapis.com/mcp`                                     |
+| Google Cloud Run                          | `https://run.googleapis.com/mcp`                                             |
+| Google Cloud SQL                          | `https://sqladmin.googleapis.com/mcp`                                        |
+| Google Cloud Storage                      | `https://storage.googleapis.com/storage/mcp`                                 |
+| Google Cloud Support API                  | `https://cloudsupport.googleapis.com/mcp`                                    |
+| Google Cloud Trace                        | `https://cloudtrace.googleapis.com/mcp`                                      |
+| Google Compute Engine                     | `https://compute.googleapis.com/mcp`                                         |
+| Google Database Center                    | `https://databasecenter.googleapis.com/mcp`                                  |
+| Google Database Migration Service         | `https://datamigration.googleapis.com/mcp`                                   |
+| Google Dataform                           | `https://dataform.googleapis.com/mcp`                                        |
+| Google Datastream                         | `https://datastream.googleapis.com/mcp`                                      |
+| Google Developer Connect                  | `https://developerconnect.googleapis.com/mcp`                                |
+| Google Developer Knowledge API            | `https://developerknowledge.googleapis.com/mcp`                              |
+| Google Error Reporting                    | `https://clouderrorreporting.googleapis.com/mcp`                             |
+| Google Filestore                          | `https://file.googleapis.com/mcp`                                            |
+| Google Firebase SQL Connect               | `https://firebasedataconnect.googleapis.com/mcp`                             |
+| Google Firestore                          | `https://firestore.googleapis.com/mcp`                                       |
+| Google GKE                                | `https://container.googleapis.com/mcp`                                       |
+| Google Gemini Cloud Assist                | `https://geminicloudassist.googleapis.com/mcp`                               |
+| Google Gemini Enterprise Agent Platform   | `https://aiplatform.googleapis.com/mcp/generate`                             |
+| Google Home Developer                     | `https://homedevelopers.googleapis.com/mcp`                                  |
+| Google Identity and Access Management     | `https://iam.googleapis.com/mcp`                                             |
+| Google Knowledge Catalog                  | `https://dataplex.googleapis.com/mcp`                                        |
+| Google Managed Service for Apache Kafka   | `https://managedkafka.googleapis.com/mcp`                                    |
+| Google Managed Service for Apache Spark   | `https://dataproc.googleapis.com/mcp`                                        |
+| Google Maps Grounding Lite                | `https://mapstools.googleapis.com/mcp`                                       |
+| Google Memorystore                        | `https://redis.googleapis.com/mcp`                                           |
+| Google Network Intelligence Center        | `https://networkmanagement.googleapis.com/mcp`                               |
+| Google Oracle Database@Google Cloud       | `https://oracledatabase.googleapis.com/mcp`                                  |
+| Google Organization Policy Service        | `https://orgpolicy.googleapis.com/mcp`                                       |
+| Google Pay and Wallet                     | `https://paydeveloper.googleapis.com/mcp`                                    |
+| Google Personalized Service Health        | `https://servicehealth.googleapis.com/mcp`                                   |
+| Google Policy Assist                      | `https://policyassist.googleapis.com/mcp`                                    |
+| Google Policy Troubleshooter              | `https://policytroubleshooter.googleapis.com/mcp`                            |
+| Google Pub/Sub                            | `https://pubsub.googleapis.com/mcp`                                          |
+| Google Recommender                        | `https://recommender.googleapis.com/mcp`                                     |
+| Google Resource Manager                   | `https://cloudresourcemanager.googleapis.com/mcp`                            |
+| Google Secure Source Manager              | `https://securesourcemanager.us-central1.rep.googleapis.com/mcp/code_review` |
+| Google Security Command Center Management | `https://securitycentermanagement.googleapis.com/mcp/manage-services`        |
+| Google Service Metadata API               | `https://cloud.googleapis.com/mcp`                                           |
+| Google Spanner                            | `https://spanner.googleapis.com/mcp`                                         |
+| Google Stitch                             | `https://stitch.googleapis.com/mcp`                                          |
+| Google Unified Maintenance                | `https://maintenance.googleapis.com/mcp`                                     |
+
+Catalog services use bundled brand marks, including distinct Workspace application icons. Registry entries without a supplied logo use a service or category pictogram, such as a calendar for CalendarMCP. Private, unclassified connections retain a monogram. Rendering these icons does not request third-party favicons.
+
 **Google Workspace (self-hosted)** is
 [`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
 run with `--transport streamable-http` and `MCP_ENABLE_OAUTH21=true`, using your own
@@ -973,9 +1103,9 @@ shows it answering mail from a workflow.
 Outlook is also available through third-party MCP services. The bundled registry
 includes MintMCP entries for email and calendar:
 
-| Registry entry | Server URL |
-|---|---|
-| `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
+| Registry entry                 | Server URL                                 |
+| ------------------------------ | ------------------------------------------ |
+| `com.mintmcp/outlook-email`    | `https://outlook-email.mintmcp.com/mcp`    |
 | `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
 
 Search the MCP catalog for the entry or add its URL as a custom server. Follow
@@ -1023,36 +1153,42 @@ permissions. Each tool is a call to the [public API](api.md) made with that key,
 so it is refused, rate limited and audited exactly as the same request over HTTP
 would be; an expected refusal returns an explicit error envelope naming the missing permission.
 
-| Tool | Needs |
-|---|---|
-| `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
-| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
-| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
-| `list_org_connections` | `mcp:manage` |
-| `publish_agent` | `agents:publish` on that agent |
-| `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
-| `run_agent` | `agents:run` |
-| `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` on the agent |
-| `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
-| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
-| `list_embedding_models` | — |
-| `create_knowledge_base`, `add_document` | `collections:edit` |
-| `list_skills` | `skills:view` |
-| `create_skill` | `skills:edit` |
-| `list_projects` | `projects:view` |
-| `get_project` | access to that project |
-| `create_project` | `projects:edit` |
-| `list_members` | `members:view` |
-| `invite_member` | `members:manage` and `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
-| `list_improvements`, `get_improvement` | read access to the agent; the session's knowledge topics also need `runs:view`, as does listing every open session without naming an agent |
-| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
-| `list_datasets` | `datasets:view` |
-| `get_eval_run` | `runs:view` |
-| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` and edit access to the topic's knowledge base |
+| Tool                                                                                                                                                                                                          | Needs                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `whoami`                                                                                                                                                                                                      | —                                                                                                                                          |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers`                                                                                                                          | `agents:view`                                                                                                                              |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft`                                                                                                                                                | `agents:edit`                                                                                                                              |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy`                                                                                                                                     | `connections:view`                                                                                                                         |
+| `list_org_connections`                                                                                                                                                                                        | `mcp:manage`                                                                                                                               |
+| `publish_agent`                                                                                                                                                                                               | `agents:publish` on that agent                                                                                                             |
+| `discard_agent_draft`                                                                                                                                                                                         | `agents:edit`, on a draft you own that was never published                                                                                 |
+| `run_agent`                                                                                                                                                                                                   | `agents:run`                                                                                                                               |
+| `list_routines`                                                                                                                                                                                               | `agents:view`                                                                                                                              |
+| `create_routine`, `run_routine_now`                                                                                                                                                                           | `agents:run` on the agent                                                                                                                  |
+| `update_routine`, `delete_routine`                                                                                                                                                                            | the routine's creator, or `agents:edit` on its agent                                                                                       |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend`                                                                                                                                                      | `runs:view`                                                                                                                                |
+| `list_knowledge_bases`, `search_knowledge`                                                                                                                                                                    | `collections:view`                                                                                                                         |
+| `list_embedding_models`                                                                                                                                                                                       | —                                                                                                                                          |
+| `create_knowledge_base`, `add_document`                                                                                                                                                                       | `collections:edit`                                                                                                                         |
+| `list_skills`                                                                                                                                                                                                 | `skills:view`                                                                                                                              |
+| `create_skill`                                                                                                                                                                                                | `skills:edit`                                                                                                                              |
+| `get_skill`                                                                                                                                                                                                   | `skills:view`                                                                                                                              |
+| `update_skill`, `add_skill_resource`                                                                                                                                                                          | `skills:edit`                                                                                                                              |
+| `list_context_files`, `get_context_file`                                                                                                                                                                      | `context:view`                                                                                                                             |
+| `create_context_file`, `update_context_file`                                                                                                                                                                  | `context:edit`                                                                                                                             |
+| `list_projects`                                                                                                                                                                                               | `projects:view`                                                                                                                            |
+| `get_project`                                                                                                                                                                                                 | access to that project                                                                                                                     |
+| `create_project`                                                                                                                                                                                              | `projects:edit`                                                                                                                            |
+| `list_members`                                                                                                                                                                                                | `members:view`                                                                                                                             |
+| `invite_member`                                                                                                                                                                                               | `members:manage` and `roles:manage`                                                                                                        |
+| `list_my_connections`, `set_my_language`, `set_my_profile`                                                                                                                                                    | — (the caller's own)                                                                                                                       |
+| `list_improvements`, `get_improvement`                                                                                                                                                                        | read access to the agent; the session's knowledge topics also need `runs:view`, as does listing every open session without naming an agent |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish`                                        |
+| `list_datasets`                                                                                                                                                                                               | `datasets:view`                                                                                                                            |
+| `get_eval_run`                                                                                                                                                                                                | `runs:view`                                                                                                                                |
+| `estimate_knowledge_draft`, `draft_knowledge_topic`                                                                                                                                                           | `runs:view` and edit access to the topic's knowledge base                                                                                  |
+| `list_watches`, `delete_watch`                                                                                                                                                                                | the caller’s own watches                                                                                                                   |
+| `create_watch`, `update_watch`                                                                                                                                                                                | private-human consent; `agents:run` when selecting an agent                                                                                |
 
 The Improve and eval tools call routes that are not yet part of the public API:
 they answer the in-app Architect and an MCP client signed in with OAuth, and
@@ -1062,11 +1198,10 @@ apply, and the Architect uses the ones that change something only when asked.
 An MCP client can start, accept, publish and end sessions too; there, the
 client's own approval prompt stands where the Architect's card does.
 
-Project discovery with `list_projects` returns only project ids and names,
-excluding descriptions, instructions and other authored labels. Reading one chosen
-project with `get_project` includes them and waits for approval under the `writes`
-policy, just like `read_conversation`. Instructions from another shared project
-should not enter the model merely because it searched for a workspace.
+Project discovery with `list_projects` returns only project ids and names.
+Read a selected project's instructions and configuration with `get_project`.
+This is a read-only operation and runs without approval under `writes`, subject
+to the caller's existing access to the project.
 
 An agent can be built end to end here: drafted, edited, tried as the unpublished
 draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
@@ -1114,15 +1249,13 @@ named after this deployment; switching it on binds it as
   holding that person's permissions, so a Viewer's agent can read what the Viewer
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
-- **Changes wait for approval.** `writes`, the default, holds every tool that
-  changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
-  `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
-  reading too. `none` is not offered: these tools act with a person's authority.
-  The one write that never waits is `set_my_language`: it changes the asker's
-  own console language, on their word, and an approval card for "switch to
-  English" would be the whole conversation. `set_my_profile` waits like the
-  rest, because what it saves is told to every agent the person runs, and a page
-  an agent read must not be able to write it unseen.
+- **Changes follow the binding's approval policy.** `writes`, the default, holds
+  publishing, inviting, deletion, running now, and creation or editing of personal
+  routines and watches; `all` also holds reads. Only `set_my_language` bypasses
+  this gate. Private-human identity, ownership and permissions remain necessary,
+  but do not replace confirmation of a persistent automation call.
+  `set_my_profile` also waits because its content reaches future agent runs.
+
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 
@@ -1170,9 +1303,30 @@ The platform MCP server also supplies workflow and Virtual Table tools. Start wi
 
 For operational records use `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`. Schema and record writes preserve revision checks. All tools use the caller's organization, permissions and resource grants; write tools retain the platform MCP approval gate. Architect's workflow-builder and virtual-tables skills explain choosing triggers, wrapping a documented HTTP API when the MCP gallery lacks an integration, and binding a published callable workflow to an agent. Credentials are configured in the vault UI, never embedded in graphs or model output.
 
-
-Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, and writes retain approval. Saved-view listing uses the same authenticated public API and table access checks. Legacy capability bindings remain editable with their resource grants; they are not automatically converted to broader MCP access.
+Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, and writes retain approval. Saved-view listing uses the same authenticated public API and table access checks. Legacy Workflows bindings remain editable. The Tables capability is removed: stored app grants migrate to `table_bindings`, and table operations require an explicit platform MCP connection.
 
 Expected API refusals return an explicit `error` envelope with HTTP status, code, message and safe field details. This is a refused operation, never a successful write. The envelope stays visible in chat history; unexpected server failures still use masked MCP errors. New workflow drafts can use `prepare_workflow_draft` to review their table and graph together. The read-only `check_workflow_draft` validates without executing actions. Refreshing an unmodified Architect also installs and binds its workflow-builder and virtual-tables skills, preserving existing bindings and refusing to overwrite pending draft changes.
 
 For existing customized Architects, run `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+## Context and skill authoring { #context-and-skill-authoring }
+
+Use `get_skill` before `update_skill`; omitted fields retain their values.
+`add_skill_resource` attaches a text reference or template, not an executed script.
+Discover Context with `list_context_files`, inspect its body and mode with
+`get_context_file`, and use `create_context_file` or `update_context_file` to save
+focused standing material. Choose `inject` for every-run prompt context and `link`
+for on-demand access. Both agent draft tools accept `context_ids`; the supplied
+list replaces the complete binding list. Editing a bound Context file affects the
+next run; changing a draft binding requires publication. Normal permissions and
+write approvals remain in force.
+
+### Connected account source authority
+
+A Google account connected through an organization's OAuth client can only be used in that organization. Personal use also requires current membership. Rotating or removing that client invalidates the copied grant until the person reconnects. Organization account connections, reconnections and disconnections are audited. Personal exports include account metadata, never tokens or client secrets.
+
+Migration `0293_connected_account_sources.py` leaves unverifiable older personal grants disconnected until reconsent. Downgrading it removes personal connected-account grants because older versions cannot enforce their source tenant; ordinary MCP connections remain.
+
+Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.
+
+Removing a member permanently revokes their personal grants issued through this organization; inviting them back requires new consent.

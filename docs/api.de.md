@@ -1,5 +1,5 @@
 ---
-source_sha: "f186947f1867"
+source_sha: "07ab4376c975"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -22,6 +22,12 @@ Drei Wege hinein, für drei verschiedene Aufrufer.
 | **API-Schlüssel der Organisation** | `Authorization: Bearer aos_…`          | Ein Skript, einen HTTP-Client wie Postman oder einen MCP-Client. Handelt als das Mitglied, das ihn ausgestellt hat, beschränkt auf die Berechtigungen, mit denen er ausgestellt wurde |
 | **JWT**                            | `Authorization: Bearer <access token>` | Eine Person oder etwas, das für sie handelt. Kurzlebig, erneuert mit einem Refresh-Token                                                                                              |
 | **Sitzungs-Cookie**                | von der Konsole gesetzt                | Nur den Browser — das Token ist HttpOnly und erreicht nie JavaScript                                                                                                                  |
+
+Organisationsschlüssel verwenden `Authorization: Bearer aos_…`. `X-API-Key` ist ein separates
+Dienstzugangsmittel der Bereitstellung; ein `aos_…`-Schlüssel dort authentifiziert keine
+Organisationsanfrage. Tresorrouten wie `GET /api/v1/secrets` und die Nachrichtenroute der Konsole
+benötigen eine angemeldete Sitzung. API-Clients lesen Unterhaltungen über `GET
+/api/v1/conversations/{id}/transcript`.
 
 ### API-Schlüssel der Organisation { #organization-api-keys }
 
@@ -200,6 +206,18 @@ das Test-Panel des Builders: ein Test-Run, für einen Key, dessen Aussteller den
 Agent bearbeiten darf, mit Begründung abgelehnt, wenn der Entwurf nicht
 veröffentlicht werden könnte, und nie mit `Prefer: respond-async`.
 
+Synchrone Läufe einschließlich Entwurfstests liefern `status: awaiting_answer` und `questions`, wenn
+der Agent die Person fragt. Antworten gehen an `POST /api/v1/runs/{run_id}/answers` mit
+`{"responses":{"<tool_call_id>":[{"selected":["Auswahl"]}]}}`; `answer` enthält Freitext, `skipped:
+true` überspringt bewusst. Eine ausstehende Antwort gilt nicht automatisch als Ablehnung. Das
+Plattform-MCP bietet denselben Ablauf mit `test_agent_draft` und `answer_agent_questions`.
+
+Der Gesprächsverlauf behält beantwortete Fragekarten und erfolgreiche Ladevorgänge verzögerter
+Capabilities. Aktuell registrierte Skills erhalten im nächsten Durchgang ihre aktuellen Anweisungen;
+entfernte Skills werden nicht reaktiviert. Historische Tabellenergebnisse ersetzen keine aktuellen
+Daten. Das oberste Agentenfeld `starters` beschreibt die veröffentlichte Version; Entwurfsstarter
+stehen unter `draft_spec.starters`.
+
 Ein Key erreicht auch die Routinen eines Agents - `GET /api/v1/triggers` sowie
 `GET`, `POST`, `PATCH` und `DELETE` unter `/api/v1/agents/{agent_id}/triggers`,
 dazu `POST .../{trigger_id}/run`, um eine sofort auszulösen - und die Modelle der
@@ -230,6 +248,18 @@ Schlüssel gestartet hat; einer, den die Person gestartet hat, antwortet `403`,
 weil die Fortsetzung in ihrem Namen handelt. Die Unterhaltung landet in der Chatliste des
 Ausstellers mit dem Label **API** und bleibt ausgeblendet, bis er solche
 Unterhaltungen dort per Schalter einblendet.
+
+Ein im Chat gestellter Run ist die Ausnahme vom eigenhändigen Fortsetzen. Entscheidet
+eine Person die letzte offene Freigabe oder beantwortet sie die Fragen, setzt der
+Server den Run als sie fort und postet die Antwort in den Chat. Die Entscheidung eines
+Schlüssels setzt nichts fort: Eine Person muss diesen Run innerhalb von etwa einer Stunde
+nach der letzten Entscheidung in der Konsole fortsetzen, sonst wird er beendet.
+
+`continues_in_chat` sagt das: Es steht auf `ApprovalRead`, auf `AgentRunRead` (Einzelabruf) und im
+Ergebnis eines Fortsetzens und einer Antwort. Auf `POST /agents/{id}/run` ist es
+immer false, ebenso für einen API-Schlüssel. Ist es true, rufe `/resume` nicht auf.
+Ein `/resume`, das als zweites ankommt, erhält das bestehende `400` mit dem `status`
+des Runs. Siehe [Außerhalb des Chats entschieden](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` liest eine der Unterhaltungen des
 Ausstellers Zug für Zug, mit den Tools, die jeder Zug aufgerufen hat, und den
@@ -705,7 +735,7 @@ Abmeldung nicht überdauert.
 | `approval` | `id`, `decision` (`approve` oder `deny`)                                                                                                            | Entscheidung über eine Freigabe, auf die der Anruf wartet |
 | `mute`     | `muted`                                                                                                                                             | Das Relay: das Mikrofon stummgeschaltet                   |
 | `played`   | `bytes`                                                                                                                                             | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
-| `end`      | -                                                                                                                                                   | Auflegen                                                  |
+| `end`      | ---                                                                                                                                                 | Auflegen                                                  |
 | _binär_    | 16-Bit-PCM mit der Eingangsrate des Modells                                                                                                         | Das Relay: das Audio des Anrufers                         |
 
 **Der Server sendet:**
@@ -723,7 +753,7 @@ Abmeldung nicht überdauert.
 | `approval_settled`     | `id`, `outcome` (`approved`, `denied` oder `expired`)                                                                                 | Wie eine Freigabe ausgegangen ist                                                                                                 |
 | `notice`               | `kind`, `message` (optional)                                                                                                          | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit                                                    |
 | `limit`                | `seconds_left`                                                                                                                        | Die Zeit des Anrufs ist fast um                                                                                                   |
-| `clear_playback`       | -                                                                                                                                     | Das Relay: das eingereihte Audio des Agents verwerfen                                                                             |
+| `clear_playback`       | ---                                                                                                                                   | Das Relay: das eingereihte Audio des Agents verwerfen                                                                             |
 | `ended`                | `reason`, `message`                                                                                                                   | Der Anruf ist vorbei                                                                                                              |
 | _binär_                | 16-Bit-PCM mit der Ausgangsrate des Modells                                                                                           | Das Relay: das Audio des Agents                                                                                                   |
 
@@ -917,3 +947,5 @@ versioniert und bewegt sich nur vorwärts.
   zum Abfragen, ein langer Run hält also keine Verbindung offen.
 - **Die öffentliche API steht in `/api/v1/public/openapi.json`** und ändert
   sich in v1 nur additiv, mit 90 Tagen Deprecation; ein SDK gibt es noch nicht.
+
+Skills mit genehmigungspflichtigem Laden benötigen die Genehmigung in jedem Durchgang erneut; frühere Ladevorgänge umgehen diese Prüfung nicht.

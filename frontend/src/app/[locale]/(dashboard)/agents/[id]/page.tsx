@@ -1,5 +1,7 @@
 "use client";
 
+import { MoreOptions } from "@/components/ui/more-options";
+
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -15,21 +17,23 @@ import {
   Download,
   FlaskConical,
   History,
-  ImagePlus,
   Lock,
-  MessageSquare,
+  ImagePlus,
   MoreHorizontal,
   Network,
   Plug,
   Trash2,
   TrendingUp,
   Upload,
-  Workflow,
   Radio,
   SearchX,
   UserPlus,
   X,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -47,6 +51,7 @@ import {
 } from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { entryForConnection } from "@/lib/mcp-servers";
+import { openPrimaryConversation } from "@/lib/primary-conversation-api";
 import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-state";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
@@ -178,6 +183,7 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  enableMcpToolSearch,
   withContextFiles,
   withSkills,
   withVisuals,
@@ -266,8 +272,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const {
     agent,
     isLoading,
-    error,
     fetchedAt,
+    error: agentError,
+    refetch: refetchAgent,
     saveDraft,
     validate,
     publish,
@@ -340,6 +347,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { servers: mcpCatalog, isLoading: catalogLoading, error: catalogError } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
+  const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -900,22 +908,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
-  // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
-  // still holds it (deleted from another tab); any other failure keeps the Builder open.
-  const gone = error instanceof ApiError && [403, 404].includes(error.status);
-  if (gone) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
-  if (error && (!agent || gone)) {
+  if (isLoading) return <BuilderSkeleton />;
+  if (agentError || !agent) {
+    const unavailable =
+      agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403);
     return (
       <ErrorState
-        title={t("agentUnavailable")}
-        description={getErrorMessage(error, tErrors)}
-        cta={{ label: t("backToAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+        title={tAgents(unavailable ? "unavailableTitle" : "loadFailedTitle")}
+        description={
+          unavailable ? tAgents("unavailableDescription") : getErrorMessage(agentError, tErrors)
+        }
+        cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
   }
-
-  if (isLoading || !spec || !agent) return <BuilderSkeleton />;
+  if (!spec) return <BuilderSkeleton />;
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
@@ -1044,6 +1051,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
     router.push(ROUTES.CHAT);
   }
 
+  /**
+   * Continue the one private conversation this person has with this agent.
+   *
+   * Unlike "Open in chat" it does not start a thread: it opens the stable one the
+   * server keeps per person and agent, creating it the first time. A failure is
+   * reported, because landing in an empty new chat would read as the history
+   * being gone.
+   */
+  async function continueConversation() {
+    try {
+      const conversationId = await openPrimaryConversation(id);
+      selectAgentForChat(id);
+      openConversation(conversationId);
+      router.push(ROUTES.CHAT);
+    } catch (failure) {
+      toast.error(getErrorMessage(failure, tErrors));
+    }
+  }
+
   async function handleAvatar(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // Cleared before awaiting, so picking the same file twice in a row still
@@ -1152,30 +1178,35 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {t("testPanelOpen")}
                 </Button>
               )}
-              {
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={openInChat}
-                    disabled={!isPublished}
-                    title={isPublished ? undefined : t("publishAgentChatWith")}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    {t("openChat")}
-                  </Button>
-                  {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
-                  <PinAgentButton
-                    agent={{
-                      id,
-                      name: agent.name,
-                      slug: agent.slug,
-                      hasAvatar: agent.has_avatar ?? false,
-                      colorSlot: agent.avatar_color ?? null,
-                    }}
-                    disabled={!isPublished}
-                  />
-                </>
-              }
+              <Button
+                variant="outline"
+                onClick={openInChat}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {t("openChat")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={continueConversation}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <History className="h-4 w-4" />
+                {t("continueConversation")}
+              </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -1673,14 +1704,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            {
-              <StartersPanel
-                starters={spec.starters ?? []}
-                disabled={!canEdit}
-                onChange={(starters) => update({ starters })}
-              />
-            }
-
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
             <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
@@ -1713,12 +1736,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
                   )}
                 </div>
-                <ModelSettingsForm
-                  value={spec.model_settings}
-                  onChange={(model_settings) => update({ model_settings })}
-                  disabled={!canEdit}
-                  verdict={verdictKind(agent.kind)}
-                />
+                <MoreOptions label={t("modelSettings")}>
+                  <ModelSettingsForm
+                    value={spec.model_settings}
+                    onChange={(model_settings) => update({ model_settings })}
+                    disabled={!canEdit}
+                    verdict={verdictKind(agent.kind)}
+                  />
+                </MoreOptions>
                 <ThinkingSetting
                   definition={capabilities.find((entry) => entry.id === THINKING_ID)}
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
@@ -1760,6 +1785,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 />
               </>
             }
+
+            <StartersPanel
+              starters={spec.starters ?? []}
+              icons={spec.starter_icons ?? {}}
+              titles={spec.starter_titles ?? {}}
+              disabled={!canEdit}
+              onChange={(starters, starter_icons, starter_titles) =>
+                update({ starters, starter_icons, starter_titles })
+              }
+            />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same `canEdit` every other editing
@@ -1910,7 +1945,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   connections={mcpConnections}
                   personalConnections={myMcpConnections}
                   onEnableToolSearch={() =>
-                    update({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+                    update({ capabilities: enableMcpToolSearch(spec.capabilities) })
                   }
                   disabled={!canEdit}
                 />

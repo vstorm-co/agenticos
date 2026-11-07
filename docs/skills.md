@@ -20,7 +20,7 @@ flowchart LR
     E --> Z2
 ```
 
-Twenty skills cost roughly twenty *descriptions* instead of twenty *procedures*.
+Twenty skills cost roughly twenty _descriptions_ instead of twenty _procedures_.
 
 !!! note "Discovery is cheap, not free"
 
@@ -65,6 +65,7 @@ carries. `GET /api/v1/skills` returns that opening as `excerpt`; the body itself
 loads when a skill is opened.
 
 ## Decide without asking
+
 ...
 ```
 
@@ -85,17 +86,19 @@ loads.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 
+Long text resources are paged to keep reference manuals out of every model request: the default page is 8,000 characters, with a maximum of 20,000. Pass `args` with `offset` and `limit` to `read_skill_resource`; its reply gives the next offset. Read only the relevant ranges and reuse material already loaded.
+
 ## How an agent reads one
 
 Through the [`skills` capability](reference/capabilities.md#skills). Each skill
 an agent is given becomes a **capability of its own**, listed for the model by
 name and description and opened on demand:
 
-| How | What it does |
-|---|---|
+| How                    | What it does                                                      |
+| ---------------------- | ----------------------------------------------------------------- |
 | The capability catalog | Names and one-line descriptions of everything bound to this agent |
-| `load_capability` | The full body of one skill, pulled into the conversation |
-| `read_skill_resource` | One file beside a skill |
+| `load_capability`      | The full body of one skill, pulled into the conversation          |
+| `read_skill_resource`  | One file beside a skill                                           |
 
 `load_capability` is the agent framework's own tool, not one this platform
 publishes, so it is not something a spec grants or renames — but it **can** be
@@ -160,8 +163,8 @@ conversation nobody is reviewing, and the next reader would have no way to tell 
 considered improvement from a hallucinated one.
 
 So a write becomes a **proposal**, and it appears above the list on the Skills page
-for whoever may edit that skill - its owner, or anybody granted edit on it - and,
-for a skill not written yet, for anyone who may create skills. Nobody else sees it:
+for anyone who may edit that skill. A proposal for a new skill appears for anyone
+holding `skills:edit`. Nobody else can list or open it:
 
 - **Apply** rewrites the skill and bumps its version, which reaches every bound
   agent on its next run.
@@ -179,7 +182,7 @@ later is comparing two complete versions instead of applying a patch somewhere i
 was never meant to go.
 
 Two things are refused rather than guessed at: a directory the agent created with
-no `SKILL.md` in it, and one whose frontmatter it mangled. And a *deleted* resource
+no `SKILL.md` in it, and one whose frontmatter it mangled. And a _deleted_ resource
 is deliberately not a change, because a file the model never touched and one it
 meant to delete leave the same absence.
 
@@ -214,32 +217,46 @@ turn or prevent its status and spend from being recorded.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**The bundled ones are already there.** The repository ships four: three worked
-examples — `refund-policy`, `code-review` and `incident-report` — and
-`artifact-pages`, which teaches an agent to build a page for the
-[Apps](artifacts.md#the-library-set) capability. Every organization starts
-with them. Creating an organization copies the whole shipped library in as
-ordinary skills, owned by the organization's owner and visible to the
-organization.
+**The bundled library arrives automatically.** New organizations receive the
+whole library, including platform-building procedures, durable work, research,
+visual design, Apps and presentation skills. The Skills page marks these copies
+`built-in`. They are ordinary organization-owned skills, not remote registry links.
 
-The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those four are not chosen — they arrive once, at
-creation.
+The `built-in` badge also identifies installed copies from the shipped skill gallery, including skills attached by the starter agents. It describes their shipped origin, not whether the organization installed them automatically. Gallery installation remains opt-in and existing customizations remain editable.
 
-**And they are yours from then on.** A seeded skill is an ordinary row: edit it or delete it. Nothing puts a deleted one back.
+Existing installations receive new built-ins when their shipped agents refresh
+on opening the console; creating an agent from the default starter also performs
+this synchronization. No manual seed command is required. Untouched copies are
+updated with their resources; edited or untracked differing copies stay unchanged.
+Installation receipts preserve deliberate deletion, so automatic refresh does not
+restore retired skills. The explicit seed command can restore them when requested.
+The skills listing itself remains read-only.
 
-That is a change. The listing used to top itself up — copying in any bundled name
-the organization did not have, every time anyone opened the page — so a deleted
-built-in returned on the next visit and disabling was the only way to retire one.
-It also meant a page that wrote rows while it read. The gallery is where a skill
-is chosen, and the seed command below is how a deployment pushes a new bundled
-one out on purpose.
+AgenticOS, Architect and new default agents bind the platform skills by default:
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
 
-!!! info "An organization created before a new bundled skill does not get it by itself"
+The optional `platform-tables`, `platform-context`, `platform-skills` and gallery API guides remain available in the library, but are no longer default bindings. Ordinary MCP reads and edits do not require loading a skill. Current tool descriptions own operation names, parameters and permissions; skills add design judgment and verification methods. Detailed visual recipes are resources loaded only when needed.
 
-    Run `seed-skills` for that organization, or install the skill from the
-    gallery. Both are deliberate, which is the point: nothing arrives on a page
-    load.
+They also bind the App, visual and presentation procedures, including storyline
+and review. Skills load progressively: names and descriptions first, bodies and
+resources only when relevant. Skills teach methods; they do not grant tools,
+accounts or a local compiler. Architect also ships with Apps and Charts tools.
+
+Default-agent refresh preserves customized fields independently, including prompt,
+tools and skill bindings. Changing only a model does not prevent the remaining
+untouched defaults from updating. New defaults apply to newly created agents;
+existing user-authored agents are not rewritten.
+
+Platform MCP can discover/create/edit Context files, bind their `context_ids` to
+an agent draft, and read/edit skills or add text resources. Context supports
+`inject` for standing prompt material and `link` for on-demand reading. Editing a
+bound file takes effect on the next run; changing a draft binding still requires
+publication. Resource writes keep normal permissions and approval gates.
+
+The document-production skill includes LaTeX starter sources and a build/render
+procedure. HTML Apps and browser decks remain distinct from compiled PDF or
+editable PPTX files. The agent must verify the actual compiler, generator and
+renderer available, and report a missing build or visual check honestly.
 
 The seed command does the same from a terminal, for scripted setups:
 
@@ -279,7 +296,7 @@ is an ordinary skill the organization owns and edits, exactly like a bundled one
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
-    The bundled four live in `app/core/catalog/skills/` and are copied into
+    The bundled library lives in `app/core/catalog/skills/` and are copied into
     **every** organization automatically. The gallery lives in
     `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
     the same parser, from a second directory, and never seeded.
@@ -327,13 +344,13 @@ nobody here has read. Each folder in `app/core/catalog/skills/` and
 They answer different questions, and the difference matters when an agent gets the
 wrong one.
 
-|  | Skills | [Knowledge](file-processing.md) |
-|---|---|---|
-| Contains | Procedure — how we do this | Documents — what we know |
-| Written by | A person, deliberately | Ingested in bulk |
-| Retrieved by | The model choosing a name | Semantic search over chunks |
-| Cites | Nothing; it *is* the instruction | The passage and its source |
-| Scale | Tens | Thousands of documents |
+|              | Skills                           | [Knowledge](file-processing.md) |
+| ------------ | -------------------------------- | ------------------------------- |
+| Contains     | Procedure — how we do this       | Documents — what we know        |
+| Written by   | A person, deliberately           | Ingested in bulk                |
+| Retrieved by | The model choosing a name        | Semantic search over chunks     |
+| Cites        | Nothing; it _is_ the instruction | The passage and its source      |
+| Scale        | Tens                             | Thousands of documents          |
 
 !!! example "Which is which"
 
@@ -376,7 +393,7 @@ The alternative is worse in two specific ways:
 - Every context with no subject — an API key, an embedded widget, a channel message
   — is refused by `resolve_access` by design, so a per-runner check would strip
   every skill from exactly those surfaces.
-- Where there *is* a subject, one published version would give a member — whose
+- Where there _is_ a subject, one published version would give a member — whose
   role reaches shared skills only — thinner instructions than it gives a builder,
   with the difference visible nowhere.
 
@@ -387,7 +404,7 @@ after publish is skipped with a warning rather than failing the run.
 ## Recap
 
 - A skill is **procedure**, written by a person, and loaded only when the model
-  decides its *description* is relevant — discovery costs a line per skill, and
+  decides its _description_ is relevant — discovery costs a line per skill, and
   the body costs nothing until it is opened.
 - In a workspace a skill is also **files**, which is what makes its scripts runnable.
 - An agent **proposes** an edit; a person applies it, once, and the decision is
@@ -395,7 +412,7 @@ after publish is skipped with a warning rather than failing the run.
 - Binding a skill **lends** it, so the publisher must be able to see it — and
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
-  unlike the bundled three, which arrive on their own.
+  unlike the bundled library, which arrive on their own.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 

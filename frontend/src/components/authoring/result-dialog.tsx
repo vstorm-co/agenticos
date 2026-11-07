@@ -254,7 +254,7 @@ export function CheckedAnswers({ runId }: { runId: string }) {
   const t = useTranslations("authoring.result");
   if (error)
     return (
-      <p role="alert" className="text-destructive text-sm">
+      <p role="alert" className="text-destructive-ink text-sm">
         {t("unavailable")}
       </p>
     );
@@ -291,7 +291,7 @@ function AnswerRows({
   const t = useTranslations("authoring.result");
   if (error)
     return (
-      <p role="alert" className="text-destructive text-sm">
+      <p role="alert" className="text-destructive-ink text-sm">
         {t("unavailable")}
       </p>
     );

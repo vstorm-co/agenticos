@@ -64,6 +64,7 @@ function AgentsCard({
     <ListCard
       fill
       namedByPage
+      layout="grid"
       title={t("catalog")}
       counted={
         visible === null

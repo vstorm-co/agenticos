@@ -59,6 +59,11 @@ export default defineConfig({
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
+        "src/components/triggers/source-consents-panel.tsx",
+        "src/components/triggers/routine-options.tsx",
+        "src/components/chat/tool-results/memory.tsx",
+        "src/components/projects/project-tracking-control.tsx",
+        "src/components/projects/project-tracking-dialog.tsx",
         // The workflow editor's client-side validation mirror (#1787): pure TS
         // over the in-memory graph, held to the gate the way the agents
         // components above are.
@@ -76,6 +81,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/background-tasks.tsx",
         // What the nightly look proposed (#2301).
         "src/components/dashboard/widgets/authoring-suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
@@ -125,6 +131,7 @@ export default defineConfig({
         "src/components/settings/create-api-key-dialog.tsx",
         "src/components/settings/scope-picker.tsx",
         "src/components/settings/connected-apps.tsx",
+        "src/components/settings/notification-routes.tsx",
         "src/components/settings/api-reference/**",
         "src/components/settings/api-usage.tsx",
         // What the MCP catalog check found, on a server's card (#2103).
@@ -252,6 +259,8 @@ export default defineConfig({
         // Voice calls (#54): the call button, the approval card, captions, the
         // level meter, the controls and the status line. New, so inside the gate.
         "src/components/voice/**/*.tsx",
+        "src/components/chat/draft-card.tsx",
+        "src/components/chat/draft-segment.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
@@ -295,6 +304,9 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/phone/**/*.tsx",
+        "src/lib/phone-api.ts",
+        "src/hooks/use-phone.ts",
         "src/components/tables/**/*.{ts,tsx}",
         // The workflows visual editor's undo/redo history leaf (#1787).
         "src/components/workflows/history.ts",
@@ -343,6 +355,9 @@ export default defineConfig({
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
+        // The connected accounts a virtual terminal reads as (#2191), new and so
+        // inside the gate.
+        "src/components/vault/connected-accounts-card.tsx",
       ],
       exclude: [
         "node_modules",

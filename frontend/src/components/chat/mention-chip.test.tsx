@@ -14,11 +14,17 @@ vi.mock("@/components/branding/brand-mark", () => ({
 }));
 
 describe("a mention chip", () => {
+  it("keeps the project's own mark beside a project mention", () => {
+    render(<MentionChip item={{ kind: "project", id: "p", name: "Fall launch" }} />);
+    expect(screen.getByText("F")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Fall launch")).toBeInTheDocument();
+  });
+
   it.each<[Mentionable, string]>([
     [{ kind: "collection", id: "k", name: "Contracts" }, "lucide-database"],
     [{ kind: "skill", id: "s", name: "refunds" }, "lucide-book-open"],
     [{ kind: "context", id: "c", name: "glossary" }, "lucide-file"],
-    [{ kind: "project", id: "p", name: "Launch" }, "lucide-folder-kanban"],
+    [{ kind: "conversation", id: "chat", name: "Research topic" }, "lucide-chat"],
   ])("draws what kind of thing %o is", (item, icon) => {
     const { container } = render(<MentionChip item={item} />);
     expect(container.querySelector(`.${icon}`)).not.toBeNull();

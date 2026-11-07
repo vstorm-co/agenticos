@@ -96,7 +96,7 @@ describe("InboxPage", () => {
     expect(state.shown).toEqual([finding, urgent, routine]);
     await chooseFilter("Urgent");
     expect(state.shown).toEqual([urgent]);
-    await chooseFilter("From watches");
+    await chooseFilter("Routine results");
     expect(state.shown).toEqual([finding, urgent]);
     await chooseFilter("Suggestions");
     expect(state.shown).toEqual([routine]);
@@ -107,19 +107,19 @@ describe("InboxPage", () => {
   it("says nothing waits, and sends the person to set up a watch", async () => {
     render(<InboxPage />);
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Set up a watch" }));
-    expect(state.push).toHaveBeenCalledWith("/routines?tab=watches");
+    await userEvent.click(screen.getByRole("button", { name: "Set up a routine" }));
+    expect(state.push).toHaveBeenCalledWith("/routines");
 
     // Nothing urgent is not a reason to set up a watch.
     await chooseFilter("Urgent");
-    expect(screen.queryByRole("button", { name: "Set up a watch" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Set up a routine" })).toBeNull();
   });
 
   it("opens already narrowed to what a link asked for, and ignores what it does not know", () => {
     state.open = [item("f", { kind: "finding" }), item("r")];
     state.filter = "watches";
     const { unmount } = render(<InboxPage />);
-    expect(screen.getByRole("combobox", { name: "Show" })).toHaveTextContent("From watches");
+    expect(screen.getByRole("combobox", { name: "Show" })).toHaveTextContent("Routine results");
     expect(state.shown.map((each) => each.id)).toEqual(["f"]);
     unmount();
 
@@ -207,3 +207,11 @@ async function chooseFilter(name: string) {
   await userEvent.click(screen.getByRole("combobox", { name: "Show" }));
   await userEvent.click(screen.getByRole("option", { name }));
 }
+
+it("changes the desktop filters without opening a duplicate select", async () => {
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Urgent" }));
+  expect(screen.getByRole("button", { name: "Urgent" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("button", { name: "All" }));
+  expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+});

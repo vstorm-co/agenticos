@@ -53,6 +53,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.notification_route import NotificationRoute
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
@@ -61,6 +62,7 @@ from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
+from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
@@ -84,6 +86,7 @@ from app.schemas.artifact import (
 )
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
+from app.schemas.coding_account import CodingAccountUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
@@ -101,6 +104,7 @@ from app.schemas.mcp_connection import (
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
+from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
@@ -112,7 +116,9 @@ from app.schemas.secret import SecretUpdate
 from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
+from app.schemas.system_agent import SystemAgentUpdate
 from app.schemas.table_view import TableViewUpdate
+from app.schemas.task import TaskUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
 from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
@@ -137,6 +143,10 @@ from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    # Coding account and task updates merge credential/config or typed record cells, not row columns.
+    CodingAccountUpdate: None,
+    TaskUpdate: None,
+    NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
     ArtifactAutoConsentUpdate: Artifact,
     # Sets `owner_user_id` from `user_id` (`artifact_ownership.change_owner`).
@@ -164,6 +174,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,
     LocalServiceUpdate: LocalService,
+    SystemAgentUpdate: SystemAgentProfile,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
     ModelProfileUpdate: ModelProfile,
@@ -289,6 +300,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "AgentDraftUpdate",
             "DatasetScoringUpdate",
             "JudgeScorerUpdate",
+            "CodingAccountUpdate",
+            "TaskUpdate",
             "NotificationPreferenceUpdate",
             "RecordUpdate",
             "SchemaUpdate",

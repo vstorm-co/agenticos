@@ -76,7 +76,7 @@ export function WriteQuestions({
         {more ? t("writeMoreQuestions", { count: more }) : t("writeQuestions")}
       </Button>
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -112,12 +112,12 @@ function Written({
       {writing ? (
         <p>{t("questionsWriting")}</p>
       ) : generation?.status === "failed" ? (
-        <p className="text-warning">{t("questionsWritingFailed")}</p>
+        <p className="text-warning-ink">{t("questionsWritingFailed")}</p>
       ) : (
         <p>{t("questionsWritten")}</p>
       )}
       {built.generation_skipped && <p>{t(`generationSkipped.${built.generation_skipped}`)}</p>}
-      {built.too_few && <p className="text-warning">{t("tooFewQuestions")}</p>}
+      {built.too_few && <p className="text-warning-ink">{t("tooFewQuestions")}</p>}
       {built.judge.reason_code && JUDGE_REASONS.includes(built.judge.reason_code) && (
         <p className="text-muted-foreground">{t(`graderReason.${built.judge.reason_code}`)}</p>
       )}

@@ -3,7 +3,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from app.agents.capabilities.channel_tools import (
@@ -51,7 +51,9 @@ def broadcast_mentioned(platform: str, text: str) -> bool:
 
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
-ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams", "discord"]
+ChannelType = Literal[
+    "web", "slack", "telegram", "mattermost", "teams", "sms", "email", "discord", "imessage"
+]
 
 # Default access policy applied to new channel bots.  Imported by models and
 # repositories so the literal is defined in exactly one place.
@@ -279,6 +281,9 @@ class IncomingMessage:
     meant a file sent to a bot was silently dropped and the agent answered about
     a document it never received.
     """
+
+    discord_roles_checked_for: tuple[str, str, str] | None = None
+    """Trusted preflight metadata: bot, linked user and identity; never read from raw payloads."""
 
 
 @dataclass
@@ -519,6 +524,14 @@ class ChannelAdapter(ABC):
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to the platform."""
 
+    async def send_notification(
+        self, bot_token: str, msg: OutgoingMessage, *, context_url: str | None
+    ) -> None:
+        """Deliver one notice; rich platforms may render its canonical case link."""
+        if context_url:
+            msg = replace(msg, text=f"{msg.text}\n\n{context_url}")
+        await self.send_message(bot_token, msg)
+
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post a message that will be rewritten as the answer arrives.
 
@@ -682,6 +695,16 @@ class ChannelAdapter(ABC):
             ChannelDirectoryUnsupported: If this platform does not tell a bot.
         """
         raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
+
+    async def channel_server(self, bot_token: str, channel_id: str) -> str | None:
+        """The server a channel belongs to, for a platform that approves access by server.
+
+        `None` by default, and for a channel with no server (a direct message) or
+        one the bot can no longer see. Only a platform whose access policy names
+        servers answers; a sender rebuilt from a stored run has no server id, and
+        this is how admission asks the platform for the current one.
+        """
+        return None
 
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None

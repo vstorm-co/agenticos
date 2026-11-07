@@ -12,6 +12,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
 import { AREA_FILL_OPACITY, LINE_WIDTH } from "@/lib/dashboard/system";
 
 export interface PassRatePoint {
@@ -86,10 +88,13 @@ function PointTip({ active, payload }: { active?: boolean; payload?: { payload: 
   const point = payload?.[0]?.payload.point;
   if (!active || point === undefined) return null;
   return (
-    <div className="bg-card max-w-[min(20rem,calc(100vw-2rem))] space-y-1 rounded-xl border px-3 py-2.5 text-xs break-words shadow-md">
-      <p className="font-medium">{point.title}</p>
+    <div
+      style={CHART_TOOLTIP_CONTENT}
+      className="max-w-[min(20rem,calc(100vw-2rem))] space-y-1 break-words"
+    >
+      <p style={CHART_TOOLTIP_ITEM}>{point.title}</p>
       {point.details.map((line) => (
-        <p key={line} className="text-muted-foreground">
+        <p key={line} style={CHART_TOOLTIP_LABEL}>
           {line}
         </p>
       ))}
@@ -163,7 +168,7 @@ export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
         />
         <Tooltip
           content={<PointTip />}
-          cursor={{ stroke: "oklch(from var(--color-foreground) l c h / 0.15)" }}
+          cursor={{ stroke: "var(--color-muted-foreground)", strokeOpacity: 0.3 }}
         />
         {filled && (
           <defs>

@@ -25,6 +25,15 @@ def _halves(text: str) -> tuple[str, str]:
     return has, missing
 
 
+def test_drafts_is_neither_offered_nor_missed() -> None:
+    with_it = setup_briefing(_spec("drafts", "ask_user"), agent_id=None)
+    without = setup_briefing(_spec("ask_user"), agent_id=None)
+
+    for text in (with_it, without):
+        assert "Drafts" not in text
+        assert "`drafts`" not in text
+
+
 class TestWhatItSays:
     def test_what_is_bound_is_listed_in_the_words_the_toolbox_leads_with(self) -> None:
         has, missing = _halves(setup_briefing(_spec("web_research", "ask_user"), agent_id=None))
@@ -60,14 +69,6 @@ class TestWhatItSays:
         text = setup_briefing(_spec(), agent_id=None)
 
         assert "Chat channel lookup" not in text
-
-    @pytest.mark.parametrize(
-        ("bound", "other"), [("memory_files", "Memory (mem0)"), ("memory_mem0", "**Memory**")]
-    )
-    def test_one_way_of_remembering_is_not_short_of_the_other(self, bound: str, other: str) -> None:
-        _has, missing = _halves(setup_briefing(_spec(bound), agent_id=None))
-
-        assert other not in missing
 
     def test_an_agent_with_everything_is_told_of_no_gap(self) -> None:
         everything = [c.id for c in all_capabilities() if c.selectable]
@@ -181,3 +182,15 @@ class TestEveryAgentIsBriefed:
             raise AssertionError
 
         assert _briefings(_spec(), voice=VoiceOptions(on_deferred=deny)) == []
+
+
+def test_platform_table_tools_do_not_request_a_duplicate_tables_capability() -> None:
+    spec = _spec(mcp_servers=[{"account": "platform"}])
+    briefing = SetupBriefing.for_spec(spec, agent_id=uuid.uuid4())
+    assert "virtual_tables" not in briefing.missing
+    assert "AgenticOS MCP tools first" in briefing.text
+
+
+def test_restricted_platform_binding_does_not_claim_unavailable_table_operations() -> None:
+    spec = _spec(mcp_servers=[{"account": "platform", "allowed_tools": ["list_agents"]}])
+    assert "virtual_tables" not in SetupBriefing.for_spec(spec, agent_id=uuid.uuid4()).missing

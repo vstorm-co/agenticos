@@ -20,16 +20,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from pydantic_ai import RunContext
-from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.audience import acting_for_no_person, acting_impersonated
-from app.agents.capabilities.virtual_tables import VirtualTables
-from app.agents.capabilities.virtual_tables._access import TableOperation
-from app.agents.deps import AgentDeps
 from app.api import deps
 from app.core.audit import set_impersonator
 from app.core.config import settings
@@ -416,32 +410,9 @@ async def test_every_way_a_record_is_added_starts_it_and_an_upsert_update_does_n
             RecordUpsert(values={email: "changed@x"}, expected_revision=1),
         )
         await db.commit()
-    # An agent's table tool.
-    capability: VirtualTables[AgentDeps] = VirtualTables(
-        grants={world.leads.id: frozenset({TableOperation.READ, TableOperation.CREATE})},
-        allow_create=False,
-    )
-    tool = capability.get_toolset().tools["create_record"].function
-    run_ctx = RunContext(
-        deps=AgentDeps(
-            organization_id=world.org.id, user_id=str(world.owner.id), run_id=uuid.uuid4()
-        ),
-        model=TestModel(),
-        usage=RunUsage(),
-        retry=0,
-        max_retries=1,
-        tool_call_id="call-1",
-    )
-    with patch(
-        "app.agents.capabilities.virtual_tables._toolset.get_db_context",
-        side_effect=lambda: world.factory.begin(),
-    ):
-        answer = await tool(run_ctx, table_id=world.leads.id, values={"Email": "agent@x"})
-    assert "agent@x" in answer
-
     await world.consume()
 
-    assert _statuses(await world.admissions(trigger_id)) == [("queued", None)] * 3
+    assert _statuses(await world.admissions(trigger_id)) == [("queued", None)] * 2
 
 
 async def test_filters_hold_on_the_record_as_it_was_created(world: _World):

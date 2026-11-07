@@ -5,13 +5,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { Blobby, type Heard } from "@/components/desktop/blobby";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, useReauthenticate } from "@/hooks/use-auth";
 import { useBlobbyActivity } from "@/hooks/use-blobby-activity";
 import { useDesktopState, useShellEvent } from "@/hooks/use-desktop";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { parseBlobbySettings, type DesktopState } from "@/lib/desktop/commands";
 import { reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
+import { useAuthStore } from "@/stores/auth-store";
 import { qk } from "@/lib/query-keys";
 
 /**
@@ -27,6 +28,7 @@ export function BlobbyWindow() {
   const queryClient = useQueryClient();
   const { data } = useDesktopState();
   const { isAuthenticated, isLoading } = useAuth();
+  const reauthenticate = useReauthenticate();
   const signedIn = isAuthenticated && !isLoading;
   const activity = useBlobbyActivity(signedIn);
   const reducedMotion = useReducedMotion();
@@ -60,6 +62,10 @@ export function BlobbyWindow() {
       settings={data.blobby}
       activity={activity}
       signedIn={signedIn}
+      checkSession={async () => {
+        await reauthenticate();
+        return useAuthStore.getState().isAuthenticated;
+      }}
       heard={heard}
       reducedMotion={reducedMotion}
     />

@@ -21,16 +21,29 @@ from app.worker.jobs import BasePurge
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """No connectors unless a teardown test explicitly supplies one."""
     monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
 
 
 @pytest.fixture(autouse=True)
-def _nothing_left_unindexed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A last holder's teardown marks another tenant's rows left under the name;
-    the statement hits the database, so it is a no-op unless a test asserts it."""
+def _last_holders_table_goes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A last holder's teardown asks its table for chunks it does not take, and
+    marks another tenant's rows left under the name. Both hit the database, so
+    the table holds none and the marking is a no-op unless a test asserts it."""
     monkeypatch.setattr("app.repositories.rag_document_repo.mark_unindexed", AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.table_holds_unfiled_outside",
+        AsyncMock(return_value=False),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -57,9 +70,14 @@ def _teardown_reservations(monkeypatch):
     """The teardown-reservation repo (#1362) hits the database; mock it at the
     boundary. A name is free to claim and reserving/releasing is a no-op by default;
     a test that asserts a reservation re-patches `reserve`."""
-    from app.repositories import collection_teardown_repo
+    from app.repositories import collection_teardown_repo, rag_document_repo
 
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+    # A name holding no unowned content (#2747); the claim reads it from the database.
+    monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(collection_teardown_repo, "reserve", AsyncMock())
     monkeypatch.setattr(collection_teardown_repo, "release", AsyncMock())
 

@@ -401,7 +401,14 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
     onSuccess: async (approval) => {
       // The invalidation refetches the queue, so the read below is fresh.
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-      toast.success(approval.status === "approved" ? t("decisionApproved") : t("decisionRejected"));
+      const approved = approval.status === "approved";
+      if (approval.continues_in_chat) {
+        // The server continues a chat run itself once its last call is decided;
+        // a resume from here would answer the chat twice.
+        toast.success(t(approved ? "decisionApprovedInChat" : "decisionRejectedInChat"));
+        return;
+      }
+      toast.success(approved ? t("decisionApproved") : t("decisionRejected"));
       // Deciding the last outstanding call makes the resume possible; nothing
       // performs it (the backend keeps the click and the execution apart). The
       // chat's dialog has always followed its decision with the resume - the
@@ -441,6 +448,22 @@ function stillAwaitingDecision(error: unknown): boolean {
 }
 
 /**
+ * The resume refusal that means the run is already past its park.
+ *
+ * On a chat run the server continues the run itself, so a resume can arrive
+ * after the run has moved on. It then loses the race and is refused with the run
+ * `running` or `completed`. Any other status (stopped, failed, expired) is news
+ * worth a toast.
+ */
+function alreadyContinuing(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 400 &&
+    (error.details?.status === "running" || error.details?.status === "completed")
+  );
+}
+
+/**
  * Continue a run whose parked tool calls have all been decided.
  *
  * A decision is a click; continuing the run executes an agent - the backend
@@ -456,8 +479,12 @@ function stillAwaitingDecision(error: unknown): boolean {
  * that check's answer arriving late, not news for the person who just decided.
  * Every other failure still toasts, and a resume somebody clicked never passes
  * this flag.
+ *
+ * `continuesInChat` marks a run the server continues in its chat. The button
+ * then is a manual retry: its answer also goes to the chat, and losing the race
+ * to the server's own continuation is not an error.
  */
-export function useResumeRun(options?: { ignoreStillParked?: boolean }) {
+export function useResumeRun(options?: { ignoreStillParked?: boolean; continuesInChat?: boolean }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const queryClient = useQueryClient();
@@ -465,9 +492,39 @@ export function useResumeRun(options?: { ignoreStillParked?: boolean }) {
     mutationFn: (runId: string) => apiClient.post<ResumedRun>(`/runs/${runId}/resume`),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-      toast.success(t("runResumed"));
+      toast.success(t(options?.continuesInChat ? "runResumedInChat" : "runResumed"));
     },
-    onError: (error) => {
+    onError: async (error, runId) => {
+      if (options?.continuesInChat) {
+        if (alreadyContinuing(error)) {
+          await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+          toast.info(t("alreadyContinuing"));
+          return;
+        }
+        if (
+          stillAwaitingDecision(error) ||
+          (error instanceof ApiError &&
+            error.status === 400 &&
+            error.details?.status === "awaiting_answer")
+        ) {
+          try {
+            const current = await apiClient.get<AgentRun>(`/runs/${runId}`);
+            queryClient.setQueryData(qk.runs.detail(runId), current);
+            await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+            if (
+              current.continues_in_chat &&
+              ["running", "completed", "awaiting_approval", "awaiting_answer"].includes(
+                current.status,
+              )
+            ) {
+              toast.info(t("alreadyContinuing"));
+              return;
+            }
+          } catch {
+            // A failed refresh must not hide the original resume failure.
+          }
+        }
+      }
       if (options?.ignoreStillParked && stillAwaitingDecision(error)) return;
       toast.error(getErrorMessage(error, tErrors, t("resumeFailed")));
     },

@@ -17,11 +17,11 @@ vi.mock("@/hooks/use-memory", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
-  mutateAsync.mockResolvedValue({ notes_deleted: 3, mem0_agents_cleared: 0 });
+  mutateAsync.mockResolvedValue({ notes_deleted: 3 });
 });
 
 function mount(props: Partial<Parameters<typeof ClearAgentMemory>[0]> = {}) {
-  return render(<ClearAgentMemory agentId="a-1" usesMem0={false} {...props} />);
+  return render(<ClearAgentMemory agentId="a-1" {...props} />);
 }
 
 async function openDialog() {
@@ -51,16 +51,7 @@ describe("ClearAgentMemory", () => {
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
   });
 
-  it("says plainly that mem0 is not reached when the agent uses it", () => {
-    // mem0 addresses memories per person, so nothing here can empty one agent's
-    // namespace wholesale - and somebody believing it did would stop looking.
-    mount({ usesMem0: true });
-
-    expect(screen.getByText("clearBodyWithMem0")).toBeInTheDocument();
-    expect(screen.queryByText("clearBody")).not.toBeInTheDocument();
-  });
-
-  it("describes only this deployment's notes when mem0 is not bound", () => {
+  it("describes what is deleted", () => {
     mount();
 
     expect(screen.getByText("clearBody")).toBeInTheDocument();

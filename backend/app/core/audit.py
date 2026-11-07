@@ -199,9 +199,10 @@ async def record_audit(
     **That includes what a caller does with the entry afterwards.** The nine sites
     that follow this with `NotificationService.security_event` were writing a
     notification per recipient, each of which takes a key-share lock on that
-    recipient's `users` row - after this chain lock, while `admin_delete` takes
-    every app admin's row exclusively *before* reaching for the same chain. Two
-    transactions, the same two locks, opposite orders (#1763). They now call
+    recipient's `users` row - after this chain lock, while `admin_update` takes
+    every app admin's row exclusively, and `admin_delete` the deleted account's
+    own, *before* reaching for the same chain. Two transactions, the same two
+    locks, opposite orders (#1763). They now call
     `hold_security_audience` / `hold_configuration_audience` immediately before
     this, so the order is total: `users` rows first, the chain last.
     `tests/test_audit_lock_order.py` holds the remaining sites to it.

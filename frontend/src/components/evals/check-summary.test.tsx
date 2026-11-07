@@ -81,10 +81,10 @@ describe("CheckSummary", () => {
 
 describe("VerdictBadge", () => {
   it.each([
-    ["pass", "bg-success/10", "text-success"],
-    ["fail", "bg-destructive/10", "text-destructive"],
+    ["pass", "bg-success/12", "text-success-ink"],
+    ["fail", "bg-destructive/12", "text-destructive-ink"],
     ["undecided", "bg-secondary", "text-muted-foreground"],
-    ["error", "bg-warning/10", "text-warning"],
+    ["error", "bg-warning/12", "text-warning-ink"],
   ] as const)("tints a %s verdict and colours its icon", (tone, tint, color) => {
     render(<VerdictBadge tone={tone}>{tone}</VerdictBadge>);
     const badge = screen.getByText(tone);

@@ -36,7 +36,7 @@ export function UngradedNote({ run }: { run: EvalRun }) {
         <span className="text-muted-foreground">{t("count", { count: ids.length })}</span>
       ) : (
         sides.map(({ arm, first, others }) => (
-          <span key={arm.id} className="text-warning block w-full">
+          <span key={arm.id} className="text-warning-ink block w-full">
             {t("side", {
               count: others + 1,
               side: sideName(arm, tSide),

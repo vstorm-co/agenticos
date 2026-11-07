@@ -73,6 +73,8 @@ class AgentDeps:
     # The thread the run answers in, where it has one. What a tool keeps between
     # turns is the conversation's, even in a sandbox several conversations share.
     conversation_id: UUID | None = None
+    # A durable delegation or its result, assigned by the runner and restored on resume.
+    conversation_task_id: UUID | None = None
 
     # Who will hear this run - one person, a whole channel, or nobody
     # identifiable - derived server-side in `app.agents.audience`. It decides which
@@ -87,6 +89,8 @@ class AgentDeps:
     # action needs a person refuses when this is `None`, so the default fails
     # closed - a deps built without it reaches nothing that needs one.
     run_person: UUID | None = None
+    phone_call_id: UUID | None = None
+    draft_tool_names: frozenset[str] = field(default_factory=frozenset)
 
     # Whether the run was started under an administrator's impersonation of
     # `run_person`. Carried on the run because the request that knew is gone by
@@ -154,6 +158,10 @@ class AgentDeps:
     # None everywhere else, and a drawing is then simply not checked.
     visual_reports: VisualReports | None = None
 
+    # Set only by the web chat, which draws a draft as a card. Everywhere else the
+    # `write_draft` tool is not offered and the agent writes the draft in its answer.
+    shows_drafts: bool = False
+
     # The generated files this run's own tools stored, by leaf name - its
     # provenance, recorded where the file is made rather than read back from
     # text. The store is organization-wide and a run can be driven by somebody
@@ -200,6 +208,9 @@ class AgentDeps:
         `generated_files` - the same set, not a copy, so an image a specialist
         drew can be animated by the parent: same run, same person, and the files
         were made by this run's own tools.
+
+        `shows_drafts` stays False: a delegate's output goes to its parent's
+        model, never to a person, so it has no card to draw.
 
         `delegated` is set, not inherited: whatever the parent is, this run is a
         delegate, and a drawing it makes is never shown in the conversation.

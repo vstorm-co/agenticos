@@ -17,6 +17,7 @@ mod activity;
 mod agent_session;
 mod appearance;
 mod blobby;
+mod coding_options;
 mod coding_runtime;
 mod computer_access;
 mod console;
@@ -43,6 +44,8 @@ mod onboarding_permissions;
 mod pinned;
 mod quick_ask;
 mod readiness;
+mod routine_access;
+
 mod runtime_installer;
 mod screen;
 mod settings;
@@ -1499,10 +1502,15 @@ pub fn run() {
             local_work::local_grants,
             local_work::local_pick_folder,
             local_work::local_revoke,
+            routine_access::routine_choose_folder,
+            routine_access::routine_allow,
+            routine_access::routine_grants,
+            routine_access::routine_revoke,
             local_work::local_files,
             local_work::local_file,
             local_agents::local_agents,
             local_agents::local_agent_prepare,
+            coding_options::local_agent_options,
             local_agents::local_agent_sign_in,
             local_agents::local_agent_sign_out,
             local_skills::local_skills,
@@ -1522,6 +1530,7 @@ pub fn run() {
         .manage(dropped::Dropped::default())
         .manage(device::Device::default())
         .manage(computer_access::Access::default())
+        .manage(routine_access::Access::default())
         .setup(|app| {
             diagnostics::install_panic_hook(app.handle());
             let handle = app.handle();

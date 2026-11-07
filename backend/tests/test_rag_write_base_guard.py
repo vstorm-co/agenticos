@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.exceptions import NotFoundError
 from app.db.models.rag_document import DocumentStatus
 from app.db.vector_tables import VectorScope
-from app.repositories import knowledge_base_repo, rag_document_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
     Document,
@@ -167,14 +167,81 @@ class TestTheWriteHoldsItsBase:
         assert session.statements == [f"hold {BASE}"]
         assert session.commits == 0
 
-    async def test_a_scope_with_no_base_takes_no_lock(self, base_exists: dict[str, bool]) -> None:
-        """The CLI and a collection no base claims: there is no row to hold."""
+    @pytest.mark.security
+    async def test_a_scope_with_no_base_holds_the_name_in_the_inserts_transaction(
+        self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The CLI and a collection no base claims: there is no base row to hold, so
+        a last holder's teardown waits on the name instead (#2747)."""
         session = _Session()
+        hold = AsyncMock(return_value=True)
+        monkeypatch.setattr(collection_teardown_repo, "hold_unreserved", hold)
 
         await _store(session).insert_document("docs", _document(), VectorScope(tenant=None))
 
+        hold.assert_awaited_once_with(session, "docs")
         (insert,) = session.statements
         assert insert.lstrip().startswith("INSERT INTO")
+        assert session.commits == 1
+
+    @pytest.mark.security
+    async def test_a_tracked_unfiled_write_takes_the_name_before_its_row(
+        self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A teardown takes the name and then locks the rows, so the other order
+        ends in `deadlock detected` against `mark_unindexed` (#2747)."""
+        order: list[str] = []
+
+        async def hold_name(*_: object) -> bool:
+            order.append("name")
+            return True
+
+        async def hold_row(*_: object, **__: object) -> bool:
+            order.append("row")
+            return True
+
+        monkeypatch.setattr(collection_teardown_repo, "hold_unreserved", hold_name)
+        monkeypatch.setattr(rag_document_repo, "hold_for_vector_write", hold_row)
+        document = _document()
+        document.metadata.rag_document_id = uuid4()
+
+        await _store(_Session()).insert_document("docs", document, VectorScope(tenant=None))
+
+        assert order == ["name", "row"]
+
+    @pytest.mark.security
+    async def test_a_name_going_away_gets_no_unfiled_chunks(
+        self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session = _Session()
+        monkeypatch.setattr(
+            collection_teardown_repo, "hold_unreserved", AsyncMock(return_value=False)
+        )
+
+        store = _store(session)
+        with (
+            patch.object(store, "_ensure_collection", new_callable=AsyncMock) as ensure,
+            pytest.raises(KnowledgeBaseRemovedError) as raised,
+        ):
+            await store.insert_document("docs", _document(), VectorScope(tenant=None))
+
+        ensure.assert_not_awaited()
+        assert raised.value.details == {"collection": "docs"}
+        assert session.statements == []
+        assert session.commits == 0
+
+    async def test_a_filed_write_does_not_hold_the_name(
+        self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Its base row serializes it, and ingests into a base do not queue."""
+        hold = AsyncMock()
+        monkeypatch.setattr(collection_teardown_repo, "hold_unreserved", hold)
+
+        await _store(_Session()).insert_document(
+            "docs", _document(), VectorScope(tenant=None, knowledge_base_id=BASE)
+        )
+
+        hold.assert_not_awaited()
 
 
 class TestTheIngesterReportsTheRemovedBase:
@@ -299,7 +366,7 @@ def _job() -> IngestDocument:
     return IngestDocument(
         rag_document_id=uuid4(),
         collection_name="docs",
-        filepath="queued/a.md",
+        filepath="media/_rag_tmp/a-1.md",
         source_path="a.md",
         replace=False,
         attempt=1,

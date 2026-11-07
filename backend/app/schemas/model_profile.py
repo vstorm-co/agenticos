@@ -15,7 +15,7 @@ from uuid import UUID
 
 from pydantic import Field, computed_field
 
-from app.agents.model_resolver import ModelApi, lacks_key
+from app.agents.model_resolver import ModelApi, ModelRegion, lacks_key
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.services.model_outputs import listed_model_outputs
@@ -31,6 +31,9 @@ class ProviderInfo(BaseSchema):
     )
     supports_base_url: bool = Field(
         description="Whether a custom endpoint can be stored; false means it would be ignored"
+    )
+    requires_base_url: bool = Field(
+        default=False, description="Whether a gateway destination must be selected explicitly"
     )
     keyless: bool = Field(
         description=(
@@ -49,6 +52,22 @@ class ProviderInfo(BaseSchema):
             "The API a profile gets on the provider's own endpoint when it names none. "
             "With a `base_url` the default is `chat`. Null where `apis` is empty."
         )
+    )
+    api_from_model: bool = Field(
+        default=False,
+        description=(
+            "Whether a profile's API is chosen from the model's own listing when it names "
+            "none: Chat Completions where the model is served on it, else Responses. True "
+            "only for Stav.ai, whose listing states it per model (`apis` on each model)."
+        ),
+    )
+    regions: list[ModelRegion] = Field(
+        default_factory=list,
+        description=(
+            "Where a profile on this provider may run its requests - `eu`, `eea`, `global` - "
+            "for a provider that takes a region. The first is the default. Empty for every "
+            "provider without the choice."
+        ),
     )
 
 
@@ -89,6 +108,14 @@ class ModelProfileCreate(BaseSchema):
             "one. Omitted, it is `native_api` without a `base_url` and `chat` with one - "
             "set it for an endpoint that serves the other, such as a regional OpenAI "
             "endpoint, which serves Responses."
+        ),
+    )
+    region: ModelRegion | None = Field(
+        default=None,
+        description=(
+            "Where the requests may run: `eu`, `eea` or `global`. Accepted only for a "
+            "provider whose catalog entry lists `regions`, and stored for every profile on "
+            "one. Omitted, it is the first of `regions`."
         ),
     )
     params: dict[str, Any] = Field(default_factory=dict)
@@ -141,6 +168,13 @@ class ModelProfileUpdate(BaseSchema):
             "then it moves to the new endpoint's default, as on creation."
         ),
     )
+    region: ModelRegion | None = Field(
+        default=None,
+        description=(
+            "`eu`, `eea` or `global`, for a provider whose catalog entry lists `regions`. "
+            "`null` stores the provider's default. Omitted, the stored choice stays."
+        ),
+    )
     params: dict[str, Any] | None = Field(
         default=None,
         description="Replaces the profile's default model settings. `null` keeps them.",
@@ -163,6 +197,8 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     base_url: str | None = None
     #: Null for every provider that serves one API.
     api: ModelApi | None = None
+    #: Null for every provider that takes no region.
+    region: ModelRegion | None = None
     runs_without_key: bool = Field(
         default=False,
         description=(
@@ -247,6 +283,13 @@ class ProviderModelRead(BaseSchema):
             '`["text", "image"]`. Empty means the listing says nothing, which is most of '
             "them: absent is *not* text-only, so a client filtering on it must treat an empty "
             "list as unknown rather than as a refusal."
+        ),
+    )
+    apis: list[ModelApi] = Field(
+        default_factory=list,
+        description=(
+            "The APIs the provider says this model is served on - `chat`, `responses` - "
+            "where its listing states it (Stav.ai). Empty means not stated."
         ),
     )
     chat_capable: bool = Field(

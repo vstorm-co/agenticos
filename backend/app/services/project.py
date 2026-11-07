@@ -191,6 +191,9 @@ class ProjectService:
 
     async def _read_many(self, ctx: AuthContext, projects: list[Project]) -> list[ProjectRead]:
         ids = [project.id for project in projects]
+        unread = await project_repo.unread_projects(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id, project_ids=ids
+        )
         activity = await project_repo.chat_activity(
             self.db,
             organization_id=ctx.organization_id,
@@ -251,6 +254,7 @@ class ProjectService:
                             moves.get(project.workspace_move_job_id), project
                         ),
                         "chat_count": count,
+                        "has_unread_chats": project.id in unread,
                         "last_active_at": last,
                         "shared_groups": groups[project.id],
                         "can_use": project.id in usable,
@@ -374,6 +378,19 @@ class ProjectService:
             resource_type=PROJECT.key,
             resource_id=project.id,
         )
+        from app.services.tasks import TaskService
+
+        await TaskService(self.db).purge_scope(
+            "project", project.id, organization_id=ctx.organization_id
+        )
+        from app.core.memory_keys import project_owner_key
+        from app.repositories import memory_claim as claim_repo
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).deregister_project_webhooks(ctx, project.id)
+        await claim_repo.delete_for_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=project_owner_key(project.id)
+        )
         await project_repo.delete(self.db, project)
         await record_audit(
             self.db,
@@ -384,6 +401,20 @@ class ProjectService:
             target_id=str(project_id),
             details={"name": project.name},
         )
+
+    async def source_for_routine(self, ctx: AuthContext, project_id: UUID) -> Project:
+        """Authorize a metadata snapshot without holding a workspace lock over provider probes.
+
+        The runner takes the workspace's ordinary lock immediately before admission;
+        routine guards compare this snapshot again before every subsequent tool.
+        """
+        project = await self.get(ctx, project_id)
+        if not await resolve_access(
+            self.db, ctx, project, Perm.PROJECTS_USE, resource_type=PROJECT
+        ):
+            raise AuthorizationError(message="This routine can no longer work in its project")
+        await require_available(self.db, project)
+        return project
 
     async def for_run(self, ctx: AuthContext, conversation_id: UUID | None) -> Project | None:
         """The project a run works in, if its conversation is in one.

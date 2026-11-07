@@ -5,14 +5,28 @@
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
   visuals: 140,
   background_tools: 222,
-  virtual_tables: 200,
+  background_tasks: 222,
   workflows: 270,
   text_to_speech: 28,
   computer_use: 200,
   video_generation: 300,
   follow_ups: 172,
+  phone_calls: 195,
+
   monitor: 55,
+  drafts: 36,
 };
+
+/** Independent topic windows with a return path to the main conversation. */
+const BACKGROUND_TASKS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,35 195,78 120,121 45,78"/>' +
+  '<path class="igrid" d="M76 70L118 94L165 67M118 94V55"/>' +
+  '<g class="breathe"><rect class="inl" x="57" y="40" width="39" height="30" rx="4"/><path class="igrid2" d="M64 49H87M64 57H81"/></g>' +
+  '<g class="bob"><rect class="inr" x="143" y="38" width="39" height="30" rx="4"/><path class="igrid2" d="M151 47H174M151 55H168"/></g>' +
+  '<rect class="ict" x="101" y="20" width="39" height="34" rx="4"/><path class="igrid2" d="M109 31H131M109 40H124"/>' +
+  "</svg>";
 
 /** Visuals: a board standing on the base with a small diagram on it, and `draw()` above. */
 const VISUALS =
@@ -214,8 +228,11 @@ const FOLLOW_UPS =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >next →</text></g></g>' +
   "</svg>";
 
-/** Tables: a slab on the base ruled into rows, a few cells filled in, and `rows` above. */
-const VIRTUAL_TABLES =
+/**
+ * Drafts: a card standing on the base with two stacked segments, each ruled with
+ * lines of text, and a small copy glyph lifting off its corner.
+ */
+const DRAFTS =
   '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
   '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
   '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
@@ -225,17 +242,22 @@ const VIRTUAL_TABLES =
   '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
   '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
   '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
-  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)">' +
-  '<rect x="9" y="9" width="63" height="9" rx="2" class="ac" />' +
-  '<g class="breathe" style="animation-delay:0s"><rect x="9" y="24" width="63" height="9" rx="2" class="mu" /></g>' +
-  '<g class="breathe" style="animation-delay:-0.6s"><rect x="9" y="39" width="63" height="9" rx="2" class="mu" /></g>' +
-  '<g class="breathe" style="animation-delay:-1.2s"><rect x="9" y="54" width="63" height="9" rx="2" class="mu" /></g>' +
-  '<path class="igrid" d="M30 9V63M51 9V63"/></g>' +
-  '<g class="bob"><g transform="translate(172 30)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
-  '<text x="0" y="2.4" class="tx mono s7 mid b" >rows</text></g></g>' +
+  '<polygon class="int" points="71.2,16 128.8,48 126.6,49 69.4,17"/>' +
+  '<polygon class="inr" points="128.8,48 128.8,90 126.6,91 126.6,49"/>' +
+  '<polygon class="inl" points="69.4,59 126.6,91 126.6,49 69.4,17"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 69.4 17)">' +
+  '<rect x="6" y="7" width="22" height="3" rx="1.5" class="ac" />' +
+  '<rect x="6" y="13" width="44" height="3" rx="1.5" class="mu" />' +
+  '<path class="igrid" d="M4 22H53"/>' +
+  '<rect x="6" y="28" width="40" height="3" rx="1.5" class="mu" />' +
+  '<rect x="6" y="34" width="44" height="3" rx="1.5" class="mu" /></g>' +
+  '<g class="bob"><g transform="matrix(0.9 0.5 0 1 112 20)">' +
+  '<rect x="0" y="0" width="9" height="11" rx="2" class="ict" />' +
+  '<rect x="3" y="3" width="9" height="11" rx="2" class="ac" /></g></g>' +
+  '<g class="bob"><g transform="translate(172 36)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >copy</text></g></g>' +
   "</svg>";
 
-/** Workflows: three steps standing on the base, joined by lines that draw themselves. */
 const WORKFLOWS =
   '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
   '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
@@ -261,14 +283,27 @@ const WORKFLOWS =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >run()</text></g></g>' +
   "</svg>";
 
+/** Telephone calls: a handset and live waveform above the shared base. */
+const PHONE_CALLS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 82 12)"><rect class="int" width="64" height="74" rx="9"/>' +
+  '<path class="ln w2" d="M16 15L24 12L30 25L25 30Q29 40 39 45L44 40L56 47L53 55Q31 60 16 32Z"/>' +
+  '<path class="ln w2 breathe" d="M12 63H20L24 58L29 69L35 59L40 65H52"/></g></svg>';
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
-  virtual_tables: VIRTUAL_TABLES,
+  background_tasks: BACKGROUND_TASKS,
   workflows: WORKFLOWS,
   monitor: MONITOR,
   text_to_speech: TEXT_TO_SPEECH,
   computer_use: COMPUTER_USE,
   video_generation: VIDEO_GENERATION,
   follow_ups: FOLLOW_UPS,
+  phone_calls: PHONE_CALLS,
+  drafts: DRAFTS,
 };

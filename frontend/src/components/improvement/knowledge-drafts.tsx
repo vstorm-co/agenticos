@@ -263,7 +263,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
         </div>
       )}
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -295,7 +295,7 @@ function DraftFacts({
       {topic?.draft && (
         <>
           {!(supported ?? topic.draft.sources.some((source) => source.kind === "document")) && (
-            <p className="text-warning">{t("unsupportedDraft")}</p>
+            <p className="text-warning-ink">{t("unsupportedDraft")}</p>
           )}
           <details className="rounded-lg border p-3">
             <summary className="cursor-pointer font-medium">{topic.draft.title}</summary>
@@ -340,7 +340,7 @@ function KnowledgeResult({
     <article className="space-y-3 border-t pt-4 text-sm">
       <p className="font-medium">{t("knowledgeTitle")}</p>
       <p>{t(record?.mode === "retrieval" ? "retrievalAssumption" : "contextAssumption")}</p>
-      {record && !record.supported && <p className="text-warning">{t("unsupportedDraft")}</p>}
+      {record && !record.supported && <p className="text-warning-ink">{t("unsupportedDraft")}</p>}
       {error || comparisonError ? (
         <p role="alert">{getErrorMessage(error ?? comparisonError, tErrors)}</p>
       ) : record?.invalidated ? (

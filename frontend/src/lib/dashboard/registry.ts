@@ -24,6 +24,7 @@ export type WidgetId =
   | "summary"
   | "platform"
   | "health"
+  | "background-tasks"
   | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
@@ -67,6 +68,7 @@ export type WidgetId =
   | "eval-runs"
   | "eval-suites"
   | "suggestions"
+  | "phone-calls"
   | "voice-minutes"
   | "projects"
   | "recent-visuals"
@@ -243,6 +245,14 @@ const holds =
 const everyone: Gate = () => true;
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
+  "background-tasks": {
+    id: "background-tasks",
+    gate: everyone,
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "workspace",
+    seeAll: ROUTES.CHAT,
+  },
   "activity-rhythm": {
     id: "activity-rhythm",
     gate: holds(Perm.runsView),
@@ -464,6 +474,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   },
   // Call minutes by agent, and the month against the organization's limit (#54).
   // What `GET /voice/usage` asks, and nothing more.
+  "phone-calls": {
+    id: "phone-calls",
+    gate: everyone,
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.SETTINGS_NOTIFICATIONS,
+  },
   "voice-minutes": {
     id: "voice-minutes",
     gate: holds(Perm.runsView),

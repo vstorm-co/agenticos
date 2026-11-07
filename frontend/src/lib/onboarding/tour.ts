@@ -320,6 +320,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
 
+  { id: "workspace-background", page: ROUTES.WORK, target: "workspace-background" },
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
@@ -327,14 +328,34 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-local-skills",
     page: ROUTES.CHAT,
     target: "chat-local-skills",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
+    optional: true,
+  },
+  {
+    id: "chat-coding-accounts",
+    page: ROUTES.CHAT,
+    target: "chat-coding-accounts",
+    activate: ["chat-settings", "chat-settings-tools"],
     optional: true,
   },
   {
     id: "chat-local-coding",
     page: ROUTES.CHAT,
     target: "chat-local-coding",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
+    optional: true,
+  },
+  {
+    id: "chat-coding-settings",
+    page: ROUTES.CHAT,
+    target: "chat-coding-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
+    optional: true,
+  },
+  {
+    id: "chat-background-tasks",
+    page: ROUTES.CHAT,
+    target: "chat-background-tasks",
     optional: true,
   },
   // Only there once an agent has planned something, so `optional` - an
@@ -347,7 +368,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-model-picker",
     page: ROUTES.CHAT,
     target: "chat-model-picker",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-model"],
   },
   // The call button sits in the composer whenever an agent is selected - offered
   // or crossed out - but readiness loads after the page, so the stop is optional:
@@ -1144,7 +1165,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
-    activate: "org-tab-voice",
+    activate: "org-tab-profile",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -1155,6 +1176,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "org-assistant",
     activate: "org-tab-assistant",
     permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "org-system-agents",
+    page: ORG_MEMBERS,
+    target: "org-system-agents",
+    activate: "org-tab-assistant",
+    permission: Perm.budgetsManage,
     optional: true,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
@@ -1253,6 +1282,25 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "channels-list",
     permission: Perm.agentsView,
   },
+  {
+    id: "channels-phone",
+    page: ROUTES.CHANNELS,
+    target: "channels-phone",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
+  { id: "phone-contact", page: SETTINGS_DETAIL, target: "phone-contact", optional: true },
+  { id: "phone-dial", page: SETTINGS_DETAIL, target: "phone-dial", optional: true },
+
+  // A Discord bot's role mappings (#2569): only on a Discord row, and only for
+  // somebody who may manage members, so optional - most organizations have none.
+  {
+    id: "channels-discord-roles",
+    page: ROUTES.CHANNELS,
+    target: "channels-discord-roles",
+    permission: Perm.membersManage,
+    optional: true,
+  },
 
   {
     id: "sandboxes-connections",
@@ -1274,8 +1322,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "projects-list",
     permission: Perm.projectsView,
   },
+  { id: "project-tracking", page: PROJECT_DETAIL, target: "project-tracking", optional: true },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
+  { id: "project-graph", page: PROJECT_DETAIL, target: "workspace-graph", optional: true },
 
   {
     id: "project-file-fullscreen",
@@ -1339,21 +1389,26 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "routines-list",
     page: ROUTES.ROUTINES,
     target: "routines-list",
-    activate: "routines-agents-tab",
   },
-  // Watches over the reader's own connections (#2301); the card's header is always drawn.
   {
-    id: "routines-watches",
+    id: "routine-access",
     page: ROUTES.ROUTINES,
-    target: "routines-watches",
-    activate: "routines-watches-tab",
+    target: "routine-access",
+    optional: true,
   },
   {
     id: "routines-create",
-    activate: "routines-agents-tab",
     page: ROUTES.ROUTINES,
     target: "routines-create",
     permission: Perm.agentsRun,
+  },
+
+  {
+    id: "routine-advanced",
+    page: ROUTES.ROUTINES,
+    target: "routine-advanced",
+    permission: Perm.agentsRun,
+    optional: true,
   },
 
   // What the platform brought the reader on its own (#2301). "?"-only, like the
@@ -1365,11 +1420,18 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // place: the reader is already on one of their own workspaces, so the walk
   // spotlights the browser rather than opening an example there is none of.
   { id: "workspaces-detail", page: WORKSPACE_DETAIL, target: "workspace-files" },
+  { id: "workspace-graph", page: WORKSPACE_DETAIL, target: "workspace-graph", optional: true },
 
   // Settings — the tabbed personal section. One "?" stop on the tabs, which live
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "personal-coding-accounts",
+    page: SETTINGS_DETAIL,
+    target: "personal-coding-accounts",
+    optional: true,
+  },
   {
     id: "desktop-local-agents",
     page: SETTINGS_DETAIL,
@@ -1388,7 +1450,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Optional, because the card it anchors on renders only where an agent has
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
+  { id: "memory-views", page: SETTINGS_DETAIL, target: "memory-views", optional: true },
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
+  // Optional too: the section renders only where something is on record about the person.
+  { id: "my-claims", page: SETTINGS_DETAIL, target: "my-claims", optional: true },
   // Optional for the same reason: the list renders only once a sign-in is kept.
   // Optional: offered only where the deployment names a browser to sign in with.
   { id: "sign-in-to-site", page: SETTINGS_DETAIL, target: "sign-in-to-site", optional: true },

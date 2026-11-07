@@ -190,7 +190,7 @@ export function CheckDialog({
             />
           )}
           {error !== null && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {error}
             </p>
           )}

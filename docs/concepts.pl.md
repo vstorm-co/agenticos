@@ -1,5 +1,5 @@
 ---
-source_sha: "74b903bad6eb"
+source_sha: "49d132bd9406"
 ---
 
 # Koncepcje { #concepts }
@@ -180,8 +180,7 @@ swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie odpowiada 
 żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym widgecie. Te
 magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
 
-- [Pamięć](reference/capabilities.md#memory-files) i
-  [mem0](reference/capabilities.md#memory-mem0): każde narzędzie odpowiada, że
+- [Pamięć](reference/capabilities.md#memory-files): każde narzędzie odpowiada, że
   rozmowa nie ma pamięci.
 - [Poprzednie rozmowy](reference/capabilities.md#conversation-search): oba
   narzędzia odmawiają.

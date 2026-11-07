@@ -147,8 +147,8 @@ function Grades({ grades }: { grades: (boolean | null)[] }) {
               grade === null
                 ? "size-3.5"
                 : grade
-                  ? "text-success size-3.5"
-                  : "text-destructive size-3.5"
+                  ? "text-success-ink size-3.5"
+                  : "text-destructive-ink size-3.5"
             }
           />
         );

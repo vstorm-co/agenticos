@@ -1,5 +1,5 @@
 ---
-source_sha: "e094c405e615"
+source_sha: "7645d69888a7"
 ---
 
 # Governance { #governance }
@@ -14,13 +14,12 @@ Die jüngste dieser Oberflächen ist ein **Trigger**: ein Agent, der sich selbst
 nach einem Zeitplan oder auf ein eingehendes Ereignis hin ausführt — ein
 GitHub-Issue, eine eingehende E-Mail (siehe [Konzepte](concepts.md#trigger)).
 
-An nichts von dem, was folgt, ändert er etwas. Er gibt gegen dieselben zwei Caps
-aus, parkt am selben Freigabe-Gate — geroutet an seinen Ersteller, an das
-Mitglied, als das er läuft, und an die Administratoren — und wird im selben
-Audit-Trail festgehalten.
+Er nutzt dieselbe Kostenerfassung, Bestätigungswarteschlange und Prüfungsspur.
+Die [Richtlinie für unbeaufsichtigte Aktionen](#routine-action-consent) verschärft,
+welche Aufrufe eine Bestätigung brauchen; ausdrückliche dauerhafte Zustimmung
+benennt einzelne Aktionen und eine Version.
 
-Das Einzige, was „unbeaufsichtigt" hinzufügt, ist das, was mit einer **Ablehnung**
-geschieht:
+Unbeaufsichtigte Arbeit bestimmt auch den Umgang mit einer **Ablehnung**:
 
 - Ein ausgelöster Run, den das Budget stoppt, endet mit `budget_exceeded` und
   **wartet auf das nächste Auslösen**, statt wiederholt zu werden.
@@ -48,6 +47,44 @@ ein Alert, die niemals aufhören.
 Ein Event-Trigger fügt an seinem Rand eine weitere Ablehnung hinzu: ein Webhook,
 dessen Signatur sich nicht gegen das eigene Secret des Triggers verifizieren
 lässt, ist ein 403, der den Runner überhaupt nie erreicht.
+
+## Zustellung von Routinen { #routine-delivery }
+
+Eine im privaten Chat über das Plattform-MCP erstellte Routine antwortet in diesem
+Chat, sofern Sie kein anderes Ziel wählen. Ihre Karte zeigt den aktuellen Zustand,
+die nächste Aktivierung sowie die vorhandenen Aktionen zum Bearbeiten, Pausieren
+und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
+
+Vor dem Speichern einer fertigen Antwort prüft die Plattform erneut die aktive Mitgliedschaft der erstellenden Person und ihr aktuelles Schreibrecht im gewählten Chat. Ein gelöschtes oder unzugängliches Ziel lässt die Antwort im Ausführungsprotokoll und zeigt **Letzte Antwort im Chat nicht verfügbar** an der Routine. Ein Datenbankfehler während der Nachrichtenzustellung wird isoliert, sodass der abgeschlossene Lauf weder rückgängig gemacht noch der Agent erneut ausgeführt wird.
+
+Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
+
+`last_delivery_status` unterscheidet Zustellung, nur Protokoll, keine Antwort und einen unvollständigen Lauf; historische Einträge bleiben bis zum nächsten Lauf unbekannt. Die Migration `0265_trigger_delivery_status.py` ergänzt diesen Status, ohne frühere Erfolge zu erraten.
+
+Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
+`monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
+beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routine
+zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen. Hintergrundläufe,
+Identitätsübernahmen und fortgesetzte Gruppen- oder öffentliche Runden erteilen
+ebenfalls keine solche Zustimmung.
+
+Die minütlichen Durchläufe erledigen abgelaufene Endtermine unabhängig von der nächsten Aktivierung, auch bei pausierten Routinen und Beobachtungen. Sie deaktivieren aktive Arbeit, schließen offene Blockaden der Routine und stornieren deren ausstehende Benachrichtigungen ohne Modellaufruf. Nach einem Neustart holt der Worker dies nach; die Bereinigung kann auf einen Worker oder einen weiteren Stapel warten, während Prüfungen vor Werkzeugen und Antwortzustellung abgelaufene Arbeit sofort ablehnen.
+
+Die Migration `0269_routine_end_cleanup.py` ergänzt eine Markierung des erledigten Endtermins und partielle Indizes für ausstehende Enden. Sie erstellt keine Ersatzroutinen, Freigaben oder Funde. Eine Änderung des Endes aktiviert die Bereinigung erneut; ein wiederholter Durchlauf wiederholt keine erledigten Effekte. Ein Downgrade entfernt nur diese Hilfsdaten, nicht das konfigurierte Ende oder die Identität der Routine.
+
+Eine beobachtete MCP-Verbindung speichert auch ihre Autorisierungsgeneration. Eine abgeschlossene erneute OAuth-Zustimmung oder ein ausdrücklich ersetztes Token beziehungsweise eine geänderte Adresse macht die bisherige Quellenzustimmung ungültig, selbst wenn die Verbindungs-ID gleich bleibt. Normale Token-Erneuerung, Bezeichnungen und Änderungen des Standardkontos ersetzen diese Identität nicht. Eine erneut geprüfte Quelle gilt für spätere Läufe; ein alter angehaltener Lauf kann die neue Zustimmung nicht übernehmen.
+
+Prüfe nach der Migration `0270_mcp_authorization_generation.py` die Quellen bestehender Beobachtungen ausdrücklich erneut (`review_sources=true` oder **Angehängte Quellen erneut freigeben** im Editor). Alte Richtlinien bleiben lesbar, erraten aber nicht das Konto hinter einer historischen Autorisierung. Für ein Konto außerhalb der zugelassenen Generation werden keine Anbieter-Zugangsdaten gelesen. Leere alte Worker und aktualisiere API und Worker gemeinsam. Pausiere Beobachtungen vor dem Downgrade; setze sie erst mit generationsprüfendem Code und geprüften Quellen fort. Ersetzte Zugangsdaten leeren die Werkzeugliste des alten Kontos bis zur nächsten erfolgreichen Prüfung.
+
+Routinenläufe behalten die für diese Ausführung zugelassenen MCP-Konten und Werkzeugaliase. Fortgesetzte Aufrufe verwenden dieselben Aliase: Umbenennen oder ein anderes Standardkonto leiten eine bestehende Freigabe nicht um. Delegierte bleiben innerhalb der zugelassenen Konten. Vor Aufrufen werden Kontoinhaber, Adresse, Autorisierungsgeneration und Werkzeuglisten erneut geprüft; neue oder geänderte Konten werden vor dem Lesen der Zugangsdaten ausgefiltert.
+
+Eine angehaltene Routine ohne diesen Zulassungsstand kann MCP-Aufrufe verwalteter Konten nicht fortsetzen. Starte nach Prüfung des Zugriffs einen neuen Lauf. Die Vorgaben interaktiver Agenten und ausdrückliche Bestätigungsrichtlinien bleiben unverändert; kontospezifische Freigabeausnahmen für Routinen sind von dieser Quellenprüfung getrennt.
+
+Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
+
+Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verwendet die am Feld angezeigte Gerätezeitzone, unabhängig von der Cron-Zeitzone, und wird mit UTC-Offset an die API gesendet. Änderungen anderer Felder lassen das bestehende Ende unverändert.
+
+Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
 ## Budgets { #budgets }
 
@@ -195,7 +232,18 @@ Ausgabe wird festgehalten statt abgelehnt, sodass eine Kompaktierung, die ein Ca
 
 ### Kosten, die sich nicht messen ließen, sagen das { #a-cost-that-could-not-be-measured-says-so }
 
-`genai-prices` kennt nicht jedes Modell. Trifft ein Run auf eines, für das es
+Die von Stav berechneten Kosten haben Vorrang vor dem Katalog: `usage.cost`
+mit `cost_currency` oder die Header `x-stav-cost` und `x-stav-cost-currency`.
+Das gilt für Chat Completions und Responses, auch beim Streaming. USD wird
+direkt verwendet; NOK erfordert `STAV_NOK_PER_USD`
+([Konfiguration](configuration.md)), vom Betreiber gepflegt. Der Wert gibt NOK
+pro Dollar an: `10` würde NOK durch 10 teilen und ist keine Empfehlung für den
+aktuellen Kurs. Es wird kein Kurs automatisch abgerufen. Usage bewahrt Betrag,
+Währung, Kurs und USD-Kosten; das Ledger markiert die Quelle als vom Anbieter
+gemeldet. Ungültige Beträge, nicht unterstützte Währungen oder fehlende
+Umrechnung lassen den Katalog-Fallback bestehen.
+
+Ohne verwendbare vom Anbieter gemeldete Kosten gilt: `genai-prices` kennt nicht jedes Modell. Trifft ein Run auf eines, für das es
 keinen Eintrag hat, wird diese Anfrage mit null gebucht und der Run als
 `cost_is_partial` markiert — die Summe ist um genau das zu niedrig, was diese
 Anfragen gekostet haben, und die ehrliche Lesart davon ist eine **Untergrenze**.
@@ -556,24 +604,28 @@ dessen Ausgaben mit seinem Prozess sterben.
 
 ### Arbeit aus eigener Initiative { #proactive-work }
 
-Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
-Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
-festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
-Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
-Proaktivität**. Aktivität zeigt das Symbol und den Filter **Proaktiv**, die
-Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
-Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
-behalten den vor dem Fehler verfügbaren Austausch. Wie andere Einträge der Aktivität
-erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
-aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
-Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
+Nächtliche Vorschlags- und Briefing-Runs werden unter dem veröffentlichten **AgenticOS**-Starter-Agent der
+Organisation (Slug `agenticos`) aufgezeichnet, damit jeder eine Zeile, Kosten und
+eine Spur hat; der Starter läuft jedoch nicht und wählt das Modell nicht: Jeder
+solche Run trägt die [Systemrolle](#system-agents), die die Arbeit erledigt hat.
+Das eigene Proaktivitätsmodell und die Limits wählen Sie unter **Organisationen →
+Mitglieder → Proaktivität**.
+
+Aktivität zeigt das Symbol und den Filter
+**Proaktiv**, die Modellanfragen und ihre Kosten sowie den aufgezeichneten
+Austausch einschließlich Tool-Ergebnissen und der strukturierten Endantwort.
+Fehlgeschlagene Prüfungen behalten den Austausch, der vor dem Fehler vorlag. Diese
+Aufzeichnungen erfordern `runs:view`, wie andere Aktivitätseinträge, und erzeugen
+keine Unterhaltungen im Chat. Ältere Runs können nie aufgezeichnete Austausche
+nicht wiederherstellen; zu große Aufzeichnungen sagen ausdrücklich, dass sie
+gekürzt wurden.
 
 Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlüssel
 wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
 Modellprofil erstellen; ohne diese Berechtigung wählt es ein vorhandenes Profil.
 Ein neues Profil wird sofort gespeichert. **Speichern** übernimmt die Auswahl
-für die nächtlichen Vorschläge und Watches der Organisation, die sich dieses
-Modell und das Limit pro Person teilen.
+für die nächtlichen Vorschläge. Das Briefing listet vorhandene Funde ohne Modellaufruf. Beobachtungen durch ausgewählte
+Agenten teilen das Limit pro Person.
 
 Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
 bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
@@ -591,37 +643,286 @@ der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget d
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
 
+Der nächtliche Job liest nur einen Prompt, der den Eingabe-Guardrail des Agents
+passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
+[Guardrails](reference/capabilities.md#guardrails):
+
+- Ein Prompt, den ein Guardrail abgelehnt hat, bleibt draußen.
+- Ein Prompt, den kein Run angenommen hat, bleibt draußen: einer an einen
+  archivierten Agent, einer, der abgelehnt wurde, bevor sein Run begann, und ein
+  Chat-Prompt, der an einen Workflow geht.
+- Ein Prompt, dessen Run noch läuft, wartet. Der Job liest ihn in einer späteren
+  Nacht, wenn der Run beendet ist.
+- Stoppt ein Run vor seiner ersten Model-Anfrage, zum Beispiel am Budget, lässt
+  der Job den Eingabe-Guardrail dieses Runs über den Prompt laufen und lässt aus,
+  was er blockiert. Gibt es die Agent-Version nicht mehr, bleibt der Prompt draußen.
+- Hat die Aufbewahrung den Run gelöscht, liest der Job den Prompt nur, wenn eine
+  Antwort eines Models auf ihn folgt. Ein Prompt von vor Version 1.36.0 wird
+  genauso gelesen, also bleibt die Ablehnung eines Eingabe-Guardrails draußen,
+  denn sie hat keine Antwort hinterlassen. Ein gesprochener Turn zeichnet kein
+  Model auf, also bleibt er draußen, sobald sein Run weg ist.
+
+Ein Prompt, den ein Guardrail geschwärzt hat, passiert, und der Job liest ihn so,
+wie er gespeichert ist, also ungeschwärzt
+([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).
+
 Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
 Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
 auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
 nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
 etwas zu lesen gibt.
 
-**Beobachtungen** richten dieselbe Arbeit auf die eigenen Verbindungen einer
-Person. Sie werden auf derselben Karte getrennt eingeschaltet
-(`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
-Eine Person legt eine mit **Neue Beobachtung** unter **Routinen** an, wo eine
-Karte Beobachtungen jede mit ihrer letzten Prüfung und der Zahl ihrer wartenden
-Funde zeigt, oder mit **Beobachten** neben **Tools** des Kontos auf der Seite
-der MCP-Server. Sie wählt eine ihrer eigenen MCP-Verbindungen - jeden Server,
-den sie verbunden hat - und sagt, wonach gesucht wird - eine fertige Beobachtung
-für diesen Server oder ihre eigenen Worte - und wie oft, nie häufiger, als die
-Organisation erlaubt (`proactive_watch_min_minutes`, standardmäßig stündlich).
+**Beobachtungen** laufen durch den ausgewählten veröffentlichten Agenten,
+mit demselben Runner wie Chat und Routinen sowie seinen eigenen Anweisungen und
+seinem Modell. Sie werden getrennt eingeschaltet (`proactive_watches_enabled`)
+und teilen das Proaktivitätsbudget je Person, nicht das Briefing-Modell.
+Erstelle sie unter **Routinen**, neben den Zeitplänen eines Agenten mit
+**Beobachten und informieren**, neben einem persönlichen Konto oder im privaten
+Chat. Wähle Agent, Konto, Intervall und optionales Ende. Die Beobachtung folgt
+Veröffentlichungen, einer benannten Umgebung oder einer unveränderlichen
+Version. Die Organisation bestimmt das Mindestintervall
+(`proactive_watch_min_minutes`).
 
-Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
-werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine
-Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
-ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
-sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
-Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
-dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf ihr
-Morgen-[Briefing](console.md#the-inbox). Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
+Die Veröffentlichung muss diesen persönlichen Katalogdienst bereits einbinden.
+Eine Beobachtung aktiviert keine fehlende Bindung und ersetzt keinen Agenten.
+Eigene Server ohne persönliche Katalogbindung werden hier nicht unterstützt.
+Die Erstellung genehmigt das konkrete Konto und seinen Endpunkt, die gemeinsame
+Teilmenge der Tool-Listen von Konto und Agent sowie die derzeit angehängten
+Wissensbasen und Kontextdateien. Spätere Veröffentlichungen dürfen Zugriff
+entfernen, aber keine Konten, Tools oder Quellen hinzufügen. **Aktuelle Quellen
+erneut genehmigen** erneuert diese Zustimmung ausdrücklich. Ein neues primäres
+Konto ersetzt das genehmigte Konto nicht.
 
-Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
-an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
-Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
-Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
-`{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
+Jede Prüfung ist ein gewöhnlicher **proactive**-Run des tatsächlichen Agenten
+und seiner Version. Quelltools brauchen `readOnlyHint`. Verfügbar sind das
+genehmigte Konto, Wissen/Kontext, Guardrails, Planung und Systemerinnerungen;
+Web, Sandbox, ausführbare Skills, Speicherschreibzugriffe und Delegation sind
+nicht verfügbar. Erforderliche interaktive Genehmigungen verhindern die
+Einrichtung und werden nicht umgangen. Mitgliedschaft, Ausführungsrecht,
+Quellzustimmung, Pause und Ablauf werden vor Tools und Ergebnisspeicherung
+nochmals geprüft.
+
+Neue Funde behalten ihre stabile Beobachtungs-/Element-ID im persönlichen
+Posteingang und erscheinen im Quellchat; außerhalb des Chats erstellte
+Beobachtungen verwenden den primären Chat. Nur ausdrücklich gewünschte dringende
+Funde senden zusätzlich eine sofortige Benachrichtigung. Im Standardmodus
+**Nur bei relevanten Änderungen** gibt es ohne Änderung keine Chatnachricht
+oder Abschlussbenachrichtigung. Bei fehlendem Chatzugriff
+bleibt der Fund im Posteingang und `delivery_unavailable` wird aufgezeichnet.
+
+Der letzte Versuch ist von der letzten erfolgreichen Prüfung getrennt. Eine
+Modellantwort ohne erfolgreichen Quellzugriff oder mit ungelöstem Lesefehler ist
+`not_completed`. Nicht verfügbare Quellen und entzogener Zugriff sind explizit;
+`budget_paused` bedeutet verbrauchtes Budget. Diese Fehler verschieben den
+Erfolgszeitpunkt nicht. Unerwartete Fehler lassen den Job weiterhin fehlschlagen.
+
+`0261_watch_attempt_status.py` beginnt die Versuchshistorie ohne erfundene ältere
+Erfolge. `0262_watch_agent_sources.py` erhält IDs, Funde, Intervall und
+Aktivierungszustand, erfindet aber keine Agentenzuordnung. Bestehende
+Beobachtungen zeigen `needs_agent` und rufen kein Modell auf, bis ihr Eigentümer
+einen veröffentlichten Agenten und seine Quellen bestätigt. Das Löschen einer
+Beobachtung entfernt Ursprung und Quellenzustimmung eines laufenden oder
+wartenden Runs nicht.
+
+Erstellung und Änderung erfordern die eigene angemeldete Sitzung oder den
+vertrauenswürdigen privaten menschlichen Chat. Gewöhnliche API-Schlüssel,
+Publisher-Ersatzkontext, Hintergrundroutinen und Identitätsübernahme können diesen
+Dauerzugriff nicht erteilen. Die Plattform-MCP-Tools `list_watches`, `create_watch`,
+`update_watch` und `delete_watch` verwenden denselben Dienst und dieselben IDs.
+Vollständige private Chat-Aufträge erstellen oder ändern sofort; Veröffentlichung,
+Einladungen, Löschen und sofortiges Ausführen behalten ihre Genehmigungsregeln.
+
+Eine Beobachtung kann **Nach jeder Prüfung, auch ohne Änderungen** wählen
+(`report_mode: every_check`). Jede erfolgreiche Prüfung liefert dann den
+vereinbarten Bericht in den Quellchat, auch ohne neue Funde, und verwendet das
+gemeinsame Benachrichtigungssystem. Fehlgeschlagene oder nicht verfügbare
+Lesezugriffe werden nie als unveränderter Stand gemeldet. Die Aktivierungszeit
+bleibt im Job; der Berichtsmarker wird mit den Ergebnissen gespeichert. Eine
+Wiederholung derselben abgeschlossenen Aktivierung sendet keinen zweiten Bericht
+und bezahlt keine zweite Prüfung. Ein weiterer Klassifikationsaufruf entfällt.
+
+Zeitpläne und Beobachtungen erben deine Benachrichtigungseinstellungen.
+**Benachrichtigungen für diese Routine** erlaubt beliebige Kombinationen aus
+E-Mail, Geräte-Push, Slack, Telegram, Mattermost, Microsoft Teams und SMS oder nur
+die App. `notification_channels: null` erbt; eine leere Liste verhindert externe
+Zustellung. Persönlich ausgeschaltete Kanäle bleiben aus. Wartende Sendungen
+prüfen die aktuelle Richtlinie; Pause oder Löschen stoppt sie. Verpflichtende
+Sicherheits-/Konfigurationshinweise bleiben verpflichtend. Bereits vom Anbieter
+angenommene Nachrichten lassen sich nicht zurückrufen.
+
+Wähle unter **Einstellungen → Benachrichtigungen** ausdrücklich einen verknüpften
+privaten Chat je Plattform für die aktuelle Organisation. Eine Kontoverknüpfung
+allein aktiviert nichts. Gruppenchats, fremde Konten und Bots anderer Organisationen
+sind ausgeschlossen. E-Mail und Push behalten ihre Einrichtung. Die Chatauswahl
+bei den Ereigniseinstellungen bestimmt, welche Plattform du gerade bearbeitest.
+
+Ein Ziel bindet die konkrete Kontoverknüpfung und Bot-Autorisierung. Entknüpfen,
+erneutes Verknüpfen oder ein anderer Bot-Token/Server erfordern eine neue Auswahl.
+Wartende Sendungen wechseln nie automatisch das Ziel. Vor dem Senden werden
+Mitgliedschaft, Kontostatus, Bot-Richtlinie, SMS-Verknüpfungsfrist, Einstellungen,
+Ressourcenzugriff und gemeinsamer Fallstatus erneut geprüft. Ohne Entscheidungsrecht
+enthält ein Genehmigungshinweis nur die Tatsache des Wartens, keinen Entscheidungslink.
+
+Chatplattformen bieten keinen gemeinsamen idempotenten Sendevertrag. Ein
+unbestätigter Versand erhält einen persistenten Versuch: Timeout, Anbieterfehler
+oder Worker-Ausfall bleiben als sichtbarer Fehler erhalten. Ein Slack-HTTP-429,
+der die Anfrage ausdrücklich ablehnt, erlaubt nach `Retry-After` einen erneuten
+Versuch, höchstens fünf Claims insgesamt. Jeder Versand löscht zunächst die
+Retry-Freigabe; ein Absturz dieses Versuchs wiederholt ihn nicht. Das Zurückstellen
+entwertet das alte Übergabe-Token. Andere Chatfehler sind endgültig. E-Mail und
+Push behalten ihre Wiederholungsregeln.
+
+Slack-Hinweise nutzen begrenzte Klartextblöcke und **Open in AgenticOS** zum selben
+autorisierten Fall in der Konsole. Namen und Inhalte erzeugen keine Erwähnungen
+oder automatischen Vorschauen. Ohne Entscheidungsrecht bleibt nur der Wartehinweis
+ohne Entscheidungslink. Zustellung bezeichnet Plattformannahme; Bestätigung bleibt
+eine ausdrückliche Entscheidung im gemeinsamen Fall. Migration
+`0273_notification_safe_retries.py` gewährt bestehenden Zeilen keine Retry-Freigabe.
+Ein Downgrade stellt einen Chatversuch wieder her.
+
+Migration `0271_notification_routes.py` ergänzt Ziele und Autorisierungsidentitäten.
+Leere die Worker und aktualisiere API/Worker gemeinsam, bevor du neue Kanäle wählst.
+Bestehende Konten bleiben aus. Ein Downgrade entfernt Chatziele, deren Versandhistorie
+und Einstellungen und begrenzt Routineauswahlen auf E-Mail/Push; externe Sendungen
+bleiben bestehen. `0263_routine_notification_policy.py` führte die ursprünglichen
+Routineeinstellungen ein.
+
+### Budgetpausen { #routine-budget-pauses }
+
+Erreicht eine Routine ihr eigenes Monatslimit, erhält ihre besitzende Person
+eine Budgetmeldung je Zeitraum und konfiguriertem Limit. Eine Beobachtung nennt
+das gemeinsame Budget für proaktive Arbeit dieser Person und verweist zur
+Prüfung an die Administration. Die Prüfung stoppt vor dem Öffnen eines Laufs
+oder einem Modellaufruf; die Meldung nennt die Monatsausgaben. Die bestehenden
+Budgetpräferenzen und die Kanalgrenzen der Routine gelten weiterhin.
+
+Die Meldung öffnet einen bearbeitbaren Fall für diese Aufgabe und diesen Monat.
+Weitere Prüfungen verwenden denselben Fall. Bestätigen oder Stummschalten
+storniert ausstehende Zustellungen. Hat die nächste Aktivierung wieder Budget
+oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
+ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
+Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
+
+### Aktionsfreigaben { #routine-action-consent }
+
+Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
+und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
+lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
+Die Vorgaben interaktiver Agenten bleiben gleich. Der Codemodus ist für Routinen
+ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
+
+Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
+
+Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
+
+Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
+
+Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
+entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile
+Fähigkeits- und Werkzeugkennungen sowie die Routinenkonfiguration. Geänderte Arbeit
+oder Ziele machen sie ungültig. Jeder Lauf behält seine zugelassenen Freigabe-IDs;
+eine spätere Zustimmung gibt keinen geparkten Lauf frei, und Widerruf mit erneuter
+Zustimmung erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationspolitik
+und Zustimmung werden vor jedem Werkzeug erneut geprüft. Jeder freigegebene Aufruf
+zeichnet eine genehmigte Zeile mit zustimmender Person und Argumenten auf.
+Delegierte brauchen eigene Entscheidungen und erben keine Ausnahme des Elternlaufs.
+
+Eine dauerhafte Aktionsfreigabe speichert auch die aktuellen Revisionen der gebundenen Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht die Ausnahme ungültig, selbst wenn die veröffentlichte Agentenversion gleich bleibt oder der alte Text später wiederhergestellt wird. Prüfen Sie die Aktionen erneut, um eine neue Ausnahme zu erteilen. Bestehende Ausnahmen ohne Revisionsfingerabdruck gelten nur für Agenten ohne solche veränderlichen Anweisungsquellen weiter.
+
+`0267_routine_action_consents.py` erzeugt keine Ausnahmen für bestehende Routinen.
+Eine bisher unbeaufsichtigte Aktion kann nun auf Bestätigung warten. Alte Worker
+abwickeln lassen und API sowie Worker gemeinsam aktualisieren, bevor Aufgaben
+weiterlaufen; ein alter Worker erzwingt diese Kontrolle nicht. Ein Downgrade
+entfernt gespeicherte Ausnahmen; Bestätigungsprotokolle und bereits ausgeführte
+Wirkungen bleiben bestehen.
+
+### Antworten fortgesetzter Routinen { #resumed-routine-answers }
+
+Eine nach Bestätigung oder beantworteter Frage abgeschlossene Routine stellt ihre
+Konsolenantwort in derselben Transaktion wie den Endzustand zu. Der gespeicherte
+Auftrag enthält fertigen Text und Kennungen; ein Neustart benötigt keinen neuen
+Modellaufruf. Zustellstatus, Chatnachricht und Abschlussmeldung werden gemeinsam
+gespeichert. Gleichzeitige Versuche und Wiederholungen hängen keine zweite Antwort an. Ein
+autorisiertes Konversationsereignis aktualisiert den offenen Quellchat nach dem
+Commit, ohne ihn zurückzusetzen; ältere Abonnenten behalten ihren Ereigniswortschatz.
+
+Der Worker prüft aktuellen Routinenzustand, Frist, erstellende Person und Ziel.
+Chat-Zustellung prüft aktive Mitgliedschaft, Ausführungsrecht am Agenten und
+aktuelles Schreibrecht im privaten Chat erneut. Archivierte Chats sind für neue
+Nachrichten geschlossen. Bei unerreichbarem Ziel bleibt das Ergebnis in Aktivität
+und die Zustellung wird als nicht verfügbar vermerkt. Datenbankfehler lassen den
+Auftrag für bis zu drei Versuche offen; Administration → Hintergrundaufgaben zeigt
+eine ausgeschöpfte Zustellung. Die Abschlussmeldung verlinkt den Chat nach
+erfolgreicher Zustellung. Die Fortsetzung in externen Kanälen bleibt eigene Abnahmearbeit.
+
+`0268_routine_answer_delivery.py` spielt keine historischen Ergebnisse nach.
+API und Worker gemeinsam aktualisieren. Vor einem Downgrade ausstehende Aufträge
+`deliver-routine-answer` abwickeln oder abbrechen, da er gespeicherte Übergaben
+entfernt; bereits zugestellte Nachrichten bleiben erhalten.
+
+### Störungsfälle { #routine-failure-incidents }
+
+Ein fehlgeschlagener Routinenlauf, eine unzugängliche Beobachtungsquelle oder
+ein fehlender Zielchat öffnet einen Fall für die besitzende Person. Weitere
+Fehler aktualisieren dessen letzte Ursache und Lauf ohne erneuten Alarm.
+Bestätigen lässt ihn bearbeitbar und still; Stummschalten gilt für diese Ursache
+auch nach einer Erholung. Ein neuer Fehler nach bestätigter Erholung öffnet
+denselben Fall erneut und sendet eine neue Meldung.
+
+Der gemeinsame Runner meldet erste, fortgesetzte und nach einem Prozessabsturz
+beendete Läufe. Unter terminalen Ergebnissen bestimmt nur der zuletzt gestartete
+Hauptlauf den Zustand einer Routine; delegierte Unterläufe und verspätete
+Abschlüsse älterer Läufe überschreiben ihn nicht. Eine Beobachtung erholt
+sich erst nach einem bestätigten Quellenabruf; ein abgeschlossener Modelllauf
+allein genügt nicht. Verspätete Prüfungen erhalten den neuesten Versuch und den
+letzten erfolgreichen Abruf unabhängig voneinander. Erkannter Ablauf oder Entfernung
+erledigt offene Blockaden und storniert Zustellungen. Pausierte, abgelaufene oder
+gelöschte Routinen schreiben keine fertige Antwort in ihren Zielchat.
+
+Beobachtungs- und Erholungszeiten schützen Entscheidungen vor Callback-Retries
+und älteren Ergebnissen. Scheitert das Speichern einer Benachrichtigung, bleibt der neue Vorfall
+erneut meldbar. Agenten- und Lauflimits teilen den Vorfall der besitzenden Person ohne eine
+zweite Fehlermail. Organisations- und Abteilungsbudgets bleiben unabhängige
+Finanzmeldungen, auch wenn die besitzende Person administriert. Ihr Routinenfall
+bleibt in der App, wenn die Finanzmeldung sie bereits informiert. Die
+Budgetpräferenzen gelten weiterhin.
+
+`0266_routine_activation_clock.py` ergänzt die Zeiten ohne erfundene historische
+Versuche. Vorhandene Fall-IDs für Beobachtungsfehler bleiben erhalten. API und
+Worker werden gemeinsam aktualisiert: Der Zustellungsworker muss die neuen
+Budgetmetadaten verstehen. Ein Downgrade entfernt die Zeiten, erhält aber Fälle,
+Benachrichtigungen und Entscheidungen.
+
+### Systemagenten { #system-agents }
+
+Manche Arbeit gehört der Plattform selbst und braucht dennoch ein Modell. Eine
+**Systemrolle** gibt ihr einen Eigentümer, den ein Betreiber sehen kann: eine
+Konfiguration je Organisation und Rolle, nie eine Agent-Zeile, nie eine je Job und
+nie dem Starter-Agent oder einem Agent zugeschrieben, dessen Anweisungen nicht
+liefen (#2575). **Organisationen → KI und Dienste → Hintergrunddienste** (`budgets:manage`)
+listet jede Rolle mit ihrem Modell, den Ausgaben dieses Monats und ihren letzten
+Ausführungen.
+
+| Rolle                | Was sie tut                                                                                                                                                                       | Konfiguriert                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `daily_briefing`     | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing                                                                                                   | Im Tab Proaktivität: dasselbe Modell und Limit, hier nur lesbar |
+| `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget     |
+
+Die Gedächtnispflege benötigt den AgenticOS-Starter nicht. Ihr Run behält den Ursprungsagenten als Speicherreferenz und wird als `memory_maintenance` abgerechnet; ausgeführt werden nur die Extraktionsanweisungen der Plattform auf dem für die Rolle gewählten Modell. Entfernen oder Zurückziehen des Starters deaktiviert die Extraktion anderer veröffentlichter Agenten nicht.
+
+Eine Rolle wird ausgeschaltet, nicht gelöscht. Die **Gedächtnispflege** benötigt
+ein ausdrücklich gewähltes Modell und beachtet ihr Monatsbudget sowie die Obergrenze
+der Organisation. Sie liest abgeschlossene Gesprächsrunden nur, wenn der Runner eine
+reale Person mit Schreibrecht zugelassen hat: private Chats, verknüpfte Kanalnachrichten
+und eigene Zeitplan- oder Workflow-Aufgaben. Embeds, API-Schlüssel, Identitätsübernahmen,
+Ereignisse von Außenstehenden und Delegationen sind ausgeschlossen.
+
+Der Auftrag bewahrt den ursprünglichen Empfängerkreis. Private Runden schreiben in das
+Profil der Person oder ihre Beziehung zum Agenten; Gruppenrunden ausschließlich in den
+Quellraum, auch bei allgemeinen Fakten. Nach der Modellantwort werden Mitgliedschaft
+und Löschungen unter der Schreibsperre erneut geprüft. Ältere Aufträge ohne Empfängerdaten
+bleiben auf private Web-Chats beschränkt. Die Pflege teilt und korrigiert keine Claims.
+Deterministische Konsolidierung benötigt weder Modell noch Rolle.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
@@ -637,13 +938,13 @@ Die Liste nimmt dieselbe zweiseitige Arithmetik wie die Summen oben, aus
 demselben Grund — sodass eine Oberfläche, die auf einen Agent eingeengt ist,
 zeigt, was _dieser Agent_ getan hat, die Arbeit seiner Delegates eingeschlossen:
 
-| Frage                                              | Antwort                                                                                                                                                                                                              |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /runs`                                        | Runs, die jemand gestartet hat. `parent_run_id IS NULL`                                                                                                                                                              |
+| Frage                                              | Antwort                                                                                                                                                                                                               |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /runs`                                        | Runs, die jemand gestartet hat. `parent_run_id IS NULL`                                                                                                                                                               |
 | `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in **Aktivität** (Aktivität), denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
-| `GET /runs?parent_run_id=<id>`                     | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations`                                                                                  |
-| `GET /runs/<id>`                                   | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet                                                                                                                                               |
-| `GET /runs/<id>/transcript`                        | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten)                                                                                         |
+| `GET /runs?parent_run_id=<id>`                     | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations`                                                                                   |
+| `GET /runs/<id>`                                   | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet                                                                                                                                                |
+| `GET /runs/<id>/transcript`                        | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten)                                                                                          |
 
 **Einen Run zu lesen ist autorisiert, nicht besessen.**
 
@@ -822,12 +1123,12 @@ wurde, und er trägt den Namen und die Notiz der entscheidenden Person, denn ein
 nackte UUID ist keine Spur der Verantwortlichkeit. Auf einer entschiedenen Zeile
 gibt es bewusst keine Bedienelemente.
 
-| Parameter                    |                                                                                                                                                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`                     | Wiederholbar. Abwesend heißt ausstehend — die Queue                                                                                                                                             |
-| `triggered_by_user_id`       | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person                                                                  |
-| `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich                                                                                                                                   |
-| `oldest_first`               | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss |
+| Parameter                    |                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`                     | Wiederholbar. Abwesend heißt ausstehend — die Queue                                                                                                                                                                                                                                                                                                             |
+| `triggered_by_user_id`       | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person. Sie lässt Runs aus, in denen der Veröffentlicher für ein nicht verknüpftes Chat-Konto eingesprungen ist; solche Zeilen tragen stattdessen `asked_in_chat` (Plattform, Name und Bot), und ihre `triggered_by_*`-Felder sind leer |
+| `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich                                                                                                                                                                                                                                                                                                   |
+| `oldest_first`               | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss                                                                                                                                                                 |
 
 Jede Zeile nennt drei Dinge, die in anderen Tabellen liegen — den Agent, die
 Person, deren Run den Aufruf geparkt hat, und die Person, die entschieden hat.
@@ -1053,7 +1354,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
   aufgelösten Namen, ist die Tabelle je Person, die Entscheidung 3 des
   Designs für **Aktivität** (Aktivität) abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
   die auslösenden und entscheidenden E-Mail-Adressen auf dem Bildschirm bereits
-  auf, also behält der Freigabe-Export sie.
+  auf, also behält der Freigabe-Export sie. Er enthält auch den Anzeigenamen oder das Handle eines Chat-Fremden, wie die Queue sie zeigt, in drei Spalten: `asked_in_chat_platform`, `asked_in_chat_account` und `asked_in_chat_bot`. In einer solchen Zeile sind beide E-Mail-Spalten leer, weil der Veröffentlicher nicht gefragt hat.
 - **Audit.** Jeder Export schreibt einen `audit_log`-Eintrag — ein privilegierter
   Massen-Lesevorgang, jetzt billig festzuhalten und später unmöglich zu
   rekonstruieren. Er nennt das Fenster, die angewendeten Filter und die
@@ -1133,7 +1434,9 @@ ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
 Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
 und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
 Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
-Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+Run hält wie immer für die Person an. Ebenso Rückfragen, Delegationen und
+Tools, deren Aufruf das ist, was die Person sieht (Entwürfe, Diagramme,
+Zeichnungen). Die Run-Ansicht listet jedes Skript und
 jeden Aufruf, den es gemacht hat.
 
 ### Berichte { #reporting }
@@ -1218,7 +1521,7 @@ sequenceDiagram
     end
 ```
 
-Vier Eigenschaften, die man kennen sollte:
+Fünf Eigenschaften, die man kennen sollte:
 
 - **Ein geparkter Run ist fortsetzbar.** Seine Message-Historie ist gespeichert,
   sodass die Entscheidung auf die Unterhaltung angewendet wird, zu der sie
@@ -1261,7 +1564,19 @@ Vier Eigenschaften, die man kennen sollte:
   weggefallen, eine MCP-Verbindung nicht mehr geteilt. Der Spec wird
   zusammengesetzt, bevor der Run die Freigabe-Queue verlässt, sodass eine
   Ablehnung dort den _Versuch_ ablehnt: Die Entscheidung steht, und das Fortsetzen
-  funktioniert wieder, sobald der Spec es tut.
+  funktioniert wieder, sobald der Spec es tut. Ein im Chat gestellter Run, den
+  niemand fortgesetzt hat, wird vom Sicherheitsnetz etwa eine Stunde nach seiner
+  letzten Entscheidung beendet.
+- **Wer einen im Chat gestellten Run fortsetzt.** Die Entscheidung einer Person in
+  der Konsole, im Web-Chat oder über die API setzt den Run in seinem Chat fort,
+  als sie, und die Antwort wird dort gepostet; die Entscheidung eines Schlüssels
+  wird festgehalten und setzt nichts fort. Eine Fortsetzung kann verloren gehen
+  oder abgelehnt werden, dann wartet der Run in `awaiting_approval` ohne etwas
+  Offenes. Das stündliche Sicherheitsnetz beendet einen solchen Kanal-Run
+  `STRANDED_AFTER` (eine Stunde) nach seiner letzten Entscheidung und sagt es dem
+  Chat einmal - nicht, wenn die Entscheidung mehr als 7 Tage alt ist, und nicht,
+  wenn der Chat es schon erfahren hat. Es betrachtet nur Kanal-Runs. Siehe
+  [Außerhalb des Chats entschieden](channels.md#decided-outside-the-chat).
 - **Eine entschiedene Freigabe kann nicht zweimal entschieden werden.** Die zweite
   Entscheidung wird abgelehnt — einschließlich einer Entscheidung, die eine
   Sekunde nach dem Ablauf-Sweep ankommt, der den Aufruf genommen hat.
@@ -1269,7 +1584,8 @@ Vier Eigenschaften, die man kennen sollte:
   `APPROVAL_EXPIRY_HOURS` überschreitet**, und der Run dahinter wird beendet statt
   für immer geparkt zu bleiben. Der Status ist `expired` mit einem
   `decided_by_user_id` von null, und das ist es, was in der Verantwortungsspur
-  einen Ablauf von einer Zurückweisung unterscheidet. Die Seite **Aktivität** (Aktivität) zeigt
+  einen Ablauf von einer Zurückweisung unterscheidet. Ein im Chat gestellter Run
+  sagt außerdem dem Chat einmal, dass die Anfrage abgelaufen ist. Die Aktivität-Seite zeigt
   weiterhin das **Alter** der ältesten Wartezeit, denn eine Queue innerhalb ihres
   Ablauffensters ist die, auf der jemand noch handeln kann.
 - **`required` funktioniert auf jeder Capability**, nicht nur auf
@@ -1319,6 +1635,10 @@ Vier Eigenschaften, die man kennen sollte:
 
 ### Wie sehr eine Unterhaltung gefragt werden will { #how-much-one-conversation-wants-to-be-asked }
 
+Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl.
+
+Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences → Gespeicherte Tool-Freigaben → Erneut fragen** widerruft eine Zustimmung, ohne die ursprüngliche Entscheidung zu löschen. Vor jeder automatischen Freigabe werden Mitgliedschaft, Freigabeberechtigung und Organisationsrichtlinie erneut geprüft. Der Modus zum Nachfragen bei jeder Aktion hat Vorrang. Jede automatische Freigabe protokolliert weiterhin die zustimmende Person und die tatsächlichen Aufrufargumente.
+
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was
 der Agent _ist_. Was sie nicht ausdrücken kann, ist die Stimmung einer Sitzung —
@@ -1351,7 +1671,7 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
   zu halten — ohne die Berechtigungsprüfung gewährte sich also der alltägliche
   Chat-Nutzer mit einem Klick die Autorität, die die API ihm einen Endpunkt weiter
   verweigert. Der eigene Schalter der Organisation (`chat_may_waive_approvals`,
-  voreingestellt aus, geändert von jemandem, der `approvals:decide` hält) ist die
+  für neue Organisationen voreingestellt ein, geändert von jemandem, der `approvals:decide` hält) ist die
   Obergrenze: Ohne ihn ist das bewusste Gate eines Builders auf `send_email` in
   jeder Unterhaltung einen Klick von nichts entfernt und das Modell je Tool nur
   beratend.
@@ -1730,6 +2050,26 @@ sind der Datensatz, und die Benachrichtigung ist nur, wie jemand davon erfahren
 hat - die berechneten Zahlen eines periodischen Berichts, die nirgends außer in
 der Benachrichtigung leben, sind das Einzige, was eine abgelaufene Zeile
 mitnimmt.
+
+### Ein Ergebnis, einmal erledigt { #one-outcome }
+
+Eine wartende Freigabe, ein fehlgeschlagener Lauf und ein Fund einer Beobachtung sind Dinge, auf die
+jemand reagieren muss, also ist jedes ein **Ergebnis**: ein Eintrag pro Person und Ursache, egal wie
+viele Stellen davon berichten (#2575). Die Karte über dem Chat, aus dem es stammt, die Zeile an der
+Glocke, der Push und die E-Mail sind Zustellungen dieses einen Ergebnisses, nicht vier Einträge.
+
+Ein Ergebnis wird einmal bestätigt, gelöst oder stummgeschaltet, von der Chat-Karte oder der Glocke
+aus, und jede Stelle folgt. Bestätigen markiert es als gelesen und storniert Push und E-Mail, die noch
+auf den Versand warten; Lösen und Stummschalten räumen es zusätzlich weg. Eine Zustellung, die ein Worker
+schon hält, wird kurz vor dem Senden erneut geprüft, sodass ein dazwischen erledigtes nicht hinausgeht.
+`POST /outcomes/{id}/settle` nimmt die Aktion entgegen, und `GET /outcomes` listet die eigenen
+Ergebnisse des Aufrufers, optional für einen Chat.
+
+Die Entscheidung über die letzte offene Freigabe eines Laufs erledigt sein Ergebnis. Eine stummgeschaltete Ursache bleibt stumm. Bei anderen Benachrichtigungen kann eine gelöste oder bestätigte Ursache bei ihrer Rückkehr wieder geöffnet werden; ein wiederholter Fund behält seinen bisherigen Zustand.
+
+Jeder Fund einer Beobachtung, auch ohne dringende Glockenmeldung, teilt einen Fall mit seinem Inbox-Eintrag und seiner Karte im ursprünglichen Chat. **Erledigt** löst diesen Fall; Ablehnen schaltet ihn stumm. Beide Aktionen stornieren ausstehende externe Zustellungen. Bestätigen stoppt Benachrichtigungen und weitere Meldungen im Briefing, lässt den Fund aber mit **Zur Kenntnis genommen** in der Inbox bearbeitbar. Das Löschen einer Beobachtung erledigt ihre offenen Fälle, bevor ihre Funde gelöscht werden. Entscheidungen gelten nur für die besitzende Person innerhalb derselben Organisation.
+
+Nur ausdrückliches **Wiederherstellen** eines abgelehnten Fundes öffnet denselben Fall erneut. Alte Benachrichtigungen und Zustellungen werden nicht wiederholt. Die Migration `0264_finding_outcome_state.py` verknüpft vorhandene Funde mit ihren Fällen, erstellt Fälle für nicht dringende Funde, bewahrt IDs und frühere Inbox-Entscheidungen und storniert überholte Zustellungen. Ein Downgrade entfernt die Verknüpfung, kann aber weder Entscheidungen rückgängig machen noch vom Anbieter angenommene Nachrichten zurückrufen; bewahren Sie ein Backup vor dem Upgrade auf.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 
@@ -2202,3 +2542,66 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 - [Konzepte](concepts.md) - Spec, Version, Exposure, Run.
 - [Berechtigungen](permissions.md) - wer das alles setzen darf.
 - [Konfiguration](configuration.md) - die Einstellungen auf Deployment-Ebene.
+
+## Automatische Pause bei wiederholten Fehlern { #routine-health }
+
+Routinen und Beobachtungen pausieren standardmäßig nach **drei aufeinanderfolgenden erfolglosen Prüfungen**. Im Formular lässt sich ein Limit von 1 bis 20 festlegen oder dieses Limit deaktivieren. Anbieter- und Ausführungsfehler, ungültige Beobachtungsergebnisse und unerreichbare Quellen zählen mit. Warten auf Genehmigung, einen Offline-Computer und Zustellfehler zählen nicht; eine leere, aber verifizierte erfolgreiche Prüfung setzt die Serie zurück. Andere Berechtigungs- und Budgetstopps gelten auch bei deaktiviertem Fehlerlimit.
+
+Jede Aktivierung erhält genau eine dauerhafte Zustandsbeobachtung. Wiederholungen erhöhen den Zähler nicht; verspätete Abschlüsse werden in Aktivierungsreihenfolge ausgewertet. Die automatische Pause stoppt künftige Aktivierungen; eine laufende Modellanfrage kann noch enden.
+
+Der bestehende Vorfall des Eigentümers vermerkt die Pause, seine Benachrichtigung verwendet gemeinsame Einstellungen und gewählte Ziele. Ein unbestätigter Vorfall erhält eine Pausenmeldung, die den früheren Inbox-Eintrag ersetzt. Fortsetzen oder eine Richtlinienänderung macht wartende Pausenmeldungen ungültig. Die Bestätigung des Vorfalls setzt weder den Ausführungszustand zurück noch die Routine fort. Nach der Fehlerbehebung startet ausdrückliches Fortsetzen ein neues Fehlerfenster. Eine Änderung des Limits startet ebenfalls ein neues Fenster.
+
+Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen pro Routine bleiben gespeichert, ohne Quelltexte oder Anbieterfehler. Sie gehören zum größenbegrenzten persönlichen Datenexport und werden mit Eigentümer oder Routine kaskadierend gelöscht. Migration `0275_routine_health.py` aktiviert den Standard auch für bestehende Routinen: API und Worker gemeinsam aktualisieren. Ein Downgrade entfernt Metadaten und Richtlinie, lässt die Routine jedoch pausiert.
+
+## Geprüfte Routinequellen { #routine-sources }
+
+Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
+
+Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
+
+Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.
+
+Routinen mit Budget verwenden einen gemeinsamen Nebenläufigkeitsschlüssel der Warteschlange, damit gleichzeitige Ereignisse nicht mehrere Modellaufrufe gegen denselben abgeschlossenen Ausgabenstand zulassen. Speicherextraktion läuft ebenfalls nacheinander pro Wartungsrolle einer Organisation. Jeder Auftrag prüft das aktuelle Budget erneut; ein bereits zugelassener Aufruf darf noch über die Grenze hinaus enden.
+
+Bereitstellungsweite Meldungen über pausierte Jobs behalten den normalen Gelesen-/Verworfen-Status einer Benachrichtigung; sie werden nicht als Organisationsfälle dargestellt.
+
+### Routinen, Arbeitsgespräche und Inbox { #routines-working-conversations-and-inbox }
+
+**Routines** listet zeitgesteuerte Aufgaben, ereignisgesteuerte Aufgaben und
+Vorlagen zur lesenden Überwachung gemeinsam. Ein Trigger bestimmt, _wann_ eine
+Routine läuft; die Überwachungsvorlage begrenzt, _was_ sie tun darf. Für eine
+Verantwortung genügt eine Routine, statt Watch und Zeitplan für dasselbe Postfach.
+
+Wählen Sie **Nach jeder abgeschlossenen Ausführung** (`result_mode: report`, der
+bisherige Standard) für Berichte oder **Nur wenn etwas Aufmerksamkeit braucht**
+(`result_mode: inbox`) für stille Prüfungen. Der Agent liefert relevante
+Quellelemente mit stabilen Element- und Revisionskennungen, Kontext und dem
+vollständigen angeforderten Entwurf. Ein leeres Ergebnis erzeugt weder Gespräch
+noch Abschlussmeldung. Jedes Element erhält ein privates Arbeitsgespräch und
+einen Inbox-Vorgang. Wiederholte Revisionen werden dauerhaft dedupliziert, auch
+nach Erledigung. Eine neue Revision aktualisiert dasselbe Gespräch und öffnet den
+Vorgang erneut; stummgeschaltete Elemente bleiben stumm.
+
+Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
+Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den
+Vorgang nicht. Werkzeugberechtigungen und Freigaben gelten weiterhin. Über die
+Plattform-MCP-Werkzeuge `list_inbox_cases` und `settle_inbox_case` findet der Agent
+den Vorgang und erledigt ihn nach erfolgreicher beauftragter Arbeit oder einer
+ausdrücklichen Erledigungsbestätigung. Inbox und Chat teilen den Zustand; beim
+Abschluss entfallen ausstehende Benachrichtigungen. Lesende Überwachung kann
+Entwurfstext im Gespräch vorbereiten, aber nicht im Quelldienst speichern oder senden.
+
+Nächtliche Vorschläge bleiben eine optionale, unabhängige Analyse jüngster Anfragen
+und Erinnerungen, kein weiterer Postfachscan. Überwachung nutzt das Modell ihres
+gewählten Agenten und benötigt kein Vorschlagsmodell. Die Organisation bestimmt
+weiterhin Verfügbarkeit, Häufigkeit und das gemeinsame Hintergrundbudget pro
+Person. Gewöhnliche Routinen behalten Agenten-, Organisations- und optionale eigene
+Budgetgrenzen. Tage und Uhrzeit bestimmen auch die Zusammenfassung nicht dringender Funde.
+
+Die morgendliche Zusammenfassung listet bereits gespeicherte, nicht dringende
+Funde ohne weiteren Modellaufruf oder Quellenscan. Sie ist eine Benachrichtigung,
+keine zweite Routine. Die Inbox-MCP-Werkzeuge stehen angemeldeten Sitzungen und
+vertrauenswürdigen Zugangsdaten eines privaten Chats zur Verfügung; Letztere
+sind auf Vorgänge dieses Chats beschränkt. Gewöhnliche API-Schlüssel,
+Hintergrundläufe und Ersatzidentitäten des Herausgebers dürfen private
+Inbox-Vorgänge weder lesen noch erledigen.

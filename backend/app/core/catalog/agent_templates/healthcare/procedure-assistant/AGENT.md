@@ -4,6 +4,7 @@ description: Answers staff questions from your SOPs and clinical guidelines, alw
   with the document and version it used.
 capabilities:
 - ask_user
+- drafts
 - id: knowledge
   config:
     default_top_k: 3

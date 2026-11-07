@@ -245,8 +245,8 @@ portable across a model swap.
 
 ### Responses or Chat Completions
 
-OpenAI publishes two APIs for the same models, and a profile on `openai` or
-`azure` stores which one its requests go to: `responses` or `chat`. Every other
+OpenAI publishes two APIs for the same models, and a profile on `openai`,
+`azure` or `stav` stores which one its requests go to: `responses` or `chat`. Every other
 provider serves one API and stores nothing here.
 
 Neither is right everywhere. OpenAI's newest models are served on Responses only
@@ -260,6 +260,7 @@ form starts on the default:
 | `openai`, no endpoint (OpenAI's own API) | `responses` |
 | `openai` with an endpoint | `chat` |
 | `azure` | `chat`, because the Responses API needs a recent `api_version` and the secret may pin an older one |
+| `stav` | from the model: `chat` where it is served, else `responses` |
 
 The default is only where the form starts. A regional OpenAI endpoint such as
 `https://eu.api.openai.com/v1` is an endpoint that serves Responses, so pick it
@@ -273,14 +274,39 @@ Completions stores nothing by default, so a Responses model sends
 than by a stored response id, so nothing needs the stored copy. A profile that
 wants it sets `openai_store` to `true` in its settings.
 
+### Where a Stav profile's requests run
+
+A profile on `stav` stores a region: `eu`, `eea` or `global`. Stav answers only
+from endpoints that compute in that region, fails over only inside it, and
+refuses a request it cannot serve there. `global` sets no limit of its own. The region only narrows what the Stav
+workspace's own policy allows.
+
+Set it under **Agents → add a model → Region**. The form starts on `eu`, and an
+omitted region is stored as `eu`, so a profile never leaves the EU unless it was
+saved with `eea` or `global`.
+
+The region is sent as the `X-Stav-Runs-In` header on every request, not in the
+body, so an `extra_body` in the profile's settings cannot replace it.
+
+Custom Stav catalogs use the vault key selected in the form. The caller must be able to see that key; the application never chooses a hidden organization key for a custom URL. Authenticated catalog caches are separated by credential. Request-level `extra_headers` cannot override the profile's EU or EEA restriction.
+
+### Otari gateway
+
+Select **Otari** when adding a model, save an Otari API key in the vault and select it for the profile. **Endpoint** is required: enter `https://api.otari.ai/api/v1` for hosted Otari. For an Otari EU account, set `https://eu.api.otari.ai/api/v1`; for a self-hosted gateway, use its API root ending in `/api/v1`, reachable from the API and workers.
+
+Click **Load models** after choosing the endpoint and key. Editing either requires confirming the destination again; typing an address never sends the key.
+
+Model suggestions come from that gateway's authenticated `/models` endpoint using the selected key. A custom endpoint requires `connections:manage` and access to that key. Catalog caches are separated by endpoint and credential; a failed custom listing never substitutes the hosted catalog. The model field also accepts a model selector such as `anthropic:claude-sonnet-4-6`, or an alias/routing policy configured in Otari.
+
+The integration uses [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): its `OtariProvider` supplies the model-family profile to Pydantic AI's Chat Completions model, as `OtariModel` does. Requests always use Chat Completions; the form does not offer Responses or Stav's region controls. Keys and endpoints are passed explicitly from the profile, without an `OTARI_*` or `OPENAI_API_KEY` environment fallback. Otari's gateway budgets and routing are additional controls; AgenticOS still applies its own budgets and approvals.
+
+Direct `provider:model` selectors use the upstream model's bundled catalog price for AgenticOS budgets; bare routing aliases and unknown models remain explicitly partially priced. These are upstream price estimates: use Otari's usage view for gateway charges.
+
 ## Providers
 
-Twenty-eight, which is everything Pydantic AI ships that a chat profile can point
-at.
+Chat providers supported by Pydantic AI, plus Otari through its integration package and Stav with its regional routing.
 
-There is no per-provider builder here. Pydantic AI infers the provider class and
-the model wrapper from the id, and what this platform still has to know is the part
-inference cannot: **which credential shape a provider wants.**
+Standard providers use Pydantic AI's model and provider inference. The platform records credential shapes and integrates provider packages where needed.
 
 !!! info "What Custom URL means"
 
@@ -304,6 +330,7 @@ inference cannot: **which credential shape a provider wants.**
 | Anthropic | `anthropic` | API key | ✓ |
 | Google Gemini | `google` | API key | ✓ |
 | OpenRouter | `openrouter` | API key |  ✓ |
+| Otari | `otari` | API key | ✓ |
 | Alibaba Cloud | `alibaba` | API key | ✓ |
 | Cerebras | `cerebras` | API key | |
 | DeepSeek | `deepseek` | API key | |
@@ -316,6 +343,7 @@ inference cannot: **which credential shape a provider wants.**
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
 | SambaNova | `sambanova` | API key | ✓ |
+| Stav.ai | `stav` | API key | ✓ |
 | Together AI | `together` | API key | |
 | Vercel AI Gateway | `vercel` | API key | |
 | Z.AI | `zai` | API key | |

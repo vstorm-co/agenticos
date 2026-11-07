@@ -48,6 +48,10 @@ GREETING = {
         "Willkommen bei {organization}! Ich bin {bot}, der KI-Assistent hier. Fragen Sie mich "
         "alles direkt in diesem Chat - die Konsole finden Sie hier: {url}"
     ),
+    "tr": (
+        "{organization} kuruluşuna hoş geldiniz! Ben {bot}, buradaki AI asistanınızım. "
+        "Bu sohbette bana istediğinizi sorabilir veya konsolu açabilirsiniz: {url}"  # codespell:ignore bu
+    ),
 }
 
 PLATFORMS = ("slack", "mattermost", "teams")

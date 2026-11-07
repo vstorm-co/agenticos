@@ -105,3 +105,29 @@ class TestWhatIsRefused:
         called = await _called_with("?status=expired")
 
         assert called["filters"].statuses == ["expired"]
+
+
+async def test_list_and_withdraw_only_the_callers_remembered_tool_choices() -> None:
+    service = _service()
+    service.list_consents = AsyncMock(return_value=[])
+    service.revoke_consent = AsyncMock()
+    approval_id = uuid4()
+    async with _client(service) as client:
+        response = await client.get("/api/v1/approvals/consents")
+        assert response.status_code == 200
+        assert response.json() == []
+        response = await client.delete(f"/api/v1/approvals/{approval_id}/consent")
+        assert response.status_code == 204
+    service.list_consents.assert_awaited_once()
+    context = service.list_consents.await_args.args[0]
+    service.revoke_consent.assert_awaited_once_with(context, approval_id)
+
+
+@pytest.mark.parametrize("scope", ["all", "forever", "*", ""])
+async def test_approval_remember_scope_is_validated_before_any_decision(scope: str) -> None:
+    service = _service()
+    async with _client(service) as client:
+        response = await client.post(
+            f"/api/v1/approvals/{uuid4()}", json={"approved": True, "remember_scope": scope}
+        )
+    assert response.status_code == 422

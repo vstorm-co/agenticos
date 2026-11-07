@@ -76,7 +76,7 @@ export function RoundResults({
         {extra}
       </Details>
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -221,7 +221,7 @@ function HowMeasured({ runId }: { runId: string }) {
         </p>
       )}
       {missing > 0 && (
-        <p role="status" className="text-warning text-sm">
+        <p role="status" className="text-warning-ink text-sm">
           {t("needed", { count: missing })}
         </p>
       )}

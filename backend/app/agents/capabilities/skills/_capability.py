@@ -11,11 +11,13 @@ in. So the two tools this capability used to publish for that, `list_skills` and
 `load_skill`, are gone, and `read_skill_resource` is the one that remains.
 """
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
+from pydantic import BaseModel, Field, ValidationError
+from pydantic_ai import ModelRetry
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_skills import Skill as ToolkitSkill
@@ -56,20 +58,58 @@ class SkillBody:
 
 
 def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkill:
-    """Convert a stored skill into what the capability consumes, with `body` in its place."""
-    return ToolkitSkill(
+    """Convert a stored skill into what the capability consumes."""
+    converted = ToolkitSkill(
         name=skill.name,
         description=skill.description if body is None else body.description,
         content=skill.content if body is None else body.content,
-        resources=[
-            ToolkitResource(
-                name=resource.name,
-                description=resource.description,
-                content=resource.content,
-            )
-            for resource in skill.resources
-        ],
     )
+    for resource in skill.resources:
+        content = _resource_content(resource.content)
+        if isinstance(content, str):
+            converted.resources.append(
+                ToolkitResource(
+                    name=resource.name, description=resource.description, content=content
+                )
+            )
+        else:
+            converted.resource(
+                content, name=resource.name, description=resource.description, takes_ctx=False
+            )
+    return converted
+
+
+RESOURCE_PAGE_CHARS = 8000
+
+
+class _ResourcePage(BaseModel):
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=20000)
+
+
+def _resource_content(text: str) -> str | Callable[[int, int], str]:
+    if len(text) <= RESOURCE_PAGE_CHARS:
+        return text
+
+    def read(
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=20000)] = RESOURCE_PAGE_CHARS,
+    ) -> str:
+        """Read a bounded character range; offset and limit are character counts."""
+        try:
+            page = _ResourcePage(offset=offset, limit=limit)
+        except ValidationError:
+            raise ModelRetry(
+                "Use a nonnegative character offset and a limit from 1 to 20000."
+            ) from None
+        offset, limit = page.offset, page.limit
+        if offset >= len(text):
+            return f"End of resource ({len(text)} characters)."
+        end = min(offset + limit, len(text))
+        next_page = f'Next: args={{"offset":{end}}}.' if end < len(text) else "End of resource."
+        return f"Characters {offset}-{end} of {len(text)}. {next_page}\n\n{text[offset:end]}"
+
+    return read
 
 
 SKILL_TEXTS: dict[str, ToolText] = {
@@ -81,7 +121,9 @@ SKILL_TEXTS: dict[str, ToolText] = {
             "instructions point at it by name, which is where the names come "
             "from - a loaded skill lists its files under 'Bundled files', and "
             "a skill you have not opened with `load_capability` has none you "
-            "can reach."
+            "can reach. Long resources are paged: pass args with offset and limit "
+            "(character counts, default limit 8000, maximum 20000). Read only the "
+            "range needed for this task; do not reload an unchanged resource."
         ),
         returns=(
             "The resource's content as text. A skill or a resource name that "

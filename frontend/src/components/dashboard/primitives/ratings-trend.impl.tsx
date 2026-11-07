@@ -1,5 +1,7 @@
 "use client";
 
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import type { RatingsByDay } from "@/types/stats";
@@ -19,7 +21,7 @@ export function RatingsTrendImpl({ data }: { data: RatingsByDay[] }) {
         <XAxis
           dataKey="date"
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-          fontSize={11}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
           minTickGap={24}
@@ -31,29 +33,26 @@ export function RatingsTrendImpl({ data }: { data: RatingsByDay[] }) {
           tickFormatter={(date: string) => date.slice(5)}
           tick={{
             fontFamily: "var(--font-mono)",
-            fill: "oklch(from var(--color-foreground) l c h / 0.45)",
+            fill: "var(--color-muted-foreground)",
           }}
         />
         <YAxis
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-          fontSize={11}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
-          width={28}
+          width={36}
           allowDecimals={false}
           tick={{
             fontFamily: "var(--font-mono)",
-            fill: "oklch(from var(--color-foreground) l c h / 0.45)",
+            fill: "var(--color-muted-foreground)",
           }}
         />
         <Tooltip
           cursor={{ fill: "oklch(from var(--color-foreground) l c h / 0.04)" }}
-          contentStyle={{
-            background: "var(--color-card)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "0.75rem",
-            fontSize: "12px",
-          }}
+          contentStyle={CHART_TOOLTIP_CONTENT}
+          itemStyle={CHART_TOOLTIP_ITEM}
+          labelStyle={CHART_TOOLTIP_LABEL}
         />
         {/* Two categories, so two colours - and the same two the outcomes ring
             spends on "it worked" and "it did not", because a reader who has

@@ -103,6 +103,7 @@ class Settings(BaseSettings):
         return value.rstrip("/")
 
     DEBUG: bool = False
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     DB_ECHO: bool = (
         False  # Set DB_ECHO=true to log SQL queries (latency + log-noise drain by default)
     )
@@ -161,6 +162,18 @@ class Settings(BaseSettings):
     CHAT_ARCHIVE_MEMBER_MAX_BYTES: int = Field(default=50 * 1024 * 1024, gt=0)
     CHAT_ARCHIVE_TOTAL_MAX_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
     CHAT_ARCHIVE_MAX_MEMBERS: int = Field(default=2000, gt=0)
+
+    # A `.zip` or `.tar.gz` attached to an agent with a workspace is unpacked into
+    # it, and a workspace folder is downloaded as a `.zip`; both directions share
+    # these bounds (#2479). Entries count files and folders. The ratio is the most
+    # an unpacked archive's contents may be over its compressed size - past it the
+    # archive is read as a decompression bomb and refused.
+    WORKSPACE_ARCHIVE_MAX_ENTRIES: int = Field(default=5000, gt=0)
+    WORKSPACE_ARCHIVE_MAX_BYTES: int = Field(default=200 * 1024 * 1024, gt=0)
+    WORKSPACE_ARCHIVE_MAX_RATIO: int = Field(default=100, gt=0)
+    # One file in an attached archive: the most an unpack holds in memory at
+    # once, since it writes one member at a time.
+    WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES: int = Field(default=50 * 1024 * 1024, gt=0)
 
     # The layered text budget. Stored extracted text is capped so a ZIP/OLE
     # expansion cannot bloat the row; the per-file and per-turn prompt caps bound
@@ -282,6 +295,8 @@ class Settings(BaseSettings):
     # `ck_organization_budget_positive` constraint already refuses.
     DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
 
+    STAV_NOK_PER_USD: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+
     @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
     @classmethod
     def validate_default_org_budget(cls, v: Decimal | None) -> Decimal | None:
@@ -299,6 +314,7 @@ class Settings(BaseSettings):
     EVENT_LOOP_WEDGED_AFTER: float = 15.0
 
     LOGFIRE_TOKEN: str | None = None
+    LOGFIRE_CONSOLE: bool = False
     LOGFIRE_SERVICE_NAME: str = "agenticos"
     LOGFIRE_ENVIRONMENT: str = "development"
     # Where a stored trace id can be *read*. `LOGFIRE_TOKEN` is a write
@@ -447,6 +463,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
+
+    # How long a phone number stays linked to an account before it has to be linked again.
+    # A number is a claim of identity that outlives the person's hold on it - reassigned,
+    # ported, taken over - so an SMS link lapses (#2082). 0 keeps links for ever.
+    SMS_LINK_MAX_AGE_DAYS: int = 90
 
     # The scheme the desktop shell registers for the sign-in return (#1532).
     #
@@ -1129,10 +1150,6 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
-    # Without an allowlist a builder who can bind a shared mem0 key could point
-    # `mem0_base_url` at their own server and capture it (docs/secrets.md).
-    MEM0_ALLOWED_HOSTS: list[str] = []
-
     # Hosts a browsing agent may drive a Chromium at. `cdp_url` lives in an agent
     # spec, which anyone holding `edit` on that agent writes - so it is
     # tenant-controlled, and an unbounded one is a request this deployment makes
@@ -1141,8 +1158,19 @@ class Settings(BaseSettings):
     # service on the deployment's own network that `docs/reference/capabilities.md`
     # tells an operator to run, and accepts a CDP debugger exposed to the
     # internet, which is worse. So the operator names the hosts instead, exactly
-    # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
+    # like any spec-supplied address. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
+
+    # Hosts a virtual terminal (`mirage`) may mount by an address its author typed:
+    # an SSH server, a Postgres or MongoDB DSN, an IMAP server, a self-hosted
+    # Nextcloud or Dify. The address is in an agent's spec, which whoever holds
+    # `edit` on the agent writes, so for the reason `BROWSER_CDP_ALLOWED_HOSTS` is
+    # an allowlist the SSRF guard is the wrong control here: it refuses the
+    # company's own database, which is the point of mounting one, and admits any
+    # public host, which is the address an author could otherwise exfiltrate a
+    # bound secret to. Exact host names. Empty allows no typed address at all;
+    # SaaS backends (Drive, GitHub, Notion...) reach their fixed APIs regardless.
+    MIRAGE_ALLOWED_HOSTS: list[str] = []
 
     # The browser a person signs in to a site with from Settings (#2129). An
     # agent's browser is named in its spec; signing in from Settings involves no

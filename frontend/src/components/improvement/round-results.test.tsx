@@ -553,7 +553,7 @@ it("does not infer changes or success tones from an invalid comparison", () => {
   expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
   expect(screen.queryByText(/Changed questions:/)).not.toBeInTheDocument();
   expect(screen.queryByText(/The bars count/)).not.toBeInTheDocument();
-  expect(container.querySelector(".text-success, .text-destructive")).toBeNull();
+  expect(container.querySelector(".text-success-ink, .text-destructive-ink")).toBeNull();
   expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
     "href",
     "/agents/agent-1/evals/main",

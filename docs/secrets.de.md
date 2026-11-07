@@ -1,5 +1,5 @@
 ---
-source_sha: "49565e4aa998"
+source_sha: "6be4e8d3a870"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -232,7 +232,7 @@ Schlüssel lässt den Agent keine Anrufe annehmen, bis ein anderer gewählt ist.
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API
 Key"; die `secret_id` eines Bindings sagt, welchen. Wo das Binding den Dienst
 nennt, für den der Key ist - den gewählten Provider oder den einen Dienst der
-Capability, etwa mem0 -, lehnt das Veröffentlichen einen Key ab, der für einen
+Capability, etwa LlamaParse -, lehnt das Veröffentlichen einen Key ab, der für einen
 anderen Dienst gespeichert ist, weil er bei jedem Aufruf an den falschen Provider
 ginge. Ein `custom`-Key, und das ist jeder vor den Zwecken gespeicherte Key, wird
 angenommen. Siehe
@@ -240,6 +240,20 @@ angenommen. Siehe
 
 **MCP-Verbindungen.** Bearer-Token und OAuth-Nutzlasten, versiegelt an die
 Organisation oder an das Mitglied. Siehe [MCP](mcp.md#authentication).
+
+<a id="connected-accounts"></a>
+
+**Verbundene Konten.** Ein Google-Konto, als das ein Ordner des
+[virtuellen Terminals](reference/capabilities.md#mirage) liest, verbunden auf der
+Vault-Seite. Eine Person verbindet ihre eigenen Konten, und ein Agent, der „die
+eigenen Konten jeder Person“ einbindet, findet sie, wenn diese Person mit ihm
+spricht. Die Konten der Organisation brauchen `mcp:manage` zum Verbinden oder
+Trennen und `connections:view` zum Auflisten, und ein Ordner nennt eines per ID.
+Die Einwilligung nutzt das `google_oauth_app`-Secret der Organisation und fragt
+Drive, Gmail, Kalender, Docs, Sheets und Slides auf einmal an. Google erlaubt, jede
+davon zu verweigern, und ein Ordner, der eine verweigerte braucht, sagt das. Die
+Freigabe ist eine OAuth-Payload, versiegelt wie die einer MCP-Verbindung, und eine
+Antwort nennt die Adresse des Kontos und die erteilten Scopes, nie ein Token.
 
 **Channel-Bots.** Alle Zugangsdaten auf der Zeile, versiegelt an die Organisation
 des Bots unter einer gemeinsamen `key_version`: das Bot-Token, das Signing Secret
@@ -287,7 +301,6 @@ Organisation ihren eigenen Key mitbringen darf:
 | Exa | `web_research` |
 | Logfire | [Observability](reference/spec.md#observability) pro Agent — Traces in ein eigenes Projekt |
 | LlamaParse | PDF-Parsing, abgerechnet auf den eigenen Key der Organisation |
-| mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — die ganze Capability, die die semantischen Erinnerungen eines Agents in einem mem0-Dienst hält (Cloud oder selbst gehostet) statt hier. In diesem Deployment wird nichts gespeichert, also rechnet mem0 sein eigenes Embedding außerhalb ab, und Erinnerungen in die Cloud von mem0 zu senden ist eine Entscheidung über Datenresidenz, die der Builder benennt. Eine selbst gehostete `base_url` muss https sein und auf der Erlaubnisliste `MEM0_ALLOWED_HOSTS` stehen, sodass der Vault-Key nie an einen vom Agent kontrollierten Origin gesendet wird. Für diese Erinnerungen gibt es keine Betreiberkonsole: mem0 hat seinen eigenen Speicher, seine eigene Auflistung und sein eigenes Löschen. |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — Sprache in den Stimmen des ElevenLabs-Kontos der Organisation |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — die Seedance-Videomodelle von ByteDance |
 
@@ -406,3 +419,6 @@ mit einem generierten Standardwert live gehen.
 - Die Rotation ist **gestuft** — beide Versionen konfigurieren,
   `vault-rotate --dry-run`, rotieren, dann den alten Schlüssel entfernen, sobald
   null Fehlschläge gemeldet werden.
+
+
+Die Zustimmung zu externen A2A-Quellen bindet auch die Autorisierungsgeneration des referenzierten Tresorschlüssels. Ein neuer Wert macht die Prüfung ungültig, selbst bei gleicher Secret-ID. Umbenennen und Wartung der Tresorverschlüsselung erhalten diese Generation. Bestehende A2A-Zustimmungen müssen nach diesem Upgrade erneut geprüft werden.

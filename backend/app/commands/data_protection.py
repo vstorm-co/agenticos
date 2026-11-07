@@ -66,6 +66,7 @@ from app.db.models.user import User
 from app.db.models.visual import Visual
 from app.db.models.workflow_file import WorkflowFile
 from app.db.session import get_db_context
+from app.services.rag_scratch import SCRATCH_DIRECTORY
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
 # only as good as this list: a column missing from it turns every file it names
@@ -89,11 +90,14 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
 )
 
 # Directories under `MEDIA_DIR` that hold files no row points at, by design: the
-# parse scratch directory is cleared by the worker that wrote it. Generated media
+# parse scratch directory holds one copy per queued or running ingest, which its
+# job removes when it ends, a document delete removes after its commit, and the
+# hourly `sweep-rag-scratch` removes once its document is gone or settled
+# (`app.services.rag_scratch`, #2681). Generated media
 # is not one of them since `generated_media` records each file (#2310), so a
 # file generated before that table existed is counted here - it has no row, and
 # goes only with its organization.
-UNREFERENCED_BY_DESIGN = ("_rag_tmp",)
+UNREFERENCED_BY_DESIGN = (SCRATCH_DIRECTORY,)
 
 # Which capabilities send something out of the deployment when an agent runs
 # with them, and where. A capability reaches the network without any row in
@@ -107,6 +111,7 @@ UNREFERENCED_BY_DESIGN = ("_rag_tmp",)
 # either named here or in `CAPABILITIES_STAYING_INSIDE`, so a new one fails a
 # test rather than quietly leaving the inventory short.
 OUTBOUND_CAPABILITIES: dict[str, str] = {
+    "phone_calls": "the configured telephony provider and explicitly consented recipients",
     # The pages it opens are the destination a reviewer has to know about. What
     # each step sends the model - the page's address, element labels and an
     # excerpt of its text - goes to the agent's own model provider, which the
@@ -123,8 +128,11 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "computer_use": "the agent's sandbox connection, or the computerd host on COMPUTER_DAEMON_ALLOWED_HOSTS",
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
-    "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
+    "mirage": (
+        "the mounted services' APIs; author-specified hosts must be on MIRAGE_ALLOWED_HOSTS; "
+        "RAM folders stay in the API process"
+    ),
     "text_to_speech": "the speech provider named in the binding",
     "video_generation": "the video provider named in the binding, with any starting image",
     # A drawing's pictures by address, only for an agent that already reads the
@@ -139,7 +147,7 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "web_research": "DuckDuckGo by default, or the search provider the binding names",
 }
 
-# Capabilities whose work never leaves the process, so they own no destination.
+# Capabilities with no outbound destination of their own.
 CAPABILITIES_STAYING_INSIDE = frozenset(
     {
         # A published page goes to the deployment's own file storage. Who may then
@@ -156,6 +164,9 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # Runs the agent's own tools later in the same process; whatever a tool
         # reaches is that tool's capability's destination, listed under it.
         "background_tools",
+        # Delegation stays in this deployment; outbound destinations belong to
+        # the child model and tools, which this inventory already lists.
+        "background_tasks",
         "channel_tools",
         "charts",
         "clock",
@@ -163,6 +174,8 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "compaction",
         "context",
         "conversation_search",
+        # The draft goes to the person's own screen, as a card in the answer.
+        "drafts",
         # Next steps go to the person's own screen, under the answer.
         "follow_ups",
         "guardrails",
@@ -179,7 +192,6 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "tool_output_limits",
         "tool_search",
         # Records are rows in this deployment's own database.
-        "virtual_tables",
         # A run is one of this deployment's own workflows, carried out by its
         # worker; whatever a step reaches is that workflow's, not this capability's.
         "workflows",
@@ -249,7 +261,7 @@ def _settings_section() -> Section:
         ["SMTP_TLS", _yes_no(settings.SMTP_TLS)],
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
-        ["MEM0_ALLOWED_HOSTS", ", ".join(settings.MEM0_ALLOWED_HOSTS) or "none"],
+        ["MIRAGE_ALLOWED_HOSTS", ", ".join(settings.MIRAGE_ALLOWED_HOSTS) or "none"],
         # Its host only: an address can carry a token, and this report is attached
         # to reviews.
         ["VISUAL_RENDER_CDP_URL", urlsplit(settings.VISUAL_RENDER_CDP_URL).hostname or "unset"],
@@ -474,12 +486,32 @@ async def _external_connections(db: AsyncSession) -> Section:
         for platform, name, api_base_url in bots.all()
     ]
 
+    accounts = await db.execute(
+        select(
+            McpConnection.scope,
+            func.coalesce(McpConnection.account_email, McpConnection.label, McpConnection.name),
+            McpConnection.catalog_key,
+            McpConnection.url,
+        )
+        .where(
+            McpConnection.is_enabled.is_(True),
+            McpConnection.purpose == "account",
+            McpConnection.oauth_payload.is_not(None),
+        )
+        .order_by(McpConnection.scope, McpConnection.name)
+    )
+    rows += [
+        ["Connected account", f"{scope}/{account}", _endpoint(url), f"{provider} OAuth grant"]
+        for scope, account, provider, url in accounts.all()
+    ]
+
     return Section(
         title="Other configured destinations",
         note=(
             "Tool arguments and results reach an MCP server; a sync source pulls "
             "documents in under its own credential; a channel bot posts the "
-            "agent's replies to the messaging vendor."
+            "agent's replies to the messaging vendor. Connected accounts hold "
+            "provider OAuth grants independently of an agent's current bindings."
         ),
         headers=("Kind", "Name", "Destination", "Detail"),
         rows=rows,
@@ -716,7 +748,8 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
     return Section(
         title=f"Files on disk with no row ({len(orphans)} under {media_dir})",
         note=(
-            "The parse scratch directory is excluded - it has no row by design. "
+            "The parse scratch directory is excluded - it has no row by design, "
+            "and an hourly sweep removes a copy whose document is gone or settled. "
             "Under generated_<organization> these are mostly files generated "
             "before generated_media recorded them, which go only with their "
             "organization; also a file whose unlink failed after its row was "

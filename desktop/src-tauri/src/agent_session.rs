@@ -14,7 +14,7 @@
 //! the server shows as approvals in the chat.
 
 use std::collections::{HashMap, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -39,7 +39,9 @@ fn package(agent: AgentId) -> &'static str {
     }
 }
 
-const MAX_SESSIONS: usize = 4;
+/// Several named sessions at once - two projects on one harness, or both
+/// harnesses side by side - each one an adapter process of its own.
+const MAX_SESSIONS: usize = 8;
 static CONFIRMING: Mutex<()> = Mutex::const_new(());
 /// One ACP message; larger ones are an attack or a bug, not a conversation.
 const MAX_LINE: usize = 4 << 20;
@@ -159,6 +161,9 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
     command
         .args(args)
         .current_dir(cwd)
+        // The adapter must use the same managed CLI that supplied its options.
+        .env_remove("CLAUDE_CODE_EXECUTABLE")
+        .env_remove("CODEX_PATH")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -308,7 +313,7 @@ impl Consent {
         }
     }
     pub fn is_for_folder(&self, root: &str) -> bool {
-        self.root == root
+        Path::new(&self.root).starts_with(Path::new(root))
     }
 }
 
@@ -351,6 +356,16 @@ fn path_with(program: &Path) -> Option<String> {
         .and_then(|joined| joined.into_string().ok())
 }
 
+/// The folder a coding agent may start in: one granted full access, or any folder
+/// whole-computer consent covers - the conversation's, or the agent's own.
+fn authorized_root(app: &AppHandle, args: &Map<String, Value>, root: &str) -> Result<PathBuf, Refusal> {
+    if args.contains_key("computer_grant") {
+        crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
+        return Ok(PathBuf::from(root));
+    }
+    local_work::granted_folder_within(app, root, Mode::FullAccess)
+}
+
 async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Result<Map<String, Value>, Refusal> {
     let OpenArgs {
         agent,
@@ -358,8 +373,9 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         resume_key,
         fresh_session,
     } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
-    // The adapter runs as the person, so only a folder granted full access may host it.
-    let root = local_work::granted_folder(app, &root, Mode::FullAccess)?;
+    // The adapter runs as the person, so only a folder granted full access, or
+    // whole-computer consent, may host it.
+    let root = authorized_root(app, args, &root)?;
     let sessions = app.state::<Sessions>();
     let slot = sessions.reserve().await?;
     let confirmation = CONFIRMING.lock().await;
@@ -369,7 +385,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         if !confirm(app, agent, &root).await {
             return Err(Refusal::new("denied", "You did not allow the agent to start."));
         }
-        local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
+        authorized_root(app, args, &root.to_string_lossy())?;
         crate::settings::update(app, |settings| {
             if settings.connection_revision != consent.connection {
                 return false;
@@ -412,7 +428,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         return Err(Refusal::new("denied", "The connection changed. Start the agent again."));
     }
     // The person can revoke or narrow the grant while the launch dialog is open.
-    local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
+    authorized_root(app, args, &root.to_string_lossy())?;
     let mut session = spawn(
         &runtime.node,
         &[runtime.adapter(agent).to_string_lossy().into_owned()],
@@ -554,9 +570,15 @@ pub async fn close_for_folder(app: &AppHandle, root: &str) {
     remove_for_folder(&mut *sessions.map.lock().await, Path::new(root));
 }
 
+/// Stop the agents working in `root` or in a folder inside it: a session may
+/// have started in one project of a granted folder.
 fn remove_for_folder(map: &mut HashMap<String, Session>, root: &Path) {
     map.retain(|_, session| {
-        if session.workspace_root.as_deref() != Some(root) {
+        if !session
+            .workspace_root
+            .as_deref()
+            .is_some_and(|folder| folder.starts_with(root))
+        {
             return true;
         }
         if let Some(kill) = session.kill.take() {
@@ -741,10 +763,17 @@ mod tests {
         removed.workspace_root = Some("/revoked".into());
         let stopped = Arc::clone(&removed.output);
         let mut retained = shell("sleep 60");
-        retained.workspace_root = Some("/other".into());
-        let mut sessions = HashMap::from([("removed".into(), removed), ("retained".into(), retained)]);
+        retained.workspace_root = Some("/revoked-not".into());
+        let mut inside = shell("sleep 60");
+        inside.workspace_root = Some("/revoked/app".into());
+        let mut sessions = HashMap::from([
+            ("removed".into(), removed),
+            ("retained".into(), retained),
+            ("inside".into(), inside),
+        ]);
         remove_for_folder(&mut sessions, Path::new("/revoked"));
         assert!(!sessions.contains_key("removed"));
+        assert!(!sessions.contains_key("inside"));
         assert!(sessions.contains_key("retained"));
         let (_, _, exit) = drain(&stopped, 0).await;
         assert!(exit.is_some());
@@ -775,6 +804,9 @@ mod tests {
             assert_ne!(consent, other);
         }
         assert!(consent.is_for_folder("/work"));
+        let child = Consent::new(Path::new("/work/app"), "https://console.test", AgentId::Codex);
+        assert!(child.is_for_folder("/work"));
+        assert!(!child.is_for_folder("/worker"));
         assert!(!consent.is_for_folder("/other"));
     }
 

@@ -47,13 +47,26 @@ MODULE = "app.services.notifications"
 FRONTEND = "https://console.example"
 
 
-def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallback=False):
+def _run(
+    *,
+    org_id=None,
+    user_id=None,
+    cost="1.50",
+    initiated_by_publisher_fallback=False,
+    channel_identity_id=None,
+    exposure_id=None,
+):
     run = MagicMock()
     run.id = uuid.uuid4()
+    run.routine_origin_id = None
+    run.parent_run_id = None
+    run.routine_kind = "trigger"
     run.organization_id = org_id or uuid.uuid4()
     run.user_id = user_id
     run.cost_usd = Decimal(cost)
     run.initiated_by_publisher_fallback = initiated_by_publisher_fallback
+    run.channel_identity_id = channel_identity_id
+    run.exposure_id = exposure_id
     return run
 
 
@@ -304,6 +317,184 @@ class TestBudgetExceeded:
             )
 
         assert written.calls[0]["occurrence_id"] == str(run.id)
+
+
+class TestAnApprovalAskedByAChatStranger:
+    """A group chat's unlinked speaker runs as the binding's publisher.
+
+    Only the wording names the chat account. Who is told stays what it was: the
+    publisher still owns the run, and a queue nobody is told about is a run that
+    sits parked.
+    """
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_chat_strangers_approval_still_reaches_the_publisher_named_as_asked_by_the_chat_account(
+        self, written
+    ):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+            exposure_id=uuid.uuid4(),
+        )
+        identity = MagicMock(
+            platform="slack",
+            platform_display_name="Ana",
+            platform_username=None,
+            platform_user_id="U9",
+        )
+        bot = MagicMock()
+        bot.name = "Support"
+        resolved = _members(publisher)
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=resolved),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=identity)
+            ),
+            patch(
+                f"{MODULE}.agent_exposure_repo.get",
+                new=AsyncMock(return_value=MagicMock(channel_bot_id=uuid.uuid4())),
+            ),
+            patch(f"{MODULE}.channel_bot_repo.get_for_org", new=AsyncMock(return_value=bot)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        call = written.calls[0]
+        assert call["recipients"] == [publisher]
+        assert resolved.await_args.kwargs["user_ids"] == [publisher]
+        assert (
+            call["render_context"]["asked_by"]
+            == "Asked in Slack by Ana (unverified), through Support."
+        )
+        assert "your" not in call["summary"]
+        assert call["summary"] == (
+            "Support is waiting on an approval asked in Slack by Ana (unverified)"
+        )
+
+    @pytest.mark.anyio
+    async def test_a_binding_that_is_gone_leaves_the_bot_out_of_the_line(self, written):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+            exposure_id=None,
+        )
+        identity = MagicMock(
+            platform="telegram",
+            platform_display_name=None,
+            platform_username="ana",
+            platform_user_id="7",
+        )
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=identity)
+            ),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        assert written.calls[0]["render_context"]["asked_by"] == (
+            "Asked in Telegram by @ana (unverified)."
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("exposure_gone", [True, False])
+    async def test_a_deleted_binding_or_bot_leaves_the_bot_out(self, written, exposure_gone):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+            exposure_id=uuid.uuid4(),
+        )
+        identity = MagicMock(
+            platform="slack",
+            platform_display_name="Ana",
+            platform_username=None,
+            platform_user_id="U9",
+        )
+        exposure = None if exposure_gone else MagicMock(channel_bot_id=uuid.uuid4())
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=identity)
+            ),
+            patch(f"{MODULE}.agent_exposure_repo.get", new=AsyncMock(return_value=exposure)),
+            patch(f"{MODULE}.channel_bot_repo.get_for_org", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        assert written.calls[0]["render_context"]["asked_by"] == (
+            "Asked in Slack by Ana (unverified)."
+        )
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_deleted_identity_reads_as_an_ordinary_approval(self, written):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)),
+            patch(f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        assert written.calls[0]["render_context"]["asked_by"] == ""
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_members_approval_reads_as_before(self, written):
+        member = uuid.uuid4()
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(member)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=member),
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        call = written.calls[0]
+        assert call["render_context"]["asked_by"] == ""
+        assert call["summary"] == "Support is waiting on your approval"
 
 
 class TestEveryPersonIsResolvedInsideTheOrganization:
@@ -2043,3 +2234,266 @@ class TestSuggestionsReady:
             )
 
         assert written.calls == []
+
+
+@pytest.mark.anyio
+async def test_an_urgent_finding_inside_a_requested_report_does_not_send_a_second_external_notice(
+    written,
+):
+    from app.db.models.notification import NotificationChannel
+
+    person = uuid.uuid4()
+    with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+        await NotificationService(MagicMock()).finding(
+            organization_id=uuid.uuid4(),
+            user_id=person,
+            finding_id=uuid.uuid4(),
+            title="Urgent",
+            watch_id=uuid.uuid4(),
+            external_delivery=False,
+        )
+    assert written.calls[0]["channels"] == {NotificationChannel.IN_APP}
+    assert written.calls[0]["render_context"]["routine_kind"] == "watch"
+
+
+@pytest.mark.anyio
+async def test_routine_health_does_not_hide_a_failure_before_its_savepoint_opens():
+    from sqlalchemy.exc import SQLAlchemyError
+
+    db = MagicMock(is_active=True)
+    db.begin_nested.side_effect = SQLAlchemyError("savepoint could not open")
+    run = _run()
+    run.routine_origin_id = uuid.uuid4()
+    run.status = "failed"
+    with pytest.raises(SQLAlchemyError):
+        await NotificationService(db).routine_result(run)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    ["live", "expired", "paused", "stopped_delivery", "unknown", "no_clock", "auto_stopped"],
+)
+async def test_watch_health_notices_reflect_current_observation_and_expiry(
+    monkeypatch, written, change
+):
+    from datetime import timedelta
+
+    from app.db.models.watch import Watch, WatchAttemptStatus
+    from app.services.outcome import OutcomeService
+
+    owner, org = uuid.uuid4(), uuid.uuid4()
+    watch = Watch(
+        id=uuid.uuid4(),
+        organization_id=org,
+        user_id=owner,
+        title="Inbox check",
+        is_active=change != "paused",
+        ends_at=datetime.now(UTC) - timedelta(seconds=1) if change == "expired" else None,
+        auto_stopped_at=datetime.now(UTC)
+        if change in {"auto_stopped", "stopped_delivery"}
+        else None,
+        consecutive_failures=3,
+        last_attempt_at=None if change == "no_clock" else datetime.now(UTC),
+        source_conversation_id=None,
+    )
+    closed = AsyncMock()
+    monkeypatch.setattr(OutcomeService, "resolve_routine_attention", closed)
+    monkeypatch.setattr(
+        OutcomeService, "routine_failure_occurrence", AsyncMock(return_value="current-case")
+    )
+    monkeypatch.setattr(
+        "app.services.notifications.member_repo.list_member_ids_for", _members(owner)
+    )
+    status = (
+        WatchAttemptStatus.DELIVERY_UNAVAILABLE
+        if change == "stopped_delivery"
+        else WatchAttemptStatus.COMPLETED
+        if change == "unknown"
+        else WatchAttemptStatus.NOT_COMPLETED
+    )
+    await NotificationService(MagicMock()).watch_blocked(watch, status)
+    if change in {"live", "auto_stopped"}:
+        assert len(written.calls) == 1
+        assert written.calls[0]["recipients"] == [owner]
+        if change == "auto_stopped":
+            assert "Paused automatically" in written.calls[0]["summary"]
+    else:
+        assert written.calls == []
+    assert closed.await_count == (1 if change == "expired" else 0)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    ["missing", "tenant", "person", "expired", "paused", "older", "no_clock", "recovered_stopped"],
+)
+async def test_terminal_routine_notifications_do_not_revive_obsolete_work(
+    monkeypatch, written, change
+):
+    from datetime import timedelta
+
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.services.outcome import OutcomeService
+
+    org, owner, origin = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org,
+        user_id=owner,
+        routine_origin_id=origin,
+        routine_kind="trigger",
+        status="completed" if change == "recovered_stopped" else "failed",
+        started_at=None if change == "no_clock" else now,
+        ended_at=None,
+        conversation_id=None,
+    )
+    trigger = AgentTrigger(
+        id=origin,
+        organization_id=uuid.uuid4() if change == "tenant" else org,
+        created_by_user_id=uuid.uuid4() if change == "person" else owner,
+        is_active=change != "paused",
+        ends_at=now - timedelta(seconds=1) if change == "expired" else None,
+        auto_stopped_at=now if change == "recovered_stopped" else None,
+    )
+    monkeypatch.setattr(
+        "app.services.notifications.agent_trigger_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else trigger),
+    )
+    monkeypatch.setattr(
+        "app.services.notifications.agent_run_repo.latest_terminal_for_trigger",
+        AsyncMock(return_value=uuid.uuid4() if change == "older" else run.id),
+    )
+    closed = AsyncMock()
+    monkeypatch.setattr(OutcomeService, "resolve_routine_attention", closed)
+    await NotificationService(MagicMock()).routine_result(run)
+    assert written.calls == []
+    assert closed.await_count == (1 if change == "expired" else 0)
+
+
+def test_notification_links_preserve_project_binding_without_trusting_malformed_ids():
+    from app.db.models.agent_run import AgentRun
+    from app.services.notifications import _outcome_links
+
+    project = uuid.uuid4()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        routine_origin_id=uuid.uuid4(),
+        routine_kind="watch",
+        routine_policy={"approved_sources": {"project_id": str(project)}},
+    )
+    assert _outcome_links(run)["project_id"] == str(project)
+    assert _outcome_links(run)["cause"] == f"watch:{run.routine_origin_id}"
+    run.routine_policy = {"approved_sources": {"project_id": "not-a-project"}}
+    assert _outcome_links(run)["project_id"] == ""
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("kind", ["trigger", "watch", "unknown"])
+@pytest.mark.parametrize(
+    "change", ["current", "missing", "tenant", "paused", "person", "older", "no_occurrence"]
+)
+async def test_budget_incidents_belong_only_to_the_current_routine_attempt(
+    monkeypatch, written, kind, change
+):
+    from datetime import timedelta
+
+    from app.services.outcome import OutcomeService
+
+    owner, org, origin = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    run = _run(org_id=org, user_id=owner)
+    run.routine_origin_id, run.routine_kind = origin, kind
+    run.ended_at, run.started_at, run.routine_activation_at = now, now, now
+    run.routine_policy = {}
+    service = NotificationService(MagicMock())
+    service._audience_ids = AsyncMock(return_value={owner})
+    routine = MagicMock(
+        id=origin,
+        organization_id=uuid.uuid4() if change == "tenant" else org,
+        is_active=change != "paused",
+        user_id=uuid.uuid4() if change == "person" else owner,
+        created_by_user_id=uuid.uuid4() if change == "person" else owner,
+        last_attempt_at=now + timedelta(seconds=1) if change == "older" else now,
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.agent_trigger_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else routine),
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.watch_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else routine),
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.agent_run_repo.latest_terminal_for_trigger",
+        AsyncMock(return_value=uuid.uuid4() if change == "older" else run.id),
+    )
+    occurrence = AsyncMock(return_value=None if change == "no_occurrence" else "incident")
+    monkeypatch.setattr(OutcomeService, "routine_failure_occurrence", occurrence)
+    monkeypatch.setattr(f"{MODULE}.organization_repo.get_by_id", AsyncMock(return_value=None))
+    await service.budget_exceeded(
+        run=run,
+        agent=_agent(owner_user_id=owner),
+        spec=AgentSpec(name="Worker"),
+        reason="Limit",
+        scope=BudgetScope.AGENT,
+    )
+    expected = kind != "unknown" and change in {"current", "no_occurrence"}
+    assert bool(occurrence.await_count) is expected
+    assert bool(written.calls) is (kind == "unknown" or change not in {"no_occurrence", "older"})
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change", ["missing", "tenant", "person", "no_clock", "newer", "current", "budget"]
+)
+async def test_watch_terminal_results_do_not_report_an_obsolete_attempt(monkeypatch, change):
+    from datetime import timedelta
+
+    from app.db.models.agent_run import AgentRun
+
+    org, owner, origin = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org,
+        user_id=owner,
+        routine_origin_id=origin,
+        routine_kind="watch",
+        status="budget_exceeded" if change == "budget" else "failed",
+        started_at=None if change == "no_clock" else now,
+        routine_activation_at=None,
+    )
+    watch = MagicMock(
+        organization_id=uuid.uuid4() if change == "tenant" else org,
+        user_id=uuid.uuid4() if change == "person" else owner,
+        auto_stopped_at=None,
+        last_attempt_at=now + timedelta(seconds=1) if change == "newer" else now,
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.watch_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else watch),
+    )
+    service = NotificationService(MagicMock())
+    service.watch_blocked = AsyncMock()
+    await service._routine_result(run, origin_id=origin, budget_recipients=set())
+    assert service.watch_blocked.await_count == (1 if change in {"current", "budget"} else 0)
+
+
+@pytest.mark.anyio
+async def test_a_routine_without_a_recipient_does_not_invent_one(written):
+    await NotificationService(MagicMock()).routine_blocked(
+        organization_id=uuid.uuid4(),
+        owner_user_id=None,
+        routine_id=uuid.uuid4(),
+        routine_kind="trigger",
+        reason="run",
+        name="Routine",
+        detail="Unavailable",
+        observed_at=datetime.now(UTC),
+    )
+    assert written.calls == []

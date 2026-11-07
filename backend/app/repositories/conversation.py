@@ -26,7 +26,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer, load_only, raiseload, selectinload
+from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -234,6 +234,7 @@ async def get_conversation_by_id(
     *,
     include_messages: bool = False,
     include_summary: bool = False,
+    fresh: bool = False,
 ) -> Conversation | None:
     """Get a conversation by ID without a tenant filter.
 
@@ -260,8 +261,12 @@ async def get_conversation_by_id(
                 .selectinload(Message.files)
                 .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
-        result = await db.execute(query)
+        result = await db.execute(query.execution_options(populate_existing=fresh))
         return result.scalar_one_or_none()
+    if fresh:
+        return await db.get(
+            Conversation, conversation_id, options=summary_options, populate_existing=True
+        )
     return await db.get(Conversation, conversation_id, options=summary_options)
 
 
@@ -515,20 +520,19 @@ def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
 RUNNING_HORIZON = timedelta(hours=2)
 
 
-async def running_since(
-    db: AsyncSession, conversation_ids: Collection[UUID]
-) -> dict[UUID, datetime]:
-    """When the run still at work in each of these conversations began.
+class RunningActivity(NamedTuple):
+    since: datetime
+    run_ids: list[UUID]
 
-    One query for a page, as `favourite_ids` is. Only top-level runs: a delegate's
-    row carries its parent's conversation, and the parent already says the thread is
-    at work. A run parked on an approval is waiting on a person, not working, so it
-    is not counted. The earliest start, where two are running at once.
-    """
+
+async def running_activity(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, RunningActivity]:
+    """Active top-level run identities and their earliest start, in one page query."""
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.conversation_id, func.min(AgentRun.started_at))
+        select(AgentRun.conversation_id, func.min(AgentRun.started_at), func.array_agg(AgentRun.id))
         .where(
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
@@ -539,7 +543,21 @@ async def running_since(
         )
         .group_by(AgentRun.conversation_id)
     )
-    return dict(result.all())
+    return {
+        identifier: RunningActivity(since, list(run_ids))
+        for identifier, since, run_ids in result.all()
+        if identifier is not None and since is not None
+    }
+
+
+async def running_since(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, datetime]:
+    """Earliest start of active runs; callers needing identities use running_activity."""
+    return {
+        identifier: activity.since
+        for identifier, activity in (await running_activity(db, conversation_ids)).items()
+    }
 
 
 async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:
@@ -986,6 +1004,13 @@ async def archive_conversation(
     return db_conversation
 
 
+async def get_owner(db: AsyncSession, conversation_id: UUID | None) -> UUID | None:
+    """Whose conversation this is, or `None` for one with no owner or none at all."""
+    if conversation_id is None:
+        return None
+    return await db.scalar(select(Conversation.user_id).where(Conversation.id == conversation_id))
+
+
 async def delete_conversation(db: AsyncSession, *, db_conversation: Conversation) -> None:
     """Delete a conversation and all related messages/tool_calls (cascades)."""
     await db.delete(db_conversation)
@@ -1129,20 +1154,101 @@ async def tool_call_in_conversation(
     return ToolCallArgs(*row) if row is not None else None
 
 
+class PersonRequest(NamedTuple):
+    """A prompt `person_requests_since` found, and the run that took it, if one still exists."""
+
+    message: Message
+    run: AgentRun | None
+
+    @property
+    def decided_at(self) -> datetime:
+        """When its verdict was in: its run's end, or its own writing where that is later.
+
+        A prompt can be written before a look and finish after it. Its age alone
+        then says the look saw it, when the look left it out. A parked run ends
+        again when it settles, so a prompt a look read while parked counts as new
+        once more: one look too many, in the direction that loses nothing.
+        """
+        ended = None if self.run is None else self.run.ended_at
+        return self.message.created_at if ended is None else max(self.message.created_at, ended)
+
+
 async def person_requests_since(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
-) -> list[Message]:
+) -> list[PersonRequest]:
     """What one person asked agents here since `since`, newest first (#2301).
 
     Their own messages: written by them in a shared chat, or unattributed in a
     conversation that is theirs - a one-person chat records no author per turn.
+
+    Only a prompt that can have reached the input edge, because the nightly job
+    hands what this returns to a model with no guardrails of its own (#2746). The
+    row is committed before that edge reads it, so a row says nothing by being
+    there. Left out:
+
+    - A prompt a guardrail refused (`guardrail_refused`, set by the run and by
+      `link_message_to_run`).
+    - A prompt whose run is still going: marked only when the run ends.
+    - A prompt with no run. It is a turn still being prepared, one refused before
+      its run existed - an archived agent, a build that failed, a file the edge
+      stopped - or one sent to a workflow, whose agent step keeps its own run.
+      The exception is a turn that run retention took the run of: `run_id` is
+      `SET NULL`, on the answer too, and an answer a model wrote is what shows
+      the edge was passed. That also separates a row older than the mark, whose
+      run is gone: the input edge left no answer under what it stopped. Nothing
+      ties an answer to its prompt, so the turn must stand alone: a prompt under
+      another prompt can be sitting inside that one's turn, above its answer.
+      A spoken turn records no model, so it is left out once its run is gone.
+
+    A run that ended is returned with its row for the caller to judge: one that
+    stopped before its first request - a budget, a failure, a stop, a crash -
+    never reached the edge either, and only the run's spec can say what it would
+    have done.
     """
+    following = aliased(Message)
+    preceding = aliased(Message)
+    answered_by_a_lost_run = (
+        select(
+            and_(
+                following.role == "assistant",
+                following.model_name.is_not(None),
+                following.run_id.is_(None),
+            )
+        )
+        .where(
+            following.conversation_id == Message.conversation_id,
+            following.ordinal > Message.ordinal,
+        )
+        .order_by(following.ordinal)
+        .limit(1)
+        .scalar_subquery()
+    )
+    under_a_prompt = (
+        select(preceding.role == "user")
+        .where(
+            preceding.conversation_id == Message.conversation_id,
+            preceding.ordinal < Message.ordinal,
+        )
+        .order_by(preceding.ordinal.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
     result = await db.execute(
-        select(Message)
+        select(Message, AgentRun)
         .join(Conversation, Conversation.id == Message.conversation_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
         .where(
             Conversation.organization_id == organization_id,
             Message.role == "user",
+            Message.guardrail_refused.is_(False),
+            or_(
+                AgentRun.status != RunStatus.RUNNING,
+                and_(
+                    Message.run_id.is_(None),
+                    answered_by_a_lost_run,
+                    func.coalesce(under_a_prompt, False).is_(False),
+                ),
+            ),
             Message.created_at >= since,
             or_(
                 Message.author_user_id == user_id,
@@ -1152,7 +1258,7 @@ async def person_requests_since(
         .order_by(Message.created_at.desc())
         .limit(limit)
     )
-    return list(result.scalars().all())
+    return [PersonRequest(message, run) for message, run in result.tuples().all()]
 
 
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
@@ -1301,6 +1407,7 @@ class RunOutcome(NamedTuple):
 
     status: str
     duration_ms: int | None
+    started_at: datetime | None = None
 
 
 async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, RunOutcome]:
@@ -1322,6 +1429,7 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     return {
         run_id: RunOutcome(
             status=status,
+            started_at=started,
             duration_ms=(
                 round((ended - started).total_seconds() * 1000)
                 if started is not None and ended is not None
@@ -1455,6 +1563,29 @@ async def get_messages_after(
     return list(result.scalars().all())
 
 
+async def capability_loads_in_messages(
+    db: AsyncSession, message_ids: Collection[UUID]
+) -> list[ToolCall]:
+    """Completed capability loads in an already-authorized history window.
+
+    Read only these calls, not every potentially large tool result in the thread.
+    The service verifies the recorded return before restoring the load state.
+    """
+    if not message_ids:
+        return []
+    result = await db.scalars(
+        select(ToolCall)
+        .where(
+            ToolCall.message_id.in_(message_ids),
+            ToolCall.tool_name == "load_capability",
+            ToolCall.status == "completed",
+            ToolCall.result.is_not(None),
+        )
+        .order_by(ToolCall.started_at, ToolCall.id)
+    )
+    return list(result.all())
+
+
 async def set_summary(
     db: AsyncSession,
     *,
@@ -1520,8 +1651,9 @@ async def get_messages_by_run(
     skip: int = 0,
     limit: int = 100,
     include_tool_calls: bool = False,
+    newest: bool = False,
 ) -> list[Message]:
-    """The turns one run produced, oldest first.
+    """The turns one run produced, chronologically; optionally select its newest page.
 
     Narrowed by `messages.run_id` rather than by a time window over the
     conversation: two runs started in one thread interleave, so windowing by the
@@ -1534,9 +1666,14 @@ async def get_messages_by_run(
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
-    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
+    query = (
+        query.order_by(Message.ordinal.desc() if newest else Message.ordinal.asc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
-    return list(result.scalars().all())
+    rows = list(result.scalars().all())
+    return list(reversed(rows)) if newest else rows
 
 
 async def first_user_turns(
@@ -1844,6 +1981,7 @@ async def create_tool_call(
     started_at: datetime,
     status: str = "running",
     mcp_connection_id: UUID | None = None,
+    presentation_kind: Literal["draft"] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -1861,6 +1999,7 @@ async def create_tool_call(
         started_at=started_at,
         status=status,
         mcp_connection_id=mcp_connection_id,
+        presentation_kind=presentation_kind,
     )
     db.add(tool_call)
     await db.flush()

@@ -78,7 +78,7 @@ export function IdeaSkillDialog({
         </DialogHeader>
         <div className={`${DIALOG_BODY} space-y-4`}>
           {answers < RECORDED_FROM_ANSWERS && (
-            <p role="status" className="text-warning text-sm">
+            <p role="status" className="text-warning-ink text-sm">
               {t("fewAnswers", { count: answers })}
             </p>
           )}
@@ -94,7 +94,9 @@ export function IdeaSkillDialog({
             />
             <p
               id="idea-skill-name-hint"
-              className={nameValid ? "text-muted-foreground text-xs" : "text-destructive text-xs"}
+              className={
+                nameValid ? "text-muted-foreground text-xs" : "text-destructive-ink text-xs"
+              }
             >
               {t("nameHint")}
             </p>
@@ -118,7 +120,7 @@ export function IdeaSkillDialog({
             />
           </div>
           {error && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {error}
             </p>
           )}

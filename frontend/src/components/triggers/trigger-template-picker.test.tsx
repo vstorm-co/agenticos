@@ -2,14 +2,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TriggerTemplatePicker } from "./trigger-template-picker";
+import { TriggerTemplatePicker, TriggerTemplateSelector } from "./trigger-template-picker";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 
 let templates: TriggerTemplate[] = [];
 let isLoading = false;
+let templateError: Error | null = null;
 
 vi.mock("@/hooks", () => ({
-  useTriggerTemplates: () => ({ templates, isLoading, error: null }),
+  useTriggerTemplates: () => ({ templates, isLoading, error: templateError }),
 }));
 
 const DAILY: TriggerTemplate = {
@@ -40,6 +41,7 @@ const EMAIL_REPLY: TriggerTemplate = {
 };
 
 beforeEach(() => {
+  templateError = null;
   templates = [];
   isLoading = false;
 });
@@ -191,4 +193,60 @@ describe("TriggerTemplatePicker", () => {
       expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
     });
   });
+});
+
+describe("stable template selector", () => {
+  it("keeps the same closed control when a delayed catalog arrives", async () => {
+    const user = userEvent.setup();
+    isLoading = true;
+    const props = {
+      triggerType: "schedule" as const,
+      selectedKey: null,
+      onPick: vi.fn(),
+      onScratch: vi.fn(),
+    };
+    const { rerender } = render(<TriggerTemplateSelector {...props} />);
+    const trigger = screen.getByRole("button", { name: "Start from a template" });
+    expect(screen.queryByText("Daily standup")).toBeNull();
+    templates = [DAILY];
+    isLoading = false;
+    rerender(<TriggerTemplateSelector {...props} />);
+    expect(screen.getByRole("button", { name: "Start from a template" })).toBe(trigger);
+    expect(screen.queryByText("Daily standup")).toBeNull();
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: /Daily standup/ }));
+    expect(props.onPick).toHaveBeenCalledWith(DAILY);
+    expect(screen.queryByText("Summarise overnight activity")).toBeNull();
+  });
+
+  it("keeps writing available when no template fits", async () => {
+    render(
+      <TriggerTemplateSelector
+        triggerType="schedule"
+        selectedKey={null}
+        onPick={vi.fn()}
+        onScratch={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Start from a template" }));
+    expect(
+      screen.getByText("No templates available. You can write your own message."),
+    ).toBeInTheDocument();
+  });
+});
+
+it("reports a template request failure while leaving the message flow available", async () => {
+  templateError = new Error("Network unavailable");
+  render(
+    <TriggerTemplateSelector
+      triggerType="schedule"
+      selectedKey={null}
+      onPick={vi.fn()}
+      onScratch={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Start from a template" }));
+  expect(
+    screen.getByText("Could not load templates. You can still write your own message."),
+  ).toBeInTheDocument();
 });

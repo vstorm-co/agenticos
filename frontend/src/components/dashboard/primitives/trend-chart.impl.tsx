@@ -1,5 +1,8 @@
 "use client";
 
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
+import { useTranslations } from "next-intl";
 import { useId } from "react";
 import { useLocale } from "next-intl";
 import {
@@ -42,6 +45,7 @@ export function TrendChartImpl({
   // One axis configuration, two marks. Recharts wants a different chart element
   // for each, and duplicating the axes to switch between them is how the two
   // drift into disagreeing about their own scale.
+  const t = useTranslations("pages.runs");
   const Chart = variant === "bars" ? BarChart : AreaChart;
   // `useId` answers with characters (`:` or `«`) a `url(#…)` reference cannot hold.
   const washId = `wash-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -60,7 +64,7 @@ export function TrendChartImpl({
         <XAxis
           dataKey="label"
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-          fontSize={11}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
           minTickGap={28}
@@ -68,33 +72,33 @@ export function TrendChartImpl({
           interval="preserveStartEnd"
           tick={{
             fontFamily: "var(--font-mono)",
-            fill: "oklch(from var(--color-foreground) l c h / 0.45)",
+            fill: "var(--color-muted-foreground)",
           }}
         />
         <YAxis
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-          fontSize={11}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
-          width={money ? 44 : 32}
+          width={money ? 56 : 40}
           tickCount={4}
           // Counts are whole; dollars are not, and a run costs cents.
           allowDecimals={money}
           tickFormatter={money ? (value: number) => formatUsd(value, locale) : undefined}
           tick={{
             fontFamily: "var(--font-mono)",
-            fill: "oklch(from var(--color-foreground) l c h / 0.45)",
+            fill: "var(--color-muted-foreground)",
           }}
         />
         <Tooltip
-          cursor={{ stroke: "oklch(from var(--color-foreground) l c h / 0.15)" }}
-          contentStyle={{
-            background: "var(--color-card)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "0.75rem",
-            fontSize: "12px",
-          }}
-          labelStyle={{ color: "var(--color-muted-foreground)" }}
+          cursor={
+            variant === "bars"
+              ? { fill: "var(--color-foreground)", fillOpacity: 0.045 }
+              : { stroke: "var(--color-muted-foreground)", strokeOpacity: 0.3 }
+          }
+          contentStyle={CHART_TOOLTIP_CONTENT}
+          itemStyle={CHART_TOOLTIP_ITEM}
+          labelStyle={CHART_TOOLTIP_LABEL}
           formatter={money ? (value) => formatUsd(Number(value), locale, 4) : undefined}
         />
         <defs>
@@ -106,6 +110,7 @@ export function TrendChartImpl({
         {variant === "bars" ? (
           <Bar
             dataKey="value"
+            name={t(money ? "cost" : "runs")}
             fill="var(--color-chart-fill)"
             radius={[3, 3, 0, 0]}
             maxBarSize={28}
@@ -114,6 +119,7 @@ export function TrendChartImpl({
           <Area
             type="monotone"
             dataKey="value"
+            name={t(money ? "cost" : "runs")}
             stroke="var(--color-chart)"
             strokeWidth={LINE_WIDTH}
             fill={`url(#${washId})`}

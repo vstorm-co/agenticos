@@ -185,6 +185,17 @@ describe("useAgents", () => {
 describe("useAgent draft", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("exposes a refused read and allows retrying after access is restored", async () => {
+    const refusal = new ApiError(404, "Agent not found");
+    vi.mocked(apiClient.get).mockRejectedValueOnce(refusal);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.error).toBe(refusal));
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.agent?.id).toBe("a1"));
+    expect(result.current.error).toBeNull();
+  });
+
   it("sends every per-tool decision to the server exactly as the Builder set it", async () => {
     // The spec is PUT whole, so nothing here picks fields - which is precisely
     // why a field added to the spec can go missing without anything failing.

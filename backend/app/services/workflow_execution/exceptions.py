@@ -179,7 +179,12 @@ class WorkflowStepNotResolvableError(AppException):
         *,
         run_id: UUID,
         node_run_id: UUID,
-        reason: Literal["not_needing_attention", "no_error_route", "no_late_result"],
+        reason: Literal[
+            "not_needing_attention",
+            "no_error_route",
+            "no_late_result",
+            "reply_not_parked_or_deadline_too_long",
+        ],
     ) -> None:
         super().__init__(details={"run_id": run_id, "node_run_id": node_run_id, "reason": reason})
 

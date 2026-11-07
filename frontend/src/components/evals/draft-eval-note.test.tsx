@@ -73,14 +73,14 @@ describe("DraftEvalNote", () => {
       name: "Last test of this draft: it breaks 4 against v1.",
     });
     expect(note).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(note.className).toContain("text-destructive");
+    expect(note.className).toContain("text-destructive-ink");
   });
 
   it("says a draft made things better", () => {
     draft.runs = [evalRun({ outcome: { ...OUTCOME, verdict: "better", fixed_confirmed: 2 } })];
     render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
     expect(screen.getByRole("link", { name: /it fixes 2 against v1/ }).className).toContain(
-      "text-success",
+      "text-success-ink",
     );
   });
 
@@ -96,7 +96,7 @@ describe("DraftEvalNote", () => {
     expect(note).toHaveTextContent(
       "1 case of this draft was not graded: “$700 TV, can I return it?”. Grade again on the run before publishing.",
     );
-    expect(note.className).toContain("text-warning");
+    expect(note.className).toContain("text-warning-ink");
   });
 
   it("says a draft was mixed", () => {
@@ -104,7 +104,7 @@ describe("DraftEvalNote", () => {
     render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
     expect(
       screen.getByRole("link", { name: /mixed against v1, 4 broke and 2 fixed/ }).className,
-    ).toContain("text-warning");
+    ).toContain("text-warning-ink");
   });
 
   it("says a first result has nothing to compare with, and a live run is still testing", () => {

@@ -154,12 +154,12 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
     <>
       <div className={cn(DIALOG_BODY, "space-y-5")} data-tour="improvement-start">
         {datasets.error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {getErrorMessage(datasets.error, tErrors)}
           </p>
         )}
         {sessions.error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {getErrorMessage(sessions.error, tErrors)}
           </p>
         )}
@@ -191,7 +191,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
           <WriteQuestions agentId={agentId} onReady={questionsReady} />
         )}
         {refused !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {refused}
           </p>
         )}
@@ -288,7 +288,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
           </details>
         )}
         {error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {error}
           </p>
         )}
@@ -351,7 +351,7 @@ function EndOpen({ session }: { session: Improvement }) {
           <>
             {t("body")}
             {error && (
-              <span role="alert" className="text-destructive mt-2 block">
+              <span role="alert" className="text-destructive-ink mt-2 block">
                 {error}
               </span>
             )}

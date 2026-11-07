@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
@@ -8,6 +10,7 @@ import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
+  const requestedConversationId = useSearchParams().get("id");
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
@@ -21,9 +24,9 @@ export default function ChatPage() {
       <ConversationSidebar />
       {/* Room at the top of the transcript for
           the buttons floating over it on a phone. */}
-      <div className="relative min-w-0 flex-1 max-md:[&_[data-transcript]]:pt-16">
+      <div className="relative min-w-0 flex-1 max-md:[&_[data-chat-scroller]]:scroll-pt-20 max-md:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatContainer />
+        <ChatContainer requestedConversationId={requestedConversationId} />
       </div>
     </div>
   );

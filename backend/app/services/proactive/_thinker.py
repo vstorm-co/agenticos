@@ -9,8 +9,9 @@ gets what a run gets where it matters:
   organization turns it on, and turning it on names the model profile it runs
   on (`Organization.proactive_model_profile_id`) - never the agent's by default,
   because this spends money nobody asked for in the moment. An organization
-  without the starter agent gets nothing either.
-- **A run row**, `surface=proactive`, under the starter agent and the person -
+  without the starter agent gets no nightly suggestions. Memory maintenance uses
+  its own role profile and the originating agent instead.
+- **A run row**, `surface=proactive`, with its system role and person -
   so the cost is in run history, the spend views and the organization's monthly
   total, and a failure is written down rather than lost.
 - **Two limits, checked first.** The organization's monthly cap, and its
@@ -41,7 +42,15 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.repositories import agent_repo, agent_run_repo, organization_repo, run_manifest_repo
+from app.db.models.organization import Organization
+from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    organization_repo,
+    run_manifest_repo,
+    system_agent_repo,
+)
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
 from app.services.spend import month_start, organization_monthly_spend
@@ -58,8 +67,15 @@ _LIMITS = UsageLimits(request_limit=2)
 # A watch reads through a connection's tools first: a few lookups, then the answer.
 _WITH_TOOLS = UsageLimits(request_limit=8)
 
-ProactiveFeature = Literal["nightly", "watches"]
-"""Which of the organization's switches the work answers to; both share the model and limit."""
+ProactiveFeature = Literal["nightly", "watches", "maintenance"]
+"""Which switch the work answers to. The first two share the organization's proactivity model
+and per-person limit; `maintenance` answers to its own system-agent profile and budget."""
+
+_ROLE_OF: dict[str, str] = {
+    "nightly": DAILY_BRIEFING,
+    "maintenance": MEMORY_MAINTENANCE,
+}
+"""The system role a feature's runs are attributed to; watches are a person's own routine."""
 
 
 class ProactiveThinker:
@@ -78,6 +94,8 @@ class ProactiveThinker:
         and where this month's spending is at either limit.
         """
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if feature == "maintenance":
+            return await self._maintenance_allowance(organization, ctx)
         if (
             organization is None
             or not (
@@ -104,6 +122,37 @@ class ProactiveThinker:
             return None
         return organization.proactive_model_profile_id
 
+    async def _maintenance_allowance(
+        self, organization: Organization | None, ctx: AuthContext
+    ) -> UUID | None:
+        """The model memory maintenance may run on now, or `None` when it may not.
+
+        Its own profile decides - switch, model, monthly budget - and the
+        organization's monthly cap still applies. Nothing is called past either
+        limit, and nothing is called without a model somebody chose.
+        """
+        if organization is None:
+            return None
+        profile = await system_agent_repo.get(
+            self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
+        )
+        if profile is None or not profile.enabled or profile.model_profile_id is None:
+            return None
+        if organization.monthly_budget_usd is not None:
+            spent = await organization_monthly_spend(self.db, ctx.organization_id)
+            if spent >= organization.monthly_budget_usd:
+                return None
+        if profile.monthly_budget_usd is not None:
+            used = await agent_run_repo.role_spend_since(
+                self.db,
+                organization_id=ctx.organization_id,
+                role=MEMORY_MAINTENANCE,
+                since=month_start(),
+            )
+            if used >= profile.monthly_budget_usd:
+                return None
+        return profile.model_profile_id
+
     async def think[OutputT](
         self,
         ctx: AuthContext,
@@ -113,18 +162,29 @@ class ProactiveThinker:
         instructions: str,
         prompt: str,
         toolsets: Sequence[AbstractToolset[object]] = (),
+        source_agent_id: UUID | None = None,
+        started_at: datetime | None = None,
     ) -> OutputT | None:
-        """Ask the organization's proactivity model, attributed to its starter agent.
+        """Ask the configured model using platform instructions and role attribution.
 
         `toolsets` are what it may read before answering - a watch's connection,
-        narrowed to the tools that only read.
+        narrowed to the tools that only read. `started_at` dates the run from
+        earlier than this call, for work that read its material first.
 
-        Returns `None` - having spent nothing - without a starter agent or past a
+        Maintenance records its originating agent and needs no starter agent.
+        Returns `None` - having spent nothing - without its attribution agent or past a
         limit, and `None` with the failure on the run row when the model could
         not answer. Background work has no one to raise to; the next look is the
         retry.
         """
-        agent = await self.starter_agent(ctx.organization_id)
+        if feature == "maintenance":
+            if source_agent_id is None:
+                return None
+            agent = await agent_repo.get(
+                self.db, source_agent_id, organization_id=ctx.organization_id
+            )
+        else:
+            agent = await self.starter_agent(ctx.organization_id)
         if agent is None or agent.current_version_id is None:
             return None
         profile_id = await self.allowance(ctx, feature)
@@ -147,14 +207,17 @@ class ProactiveThinker:
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
-            agent_version_id=version.id,
+            # This call uses the platform instructions below, not the starter's
+            # spec. Its exact instructions are recorded in the run manifest.
+            agent_version_id=None,
             user_id=ctx.user_id,
             conversation_id=None,
             surface=RunSurface.PROACTIVE.value,
             model_label=request.label,
             provider=request.provider,
             secret_id=request.secret_id,
-            started_at=datetime.now(UTC),
+            started_at=started_at or datetime.now(UTC),
+            system_role=_ROLE_OF.get(feature),
         )
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and

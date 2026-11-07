@@ -6,11 +6,11 @@ import logging
 import re
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
-from contextlib import asynccontextmanager
-from dataclasses import replace
-from datetime import UTC, datetime
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 import httpx
@@ -18,7 +18,11 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+)
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
@@ -32,12 +36,13 @@ from app.repositories import (
     chat_file_repo,
     conversation_repo,
     member_repo,
+    primary_conversation_repo,
 )
 from app.schemas.channel_bot import AccessPolicy
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
-from app.services.channels import get_adapter, membership
+from app.services.channels import get_adapter, membership, sms_prompts
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
@@ -53,6 +58,8 @@ from app.services.channels.base import (
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
+from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
+from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.live_reply import (
@@ -143,6 +150,16 @@ class _ChatLocks:
 
 
 _chat_locks = _ChatLocks()
+
+
+def chat_lock(bot_id: str, chat_id: str) -> AbstractAsyncContextManager[None]:
+    """The router's per-chat lock, for work that posts into a chat outside a turn.
+
+    A continuation decided elsewhere takes it before any row lock, so its post
+    cannot interleave with a turn the same chat is running.
+    """
+    return _chat_locks.hold(bot_id, chat_id)
+
 
 # The turn each chat is running in this process, so a message that arrives
 # behind it can join it rather than wait for it (#2087). Per process like the
@@ -263,6 +280,22 @@ def _kept_back(paths: list[str]) -> list[str]:
     ]
 
 
+@dataclass(frozen=True)
+class Admission:
+    """Whether a chat still admits somebody: yes, definitely not, or cannot tell."""
+
+    verdict: Literal["admitted", "refused", "unconfirmed"]
+    reason: str
+
+
+@dataclass(frozen=True)
+class _Passed:
+    """What `ChannelMessageRouter._standing` returns for a sender nothing refuses."""
+
+    bot: ChannelBot
+    server_unknown: bool
+
+
 class ChannelMessageRouter:
     """Process an incoming channel message end-to-end."""
 
@@ -272,7 +305,76 @@ class ChannelMessageRouter:
         """Recheck an already admitted turn before optional background model work.
 
         An unlinked room participant acts through their recorded chat identity,
-        not the publisher used to account for their run.
+        not the publisher used to account for their run. Fails closed: a
+        membership the platform cannot confirm refuses, and so does a Discord
+        server nobody can name.
+        """
+        standing = await self._standing(db, run, incoming, strict=True)
+        if isinstance(standing, str):
+            return False
+        return incoming.chat_type == "private" or await membership.is_still_member(
+            standing.bot,
+            channel_key(incoming.platform_chat_id),
+            incoming.platform_user_id,
+        )
+
+    async def admission(
+        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage
+    ) -> Admission:
+        """Whether the chat a run came from still admits the person it was asked of.
+
+        A *definite* refusal is the policy, the binding or the chat saying no, or
+        the platform saying the account has left the room. Anything that cannot
+        be answered is `unconfirmed`, not refused - the platform not replying about
+        membership: unlike `may_continue`, whose callers are optional extras, a
+        decision a person made must not be undone by what we cannot tell. The one
+        exception is the approved server of a Discord channel, which the rebuilt
+        sender does not carry: it is asked of the platform, and one that cannot be
+        named is refused, because a revoked server wins over continuity.
+        """
+        standing = await self._standing(db, run, incoming, strict=False)
+        if isinstance(standing, str):
+            return Admission("refused", standing)
+        if incoming.chat_type == "private":
+            return Admission("admitted", "private_chat")
+        if standing.server_unknown:
+            # A revoked server must win over the continuity of a parked run, so a
+            # server nobody can name is refused, not trusted.
+            server = await membership.platform_server(
+                standing.bot, channel_key(incoming.platform_chat_id)
+            )
+            if server is None:
+                return Admission("refused", "server_unconfirmed")
+            try:
+                self._check_access(
+                    replace(incoming, raw={**incoming.raw, "guild_id": server}), standing.bot
+                )
+            except AuthorizationError:
+                return Admission("refused", "access_policy")
+        member = await membership.platform_says_member(
+            standing.bot,
+            channel_key(incoming.platform_chat_id),
+            incoming.platform_user_id,
+        )
+        if member is False:
+            return Admission("refused", "left_channel")
+        if member is None:
+            return Admission("unconfirmed", "membership_unconfirmed")
+        return Admission("admitted", "member")
+
+    async def _standing(
+        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage, *, strict: bool
+    ) -> str | _Passed:
+        """The bot, the chat and the sender's standing, short of the platform's membership answer.
+
+        Everything `may_continue` checks except that answer. A refusal comes with a
+        reason code for the first check that fails and no bot; otherwise the bot is
+        returned so the caller need not read it again.
+
+        A Discord server channel is approved by its server id, which only a live
+        message carries. When `strict` is off, `_check_access` reports a sender
+        rebuilt from a run, which has none, as `server_unknown` instead of refusing
+        every server channel for a reason nobody can verify.
         """
         bot = await channel_bot_repo.get_for_org(
             db, UUID(incoming.bot_id), organization_id=run.organization_id
@@ -284,7 +386,7 @@ class ChannelMessageRouter:
             or bot.platform != incoming.platform
             or run.surface != incoming.platform
         ):
-            return False
+            return "bot"
         session = await channel_session_repo.get_by_bot_and_chat(
             db, bot.id, incoming.platform_chat_id
         )
@@ -293,35 +395,34 @@ class ChannelMessageRouter:
             or not session.is_active
             or session.chat_type != incoming.chat_type
             or session.conversation_id != run.conversation_id
-            or run.channel_identity_id is None
         ):
-            return False
+            return "session"
+        if run.channel_identity_id is None:
+            return "identity"
         identity = await channel_identity_repo.get_by_id(db, run.channel_identity_id)
         if (
             identity is None
             or identity.platform != incoming.platform
             or identity.platform_user_id != incoming.platform_user_id
         ):
-            return False
+            return "identity"
         exposure = await agent_exposure_repo.get_for_bot(
             db, agent_id=run.agent_id, channel_bot_id=bot.id
         )
         if exposure is None or not exposure.is_active:
-            return False
+            return "binding"
         try:
-            self._check_access(incoming, bot)
+            server_unknown = self._check_access(incoming, bot, lenient=not strict)
         except AuthorizationError:
-            return False
+            return "access_policy"
         if run.initiated_by_publisher_fallback:
             if not self._admits_unlinked(incoming, bot):
-                return False
+                return "unlinked_not_admitted"
         elif identity.user_id != run.user_id or not await self._sender_is_active_member(
             db, bot, identity
         ):
-            return False
-        return incoming.chat_type == "private" or await membership.is_still_member(
-            bot, channel_key(incoming.platform_chat_id), incoming.platform_user_id
-        )
+            return "not_a_member"
+        return _Passed(bot, server_unknown)
 
     async def route(self, incoming: IncomingMessage, db: AsyncSession) -> None:
         """Claim the delivery, acquire the per-chat lock, then process.
@@ -420,6 +521,15 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             return exc.message
+        if incoming.platform == DISCORD_PLATFORM:
+            # The turn's own sync runs only after this has posted the text, so
+            # the membership checked here has to be brought up to date first:
+            # a role taken away a moment ago must not have its holder's words
+            # posted as the bot, and one just given must not be told to link.
+            try:
+                await self._sync_discord_roles(bot, identity, incoming, db)
+            except BadRequestError as exc:
+                return exc.message
         if not self._admits_unlinked(incoming, bot) and not await self._sender_is_active_member(
             db, bot, identity
         ):
@@ -484,6 +594,16 @@ class ChannelMessageRouter:
         except AuthorizationError as exc:
             await self._refuse_if_named(bot, incoming, exc.message)
             return
+
+        if incoming.platform == DISCORD_PLATFORM:
+            # Before the membership check below, so a member given a mapped
+            # role a moment ago is answered with it, and one who lost the role
+            # that admitted them is refused (#2569).
+            try:
+                await self._sync_discord_roles(bot, identity, incoming, db)
+            except BadRequestError as exc:
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
 
@@ -1384,14 +1504,26 @@ class ChannelMessageRouter:
             return json.loads(raw) if raw else {}
         return raw
 
-    def _check_access(self, incoming: IncomingMessage, bot: ChannelBot) -> None:
-        """Enforce access policy. Raises AuthorizationError if denied."""
+    def _check_access(
+        self, incoming: IncomingMessage, bot: ChannelBot, *, lenient: bool = False
+    ) -> bool:
+        """Enforce access policy. Raises AuthorizationError if denied.
+
+        Returns whether the Discord server could not be told, which only
+        `lenient` ever allows: a server channel is approved by its server id, only
+        a live message carries one, and a sender rebuilt from a run has none. A
+        bot that approves no server refuses every server channel, id or not.
+        """
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
+        server_unknown = False
 
         if incoming.platform == "discord" and incoming.chat_type == "group":
             approved = AccessPolicy.model_validate(policy).discord_guild_ids
-            if str(incoming.raw.get("guild_id") or "") not in approved:
+            guild_id = str(incoming.raw.get("guild_id") or "")
+            if lenient and approved and not guild_id:
+                server_unknown = True
+            elif guild_id not in approved:
                 raise AuthorizationError(
                     message="This Discord server is not approved for this bot."
                 )
@@ -1416,6 +1548,7 @@ class ChannelMessageRouter:
                     )
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
+        return server_unknown
 
     async def _sender_is_active_member(
         self, db: AsyncSession, bot: ChannelBot, identity: ChannelIdentity
@@ -1656,9 +1789,12 @@ class ChannelMessageRouter:
             admitted, _issuer = await _admission()
             if not admitted:
                 return await self._invite_to_link(incoming, db)
+            previous = identity.user_id
             await channel_identity_repo.update(
                 db, db_identity=identity, update_data={"user_id": None}
             )
+            if incoming.platform == DISCORD_PLATFORM and previous is not None:
+                await DiscordRoleSync(db).release(previous)
             return "Your account has been unlinked."
 
         return None
@@ -1680,9 +1816,29 @@ class ChannelMessageRouter:
             platform_display_name=incoming.platform_display_name,
             user_id=None,
         )
+        if identity.user_id is not None and self._sms_link_lapsed(incoming.platform, identity):
+            # Dropped rather than refused: the person is asked to link again like any
+            # unlinked sender, and a sender who still holds the number can.
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
+            )
         if identity.user_id is None:
             await self._link_vouched(incoming, bot, db, identity)
         return identity
+
+    @staticmethod
+    def _sms_link_lapsed(platform: str, identity: ChannelIdentity) -> bool:
+        """Whether this phone number was linked longer ago than the deployment trusts it.
+
+        A number is not the person: it can be reassigned or taken over, and a valid Twilio
+        signature authenticates Twilio, not continued ownership. So an SMS link expires
+        (`SMS_LINK_MAX_AGE_DAYS`) and is made again by the person.
+        """
+        limit = settings.SMS_LINK_MAX_AGE_DAYS
+        if platform != "sms" or limit <= 0:
+            return False
+        linked = identity.updated_at or identity.created_at
+        return linked is not None and datetime.now(UTC) - linked > timedelta(days=limit)
 
     async def _link_vouched(
         self,
@@ -1731,22 +1887,28 @@ class ChannelMessageRouter:
             db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
         )
         if not session:
-            # The conversation belongs to the organization that owns the bot -
-            # not to the linked user's personal org. A Slack channel is the
-            # tenant's workspace, and whoever happens to speak in it does not
-            # move the conversation into their own org.
-            conv = await conversation_repo.create_conversation(
-                db,
-                title=f"{incoming.platform.capitalize()} Chat",
-                user_id=identity.user_id,
-                organization_id=bot.organization_id,
-            )
             session = await channel_session_repo.create(
                 db,
                 bot_id=bot.id,
                 identity_id=identity.id,
                 platform_chat_id=incoming.platform_chat_id,
-                conversation_id=conv.id,
+                chat_type=incoming.chat_type,
+                conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
+            )
+        elif await self._owner_changed(session, incoming, identity, db, bot=bot):
+            # The owner or bound agent changed: what the old conversation holds, and above
+            # all the web conversation a private chat now continues, is not the new
+            # holder's. A fresh start, and whatever was waiting on an answer goes with it.
+            await sms_prompts.forget(
+                str(bot.id), incoming.platform_chat_id, platform=incoming.platform
+            )
+            session = await channel_session_repo.update(
+                db,
+                db_session=session,
+                update_data={
+                    "identity_id": identity.id,
+                    "conversation_id": await self._first_conversation(incoming, bot, identity, db),
+                },
             )
         # Records that this chat had a turn, which is what "report usage every n
         # messages" counts. Here rather than after the answer, because a turn that
@@ -1754,7 +1916,87 @@ class ChannelMessageRouter:
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
 
-    async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
+    @staticmethod
+    async def _owner_changed(
+        session: ChannelSession,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+        *,
+        bot: ChannelBot,
+    ) -> bool:
+        """Whether this private chat's conversation belongs to somebody other than who is now linked.
+
+        A phone number can be re-linked to another member; the chat's session is keyed on
+        the number, so it would otherwise carry the previous holder's history into the new
+        holder's runs. Only a private chat is checked: a room's conversation is the room's.
+        """
+        if incoming.chat_type != "private" or identity.user_id is None:
+            return False
+        conversation_id = session.conversation_id
+        if conversation_id is None:
+            return False
+        owner = await conversation_repo.get_owner(db, conversation_id)
+        if owner is None:
+            return False
+        if owner != identity.user_id:
+            return True
+        # A bridge's asserted sender identity is not consent to disclose console history.
+        return (
+            await primary_conversation_repo.agent_for_conversation(
+                db,
+                organization_id=bot.organization_id,
+                conversation_id=conversation_id,
+            )
+            is not None
+        )
+
+    @staticmethod
+    async def _first_conversation(
+        incoming: IncomingMessage, bot: ChannelBot, identity: ChannelIdentity, db: AsyncSession
+    ) -> Any:
+        """Keep channel history separate from private console conversations.
+
+        Linking a platform identity authenticates the sender; it does not authorize
+        a bot or bridge to receive the person's pre-existing console history.
+        """
+        title = f"{incoming.platform.capitalize()} Chat"
+        conv = await conversation_repo.create_conversation(
+            db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
+        )
+        return conv.id
+
+    async def _sync_discord_roles(
+        self,
+        bot: ChannelBot,
+        identity: ChannelIdentity,
+        incoming: IncomingMessage,
+        db: AsyncSession,
+    ) -> None:
+        """Bring a linked Discord sender's memberships up to date with their roles (#2569).
+
+        Counted on an allowance of its own before Discord is asked, at the
+        bot's per-sender rate: it runs ahead of the commands, and `/help` and
+        the rest return before a turn's allowance is spent, so without it every
+        message could have the bot call Discord once per mapped server while
+        holding a database connection. An unlinked sender is asked about
+        nothing and is not counted.
+
+        Raises:
+            BadRequestError: The sender has used up the allowance.
+        """
+        if identity.user_id is None:
+            return
+        checked_for = (str(bot.id), str(identity.user_id), str(identity.id))
+        if incoming.discord_roles_checked_for == checked_for:
+            return
+        await self._check_rate_limit(bot, f"user:{identity.user_id}", surface="discord-roles")
+        await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
+        incoming.discord_roles_checked_for = checked_for
+
+    async def _check_rate_limit(
+        self, bot: ChannelBot, identity_id: str, *, surface: str = "channel"
+    ) -> None:
         """Count this message against the chat account's allowance on this bot.
 
         Ten a minute unless `bot.access_policy.rate_limit_rpm` says otherwise.
@@ -1771,17 +2013,20 @@ class ChannelMessageRouter:
         lasts. Fail-open here would remove a production control for the length
         of a cache blip.
 
+        `surface` keeps a second allowance apart from the turn's, counted at the
+        same rate: the Discord role sync's.
+
         Raises:
             BadRequestError: If the rate limit is exceeded.
         """
         policy: dict[str, Any] = self._parse_policy(bot)
         limit = Limit(attempts=int(policy.get("rate_limit_rpm", _DEFAULT_RPM)))
         caller = f"bot:{bot.id}:identity:{identity_id}"
-        decision = await rate_limit.consume(surface="channel", caller=caller, limit=limit)
+        decision = await rate_limit.consume(surface=surface, caller=caller, limit=limit)
         allowed = decision.allowed
         if not decision.metered:
             allowed = _fallback_windows.consume(
-                caller, attempts=limit.attempts, window_seconds=limit.window_seconds
+                f"{surface}:{caller}", attempts=limit.attempts, window_seconds=limit.window_seconds
             )
         if not allowed:
             raise BadRequestError(message="Rate limit exceeded. Please slow down.")

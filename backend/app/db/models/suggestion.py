@@ -20,14 +20,17 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     String,
     UniqueConstraint,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, column_property, mapped_column
 
 from app.db.base import Base, TimestampMixin
+from app.db.models.outcome import Outcome
 
 
 class SuggestionKind(enum.StrEnum):
@@ -56,6 +59,7 @@ class Suggestion(Base, TimestampMixin):
 
     __tablename__ = "suggestions"
     __table_args__ = (
+        Index("suggestions_outcome_id_idx", "outcome_id", unique=True),
         UniqueConstraint(
             "organization_id", "user_id", "dedupe_key", name="uq_suggestion_person_key"
         ),
@@ -90,6 +94,22 @@ class Suggestion(Base, TimestampMixin):
     watch_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("watches.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    outcome_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("outcomes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Eagerly selected with the Inbox row; serializing it never starts lazy I/O.
+    outcome_status: Mapped[str | None] = column_property(
+        select(Outcome.status)
+        .where(
+            Outcome.id == outcome_id,
+            Outcome.organization_id == organization_id,
+            Outcome.user_id == user_id,
+        )
+        .correlate_except(Outcome)
+        .scalar_subquery()
+    )
     # When a finding went out in a morning briefing; each is in one briefing only.
     briefed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # A finding sent at once rather than kept for the morning briefing.
@@ -99,3 +119,17 @@ class Suggestion(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<Suggestion(kind={self.kind}, status={self.status}, user={self.user_id})>"
+
+
+class RoutineFindingRevision(Base):
+    """A source revision already delivered, retained after an Inbox decision."""
+
+    __tablename__ = "routine_finding_revisions"
+
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("suggestions.id", ondelete="CASCADE"), primary_key=True
+    )
+    revision_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    def __repr__(self) -> str:
+        return f"<RoutineFindingRevision(finding_id={self.finding_id})>"

@@ -34,6 +34,12 @@ Development and documentation tooling (`uv sync --dev`, the `docs` dependency gr
 in a builder stage and are absent from the final layer, such as `uv`, are recorded
 in `licenses/components.toml` as not distributed.
 
+The optional `kerberos` and `mirage` extras are not in the published images,
+so the notices leave them out. The published backend does include `browser`. An operator who builds an image with
+`EXTRAS` distributes those packages too, under their own licences. The `mirage`
+extra brings [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) and the
+service clients its backends use.
+
 ## The inventory
 
 Two files carry it, and a script keeps them honest.
@@ -189,7 +195,7 @@ owes the source offers for it.
 
 ## Hosted services and provider terms
 
-A model provider's API, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0, Daytona,
+A model provider's API, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona,
 Google Drive and S3 are not software this project distributes and have no licence
 in the sense above. Each is a service agreement between the deployment and the
 provider, entered into when an administrator stores that provider's credential in

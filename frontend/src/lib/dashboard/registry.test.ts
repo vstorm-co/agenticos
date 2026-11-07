@@ -37,6 +37,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   "workflow-logs": Perm.workflowsView,
   platform: "app_admin",
   health: "app_admin",
+  "background-tasks": "everyone",
   "background-jobs": "app_admin",
   "top-orgs": "app_admin",
   "platform-ratings": "app_admin",
@@ -76,6 +77,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   "eval-suites": Perm.runsView,
   "authoring-suggestions": Perm.agentsEdit,
   "voice-minutes": Perm.runsView,
+  "phone-calls": "everyone",
   projects: Perm.projectsView,
   "recent-visuals": Perm.agentsRun,
   "sandbox-capacity": Perm.connectionsView,
@@ -86,8 +88,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all fifty-seven widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(57);
+  it("holds all fifty-nine widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(59);
   });
 
   it.each(WIDGET_IDS)("%s has a title and a description under its own id", (id) => {
@@ -117,12 +119,12 @@ describe("the widget catalog", () => {
     }
   });
 
-  it("shows a caller with no permissions only the one card that needs none", () => {
+  it("shows personal inbox, background tasks and telephone receipts without organization permissions", () => {
     // Every own inbox is a person's own, not an organization's - the same
     // reason a Viewer, who holds nothing else on this page, still gets it.
     const visible = WIDGET_IDS.filter((id) => WIDGETS[id].gate(NOBODY, false));
 
-    expect(visible).toEqual(["notifications"]);
+    expect(visible).toEqual(["background-tasks", "notifications", "phone-calls"]);
   });
 
   it("every widget's default span is a class the grid knows", () => {

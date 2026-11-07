@@ -209,6 +209,15 @@ class CapabilityToolInfo(BaseModel):
 
     description: str
 
+    always_requires_approval: bool = False
+    """Whether a person must approve every call, whatever the binding says.
+
+    For the rare tool whose effect cannot be undone by the person it borrows authority
+    from - widening who may read something, say - where a model that was talked into
+    calling it by text it read must still be stopped by a human who sees exactly what
+    would be shared. A binding's `approval` and `tool_approval` cannot waive it.
+    """
+
     side_effecting: bool | None = None
     """Whether *this tool* acts on the world, when the capability is not one answer.
 
@@ -446,6 +455,9 @@ class CapabilityDef:
                 # to prevent.
                 side_effecting=tool.side_effecting,
                 read_only=tool.read_only,
+                # Carried for the same reason, and with more at stake: renaming a tool
+                # must not be a way to take it off its mandatory approval.
+                always_requires_approval=tool.always_requires_approval,
             )
             for tool in self.tools
         )
@@ -778,6 +790,7 @@ def load_builtins() -> None:
     from app.agents.capabilities import (  # noqa: F401 - imported for side effects
         artifacts,
         ask_user,
+        background_tasks,
         background_tools,
         browser_use,
         channel_tools,
@@ -789,14 +802,16 @@ def load_builtins() -> None:
         computer_use,
         context,
         conversation_search,
+        drafts,
         follow_ups,
         guardrails,
         image_generation,
         knowledge,
         media,
         memory_files,
-        memory_mem0,
+        mirage,
         monitor,
+        phone_calls,
         planning,
         sandbox,
         skills,
@@ -807,7 +822,6 @@ def load_builtins() -> None:
         tool_output_limits,
         tool_search,
         video_generation,
-        virtual_tables,
         visuals,
         web_fetch,
         web_research,

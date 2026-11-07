@@ -20,6 +20,7 @@ import {
   ORG_MEMBERS,
   ORG_ROLES,
   TABLE_DETAIL,
+  PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -694,4 +695,16 @@ it("walks a session from its questions to the guard that holds a publish", () =>
   expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
     "improvement-step-check",
   );
+});
+
+it("only offers project tracker publication when every required permission and capacity is present", () => {
+  expect(flowForPage(PROJECT_DETAIL)).toBe("create-project-tracker");
+  const state = { ...EMPTY, hasRunnableAgent: true };
+  const flow = FLOWS["create-project-tracker"];
+  expect(stepsForFlow(flow, state, allow, {})).toHaveLength(1);
+  for (const permission of [Perm.agentsPublish, Perm.tablesCreate]) {
+    expect(stepsForFlow(flow, state, (p) => p !== permission, {})).toHaveLength(0);
+  }
+  expect(stepsForFlow(flow, { ...state, hasRoomForAgent: false }, allow, {})).toHaveLength(0);
+  expect(stepsForFlow(flow, EMPTY, allow, {})).toHaveLength(0);
 });

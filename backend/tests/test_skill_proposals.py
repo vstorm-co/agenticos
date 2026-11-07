@@ -28,12 +28,13 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo, skill_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.services import proposal_reach
 from app.services import skill_proposal as skill_proposal_module
+from app.services import skill_proposal as skill_proposals
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SkillChange
 
@@ -367,6 +368,7 @@ class TestListing:
         service = _service(monkeypatch)
         listed = AsyncMock(return_value=[])
         monkeypatch.setattr(skill_proposal_repo, "list_for_organization", listed)
+        monkeypatch.setattr(skill_proposals, "accessible_ids", AsyncMock(return_value=set()))
         ctx = _ctx()
 
         await service.list_proposals(ctx, status="pending")
@@ -474,3 +476,54 @@ class TestRevision:
                 await decide(_ctx(), proposal.id, _DECISION)
 
         service.skills.update.assert_not_called()
+
+    async def test_only_proposals_the_caller_may_decide_are_listed(self, monkeypatch):
+        """A proposal for a skill the caller may not edit is somebody else's decision,
+        and its body somebody else's draft (#2422); a new skill's is anyone's here."""
+        service = _service(monkeypatch)
+        mine, theirs, new = _proposal(), _proposal(), _proposal(skill_id=None)
+        monkeypatch.setattr(
+            skill_proposal_repo,
+            "list_for_organization",
+            AsyncMock(return_value=[mine, theirs, new]),
+        )
+        skills = {mine.skill_id: MagicMock(), theirs.skill_id: MagicMock()}
+        got_many = AsyncMock(return_value=skills)
+        monkeypatch.setattr(skill_repo, "get_many", got_many)
+        editable = AsyncMock(return_value={mine.skill_id})
+        monkeypatch.setattr(skill_proposals, "accessible_ids", editable)
+        ctx = _ctx()
+
+        assert await service.list_proposals(ctx) == [mine, new]
+        assert sorted(got_many.await_args.args[1]) == sorted(skills)
+        assert list(editable.await_args.args[2]) == list(skills.values())
+        assert editable.await_args.args[3] is Perm.SKILLS_EDIT
+
+    async def test_a_proposal_for_a_skill_the_caller_cannot_edit_reads_as_missing(
+        self, monkeypatch
+    ):
+        """Applying and discarding read it the same way, so neither is reachable either."""
+        service = _service(monkeypatch)
+        proposal = _proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        resolve = AsyncMock(return_value=False)
+        monkeypatch.setattr(skill_proposals, "resolve_access", resolve)
+
+        for decide in (service.get, service.apply, service.discard):
+            with pytest.raises(NotFoundError) as refused:
+                await decide(
+                    _ctx(), proposal.id, _DECISION
+                ) if decide != service.get else await decide(_ctx(), proposal.id)
+            assert refused.value.details == {"proposal_id": str(proposal.id)}
+
+        assert resolve.await_args.args[3] is Perm.SKILLS_EDIT
+        service.skills.update.assert_not_called()
+
+    async def test_a_proposal_whose_skill_is_gone_reads_as_missing(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = _proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(skill_repo, "get", AsyncMock(return_value=None))
+
+        with pytest.raises(NotFoundError):
+            await service.get(_ctx(), proposal.id)

@@ -109,6 +109,18 @@ describe("a run history row", () => {
     );
   });
 
+  it("names the platform role that did the work, not the agent it is recorded under", () => {
+    render(<RunTable runs={[run({ system_role: "memory_maintenance" })]} />);
+
+    expect(within(row()).getByText("Memory maintenance (system)")).toBeVisible();
+  });
+
+  it("names the daily briefing role the same way", () => {
+    render(<RunTable runs={[run({ system_role: "daily_briefing" })]} />);
+
+    expect(within(row()).getByText("Daily briefing (system)")).toBeVisible();
+  });
+
   it("says nothing about delegation for a run somebody started", () => {
     render(<RunTable runs={[run()]} />);
 

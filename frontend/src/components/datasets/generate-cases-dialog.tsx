@@ -133,7 +133,7 @@ export function GenerateCasesDialog({
           <p className="text-muted-foreground text-sm">{t("helpers.generationUsesSettings")}</p>
           {agentsError && (
             <div role="alert" className="space-y-2 text-sm">
-              <p className="text-destructive">{getErrorMessage(agentsError, tErrors)}</p>
+              <p className="text-destructive-ink">{getErrorMessage(agentsError, tErrors)}</p>
               <Button variant="outline" size="sm" onClick={() => void refetch()}>
                 {tc("retry")}
               </Button>

@@ -1,5 +1,5 @@
 ---
-source_sha: "0b70fc7f55df"
+source_sha: "50084f2fdddf"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -62,43 +62,45 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 
 ## Qué se entrega { #what-ships }
 
-| id | Nombre | Categoría | Herramientas | Scope | Clave | Voz |
-|---|---|---|---|---|---|---|
-| `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — | tal cual |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adaptada |
-| `context` | Contexto | knowledge | `list_context`, `read_context` | — | — | tal cual |
-| `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | tal cual |
-| `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria | tal cual |
-| `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
-| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | tal cual |
-| `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | tal cual |
-| `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
-| `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
-| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
-| `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
-| `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
-| `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
-| `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria | tal cual |
-| `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria | delegada |
-| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
-| `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | delegada |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
-| `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
-| `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
-| `system_reminders` | Recordatorio de instrucciones | reasoning | ninguna, a propósito | — | — | sin efecto |
-| `tool_search` | Búsqueda de herramientas | utility | ninguna, a propósito | — | — | descartada |
-| `clock` | Fecha y hora | utility | ninguna, a propósito | — | — | tal cual |
-| `guardrails` | Reglas de protección | utility | ninguna, a propósito | — | — | en las transcripciones |
-| `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — | sin efecto |
-| `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — | sin efecto |
-| `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — | tal cual |
-| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
-| `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
-| `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
-| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
+| id                    | Nombre                                              | Categoría  | Herramientas                                                                                                                                                                                                    | Scope                | Clave                              | Voz                    |
+| --------------------- | --------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------- | ---------------------- |
+| `knowledge`           | Búsqueda de conocimiento                            | knowledge  | `search_documents`                                                                                                                                                                                              | `knowledge:read`     | —                                  | tal cual               |
+| `skills`              | Skills                                              | knowledge  | `read_skill_resource`                                                                                                                                                                                           | `knowledge:read`     | —                                  | adaptada               |
+| `context`             | Contexto                                            | knowledge  | `list_context`, `read_context`                                                                                                                                                                                  | —                    | —                                  | tal cual               |
+| `memory_files`        | Memoria                                             | knowledge  | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory`                                                                            | —                    | —                                  | tal cual               |
+| `conversation_search` | Conversaciones anteriores                           | knowledge  | `search_conversations`, `read_conversation`                                                                                                                                                                     | `conversations:read` | —                                  | tal cual               |
+| `workflows`           | Workflows                                           | automation | `list_workflows`, `run_workflow`, `get_workflow_run`                                                                                                                                                            | `workflows:run`      | —                                  | tal cual               |
+| `web_research`        | Búsqueda web                                        | research   | `web_search`                                                                                                                                                                                                    | `web:read`           | para servicios de pago             | tal cual               |
+| `web_fetch`           | Leer páginas web                                    | research   | `web_fetch`                                                                                                                                                                                                     | `web:fetch`          | —                                  | tal cual               |
+| `browser_use`         | Navegador web                                       | research   | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse`         | mediante el extra `browser`        | delegada               |
+| `computer_use`        | Computer use                                        | research   | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot`                                                                                                                              | `computer:use`       | para un daemon                     | delegada               |
+| `code_execution`      | Cálculos                                            | analysis   | `run_python`                                                                                                                                                                                                    | `code:execute`       | —                                  | tal cual               |
+| `sandbox`             | Sandbox                                             | analysis   | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`                                                                                                                                         | `sandbox:execute`    | para Daytona                       | delegada               |
+| `mirage`              | Terminal virtual                                    | analysis   | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute`                                                                                        | —                    | por carpeta, con el extra `mirage` | delegada               |
+| `charts`              | Gráficos                                            | analysis   | `create_chart`                                                                                                                                                                                                  | —                    | —                                  | tal cual               |
+| `visuals`             | Visuals                                             | analysis   | `draw`, `revise_visual`, `read_visual`                                                                                                                                                                          | —                    | —                                  | tal cual               |
+| `image_generation`    | Generación de imágenes                              | analysis   | `generate_image`                                                                                                                                                                                                | —                    | obligatoria                        | tal cual               |
+| `text_to_speech`      | Texto a voz                                         | analysis   | `generate_speech`                                                                                                                                                                                               | —                    | obligatoria                        | tal cual               |
+| `video_generation`    | Generación de vídeo                                 | analysis   | `generate_video`                                                                                                                                                                                                | —                    | obligatoria                        | delegada               |
+| `coding_agent`        | Coding agent                                        | analysis   | `run_coding_agent`                                                                                                                                                                                              | `sandbox:execute`    | obligatoria                        | delegada               |
+| `monitor`             | Watch a command                                     | analysis   | `start_monitor`, `list_monitors`, `stop_monitor`                                                                                                                                                                | `sandbox:execute`    | —                                  | delegada               |
+| `subagents`           | Subagents                                           | reasoning  | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate`                                      | `agents:delegate`    | —                                  | delegada               |
+| `background_tasks`    | Temas en segundo plano                              | reasoning  | `start_background_task`, `list_background_tasks`, `stop_background_task`                                                                                                                                        | —                    | —                                  | delegado               |
+| `planning`            | Planificación                                       | reasoning  | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks`                                                      | —                    | —                                  | tal cual               |
+| `thinking`            | Razonamiento                                        | reasoning  | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | mapeada                |
+| `system_reminders`    | Recordatorio de instrucciones                       | reasoning  | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | sin efecto             |
+| `tool_search`         | Búsqueda de herramientas                            | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | descartada             |
+| `clock`               | Fecha y hora                                        | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | tal cual               |
+| `guardrails`          | Reglas de protección                                | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | en las transcripciones |
+| `compaction`          | Conversaciones largas                               | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | sin efecto             |
+| `media`               | Imágenes fuera del historial                        | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                                  | sin efecto             |
+| `tool_output_limits`  | Límites de resultados de herramientas               | utility    | `read_tool_result`                                                                                                                                                                                              | —                    | —                                  | tal cual               |
+| `artifacts`           | Aplicaciones                                        | utility    | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact`                                                                                                                     | —                    | —                                  | tal cual               |
+| `channel_tools`       | Información del canal de chat                       | channels   | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file`                                                                                                      | —                    | —                                  | no disponible          |
+| `phone_calls`         | [Llamadas telefónicas](../voice.md#telephone-calls) | channels   | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call`                                                                                                  | `endpoint_id`        | —                                  | —                      |
+| `ask_user`            | Preguntar al usuario                                | utility    | `ask_user_question`                                                                                                                                                                                             | —                    | —                                  | en pantalla            |
+| `drafts`              | Borradores                                          | utility    | `write_draft`                                                                                                                                                                                                   | —                    | —                                  | no disponible          |
+| `follow_ups`          | Follow-ups                                          | utility    | `suggest_next_steps`, `propose_setup`                                                                                                                                                                           | —                    | —                                  | no disponible          |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -420,6 +422,58 @@ Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats
 de grupo se quedan.
 
+### Hechos, preferencias y decisiones { #memory-claims }
+
+Además de notas, un agent puede registrar **claims**: un hecho, preferencia o
+decisión duradero en una frase sencilla, con su procedencia (#2090). Las notas no
+cambian; un claim hace que una frase se pueda comprobar: su fuente, desde cuándo
+vale y qué sustituyó. Cuatro herramientas: `remember`, `recall`, `correct_memory`
+y `share_memory`.
+
+Dónde vive un claim es una regla de acceso, nunca una etiqueta que elija el
+modelo:
+
+| Scope                | De quién                                                                          | Quién lo lee                                     |
+| -------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Perfil de la persona | Una persona de esta organización; puede usarlo cualquier agent que actúe por ella | Esa persona, a solas con cualquier agent         |
+| Persona y agent      | La relación de un agent con una persona: detalle del caso, el valor por defecto   | Esa persona, con ese agent                       |
+| Chat de grupo        | Un chat                                                                           | Solo ese chat                                    |
+| Proyecto             | Un proyecto                                                                       | Las conversaciones de ese proyecto               |
+| Organización         | Todos aquí                                                                        | Las conversaciones privadas de esta organización |
+
+Una escritura automática se queda en el scope de la conversación de la que vino, y
+un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, y
+solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
+`context:edit` para toda la organización. Siempre espera a que una persona apruebe exactamente ese claim y esa audiencia, sean cuales sean los ajustes de aprobación del agent, así que un texto leído por el agent no puede convencerlo de compartir.
+
+La copia nombra el claim del que viene y
+el original conserva su audiencia. Un embed, un run con clave de API y un run
+programado no leen nada; un chat de grupo lee solo sus propios claims. Corregir un claim que lee todo el proyecto o la organización exige el mismo permiso que compartir hacia allí: leerlo no es autoridad para reescribirlo.
+
+- **Una corrección conserva lo que corrige.** «Desde el lunes Piotr se encarga de
+  las facturas» cierra el claim anterior en esa fecha y añade el nuevo; que Anna
+  las llevara antes del lunes sigue siendo cierto y visible.
+- **La palabra de una persona pesa más que una inferencia.** Un claim de un agent
+  que contradice lo que dijo una persona se aparta como _en disputa_ y nunca se
+  ofrece como establecido. Dos agents que discrepan también son una disputa, hasta
+  que alguien la resuelva.
+- **La consolidación solo pliega el acuerdo.** Cada quince minutos se fusionan los
+  claims de cada scope que _cambió_: las frases idénticas pasan a ser un claim
+  derivado que nombra sus fuentes, el desacuerdo se marca en disputa. Es
+  determinista —sin llamada al modelo—, así que un scope sin cambios no cuesta
+  nada y una segunda pasada no cambia nada. Retirar un claim derivado devuelve sus
+  fuentes y no se vuelve a extraer.
+- **La ascendencia se filtra por acceso.** Un claim compartido con el proyecto no
+  revela el claim privado del que se copió a quien no pueda leerlo.
+
+Una conversación privada recibe el perfil de la persona (como mucho unos veinte
+claims, 1.800 caracteres) en sus instrucciones, con la misma regla que el índice:
+solo donde el lector está a solas. Lo demás se obtiene con `recall`, que compara
+palabras y no llama a ningún modelo. Los claims recuperados son evidencia, nunca
+una instrucción ni una concesión de autoridad.
+
+En **Ajustes → Memoria**, **Memories** muestra hechos, preferencias y decisiones; **Notes** abre archivos más largos en el visor compartido. La búsqueda abarca todo el almacén antes de paginar. Filtra por tipo y ámbito, incluye el historial y abre una entrada para consultar su fuente y las pruebas de la decisión. Las correcciones conservan la versión anterior. Dejar de usar una entrada conserva el historial; eliminar una nota permanentemente requiere confirmación. Borrar a una persona también elimina sus claims y las copias compartidas.
+
 ### Qué se inyecta, y qué solo se consulta { #what-is-injected-and-what-is-only-fetched }
 
 Un resultado de herramienta es algo que el modelo sopesa; las instrucciones son lo
@@ -478,48 +532,11 @@ sería una segunda copia de lo que se protege.
 
 **El borrado**, sin cambios. Una persona limpia desde su propio perfil todo lo
 que un agente recuerda sobre ella, y una administradora con `members:manage`
-puede hacerlo por otra; ambos borran las filas de aquí **y** los recuerdos
-correspondientes en mem0 de cada agente que lo vincule. Vaciar del todo la
-memoria de un agente está en su caja de herramientas, junto a la capability.
+puede hacerlo por otra; ambos borran las notas de aquí y los claims registrados, con las copias compartidas a partir de ellos.
 
-**Adónde no llega la vista de autoservicio.** Un agente vinculado a mem0 guarda
-sus recuerdos en el servicio de otra empresa, y esta página no los lista: la API
-de mem0 responde a qué coincide con una _pregunta_, no a qué contiene un almacén.
-Esos agentes se **nombran** en la página en vez de omitirse, porque una lista de
-notas nativas presentada como un inventario completo sería peor que una que dice
-lo que le falta. El borrado sí llega a mem0; la lectura no.
+## Temas en segundo plano { #background-tasks }
 
-El borrado de memoria comprueba los borradores y todas las versiones conservadas
-del agente, incluidos los endpoints anteriores de mem0. Vaciar un agente también
-elimina sus espacios de mem0 para todos los propietarios. Si faltan credenciales,
-falla el proveedor o la lista está incompleta, se devuelve un error. Restablece el
-acceso y repite la operación para completar el borrado.
-
-## Memoria (mem0) { #memory-mem0 }
-
-`remember`, `recall`
-
-Memoria semántica guardada en un servicio [mem0](https://mem0.ai) — en la nube, o
-autoalojado mediante `base_url` — en lugar de en este despliegue. `remember` guarda
-una frase corta y autocontenida; `recall` encuentra las que tratan de una pregunta
-por significado y no por nombre. Necesita una clave de API del vault de la
-organización.
-
-A qué memorias puede llegar un run obedece exactamente la regla anterior, porque a
-mem0 se le entrega el ámbito entero como su `user_id`: `{org}:{agent}:{owner}`. Una
-sola cuenta de mem0 no puede, por tanto, mezclar las memorias de dos
-organizaciones, de dos agents ni de dos personas.
-
-Dos diferencias que conviene conocer antes de elegirla. **Aquí no se guarda nada**,
-así que borrar la memoria de una persona llega a mem0 por su propia API en lugar de
-por una fila que eliminemos. Y **mem0 factura su propio embedding por fuera**, así
-que el libro de gasto del despliegue no lo ve y un tope de budget no lo acota.
-
-Un `base_url` autoalojado tiene que ser https y estar en `MEM0_ALLOWED_HOSTS`. Una
-lista de permitidos vacía rechaza de plano el mem0 autoalojado, y es deliberado: la
-clave viaja en una cabecera `Authorization`, así que quien construya un agent y
-pueda vincular una clave compartida sin poder leerla no debe poder apuntarla a un
-servidor propio.
+Trabajo explícito en un tema nuevo que dura más que la respuesta de origen. El agente original resume el resultado con el historial actual, sin herramientas. [Temas en segundo plano](../console.es.md#background-topics) explica límites, aprobaciones, detención e interrupciones. Es independiente de `background_tools` y los subagentes asíncronos temporales de una ejecución.
 
 ## Conversaciones anteriores { #conversation-search }
 
@@ -587,10 +604,10 @@ ajuste que amplíe el corpus.
 
 `web_search` — _Busca información actual en la web pública._
 
-| Configuración | Valor por defecto | Valores                                          |
-| ------------- | ----------------- | ------------------------------------------------ |
-| `method`      | `duckduckgo`      | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
-| `max_results` | 5                 | 1–10, ignorado por `native`                      |
+| Configuración | Valor por defecto | Valores                                                      |
+| ------------- | ----------------- | ------------------------------------------------------------ |
+| `method`      | `duckduckgo`      | `duckduckgo`, `native`, `tavily`, `brave`, `exa`, `keenable` |
+| `max_results` | 5                 | 1–10, ignorado por `native`                                  |
 
 La consola nombra cada método en lugar de imprimir el valor que almacena, y dibuja
 la marca del propio servicio al lado: el campo lleva `x-enum-labels`, que es lo que
@@ -605,6 +622,7 @@ como una clave de configuración que reconocer y no como un producto que elegir.
 - **`tavily`** — resultados resumidos para que los lea un modelo.
 - **`brave`** — un índice propio.
 - **`exa`** — búsqueda por significado en vez de por palabra clave.
+- **`keenable`** — sin cuenta; una clave de API opcional de los secretos de la organización activa el endpoint con clave.
 
 Los tres métodos de pago necesitan una clave de API de los
 [secretos](../secrets.md) de la organización, nombrada por el `secret_id` de la
@@ -1288,6 +1306,90 @@ skill. Un skill son instrucciones que sigue en cada run todo agent vinculado a �
 así que un cambio se registra como una propuesta y alguien con `skills:edit` la
 acepta o la descarta; consulta [Skills](../skills.md).
 
+## Mirage (terminal virtual) { #mirage }
+
+Las siete herramientas de `sandbox`, con el prefijo `mirage_`, sobre los servicios
+que monta un autor: un Google Drive, un repositorio de GitHub, Notion, una base de
+datos Postgres, un servidor SSH, un buzón de correo.
+[Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) monta cada servicio como
+una carpeta y ejecuta la shell sobre ella a través de la propia API del servicio,
+así que el agent responde «¿qué contratos mencionan a Acme?» con un `grep` sobre una
+carpeta de Drive. No arranca ningún contenedor. Un agent puede tener esta
+capability y una sandbox a la vez: las herramientas del terminal siempre llegan al
+terminal, y `execute` sigue llegando a la sandbox.
+
+| Configuración      | Por defecto                            | Valores                                                                   |
+| ------------------ | -------------------------------------- | ------------------------------------------------------------------------- |
+| `mounts`           | obligatorio                            | De una a diez carpetas, cada una descrita abajo                           |
+| `allowed_commands` | comandos virtuales salvo `curl`/`wget` | Nombres de comandos que la shell puede ejecutar, como `ls`, `cat`, `grep` |
+| `hidden_paths`     | ninguno                                | Rutas absolutas que el agent no ve en absoluto, como `/drive/HR/`         |
+
+**Una carpeta es una ruta, un servicio y una forma de iniciar sesión.** La ruta es
+un nombre en minúsculas entre barras (`/drive/`). El servicio es uno de los
+backends que el deployment puede montar, con sus propias opciones: un
+repositorio, un id de carpeta, un host. Una carpeta es de solo lectura salvo que
+el autor permita escribir. Una carpeta con escritura pide a una persona que
+apruebe cada escritura salvo que el autor lo desactive. El Builder lista todos los
+servicios que trae Mirage y da el motivo de cada uno que este deployment no puede
+montar.
+
+**Cómo inicia sesión una carpeta depende del servicio:**
+
+| Credencial           | Servicios                                                            | Qué guarda el spec                                                                                                  |
+| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Claves del vault     | GitHub, Notion, Linear, Slack, Postgres, SSH, correo IMAP y el resto | Un secreto `api_key` por cada campo de credencial (`token`, `dsn`, `password`)                                      |
+| Una app de Entra     | OneDrive, SharePoint                                                 | Un secreto `entra_app`, como el que el run inicia sesión para obtener un token de Microsoft Graph                   |
+| Una cuenta de Google | Drive, Docs, Sheets, Slides, Gmail, Calendar                         | Una de las [cuentas conectadas](../secrets.md#connected-accounts) de la organización, o las propias de cada persona |
+| Ninguna              | Espacio temporal (`ram`)                                             | Nada                                                                                                                |
+
+**Las cuentas propias de cada persona se buscan cuando esa persona habla con el
+agent.** Quien tiene dos cuentas de Google recibe dos carpetas bajo el punto de
+montaje, cada una con el nombre de su dirección. Quien no tiene ninguna, como una
+clave de API o una programación, no recibe carpeta, y el agent lo sabe. Una cuenta
+de la organización responde por todos los que hablan con el agent.
+
+**Un spec nunca guarda una credencial, un endpoint sustituido ni una ruta en el
+host de la API.** La publicación rechaza un secreto que quien publica no puede
+prestar, un secreto del tipo equivocado y una cuenta que la organización no tiene.
+Un host que escribe el autor tiene que estar en
+[`MIRAGE_ALLOWED_HOSTS`](../configuration.md), como un servidor SSH o el host de un
+DSN. La publicación comprueba el host escrito, y el run comprueba los hosts
+guardados dentro de los secretos.
+
+**La aprobación es por carpeta, no por herramienta.** `mirage_execute ls` y
+`mirage_execute rm /drive/q3.pdf` son la misma herramienta, así que aprobar la
+herramienta preguntaría por las dos. En su lugar, una llamada que escribiría en una
+carpeta marcada «Aprobar cada escritura» pasa por la
+[aprobación](../governance.md) antes de ejecutarse. Para `mirage_write_file` y
+`mirage_edit_file` decide el `path` de la llamada. Para `mirage_execute`, Mirage
+ensaya antes la línea de comandos, así que una redirección, `cp`, `tee` y `rm` se
+detectan. Una escritura que ningún ensayo previó, como `echo x > $TARGET`, se
+rechaza salvo que la llamada se haya aprobado.
+
+**Límites y continuación tras la aprobación.** Mirage 0.0.8 limita la caché de
+archivos a 16 MiB y la memoria del workspace a 16 MiB. Cada comando devuelve
+como máximo 64 KiB por flujo de salida; después se detiene la lectura y se indica
+que el resultado está incompleto. Las carpetas RAM se conservan en los metadatos
+de mensajes del run pausado y se restauran tras aprobarlo, también en los
+delegados. No se incluyen credenciales ni cachés de servicios externos. La
+carpeta de cada cuenta personal incluye su ID estable para evitar que direcciones
+de correo similares sobrescriban otras cuentas.
+
+**Es una instalación opcional.** Instala el extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 ya no requiere el antiguo paso de compilación del analizador de shell. Sin el extra, el Builder indica que falta el terminal y rechaza un spec que lo vincule. La familia S3 sigue sin estar disponible porque su SDK asíncrono entra en conflicto con las dependencias AWS actuales; el Builder explica el motivo. Todos los hosts configurables, incluidos los valores predeterminados de los backends, deben estar permitidos en `MIRAGE_ALLOWED_HOSTS`.
+
+**Box y LanceDB.** Box utiliza una cuenta de servicio mediante Client Credentials: proporciona `client_id`, `enterprise_id` y un secreto API key del vault (propósito `custom`) para `client_secret`. No admite tokens de desarrollo ni refresh tokens OAuth rotatorios. LanceDB solo funciona como Cloud/Enterprise: requiere `uri: db://database-name`, un endpoint HTTPS `host_override` permitido en `MIRAGE_ALLOWED_HOSTS` y un secreto API key (`custom`) para `api_key`. Rechaza rutas locales, URI de almacenamiento de objetos y `storage_options`. El extra incluye LanceDB y PyArrow, lo que aumenta el tamaño de la imagen.
+
+Qdrant y Langfuse están disponibles con el extra. Qdrant permite listar y leer
+archivos y usar grep de texto; la búsqueda semántica con modelos no está habilitada.
+El consentimiento debe terminar en el mismo navegador y con la misma cuenta
+iniciadora de AgenticOS.
+
+Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL debe figurar en la lista permitida del despliegue. MongoDB y GridFS requieren un único host `mongodb://`: la plataforma fuerza `directConnection=true` y rechaza el descubrimiento SRV. Los remitentes de canales sin cuenta vinculada necesitan aprobación para cada herramienta Mirage, incluso las lecturas; al vincular la cuenta se aplica la política habitual de carpetas del autor.
+
+Los montajes PostgreSQL requieren una contraseña no vacía en el DSN de la bóveda; no se admiten contraseñas vacías ni autenticación sin contraseña. No recurren a `PGPASSWORD` ni a `.pgpass`. Se rechazan los parámetros DSN que apuntan a archivos de credenciales o TLS del host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`).
+
+SSH usa un nombre de usuario explícito y una contraseña del vault. Proporciona el `host_key` público de confianza del servidor; el adaptador fija esa clave y desactiva la configuración SSH local, las claves privadas locales y el agente SSH. No se permite la autenticación automática con credenciales del entorno.
+
 ## Gráficos { #charts }
 
 `create_chart` — _Dibuja un gráfico con números que ya tienes, para que el usuario
@@ -1555,6 +1657,12 @@ segundo intento se cobraría de nuevo.
 
 ## Coding agent { #coding-agent }
 
+**Cuentas personales en la nube.** En **Settings → Profile → Coding accounts**, conecta una clave de Anthropic/token de configuración de Claude, una clave de OpenAI o un nuevo inicio de sesión de ChatGPT y habilita su uso explícitamente en esta organización. Elige **Private cloud task with my account** en Coding agent. Solo las tareas autenticadas que inicies en el chat web/API pueden usarla; no horarios, canales, claves API ni suplantación. Otros miembros no pueden tomar prestada tu cuenta.
+
+Un contenedor independiente recibe una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos de origen no cambian automáticamente. Revocar el acceso a la cuenta cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+
+El modo personal en la nube solo acepta workspaces de origen privados. Rechaza proyectos, workspaces de agente/canal, chats grupales y conversaciones compartidas para editar antes de cargar credenciales o copiar archivos. Un contenedor privado de destino no convierte en fiable el código controlado por colaboradores. Usa el modo de programación configurado por la organización para proyectos compartidos. La redacción del resultado no protege credenciales frente al código ejecutable.
+
 `run_coding_agent` — _Hand a software task to the coding agent, which works on it in the sandbox until done._
 
 Entrega el trabajo de software a **Claude Code** o **Codex**, que se ejecutan en la
@@ -1565,14 +1673,14 @@ trabaja hasta terminarla y el chat lo muestra trabajando. Otro agent llega a un
 coding agent mediante la [delegación](#delegation) de siempre, como a cualquier
 especialista.
 
-| Configuración | Predeterminado | Valores |
-|---|---|---|
-| `harness` | `claude_code` | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT) |
-| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (Claude Code o Codex en este ordenador) |
-| `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
-| `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
-| `timeout_minutes` | 15 | 1–60, por tarea |
-| `runs_on` | `sandbox` | `sandbox` ejecuta la tarea en el sandbox del agente con una clave; `this_computer` la ejecuta en la carpeta que una persona eligió en su propio ordenador en la aplicación de escritorio, con la sesión que el agente ya tiene, sin clave |
+| Configuración     | Predeterminado         | Valores                                                                                                                                                                                                                                   |
+| ----------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `harness`         | `claude_code`          | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT)                                                                                        |
+| `access`          | `edit`                 | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (Claude Code o Codex en este ordenador)                                                                                                                   |
+| `model`           | el del harness         | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex                                                                                                                                     |
+| `base_url`        | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex                                                                          |
+| `timeout_minutes` | 15                     | 1–60, por tarea                                                                                                                                                                                                                           |
+| `runs_on`         | `sandbox`              | `sandbox` ejecuta la tarea en el sandbox del agente con una clave; `this_computer` la ejecuta en la carpeta que una persona eligió en su propio ordenador en la aplicación de escritorio, con la sesión que el agente ya tiene, sin clave |
 
 **Una herramienta, y el binding decide lo que puede hacer.** Con `edit` el harness
 edita cualquier archivo y ejecuta cualquier comando en la sandbox, con sus propias
@@ -1589,6 +1697,8 @@ rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
+**Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.
+
 **En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
 
 Las siguientes tareas cargan la misma sesión de conversación; `fresh_session` inicia otra explícitamente. Las correcciones interrumpen el turno ACP y continúan la sesión tras confirmar la parada. Los identificadores quedan fuera del repositorio y se borran al desvincular. Las tareas de suscripción sin precio, incluidas las iniciadas que fallan, hacen del coste del run un mínimo. Consulta [la aplicación de escritorio](../desktop.md#coding-agents-on-this-computer).
@@ -1602,6 +1712,23 @@ terminar, el resultado de la llamada contiene la respuesta, cada paso y los arch
 que cambió. Una tarea que pasa de `timeout_minutes`, y una que la persona detiene,
 ve detenido todo su grupo de procesos. En segundo plano significa también que una
 tarea no se corta en el límite del servicio de sandbox para un comando.
+
+**Lo que cambió, como diff.** Con `edit` en una conversación, el workspace se
+captura antes de la tarea y otra vez después, en un almacén git propio de la tarea
+bajo `/tmp` - nunca en el repositorio que alguien clonó, cuyo índice e historial
+quedan intactos. El panel enumera entonces los archivos que la tarea añadió,
+cambió, eliminó o renombró, y después los fragmentos de cada archivo, con
+**Copiar parche**; una tarea que no cambió nada lo dice. Una tarea fallida o que
+agotó su tiempo también conserva su diff. Quedan fuera las carpetas propias de la
+plataforma `.agenticos/`, `skills/` y `tool_output/`, las carpetas de herramientas
+como `.git`, `.venv` y `node_modules`, y los archivos de más de 1 MiB, salvo los que
+eran más pequeños al empezar la tarea. El parche se guarda hasta 256 KiB y 500 archivos, y se marca donde se cortó.
+
+**Quién lee el diff.** Se guarda con la conversación y se lee con el mismo acceso
+que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat lo
+borra. En una sandbox que comparten varios chats, una tarea que se ejecuta a la vez
+que otra ve también los cambios de esa en su diff. Todavía no se ofrece revertir
+una tarea, y una tarea en este ordenador no registra diff.
 
 **Las tareas de una conversación continúan una sesión.** El id de sesión del harness
 se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por
@@ -1666,17 +1793,17 @@ fallida, agotado su tiempo o detenida.
 
 ## Watch a command { #monitor }
 
-`start_monitor`, `list_monitors`, `stop_monitor` — *Vigila un comando de larga duración y entérate de su salida a medida que aparece.*
+`start_monitor`, `list_monitors`, `stop_monitor` — _Vigila un comando de larga duración y entérate de su salida a medida que aparece._
 
 Permite que un agente inicie un comando que se ejecuta durante mucho tiempo - un watcher de pruebas, un tail de logs, una compilación, un sondeo de CI o de despliegue - y se entere de su salida sin consultarla. El comando se ejecuta desacoplado en el espacio de trabajo de la ejecución, con su salida en un archivo allí.
 
 Antes de cada petición al modelo se leen las líneas nuevas, se filtran con las palabras opcionales `match` (separadas por `|`, sin distinguir mayúsculas; texto simple, no una expresión regular) y se ponen al final de la petición como una nota efímera, como un recordatorio de dirección, de modo que nada se escribe en el historial de la conversación. Una vigilancia que termina se notifica con su código de salida.
 
-| Herramienta | Qué hace |
-|---|---|
-| `start_monitor` | Inicia `command` con `label` y `match` opcionales; como máximo cuatro a la vez |
+| Herramienta     | Qué hace                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `start_monitor` | Inicia `command` con `label` y `match` opcionales; como máximo cuatro a la vez                        |
 | `list_monitors` | Lista las vigilancias con su estado, código de salida, cuántas líneas coincidieron y las últimas diez |
-| `stop_monitor` | Detiene una vigilancia y los procesos que inició |
+| `stop_monitor`  | Detiene una vigilancia y los procesos que inició                                                      |
 
 **Una vigilancia vive lo que la ejecución.** Cada vigilancia se detiene al terminar el turno, así que un comando nunca sobrevive al turno que lo pidió. Necesita un shell persistente del sandbox. El shell de escritorio termina sus procesos después de cada comando; la herramienta lo rechaza antes de iniciar la vigilancia. Lo que imprime un comando vigilado son datos, no instrucciones, y se le dice al agente. Añade **Human approval** para preguntar antes de que arranque un comando.
 
@@ -1938,7 +2065,10 @@ publicación, la exportación a YAML y el modelo de permisos.
 | `max_depth`            | 1                 | 1–3                                                                      |
 | `max_fanout`           | 3                 | 1–10                                                                     |
 | `max_result_chars`     | 2000              | 200–20000                                                                |
+| `allow_any_agent`      | false             | Usar otros agentes accesibles                                            |
 | `share_with_delegates` | ninguna           | ids de capability a las que este agent está vinculado, salvo `subagents` |
+
+`allow_any_agent` resuelve opcionalmente otros agentes publicados de esta organización que la persona puede ejecutar, al inicio de cada ejecución interactiva, con nombres `agent-<slug>`. Conserva las fijaciones explícitas, excluye ancestros y respeta permisos use y límites de claves API. No amplía ejecuciones anónimas ni desatendidas. Está desactivado por defecto; los catálogos grandes aumentan preparación y contexto.
 
 **El modo es decisión del autor, no del modelo.**
 
@@ -2446,38 +2576,9 @@ línea de reanclaje del objetivo. Una generación fallida nunca bloquea el run.
 
 ## Tablas { #tables }
 
-Lee y escribe las [Virtual Tables](../virtual-tables.md) que concede el binding. El
-panel del Builder lista las tablas de la organización. Marca una y elige qué puede
-hacer el agent en ella: leer, añadir, actualizar y borrar registros. Un upsert
-necesita añadir y actualizar a la vez, porque crea el registro cuando ninguno tiene
-su clave.
+Las operaciones de tablas son herramientas de **AgenticOS MCP**, no una capacidad separada. Conecte el MCP de la plataforma en los servicios del agente y busque sus herramientas de tablas. Las lecturas usan los permisos actuales del miembro; las escrituras siguen la política de aprobación MCP.
 
-Las concesiones forman parte del spec publicado, que el modelo no puede cambiar.
-Una llamada que nombra otra tabla, o una operación que la concesión no incluye, se
-rechaza antes de leer nada. Cada llamada pasa además la propia comprobación de
-acceso del servicio de tablas como el miembro para el que actúa el run, reconstruido
-a partir de su membresía en cada llamada, así que una tabla que se deja de compartir
-o un rol reducido detiene la llamada siguiente.
-
-`create_table` solo se ofrece con **Allow create**, y el miembro sigue necesitando
-`tables:create`. Las herramientas de registros nunca crean tablas. Una tabla que
-crea el agent se puede usar el resto de ese run.
-
-`list_views` devuelve las vistas guardadas de las tablas que el agent puede leer, con
-el id de cada vista, sus columnas y si está compartida. Una página puede partir de una para
-su query, lo que copia los filtros y el orden de la vista; después no queda nada vinculado a
-ella, y una vista con búsqueda no se puede vincular. [Páginas y vistas](../virtual-tables.md#views-for-pages)
-explica cómo lee una página una tabla. La herramienta `share_view` ya no existe, y un spec que
-aún la protege o la renombra se carga sin ella, con un aviso en el log.
-
-Las herramientas de escritura tienen efectos secundarios por herramienta, así que una
-política de aprobación las cubre a ellas y no a las lecturas. La clave de operación
-de una escritura sale del run y de la llamada a la herramienta, así que una llamada
-reintentada repite su primera respuesta. Los valores se indican por id o etiqueta de
-columna, y la elección de una columna de selección es la etiqueta de su opción, igual
-al escribir, filtrar y leer. Los conflictos, la validación, las cuotas, el historial y la auditoría son
-los mismos que en la consola y la API, porque cada herramienta llama al mismo
-servicio.
+La versión 14 de la especificación elimina las conexiones `virtual_tables` guardadas al cargarlas. Los permisos existentes de las aplicaciones publicadas pasan a `table_bindings`; este campo no expone herramientas. Los permisos desactivados siguen desactivados. Las conexiones MCP, herramientas permitidas y aprobaciones no se amplían automáticamente. Un agente antiguo sin MCP de la plataforma necesita conectarlo explícitamente antes de operar con tablas.
 
 ## Workflows { #workflows }
 
@@ -2735,10 +2836,17 @@ cada petición. Esto importa sobre todo para [MCP](../mcp.md): un agent puede vi
 un número arbitrario de servidores, y cada herramienta que expone un servidor es un
 esquema que el modelo paga en cada turno, la llame alguna vez o no.
 
-| Configuración | Valor por defecto | Valores                               |
-| ------------- | ----------------- | ------------------------------------- |
-| `strategy`    | `auto`            | `auto`, `keywords`, `bm25`, `regex`   |
-| `max_results` | 10                | 1–50, ignorado por la búsqueda nativa |
+| Configuración          | Valor por defecto | Valores                                                                                   |
+| ---------------------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `strategy`             | `auto`            | `auto`, `keywords`, `local_bm25`, `bm25`, `regex`                                         |
+| `max_results`          | 10                | 1–50, ignorado por la búsqueda nativa                                                     |
+| `defer_capabilities`   | `false`           | diferir herramientas de función aptas de las capabilities habilitadas                     |
+| `defer_mcp_servers`    | `true`            | diferir herramientas de los servidores MCP vinculados                                     |
+| `exclude_capabilities` | `[]`              | identificadores de capabilities cuyas herramientas siguen visibles                        |
+| `exclude_mcp_servers`  | `[]`              | prefijos normalizados de herramientas MCP cuyas herramientas siguen visibles              |
+| `exclude_tools`        | `[]`              | nombres expuestos de herramientas que siguen visibles, tras añadir el prefijo y renombrar |
+
+**`local_bm25`** ordena localmente identificadores, descripciones y esquemas de argumentos en cualquier proveedor. Usa rareza de términos y normalización de longitud, favorece identificadores y devuelve solo herramientas autorizadas coincidentes. No llama a modelos ni embeddings. Sigue aplicándose el límite de resultados.
 
 - **`auto`** — búsqueda nativa de herramientas donde el provider la ofrece (BM25 o
   regex de Anthropic, del lado del servidor en OpenAI), y el algoritmo local de
@@ -2750,20 +2858,38 @@ esquema que el modelo paga en cada turno, la llame alguna vez o no.
   coste en tiempo de ejecución que el autor acepta al nombrar uno; `auto` no falla
   nunca así.
 
-**Activarla es lo que difiere los toolsets MCP.** La capability y el diferido son las
-dos mitades de una sola decisión: el `ToolSearch` de la biblioteca es inerte si no hay
-nada diferido, y una herramienta diferida sin una búsqueda que la encuentre es una
-herramienta que el modelo no puede llamar nunca. Así que vincular `tool_search` es lo
-que marca los toolsets de los servidores conectados para carga diferida; las
-herramientas propias del registro siguen visibles, por ser pocas y elegidas por agent.
-Un agent que no la vincule no paga nada y ve todas las herramientas como antes.
+**Elige qué grupos de herramientas diferir.** Los valores predeterminados
+conservan el comportamiento de los specs existentes: las herramientas MCP se
+difieren y las de capabilities siguen visibles. Activa `defer_capabilities` para
+diferir también las herramientas de función aptas de las capabilities
+habilitadas. Desactiva `defer_mcp_servers` para diferir solo las herramientas de
+capabilities, o activa ambos grupos juntos. Un agent sin búsqueda de herramientas
+ve sus herramientas como antes.
+
+**Las exclusiones mantienen herramientas visibles desde la primera petición.**
+Indica identificadores de capabilities en `exclude_capabilities`, espacios de
+nombres completos de herramientas MCP en `exclude_mcp_servers`, o nombres finales
+expuestos en `exclude_tools`. Una conexión llamada `github-work` usa el espacio
+de nombres `github_work`; una vinculación personal usa el espacio de nombres real
+de la cuenta, normalmente la clave del catálogo, como `notion`. Varias cuentas
+personales pueden tener espacios de nombres distintos. Para una herramienta MCP
+individual, incluye su prefijo, como `github_work_search`, y usa el nombre que
+aplique el renombrado de la vinculación. Las exclusiones afectan a la visibilidad;
+las listas permitidas de conexión y vinculación siguen controlando el acceso.
+
+Las herramientas nativas del provider y los hooks de capabilities siguen activos.
+Los skills conservan su propio descubrimiento mediante `load_capability`. La voz
+en tiempo real no usa el diferido de la búsqueda de herramientas. Si todas las
+herramientas siguen visibles, la búsqueda no tiene un catálogo diferido que descubrir.
 
 **El Builder avisa cuando merece la pena.** En cuanto las vinculaciones MCP de un
 agent suman más de 30 herramientas - según la lista permitida de cada vinculación o,
 si no la tiene, según lo que su servidor listó en la última comprobación -, la
-pestaña MCP muestra un aviso con una estimación aproximada de tokens y un botón que
-vincula la búsqueda de herramientas. Nunca la vincula por sí solo: el diferido cambia
-lo que ve el modelo, así que la decisión es de quien edita.
+pestaña MCP muestra un aviso con una estimación aproximada de tokens y un botón
+que activa la búsqueda de herramientas MCP. Añade la búsqueda de herramientas o
+activa el diferido MCP en la configuración existente, conservando las exclusiones
+y los ajustes de capabilities. Nunca activa el diferido por sí solo: cambia lo
+que ve el modelo, así que la decisión es de quien edita.
 
 **El diferido cambia lo que ve el modelo, nunca la identidad de una herramienta.** Una
 herramienta MCP descubierta llega con su nombre real con prefijo, así que la
@@ -2771,7 +2897,7 @@ herramienta MCP descubierta llega con su nombre real con prefijo, así que la
 renombrado de una vinculación sigue alcanzándola; `ToolSearch` se sitúa en la capa más
 externa, leyendo los nombres que un renombrado ya aplicó.
 
-**No necesita contabilización.** Las dos estrategias locales se ejecutan en Python y
+**No necesita contabilización.** Las estrategias locales se ejecutan en Python y
 no gastan tokens; la búsqueda nativa se ejecuta dentro de la propia petición del
 provider, cuyo uso ya contabiliza el [guardián de budget](../governance.md); y las
 idas y vueltas del descubrimiento son peticiones corrientes al modelo que envuelve ese
@@ -2786,12 +2912,12 @@ detectores ya hechos de `pydantic-ai-harness`, más un detector de números de
 teléfono que el harness no incluye; un agent son datos, así que la configuración
 los selecciona y los parametriza en lugar de llevar una guarda en Python.
 
-| Borde                     | Lee                                                             | Censura                                  | Bloqueo                 |
-| ------------------------- | --------------------------------------------------------------- | ---------------------------------------- | ----------------------- |
-| entrada                   | el prompt del usuario                                           | `redact_secrets_in`, `redact_pii_in`     | `blocked_keywords_in`   |
-| salida                    | la respuesta del agent                                          | `redact_secrets_out`, `redact_pii_out`   | `blocked_keywords_out`  |
-| resultado de herramienta  | lo que devolvió una herramienta, antes de que lo lea el modelo  | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
-| argumentos de herramienta | lo que el agent pasa a una herramienta, antes de que se ejecute | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
+| Borde                     | Lee                                                                                                   | Censura                                  | Bloqueo                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------- |
+| entrada                   | el prompt del usuario                                                                                 | `redact_secrets_in`, `redact_pii_in`     | `blocked_keywords_in`   |
+| salida                    | la respuesta del agent y el texto que muestran sus borradores, dibujos, gráficos, páginas y preguntas | `redact_secrets_out`, `redact_pii_out`   | `blocked_keywords_out`  |
+| resultado de herramienta  | lo que devolvió una herramienta, antes de que lo lea el modelo                                        | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| argumentos de herramienta | lo que el agent pasa a una herramienta, antes de que se ejecute                                       | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Configuración        | Valor por defecto  |                                                                                                                                     |
 | -------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -2863,7 +2989,15 @@ guarda la transcripción y lo que muestra el stream, y una palabra bloqueada ter
 el run antes de llamar a ninguna herramienta. Va aparte de la revisión de salida
 porque redactar un argumento cambia lo que hace la herramienta: un correo sale con
 un marcador donde estaba la clave. Mientras está activo, los argumentos de una
-llamada se retienen hasta que la llamada está completa, como la respuesta.
+llamada se retienen hasta que la llamada está completa, como la respuesta. La
+excepción es lo que una llamada muestra a la persona - un [borrador](#drafts), un dibujo,
+un gráfico, una página o una pregunta: el borde de salida revisa su texto como revisa la
+respuesta, tenga o no activo este borde. En un dibujo o una página es el texto,
+los atributos legibles (`alt`, `title`, `aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, salvo una imagen incrustada o un URI `data:` en base64) y las
+cadenas de un script; las etiquetas, los comentarios, los estilos y el código no se
+cambian. Un dibujo o una página aparece cuando la llamada está completa, no mientras se
+escribe.
 
 **Un delegado transmite bajo la revisión de salida del run que delega.** El texto y
 el razonamiento que un delegado escribe en el panel de delegación pasan la misma
@@ -2906,8 +3040,7 @@ más importa.** Es la única guarda sobre el contenido no confiable que entra en
 bucle — una página descargada, un archivo, la respuesta de un servidor MCP — donde si
 no una carga de inyección de prompt llegaría al modelo sin leerse.
 
-Dos cosas quedan deliberadamente fuera de alcance. Los **argumentos de herramienta**
-son un mapeo estructurado sin detector de texto, así que no son un borde. Y el
+Una cosa queda deliberadamente fuera de alcance: el
 veredicto `approve` de herramienta del harness no se ha portado: las
 [aprobaciones](../governance.md) ya aparcan un run por herramienta para una decisión
 humana, y una segunda vía, guiada por reglas, al mismo mecanismo es justo lo que evita
@@ -2980,6 +3113,73 @@ detuvo. Solo la persona a quien se preguntó puede responder, mediante
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
 
+## Borradores { #drafts }
+
+`write_draft` — _Show a draft the person will send or paste somewhere else, as a card
+they copy from._
+
+Cuando alguien pide un correo, una respuesta en Slack, una publicación o la
+descripción de una incidencia, el agent pone el texto en una tarjeta propia en lugar
+de mezclarlo con la respuesta, así que no hay que seleccionar nada a mano ni
+limpiarlo donde se pega.
+
+La tarjeta tiene un título y un tipo (Email, Slack message,
+Post). Un texto con partes que se pegan en sitios distintos - el asunto y el cuerpo
+de un correo - tiene un segmento por parte, y cada segmento tiene su propio icono de
+copiar en la esquina. Un segmento muestra su nombre solo donde sirve para distinguir
+las partes, y una pequeña pista de tipo en la esquina inferior: `text` por defecto,
+`markdown` cuando la persona lo pidió, o un lenguaje para un fragmento que el texto
+lleva consigo.
+
+Copiar pone **texto plano** en el portapapeles: exactamente el texto del segmento,
+sin su nombre y sin líneas en blanco al principio ni al final. Nunca HTML ni texto
+enriquecido, así que se pega con la fuente y los colores del destino. Un campo se
+muestra tal como se escribió y `<b>` nunca se interpreta. Una parte `markdown` tiene un
+botón Preview que la muestra renderizada: los enlaces funcionan y las imágenes
+aparecen como enlaces, sin cargarse; Source vuelve al texto. Copiar siempre da la fuente.
+
+Cuando la persona debe aportar un dato que el agente no conoce, este escribe un
+marcador breve entre corchetes, como `[Tu nombre]` o `[fecha]`, en lugar de
+inventarlo. La tarjeta muestra en rojo todo texto entre corchetes que contenga una
+letra, salvo enlaces, notas al pie, líneas citadas y código, para que nada se envíe
+sin rellenar, salvo en la vista previa de una parte markdown. Copiar conserva los
+corchetes.
+
+De dos a cinco variantes del mismo borrador («dame dos versiones») van en una sola
+llamada como **variantes** y se muestran como pestañas con un nombre de una o dos
+palabras («Corta», «Con detalles»). Los límites: un título de hasta 120 caracteres,
+hasta 10 campos por variante, hasta 20.000 caracteres por campo y ningún campo, título o tipo vacío.
+Una llamada que rompe un límite se rechaza con un mensaje que dice qué corregir, así
+que el modelo reintenta y nunca se dibuja una tarjeta vacía.
+
+El [borde de salida](#guardrails) de un agent revisa un borrador como revisa su respuesta:
+un secreto o dato personal que redacta queda redactado también en la tarjeta, y una
+palabra bloqueada detiene el run. Los borradores guardados antes de que el agent
+tuviera la protección no se reescriben.
+
+La tarjeta se reconstruye a partir de los argumentos de la llamada guardada, así que
+al reabrir una conversación se ve la misma tarjeta. Una conversación compartida por
+enlace también lleva sus borradores (hasta los 50 más recientes y 500.000 caracteres de
+texto entre todos, porque cualquiera con el enlace puede cargarla). Una llamada
+rechazada, o cuyos argumentos ya no se pueden leer, no muestra tarjeta.
+
+Se ofrece **solo en el chat web**, porque es la única superficie que dibuja la
+tarjeta. Las apps de escritorio y de teléfono cargan la misma consola, así que
+también la tienen, incluida la consulta rápida. En cualquier otra superficie -
+páginas alojadas y el widget incrustado, canales de chat, la API, programaciones,
+workflows, topics en segundo plano, voz - y para un subagente, cuya salida va al modelo padre y no a la persona, el agent
+no ve la herramienta y escribe el texto en su respuesta como hasta ahora.
+
+Está activada por defecto en cada agent nuevo, cada plantilla y los agents que crea
+el Architect, y un autor puede desactivarla. Los agents existentes no cambian hasta
+que su autor la active y publique una versión nueva.
+
+!!! note "Límite: una herramienta renombrada"
+La consola encuentra la tarjeta por el nombre de la herramienta, igual que con
+`draw` y `create_chart`. Un binding que renombra `write_draft` pierde la
+tarjeta: la llamada se muestra como un paso corriente. Seguimiento en
+[#2740](https://github.com/vstorm-co/agenticos/issues/2740).
+
 ## Follow-ups { #follow-ups }
 
 Los botones funcionan en el chat de la consola y los canales de mensajería
@@ -3037,6 +3237,8 @@ consola; una app de chat no las dibuja.
 Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.
 Una llamada de voz la deja fuera.
 
+Una propuesta de tipo `watch` abre el formulario de observación personal con el título y la tarea completados. La persona elige una cuenta conectada y revisa la frecuencia y las fuentes aprobadas del agente. Proponer una observación no la crea ni la activa.
+
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 
 El catálogo es la respuesta del despliegue a «qué existe». La entrada
@@ -3046,7 +3248,7 @@ cambiar cuatro cosas:
 | Campo            | Efecto                                                                                  |
 | ---------------- | --------------------------------------------------------------------------------------- |
 | `config`         | Validado contra el esquema de esa capability **al publicar**, no en tiempo de ejecución |
-| `approval`       | `default` \| `required` \| `never` para cada herramienta que aporte la capability       |
+| `approval`       | `default` \                                                                             | `required` \ | `never` para cada herramienta que aporte la capability |
 | `tool_approval`  | Lo mismo, por herramienta, sobrescribiendo `approval`                                   |
 | `tool_overrides` | El `name` y la `description` que ve el modelo, por herramienta                          |
 | `secret_id`      | Qué secreto de la organización satisface un requisito de clave declarado                |
@@ -3194,3 +3396,17 @@ hacer. Consulta [Añadir una capability](../howto/add-capability.md) para una nu
 cuando la capability ya existe.
 
 Para herramientas que nadie de aquí tiene que escribir, consulta [MCP](../mcp.md).
+
+### Episodios de decisiones e Improve { #decision-episodes-and-improve }
+
+Una decisión puede guardar pruebas estructuradas: situación, elección, alternativas, resultado esperado, resultado observado y corrección. El agente usa `remember` con `kind: decision` y `episode`; el mantenimiento de memoria puede capturar la misma información de una conversación admitida. Los resultados desconocidos quedan vacíos. El episodio permanece en el ámbito de la relación persona-agente o de la sala de origen. Compartir sigue requiriendo aprobación explícita de la audiencia.
+
+En **Ajustes → Memoria**, lee las pruebas y registra un resultado observado mediante una corrección. La corrección añade un registro; el episodio anterior y su procedencia permanecen en el historial. La consolidación determinista no convierte episodios en reglas generales. El borrado elimina su contenido junto con los registros; la exportación de datos personales lo incluye.
+
+**Preparar caso Improve** abre una entrada y una respuesta esperada editables. Revisa el texto, elimina lo que deba permanecer privado y aprueba expresamente la descarga de un registro JSONL. Los campos `input`, `reference_answer`, `tags` y `note` corresponden al importador de [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importa el archivo en un conjunto Improve cuando esa función esté instalada, evalúalo y acepta/publica los cambios allí. Esta exportación no crea un conjunto, no ejecuta un optimizador ni publica instrucciones automáticamente.
+
+La elección de acceso local pertenece al agente seleccionado, no a un valor global heredado por otros agentes. Revocar una carpeta también elimina las elecciones guardadas y los consentimientos de programación de sus subcarpetas. Las aplicaciones de escritorio antiguas conservan el consentimiento para todo el equipo solo en una conversación; actualiza la aplicación para reutilizarlo en las conversaciones del mismo agente.
+
+La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
+
+Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.

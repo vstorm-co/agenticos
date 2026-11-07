@@ -402,6 +402,16 @@ class RetentionService:
             if took < BATCH:
                 break
 
+        if name == "runs":
+            for _ in range(MAX_BATCHES):
+                async with self.db.begin_nested():
+                    took = await retention_repo.delete_finished_device_waits(
+                        self.db, organization_id=result.organization_id, cutoff=cutoff, limit=BATCH
+                    )
+                self._count(result, "routine_device_waits", took)
+                if took < BATCH:
+                    break
+
     async def _purge_batch(
         self, name: RetentionClass, *, organization_id: UUID, cutoff: datetime
     ) -> int:

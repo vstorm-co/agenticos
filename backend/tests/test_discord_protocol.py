@@ -12,6 +12,7 @@ from app.services.channels.discord_protocol import (
     READ_MESSAGE_HISTORY,
     VIEW_CHANNEL,
     Recent,
+    ServerRole,
     attachment_type,
     can_view,
     chunks,
@@ -21,6 +22,8 @@ from app.services.channels.discord_protocol import (
     components,
     identify,
     interaction_user,
+    mappable_roles,
+    payload_roles,
     pressed_value,
     read_comment,
     resume,
@@ -295,3 +298,28 @@ def test_the_cache_forgets_its_oldest_entry():
     assert recent.get("a") == 3
     assert recent.get("c") == 4
     assert recent.get("b") is None
+
+
+def test_a_mapping_cannot_name_everyone_or_a_role_discord_manages():
+    """`@everyone` would admit whoever accepts an invite; a bot's role is an account's (#2569)."""
+    roles = mappable_roles(
+        "1",
+        [
+            {"id": "1", "name": "@everyone"},
+            {"id": "2", "name": "Bot", "managed": True},
+            {"id": "3", "name": "Finance", "position": 2},
+            {"id": 4, "name": None},
+        ],
+    )
+    assert roles == (ServerRole(id="3", name="Finance"), ServerRole(id="4", name=""))
+
+
+def test_a_guild_payload_reports_its_senders_roles_in_that_server():
+    reported = payload_roles({"guild_id": 10, "member": {"roles": ["7", 8]}})
+    assert reported == ("10", frozenset({"7", "8"}))
+    assert payload_roles({"guild_id": "10", "member": {}}) == ("10", frozenset())
+
+
+def test_a_direct_message_reports_no_roles():
+    assert payload_roles({"author": {"id": "5"}}) is None
+    assert payload_roles({"guild_id": "10", "member": None}) is None

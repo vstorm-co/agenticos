@@ -1,4 +1,4 @@
-"""One paged list of connectable servers: the catalog, then the registry mirror.
+"""One paged list of connectable servers: catalog, registry mirror and custom servers.
 
 The join lives here rather than in the route because it is arithmetic, and the
 route's job is to validate, delegate and return. Getting it wrong is invisible
@@ -12,17 +12,23 @@ the second one unreachable except by search, which reads as a catalog of a
 hundred. One list, with `reviewed` on the row saying which kind it is.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from typing import Literal
+from urllib.parse import urlsplit
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import AuthContext, Perm
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import CheckOutcome, McpServerCheck
 from app.repositories import mcp_registry_server_repo, mcp_server_check_repo
 from app.services import mcp_catalog
-from app.services.mcp_audit import auth_found, verified
+from app.services.mcp_audit import BUNDLED_CHECKS, StoredCheck, auth_found, verified
 from app.services.mcp_catalog import CatalogEntry
+from app.services.mcp_connection import McpConnectionService
 
 
 @dataclass(frozen=True)
@@ -55,6 +61,8 @@ class ListedServer:
     """The last check found it answering the way the row says it does."""
 
     check: ListedCheck | None
+    custom: bool = False
+    connection_ids: tuple[UUID, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -63,7 +71,7 @@ class ServerPage:
 
     items: tuple[ListedServer, ...]
     total: int
-    """Matches across both sources, so a pager knows how many pages there are."""
+    """Matching servers across all sources, counted before pagination."""
 
     registry_total: int
     """What the mirror holds, which is what the list *reaches* rather than what
@@ -80,7 +88,7 @@ async def mirror_size(db: AsyncSession) -> int:
     return await mcp_registry_server_repo.count(db)
 
 
-def _listed_check(check: McpServerCheck | None) -> ListedCheck | None:
+def _listed_check(check: McpServerCheck | StoredCheck | None) -> ListedCheck | None:
     if check is None:
         return None
     return ListedCheck(
@@ -91,7 +99,13 @@ def _listed_check(check: McpServerCheck | None) -> ListedCheck | None:
     )
 
 
-def _curated(entry: CatalogEntry, check: McpServerCheck | None) -> ListedServer:
+def _curated(entry: CatalogEntry, check: McpServerCheck | StoredCheck | None) -> ListedServer:
+    # Updated installs may not rerun bootstrap. New catalog entries still have
+    # the release's audit; locally checked remote failures keep precedence.
+    # A self-hosted result cannot describe an entry that now has a hosted URL.
+    if check is None or (check.outcome == CheckOutcome.SELF_HOSTED and entry.url):
+        bundled = BUNDLED_CHECKS.get(entry.key)
+        check = bundled if bundled is not None else check
     return ListedServer(
         key=entry.key,
         name=entry.name,
@@ -138,6 +152,137 @@ async def curated(db: AsyncSession) -> tuple[ListedServer, ...]:
     return tuple(_curated(entry, checks.get(entry.key)) for entry in mcp_catalog.CATALOG)
 
 
+def _normalize_url(url: str) -> str:
+    """Ignore host case and trailing path slashes, preserving path and query case."""
+    parts = urlsplit(url.strip())
+    return parts._replace(netloc=parts.netloc.lower(), path=parts.path.rstrip("/")).geturl()
+
+
+async def _connected(
+    db: AsyncSession, ctx: AuthContext | None, *, query: str, auth: str
+) -> list[ListedServer]:
+    """Resolve only accessible saved accounts, including servers no longer offered.
+
+    The account lists enforce the same ownership and audience checks as the
+    management endpoints. Registry metadata is read only for these identities;
+    neither the complete mirror nor the public registry is fetched.
+    """
+    if ctx is None:
+        return []
+    service = McpConnectionService(db)
+    connections: list[McpConnection] = []
+    if ctx.has(Perm.MCP_MANAGE):
+        organization, _ = await service.list_for_org(ctx)
+        connections.extend(organization)
+    if ctx.user_id is not None and ctx.key_allows(Perm.AGENTS_RUN):
+        personal, _ = await service.list_for_user(user_id=ctx.user_id)
+        connections.extend(personal)
+    if not connections:
+        return []
+
+    mirrored = await mcp_registry_server_repo.for_connections(
+        db,
+        keys={one.catalog_key for one in connections if one.catalog_key is not None},
+        urls={_normalize_url(one.url) for one in connections},
+        names={one.name for one in connections},
+    )
+    checks = await mcp_server_check_repo.get_many(
+        db, [entry.key for entry in mcp_catalog.CATALOG] + [server.id for server in mirrored]
+    )
+    curated_keys = {entry.key for entry in mcp_catalog.CATALOG}
+    entries = [
+        *[_curated(entry, checks.get(entry.key)) for entry in mcp_catalog.CATALOG],
+        *[
+            _mirrored(server, checks.get(server.id))
+            for server in mirrored
+            if server.id not in curated_keys
+        ],
+    ]
+    by_key = {entry.key: entry for entry in entries}
+    by_url: dict[str, ListedServer] = {}
+    for entry in entries:
+        if entry.url:
+            by_url.setdefault(_normalize_url(entry.url), entry)
+
+    accounts: dict[str, list[McpConnection]] = {}
+    customs: dict[tuple[str, str], list[McpConnection]] = {}
+    for one in connections:
+        entry = (
+            by_key.get(one.catalog_key or "")
+            or by_url.get(_normalize_url(one.url))
+            or by_key.get(one.name)
+        )
+        if entry is None:
+            identity = (
+                ("catalog", one.catalog_key)
+                if one.catalog_key
+                else ("url", _normalize_url(one.url))
+            )
+            customs.setdefault(identity, []).append(one)
+        else:
+            accounts.setdefault(entry.key, []).append(one)
+
+    rows = [
+        replace(entry, connection_ids=tuple(one.id for one in accounts[entry.key]))
+        for entry in entries
+        if entry.key in accounts
+    ]
+    for group in customs.values():
+        first = group[0]
+        row = ListedServer(
+            key=first.catalog_key
+            or str(uuid5(NAMESPACE_URL, f"agenticos:mcp:{_normalize_url(first.url)}")),
+            name=first.name,
+            description="",
+            category="custom",
+            auth="oauth" if first.auth_type == "oauth" else "token" if first.auth_token else "none",
+            url=first.url,
+            docs_url=None,
+            token_hint=None,
+            icon=None,
+            reviewed=True,
+            verified=False,
+            check=None,
+            custom=True,
+            connection_ids=tuple(one.id for one in group),
+        )
+        # A custom server has account names rather than a catalog name. Keep it
+        # searchable through every account, even after folding them into one card.
+        for one in group:
+            candidate = replace(
+                row,
+                name=one.name,
+                auth="oauth" if one.auth_type == "oauth" else "token" if one.auth_token else "none",
+            )
+            if _matches(candidate, query=query, category="", auth=auth):
+                rows.append(candidate)
+                break
+    return rows
+
+
+def _matches(row: ListedServer, *, query: str, category: str, auth: str) -> bool:
+    if category and row.category != category:
+        return False
+    if auth:
+        if row.auth != auth:
+            return False
+        # Unchecked mirrored entries have a token guess for the connect form,
+        # but the Sign-in filter only promises what a check actually found.
+        if not row.reviewed and (
+            row.check is None or auth_found(CheckOutcome(row.check.outcome)) != auth
+        ):
+            return False
+    needle = query.strip().lower()
+    return (
+        not needle
+        or needle == row.key.lower()
+        or any(
+            needle in value.lower()
+            for value in (row.name, row.description, row.url or "", row.category)
+        )
+    )
+
+
 async def page(
     db: AsyncSession,
     *,
@@ -146,6 +291,8 @@ async def page(
     auth: str = "",
     skip: int = 0,
     limit: int = 50,
+    ctx: AuthContext | None = None,
+    state: Literal["all", "connected", "not-connected"] = "all",
 ) -> ServerPage:
     """One page of the joined list.
 
@@ -156,18 +303,40 @@ async def page(
 
     A category reaches the mirror too, through the category each listing was
     given at sync. `auth` keeps curated entries that declare it and mirrored
-    ones a check found asking for it. Mirrored listings a check found dead,
-    broken or duplicated are not on the list at all.
+    ones a check found asking for it. Browsing hides mirrored listings a check
+    found dead, broken or duplicated; Connected keeps their saved accounts
+    manageable. Every filter is applied before counting and pagination.
     """
+    connected = await _connected(db, ctx, query=query, auth=auth)
+    mirror_total = await mcp_registry_server_repo.count(db)
+    if state == "connected":
+        matched = [
+            row for row in connected if _matches(row, query=query, category=category, auth=auth)
+        ]
+        # Bookmarks resolve a key through a bounded search, even when many
+        # descriptions mention it. Keep that exact identity on the first page.
+        needle = query.strip().casefold()
+        if needle:
+            matched.sort(key=lambda row: row.key.casefold() != needle)
+        return ServerPage(
+            items=tuple(matched[skip : skip + limit]),
+            total=len(matched),
+            registry_total=mirror_total,
+        )
+
+    accounts = {row.key: row.connection_ids for row in connected}
     matched_curated = tuple(
         entry
         for entry in mcp_catalog.matching(query, category=category)
         if not auth or entry.auth.value == auth
+        if state != "not-connected" or entry.key not in accounts
     )
     shown = matched_curated[skip : skip + limit]
     checks = await mcp_server_check_repo.get_many(db, [entry.key for entry in shown])
-    items = [_curated(entry, checks.get(entry.key)) for entry in shown]
-    mirror_total = await mcp_registry_server_repo.count(db)
+    items = [
+        replace(_curated(entry, checks.get(entry.key)), connection_ids=accounts.get(entry.key, ()))
+        for entry in shown
+    ]
 
     # Whatever room the page has left after the curated rows, offset by however
     # many of them the earlier pages consumed - so a page boundary landing inside
@@ -180,10 +349,26 @@ async def page(
         auth=auth,
         skip=max(0, skip - len(matched_curated)),
         limit=max(wanted, 1),
+        excluded_ids=set(accounts) if state == "not-connected" else None,
     )
     if wanted > 0:
-        items += [_mirrored(server, check) for server, check in servers[:wanted]]
+        items += [
+            replace(_mirrored(server, check), connection_ids=accounts.get(server.id, ()))
+            for server, check in servers[:wanted]
+        ]
+
+    customs = [
+        row
+        for row in connected
+        if row.custom
+        and state == "all"
+        and _matches(row, query=query, category=category, auth=auth)
+    ]
+    custom_skip = max(0, skip - len(matched_curated) - matched)
+    items += customs[custom_skip : custom_skip + max(0, limit - len(items))]
 
     return ServerPage(
-        items=tuple(items), total=len(matched_curated) + matched, registry_total=mirror_total
+        items=tuple(items),
+        total=len(matched_curated) + matched + len(customs),
+        registry_total=mirror_total,
     )

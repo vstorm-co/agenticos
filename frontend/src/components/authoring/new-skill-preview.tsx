@@ -14,7 +14,7 @@ export function NewSkillPreview({ hunk }: { hunk: Hunk }) {
       </pre>
       <p className="text-muted-foreground text-xs">{t("binding")}</p>
       {hunk.blocked === "create_skill_permission" && (
-        <p role="status" className="text-warning text-sm">
+        <p role="status" className="text-warning-ink text-sm">
           {t("permission")}
         </p>
       )}

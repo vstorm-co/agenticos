@@ -25,6 +25,24 @@ describe("the composer's `+` at a desk", () => {
     expect(onAttach).toHaveBeenCalledOnce();
   });
 
+  it("highlights whole action rows with pointer and keyboard without selecting them", async () => {
+    const user = userEvent.setup();
+    const onAttach = vi.fn();
+    const onVoice = vi.fn();
+    render(<ComposerSheet onAttach={onAttach} onVoice={onVoice} />);
+    await user.click(deskPlus());
+    const attach = await screen.findByRole("menuitem", { name: /Attach file/ });
+    const voice = screen.getByRole("menuitem", { name: /Voice input/ });
+    await user.hover(voice);
+    expect(voice).toHaveAttribute("data-highlighted");
+    expect(attach).not.toHaveAttribute("data-highlighted");
+    await user.keyboard("{ArrowUp}");
+    expect(attach).toHaveAttribute("data-highlighted");
+    expect(voice).not.toHaveAttribute("data-highlighted");
+    expect(onAttach).not.toHaveBeenCalled();
+    expect(onVoice).not.toHaveBeenCalled();
+  });
+
   it("offers no commands where the composer has none", async () => {
     render(<ComposerSheet onAttach={vi.fn()} onVoice={vi.fn()} />);
 

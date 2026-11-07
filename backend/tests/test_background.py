@@ -220,9 +220,8 @@ class TestWorkThatMustNotOutrunItsTransaction:
 
         with caplog.at_level(logging.WARNING, logger=background.__name__):
             background.discard_deferred(session)
+            assert caplog.text == ""
         await background.drain(timeout=5.0)
-
-        assert caplog.text == ""
 
 
 class TestUndoingWhatAStoppedTransactionClaimed:

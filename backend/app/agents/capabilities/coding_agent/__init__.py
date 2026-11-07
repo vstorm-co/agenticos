@@ -20,7 +20,12 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
-from app.agents.capabilities.coding_agent._capability import CodingAgent
+from app.agents.capabilities.coding_agent._capability import (
+    LOCAL_CODING_PREFERENCES,
+    CodingAgent,
+    CodingPreferences,
+)
+from app.agents.capabilities.coding_agent._personal import PERSONAL_EXECUTOR, PersonalCodingExecutor
 from app.agents.capabilities.coding_agent._toolset import RUN_DESCRIPTION
 from app.agents.capabilities.sandbox import WORKSPACE_SHARED_RESOURCE
 from app.core.secret_kinds import (
@@ -34,7 +39,13 @@ from app.core.secret_kinds import (
 from app.services.openai_codex import PURPOSE as OPENAI_CODEX_PURPOSE
 from app.services.openai_codex import VaultCodexCredentials
 
-__all__ = ["CODING_AGENT_ID", "CodingAgent", "CodingAgentConfig"]
+__all__ = [
+    "CODING_AGENT_ID",
+    "LOCAL_CODING_PREFERENCES",
+    "CodingAgent",
+    "CodingAgentConfig",
+    "CodingPreferences",
+]
 
 CODING_AGENT_ID = "coding_agent"
 
@@ -78,11 +89,12 @@ class CodingAgentConfig(BaseModel):
         ),
         json_schema_extra={"x-enum-labels": {"claude_code": "Claude Code", "codex": "Codex"}},
     )
-    runs_on: Literal["sandbox", "this_computer"] = Field(
+    runs_on: Literal["sandbox", "personal_sandbox", "this_computer"] = Field(
         title="Where it runs",
         default="sandbox",
         description=(
-            "The agent's own sandbox, on a key stored here - or the folder a person "
+            "The agent's sandbox with its configured key, a disposable private cloud task "
+            "using the initiating person's profile account, or the folder a person "
             "chooses on their own computer in the desktop app, where Claude Code and "
             "Codex use the sign-in they already have and need no key."
         ),
@@ -90,6 +102,7 @@ class CodingAgentConfig(BaseModel):
             "x-widget": "coding-environment",
             "x-enum-labels": {
                 "sandbox": "In the agent's sandbox",
+                "personal_sandbox": "Private cloud task with my account",
                 "this_computer": "On this computer",
             },
         },
@@ -124,7 +137,7 @@ class CodingAgentConfig(BaseModel):
         ),
         json_schema_extra={
             "x-enum-labels": _MODEL_NAMES,
-            "x-visible-when": {"field": "runs_on", "equals": ["sandbox"]},
+            "x-visible-when": {"field": "runs_on", "equals": ["sandbox", "personal_sandbox"]},
             # The Builder offers each harness only its own vendor's models.
             "x-enum-when": {
                 "field": "harness",
@@ -160,7 +173,7 @@ class CodingAgentConfig(BaseModel):
     def _endpoint_is_claude_codes(self) -> CodingAgentConfig:
         # Dropped rather than refused: the field is hidden once Codex is chosen,
         # so a value left from Claude Code is one nobody can see to clear.
-        if self.harness != "claude_code":
+        if self.harness != "claude_code" or self.runs_on == "personal_sandbox":
             self.base_url = None
         return self
 
@@ -180,7 +193,11 @@ class CodingAgentConfig(BaseModel):
 
     @model_validator(mode="after")
     def _codex_may_edit(self) -> CodingAgentConfig:
-        if self.runs_on == "sandbox" and self.harness == "codex" and self.access == "read_only":
+        if (
+            self.runs_on in ("sandbox", "personal_sandbox")
+            and self.harness == "codex"
+            and self.access == "read_only"
+        ):
             raise ValueError(
                 "Codex can only run with access to change files: its read-only mode is "
                 "a sandbox of its own, which cannot start inside the agent's sandbox. "
@@ -260,10 +277,19 @@ def _build(ctx: CapabilityBuildContext) -> CodingAgent:
         if isinstance(ctx.secret, OpenAICodexSecret) and secret_id is not None
         else None
     )
+    preferences = ctx.resources.get(LOCAL_CODING_PREFERENCES)
+    local_preferences = (
+        preferences
+        if isinstance(preferences, CodingPreferences) and config.runs_on == "this_computer"
+        else CodingPreferences()
+    )
+    executor = ctx.resources.get(PERSONAL_EXECUTOR)
     return CodingAgent(
+        personal_executor=executor if isinstance(executor, PersonalCodingExecutor) else None,
         harness=config.harness,
         access=config.access,
-        model=config.model_id,
+        model=local_preferences.model or config.model_id,
+        effort=local_preferences.effort,
         base_url=str(config.base_url).rstrip("/") if config.base_url is not None else None,
         timeout_seconds=config.timeout_minutes * 60,
         api_key=api_key,

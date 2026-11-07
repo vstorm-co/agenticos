@@ -10,8 +10,11 @@ agent run.
 import json
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+import httpx2
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -154,14 +157,21 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
 
 
 def _profile(
-    ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai", base_url=None, api=None
+    ctx,
+    secret=None,
+    model="gpt-4.1",
+    fallbacks=None,
+    provider="openai",
+    base_url=None,
+    api=None,
+    region=None,
 ):
     """A stored model profile, keyed from the vault like every real one.
 
     `base_url` defaults to None explicitly rather than being left to the mock: a
     `MagicMock` attribute is truthy, so it reaches `httpx.URL()` as a mock and
     raises there instead of meaning "the provider's own API", which is what an
-    unset endpoint means. `api` likewise, which a mock would fail to validate.
+    unset endpoint means. `api` and `region` likewise, which a mock would fail to validate.
     """
     profile = MagicMock()
     profile.id = uuid.uuid4()
@@ -172,6 +182,7 @@ def _profile(
     profile.secret_id = secret.id if secret else uuid.uuid4()
     profile.base_url = base_url
     profile.api = api
+    profile.region = region
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
     profile.runs_without_key = False
@@ -349,7 +360,32 @@ class TestProviderCatalog:
 
     def test_only_the_openai_apis_offer_a_choice(self):
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
-        assert offering == {"openai": ("responses", "chat"), "azure": ("responses", "chat")}
+        assert offering == {
+            "openai": ("responses", "chat"),
+            "azure": ("responses", "chat"),
+            "stav": ("responses", "chat"),
+        }
+
+    def test_only_stav_takes_its_api_from_the_model(self):
+        assert [spec.id for spec in PROVIDERS.values() if spec.api_from_model] == ["stav"]
+
+    @pytest.mark.parametrize(
+        ("surfaces", "api"),
+        [
+            (("chat", "messages", "responses"), "chat"),
+            (("responses",), "responses"),
+            (("messages",), None),
+            ((), None),
+        ],
+    )
+    def test_the_model_s_listing_names_the_api(self, surfaces, api):
+        from app.agents.model_resolver import api_for_model
+
+        assert api_for_model(surfaces) == api
+
+    def test_only_stav_offers_a_region(self):
+        offering = {spec.id: spec.regions for spec in PROVIDERS.values() if spec.regions}
+        assert offering == {"stav": ("eu", "eea", "global")}
 
     def test_the_catalog_is_ordered_for_a_stable_picker(self):
         names = [spec.name for spec in provider_catalog()]
@@ -719,6 +755,43 @@ class TestEditingAProfileInPlace:
                 ctx, profile.id, ModelProfileUpdate.model_validate(changes)
             )
         return result, update, audit, access
+
+    @pytest.mark.anyio
+    async def test_a_new_region_is_written_onto_the_same_profile(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="eu")
+
+        result, update, audit, _ = await self._update(ctx, profile, {"region": "global"})
+
+        assert result is profile
+        assert update.await_args.kwargs["update_data"] == {"region": "global"}
+        assert audit.await_args.kwargs["details"] == {"fields": ["region"]}
+
+    @pytest.mark.anyio
+    async def test_a_cleared_region_is_stored_as_the_default(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="global")
+
+        _, update, _, _ = await self._update(ctx, profile, {"region": None})
+
+        assert update.await_args.kwargs["update_data"] == {"region": "eu"}
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_names_no_region_keeps_the_stored_one(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="eea")
+
+        _, update, _, _ = await self._update(ctx, profile, {"label": "Stav EEA"})
+
+        assert update.await_args.kwargs["update_data"] == {"label": "Stav EEA"}
+
+    @pytest.mark.anyio
+    async def test_a_region_on_a_provider_without_one_is_refused_on_edit(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        with pytest.raises(BadRequestError):
+            await self._update(ctx, profile, {"region": "eu"})
 
     @pytest.mark.anyio
     async def test_a_new_key_is_written_onto_the_same_profile_and_audited_by_field(self):
@@ -2032,6 +2105,94 @@ class TestTheWindowAModelAccepts:
         return create.call_args.kwargs
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(("sent", "stored"), [(None, "eu"), ("global", "global")])
+    async def test_a_stav_window_is_read_where_the_profile_points(self, sent, stored):
+        """A regional or staging Stav serves its own catalogue; the window recorded
+        is that endpoint's, read with the key the profile will send there - never
+        the organization's listing key, which the caller may not be able to see."""
+        catalog = self._catalog(("mistralai/mistral-small-4", 128_000))
+        secret_id = uuid.uuid4()
+        profile_key = AsyncMock(return_value="sk_stav_profile")
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key", new=profile_key
+            ),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile._checked_endpoint",
+                new=AsyncMock(side_effect=lambda _spec, url: url),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav staging",
+                provider="stav",
+                model="mistralai/mistral-small-4",
+                secret_id=secret_id,
+                base_url="https://staging-api.stav.ai/v1",
+                region=sent,
+            )
+        catalog.assert_awaited_once_with(
+            "stav", api_key="sk_stav_profile", base_url="https://staging-api.stav.ai/v1"
+        )
+        assert profile_key.await_args.kwargs == {"secret_id": secret_id}
+        assert create.call_args.kwargs["context_length"] == 128_000
+        assert create.call_args.kwargs["region"] == stored
+
+    async def _stav_created(self, surfaces, *, api=None) -> dict:
+        catalog = AsyncMock(
+            return_value=(
+                [CatalogModel(id="openai/o3-pro", name="o3-pro", surfaces=surfaces)],
+                "live",
+            )
+        )
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key",
+                new=AsyncMock(return_value="sk_stav_test"),
+            ),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav o3-pro",
+                provider="stav",
+                model="openai/o3-pro",
+                secret_id=uuid.uuid4(),
+                api=api,
+            )
+        return create.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_responses_only_stav_model_gets_responses(self):
+        assert (await self._stav_created(("responses",)))["api"] == "responses"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_on_chat_gets_chat(self):
+        assert (await self._stav_created(("chat", "messages", "responses")))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_the_listing_says_nothing_about_keeps_the_default(self):
+        assert (await self._stav_created(()))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_an_api_someone_chose_wins_over_the_listing(self):
+        written = await self._stav_created(("chat", "responses"), api="responses")
+        assert written["api"] == "responses"
+
+    @pytest.mark.anyio
     async def test_the_providers_own_number_is_what_gets_stored(self):
         written = await self._created(
             self._catalog(("llama3.3", 128_000), ("other", 8_000)), model="llama3.3"
@@ -2067,6 +2228,7 @@ class TestTheWindowAModelAccepts:
             secret_id=None,
             base_url="http://localhost:11434/v1",
             api=None,
+            region=None,
             fallback_profile_ids=[],
             context_length=128_000,
         )
@@ -2079,3 +2241,214 @@ class TestTheWindowAModelAccepts:
             )
 
         assert spec.context_length == 128_000
+
+
+class TestStavRegion:
+    """A Stav profile carries its region on every request it sends."""
+
+    def _client(self, region, base_url=None):
+        credential = ResolvedCredential(
+            provider="stav",
+            secret=ApiKeySecret(api_key="sk_stav_test"),
+            base_url=base_url,
+            api="chat",
+            region=region,
+        )
+        model = build_model(credential, "mistralai/mistral-small-4")
+        return model._provider.client  # the AsyncOpenAI the requests go through
+
+    @pytest.mark.parametrize("region", ["eu", "eea"])
+    def test_a_limited_region_is_sent_as_a_header(self, region):
+        client = self._client(region)
+        assert client.default_headers["X-Stav-Runs-In"] == region
+
+    def test_global_sends_no_limit(self):
+        assert "X-Stav-Runs-In" not in self._client("global").default_headers
+
+    def test_no_stored_region_is_eu(self):
+        """A profile written by hand with no region does not leave the EU."""
+        assert self._client(None).default_headers["X-Stav-Runs-In"] == "eu"
+
+    def test_the_public_api_unless_the_profile_names_another(self):
+        assert str(self._client("eu").base_url) == "https://api.stav.ai/v1/"
+        local = self._client("eu", base_url="http://host.docker.internal:8100/v1")
+        assert str(local.base_url) == "http://host.docker.internal:8100/v1/"
+
+    def test_a_new_profile_defaults_to_eu(self):
+        assert PROVIDERS["stav"].default_region() == "eu"
+
+    def test_a_region_on_a_provider_without_one_is_refused(self):
+        from app.services.model_profile import _check_shape
+
+        with pytest.raises(BadRequestError):
+            _check_shape(
+                PROVIDERS["openai"],
+                secret_id=uuid.uuid4(),
+                base_url=None,
+                api="responses",
+                region="eu",
+            )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("region", ["eu", "eea", "global"])
+@pytest.mark.parametrize("surface", ["chat/completions", "responses"])
+@pytest.mark.parametrize("header", ["X-Stav-Runs-In", "x-stav-runs-in"])
+async def test_stav_region_cannot_be_overridden_by_request_headers(
+    region: Literal["eu", "eea", "global"], surface: str, header: str
+) -> None:
+    from app.agents.model_resolver import _StavProvider
+
+    received: list[str] = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        received.append(request.headers["X-Stav-Runs-In"])
+        return httpx2.Response(200, json={"id": "test"})
+
+    provider = _StavProvider(api_key="test", base_url="https://stav.example/v1", region=region)
+    async with (
+        provider,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport,
+    ):
+        client = provider.client.with_options(http_client=transport)
+        await client.post(surface, cast_to=object, options={"headers": {header: "global"}})
+    assert received == [region]
+
+
+@pytest.mark.anyio
+async def test_stav_transport_refuses_an_unsupported_legacy_http_client() -> None:
+    from app.agents.model_resolver import _StavProvider
+
+    async with httpx.AsyncClient() as legacy:
+        with (
+            patch.object(_StavProvider, "_get_http_client", return_value=legacy),
+            pytest.raises(TypeError, match="Stav requires an httpx2 client"),
+        ):
+            _StavProvider(api_key="test", base_url="https://stav.example/v1", region="eu")
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "endpoint", ["https://api.otari.ai/api/v1", "https://eu.api.otari.ai/api/v1"]
+)
+async def test_otari_creation_metadata_uses_the_selected_key(endpoint: str | None) -> None:
+    ctx, secret_id = _ctx(), uuid.uuid4()
+    selected_key = AsyncMock(return_value="otari-selected-test")
+    catalog = AsyncMock(
+        return_value=(
+            [CatalogModel(id="support-agent", name="Support", context_length=200_000)],
+            "live",
+        )
+    )
+    with (
+        patch("app.services.model_profile.models_for", new=catalog),
+        patch("app.services.model_profile.OrganizationSecretService.listing_key", new=selected_key),
+        patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+        patch(
+            "app.services.model_profile._checked_endpoint",
+            new=AsyncMock(side_effect=lambda _spec, url: url),
+        ),
+        patch(
+            "app.services.model_profile.credential_repo.create_profile",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ) as create,
+        patch("app.services.model_profile.record_audit", new=AsyncMock()),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            ctx,
+            label="Otari support",
+            provider="otari",
+            model="support-agent",
+            secret_id=secret_id,
+            base_url=endpoint,
+        )
+    selected_key.assert_awaited_once_with(ctx, "otari", secret_id=secret_id)
+    catalog.assert_awaited_once_with("otari", api_key="otari-selected-test", base_url=endpoint)
+    assert create.call_args.kwargs["context_length"] == 200_000
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_metadata_never_forwards_a_builders_hidden_organization_key() -> None:
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.BUILDER)
+    selected = _credential(
+        ctx, provider="otari", secret=ApiKeySecret(api_key="selected-otari-test")
+    )
+    hidden = _credential(ctx, provider="otari", secret=ApiKeySecret(api_key="hidden-otari-test"))
+    selected.purpose = hidden.purpose = "otari"
+    hidden.name, selected.name = "A private", "Z selected"
+    endpoint = f"https://{uuid.uuid4().hex}.gateway.test/api/v1"
+    db = _db()
+    received: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        received.append(request)
+        return httpx.Response(
+            200, json={"data": [{"id": "support-agent", "context_window": 200000}]}
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=selected),
+            ) as get,
+            patch(
+                "app.services.organization_secret.organization_secret_repo.list_secrets",
+                new=AsyncMock(return_value=[hidden, selected]),
+            ) as enumerate_keys,
+            patch(
+                "app.services.organization_secret.resolve_access",
+                new=AsyncMock(
+                    side_effect=lambda _db, _ctx, row, *_args, **_kwargs: row.id == selected.id
+                ),
+            ),
+            patch("app.services.model_catalog._client", return_value=client),
+        ):
+            result = await ModelProfileService(db)._listed_model(
+                ctx, "otari", "support-agent", endpoint, selected.id
+            )
+    get.assert_awaited_once_with(db, selected.id, organization_id=ctx.organization_id)
+    enumerate_keys.assert_not_called()
+    assert result is not None and result.context_length == 200000
+    assert len(received) == 1
+    assert str(received[0].url) == endpoint + "/models"
+    assert received[0].headers["Authorization"] == "Bearer selected-otari-test"
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_requires_a_destination_before_reading_metadata() -> None:
+    with (
+        patch(
+            "app.services.model_profile.OrganizationSecretService.listing_key", new=AsyncMock()
+        ) as key,
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            _ctx(),
+            label="Otari",
+            provider="otari",
+            model="support-agent",
+            secret_id=uuid.uuid4(),
+        )
+    key.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_destination_cannot_be_cleared() -> None:
+    ctx = _ctx()
+    row = _profile(ctx, provider="otari", base_url="https://api.otari.ai/api/v1")
+    with (
+        patch(
+            "app.services.model_profile.ModelProfileService._get_profile",
+            new=AsyncMock(return_value=row),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).update_profile(
+            ctx, row.id, ModelProfileUpdate(base_url=None)
+        )

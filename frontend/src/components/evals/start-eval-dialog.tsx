@@ -228,7 +228,7 @@ export function StartEvalDialog({
           )}
           {target === "version" && (besideBaseline || priced?.missing_baseline_version != null) && (
             <div className="space-y-2 text-sm">
-              {!besideBaseline && <p className="text-warning text-xs">{t("noEarlierRun")}</p>}
+              {!besideBaseline && <p className="text-warning-ink text-xs">{t("noEarlierRun")}</p>}
               <Toggle
                 checked={besideBaseline}
                 onChange={setBesideBaseline}
@@ -238,7 +238,7 @@ export function StartEvalDialog({
             </div>
           )}
           {failure && (
-            <div role="alert" className="text-destructive space-y-1 text-sm">
+            <div role="alert" className="text-destructive-ink space-y-1 text-sm">
               <p>{getErrorMessage(failure, tErrors)}</p>
               {assistanceOff && (
                 <Link

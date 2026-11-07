@@ -95,10 +95,10 @@ export function ImproveDialog({
           )}
           {quote?.reason != null && <p className="text-sm">{t(`reason.${quote.reason}`)}</p>}
           {quote !== null && quote.reason === null && !quote.affordable && (
-            <p className="text-destructive text-sm">{t("overBudget")}</p>
+            <p className="text-destructive-ink text-sm">{t("overBudget")}</p>
           )}
           {error !== null && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {error}
             </p>
           )}

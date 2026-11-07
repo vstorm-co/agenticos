@@ -211,7 +211,13 @@ a workspace file.
 ## Next steps
 
 Try ingesting a source that contradicts an earlier one on purpose, and check
-that the lint step names both pages rather than silently picking a side. For
-a wiki several people should be able to read and extend, weigh the `agent`
-session scope against giving each contributor their own agent bound to a
-shared [context file](../context.md) instead.
+that the lint step names both pages rather than silently picking a side.
+
+For a team wiki, use a [Project](../projects.md): multiple agents share its files
+and instructions under project membership. For a personal Desktop vault, connect
+an approved local folder; it does not synchronize with shared project files.
+
+Open [Graph view](../projects.md#graph-view) in the file explorer to browse links
+and backlinks. It rereads Markdown notes automatically; an agent only maintains
+the notes and their links, without regenerating an HTML App. Graph refresh does
+not run the factual checks described in this tutorial.

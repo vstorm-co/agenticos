@@ -110,8 +110,10 @@ describe("workflow creation", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /Automations/ }));
-    for (const button of screen.getAllByRole("button", { name: "Use" }))
-      expect(button).toBeDisabled();
+    const buttons = screen.getAllByRole("button", { name: "Use" });
+    expect(buttons[0]).toBeDisabled();
+    expect(buttons[1]).toBeDisabled();
+    expect(buttons[2]).toBeEnabled();
   });
 });
 
@@ -181,4 +183,134 @@ it("closes the separate library with Escape", async () => {
   );
   await userEvent.keyboard("{Escape}");
   expect(onOpenChange).toHaveBeenCalledWith(false);
+});
+
+vi.mock("@/hooks/use-portals", () => ({
+  usePortals: () => ({
+    isLoading: false,
+    error: null,
+    items: [
+      { portal: { key: "google", name: "Gmail" }, action: "create", connectionId: "mailbox" },
+    ],
+  }),
+}));
+
+it("requires an explicit connected mailbox for the reply preset", async () => {
+  const choose = vi.fn();
+  render(
+    <WorkflowCreateDialog
+      open
+      onOpenChange={vi.fn()}
+      onChoose={choose}
+      busy={false}
+      initial={{ name: "Await reply", template_id: "awaitReply", graph: null }}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+  expect(choose).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("combobox", { name: "Connected mailbox" }));
+  await userEvent.click(screen.getByRole("option", { name: "Gmail" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(choose).toHaveBeenCalledWith(
+    expect.objectContaining({
+      template_id: "awaitReply",
+      graph: null,
+      visibility: "private",
+      reply_mailbox: { provider: "google", connection_id: "mailbox", mailbox: null },
+    }),
+  );
+});
+
+it("retains an explicitly selected shared Outlook mailbox", async () => {
+  const choose = vi.fn();
+  render(
+    <WorkflowCreateDialog
+      open
+      onOpenChange={vi.fn()}
+      onChoose={choose}
+      busy={false}
+      initial={{
+        name: "Await shared reply",
+        template_id: "awaitReply",
+        graph: null,
+        reply_mailbox: { provider: "outlook", connection_id: "outlook" },
+      }}
+    />,
+  );
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Shared Outlook mailbox (optional)" }),
+    "shared@example.com",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(choose).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reply_mailbox: {
+        provider: "outlook",
+        connection_id: "outlook",
+        mailbox: "shared@example.com",
+      },
+    }),
+  );
+});
+
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ profiles: [], profilesStatus: "ready" }),
+}));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button type="button" onClick={() => onChange("chosen-model")}>
+      Choose draft model
+    </button>
+  ),
+}));
+it("requires an explicit model and budget when follow-up drafting is enabled", async () => {
+  const choose = vi.fn();
+  render(
+    <WorkflowCreateDialog
+      open
+      onOpenChange={vi.fn()}
+      onChoose={choose}
+      busy={false}
+      initial={{
+        name: "Await reply",
+        template_id: "awaitReply",
+        graph: null,
+        reply_mailbox: { provider: "google", connection_id: "mailbox" },
+      }}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Prepare a follow-up draft after the deadline" }),
+  );
+  expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Choose draft model" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(choose).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reply_draft: { model_profile_id: "chosen-model", max_cost_usd: 0.1 },
+    }),
+  );
+});
+it("can explicitly turn off a preset draft selection", async () => {
+  const choose = vi.fn();
+  render(
+    <WorkflowCreateDialog
+      open
+      onOpenChange={vi.fn()}
+      onChoose={choose}
+      busy={false}
+      initial={{
+        name: "Await reply",
+        template_id: "awaitReply",
+        graph: null,
+        reply_mailbox: { provider: "google", connection_id: "mailbox" },
+        reply_draft: { model_profile_id: "model", max_cost_usd: 0.1 },
+      }}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Prepare a follow-up draft after the deadline" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(choose.mock.calls[0]?.[0].reply_draft).toBeUndefined();
 });

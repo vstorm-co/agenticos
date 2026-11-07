@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Clock, Lock, MessageSquare, Mic, ShieldAlert, X } from "lucide-react";
+import { Check, Clock, Lock, Mic, ShieldAlert, X } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 

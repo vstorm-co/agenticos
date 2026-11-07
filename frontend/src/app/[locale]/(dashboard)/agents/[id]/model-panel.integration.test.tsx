@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AgentBuilderPage from "./page";
 import type { AgentSpec } from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
+import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 
@@ -35,8 +36,10 @@ const MODEL_PROFILE = {
 
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const validate = vi.hoisted(() => vi.fn());
+const refetchAgent = vi.hoisted(() => vi.fn());
 
 const state = {
+  agentError: null as Error | null,
   permissions: [] as Permission[],
   profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
   // Both queries settle successfully by default; a case that wants the failed
@@ -53,27 +56,31 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: {
-        id: "a-1",
-        name: "Support",
-        status: "draft",
-        has_avatar: false,
-        can_edit: true,
-        can_publish: true,
-        draft_spec: {
-          name: "Support",
-          instructions: "Be helpful.",
-          model_profile_id: null,
-          model_settings: {},
-          capabilities: [],
-          collection_ids: [],
-          skill_ids: [],
-          context_ids: [],
-          mcp_servers: [],
-          subagents: [],
-        } satisfies AgentSpec,
-      },
+      agent: state.agentError
+        ? undefined
+        : {
+            id: "a-1",
+            name: "Support",
+            status: "draft",
+            has_avatar: false,
+            can_edit: true,
+            can_publish: true,
+            draft_spec: {
+              name: "Support",
+              instructions: "Be helpful.",
+              model_profile_id: null,
+              model_settings: {},
+              capabilities: [],
+              collection_ids: [],
+              skill_ids: [],
+              context_ids: [],
+              mcp_servers: [],
+              subagents: [],
+            } satisfies AgentSpec,
+          },
       isLoading: false,
+      error: state.agentError,
+      refetch: refetchAgent,
       saveDraft: { mutateAsync: vi.fn(), isPending: false },
       validate,
       publish: { mutateAsync: vi.fn(), isPending: false },
@@ -174,6 +181,8 @@ async function mount() {
 }
 
 beforeEach(() => {
+  state.agentError = null;
+  refetchAgent.mockReset();
   validate.mockResolvedValue({ problems: [], fields: [], fixes: [] });
   state.permissions = [Perm.agentsEdit];
   state.profiles = [MODEL_PROFILE];
@@ -350,5 +359,25 @@ describe("publish refused for having no model", () => {
 
     expect(await screen.findByText("Unknown capability: typo")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Go to Model" })).toBeNull();
+  });
+});
+
+describe("agent read failures", () => {
+  it.each([403, 404])(
+    "shows an organization/access explanation for %s instead of a perpetual skeleton",
+    async (status) => {
+      state.agentError = new ApiError(status, "Agent not found");
+      await mount();
+      expect(screen.getByRole("alert")).toHaveTextContent("Check the selected organization");
+      expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(refetchAgent).toHaveBeenCalledOnce();
+    },
+  );
+  it("shows an actionable server failure without describing it as missing access", async () => {
+    state.agentError = new ApiError(503, "Backend unavailable");
+    await mount();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load the agent");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });
 });

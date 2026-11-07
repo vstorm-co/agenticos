@@ -104,7 +104,10 @@ export function VerdictHeader({
               </>
             )}
             {onRetryComparison && (
-              <p role="alert" className="text-warning flex flex-wrap items-center gap-2 text-sm">
+              <p
+                role="alert"
+                className="text-warning-ink flex flex-wrap items-center gap-2 text-sm"
+              >
                 {t("comparisonFailed")}
                 <Button size="sm" variant="outline" onClick={onRetryComparison}>
                   {tc("retry")}
@@ -171,7 +174,7 @@ export function VerdictHeader({
           </p>
         )}
         {run.suite_check && <SuiteCheckVerdict agentId={agentId} check={run.suite_check} />}
-        {run.error && <p className="text-destructive text-sm">{run.error}</p>}
+        {run.error && <p className="text-destructive-ink text-sm">{run.error}</p>}
         {!live && <UngradedNote run={run} />}
         {!live && <JudgeNotes run={run} />}
 

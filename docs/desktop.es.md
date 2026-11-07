@@ -1,5 +1,5 @@
 ---
-source_sha: "f8b0ccd7e54f"
+source_sha: "700737c6ce4e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -179,6 +179,12 @@ La pantalla local muestra las instancias guardadas, sus direcciones y estado.
 interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
 sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
 iniciado externamente no lo convierte en una instancia administrada.
+
+Una instancia local ejecuta la API, el worker, la consola, la base de datos y
+Redis, sin servicio de sandbox, servicio de navegador ni almacén de objetos. Los
+agentes reciben el espacio de trabajo solo de archivos. En **Chat controls → Tools & files**,
+elige **Work on → This computer** para carpetas y **Browser → Local browser**
+para navegar. **Computer use** concede pantalla, ratón y teclado por separado.
 
 Los metadatos están en `local-instances.json` en el directorio de configuración;
 los archivos nuevos en `local-stacks/<id>/` en el directorio de datos. Las
@@ -372,14 +378,15 @@ la app compara con ellos: una carpeta que nunca elegiste, un modo más amplio qu
 el permitido o una ruta que sale de la carpeta se rechazan en el ordenador, pida
 lo que pida el servidor. La elección se recuerda por conversación. Los chats nuevos heredan la última
 carpeta y las herramientas de esta cuenta y organización; los ajustes del proyecto
-tienen prioridad. El consentimiento para todo el ordenador nunca se hereda.
+tienen prioridad. El consentimiento para todo el ordenador dado en un chat nunca se
+hereda; el dado a un agente vale para ese agente (ver **Todo el equipo**).
 
 **Solo tus propios runs.** Un chat llega a tu ordenador solo cuando es tuyo -
 nunca una clave de API, un visitante del widget o el chat de otra persona - y un
 [trigger](triggers.md) solo cuando actúa como su creador, que le asigna una carpeta
 de su ordenador en el campo **Trabajar en** del trigger.
 
-**Cuando el ordenador no está.** Un run que pidió este ordenador y encuentra la app
+**En el chat interactivo: cuando el ordenador no está.** Un run que pidió este ordenador y encuentra la app
 sin conectar la espera hasta diez minutos, y el chat lo dice. Una operación que
 encuentra la app desconectada a mitad del run - tapa cerrada, red cambiada -
 espera hasta cinco minutos a que vuelva en la misma sesión y luego sigue. Mientras
@@ -390,19 +397,24 @@ El servidor comprueba la sesión antes de reenviar cada operación local. Las se
 
 En el Builder, **Sandbox → Computer** guarda `backend: local` sin rutas ni
 consentimiento nativo. Cada persona autoriza su propio destino en el chat de
-escritorio. Sin selección, la ejecución la solicita en lugar de abrir una sandbox
-en la nube. Al crear un proyecto, **Project sandbox → Computer · your files** abre
+escritorio. Ese agente no tiene espacio en la nube, así que **Work on** no le
+ofrece la nube. Su primer mensaje pregunta una vez dónde puede trabajar - **Todo el
+equipo** o una carpeta - y la respuesta se recuerda para ese agente en este equipo,
+de modo que sus chats posteriores empiezan allí sin preguntar. Al crear un proyecto, **Project sandbox → Computer · your files** abre
 el selector de carpeta personal; los demás miembros conservan el espacio compartido.
 
 **Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin
-selector de carpetas. Una advertencia nativa autoriza el acceso para esta conversación:
+selector de carpetas. Una advertencia nativa autoriza el acceso: para un agente con
+espacio **Computer**, la advertencia nombra al agente y el consentimiento vale para
+él en cada conversación; si no, vale para esta conversación.
 las herramientas de archivos pueden usar rutas absolutas accesibles para tu cuenta
 y los comandos se ejecutan como tú, sin confirmaciones nativas individuales. Siguen
 vigentes los permisos del sistema y las reglas de aprobación del agente.
 **Revocar acceso a todo el equipo** o elegir **Nube** bloquea nuevas operaciones;
 los comandos en curso no se interrumpen. El consentimiento sobrevive a reinicios,
-se limita a este servidor y conversación, y un borrador se vincula en su primera
-operación. Un chat nuevo necesita su propio consentimiento. Este modo no recorre el
+se limita a este servidor y al agente o la conversación, y un borrador vincula el
+consentimiento de una conversación en su primera operación. Un chat nuevo con otro
+agente necesita su propio consentimiento. Este modo no recorre el
 directorio personal ni recoge archivos automáticamente como adjuntos.
 
 Las herramientas locales de navegador y archivos están disponibles en el chat de
@@ -518,7 +530,7 @@ y la preparación correctos actualizan el estado automáticamente.
 
 En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
 
-La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. Sus pestañas son **Model**, **Herramientas y archivos** (Coding agent, Work on, Browser, Computer use y skills) y **Preferencias** (aprobaciones y notificaciones).
 
 Configura la capability **Coding agent** como **On this computer**, elige una
 carpeta en **Work on** y concédele acceso completo. La autorización nativa se
@@ -526,14 +538,17 @@ recuerda para ese agente, carpeta, versión del adaptador y conexión. Eliminar 
 volver a seleccionar la carpeta borra la autorización y detiene sus agentes;
 cambiar de cuenta o servidor también borra las autorizaciones. El adaptador se
 ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo,
-no una sandbox del sistema. El acceso a todo el equipo no inicia un coding agent.
+no una sandbox del sistema. El acceso a todo el equipo también inicia un coding
+agent, en tu carpeta personal o una carpeta dentro de ella.
 Siguen vigentes las aprobaciones de tareas y los permisos del sistema.
 
 La aprobación de la capability se aplica una vez por tarea. `edit` permite las operaciones solicitadas y `read_only` rechaza cambios. Claude desactiva la omisión de permisos en modo lectura y ofrece solo herramientas de lectura. Codex selecciona su sandbox nativa de solo lectura. Los agentes locales usan su propia configuración de modelo. El uso de suscripción no tiene precio registrado; el coste mostrado del run es un mínimo.
 
-Las tareas posteriores reanudan la sesión del mismo harness para la conversación, agente, carpeta, cuenta y política de acceso. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
+Las tareas posteriores reanudan la sesión con nombre (`main` cuando una tarea no indica ninguna) para la conversación, agente, harness, carpeta, cuenta y política de acceso; varias sesiones se ejecutan a la vez, hasta ocho en un ordenador, cada una en la carpeta del chat o en una carpeta dentro de ella. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
 
 Una corrección enviada durante la tarea local interrumpe el turno ACP actual. Tras confirmar el adaptador la parada, la misma sesión continúa con la corrección. La transcripción registra la corrección aplicada. Un mensaje que llega tras finalizar queda disponible para el agente principal.
+
+Tras elegir el agente de programación y una carpeta autorizada, **Modelo de programación** y **Nivel de razonamiento** muestran las opciones del agente instalado. Se guardan para esta conversación y se aplican antes de una tarea nueva o reanudada. Deja los campos vacíos para conservar los ajustes del agente. Cambiar de agente elimina las opciones incompatibles. Actualiza la lista explícitamente después de cambiar el inicio de sesión o la configuración; otra ventana no vuelve a comprobar la cuenta. Una opción eliminada o no compatible se muestra y se rechaza, sin sustituirla silenciosamente. Consultar las opciones no inicia una respuesta del modelo ni concede permisos de herramientas.
 
 ## Tus skills e instrucciones { #your-own-skills-and-instructions }
 
@@ -681,3 +696,21 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
 Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. Conversaciones recientes muestra avatares de agentes en una sección desplegable que ocupa solo el espacio necesario. Nuevo chat es la única acción para abrir una pestaña nueva. La barra lateral del navegador ofrece la descarga de escritorio; cerrar el aviso lo silencia durante 14 días para esa cuenta en ese navegador.
 
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
+
+## Rutinas locales { #local-routines }
+
+Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada; después la aplicación de escritorio pide confirmación nativa para su ID, organización, servidor, carpeta y operaciones. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+
+**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Volver a vincular, desvincular, cerrar sesión o cambiar de servidor elimina estos permisos. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
+
+Si el ordenador concreto autorizado está desconectado antes de ejecutar, una activación duradera espera en PostgreSQL. La fila de la rutina muestra cuántas esperan. Las activaciones programadas y manuales se agrupan mientras esperan; los eventos entrantes distintos conservan su contexto e ID de activación. El worker existente comprueba la reconexión cada minuto. Las comprobaciones de disponibilidad no llaman al modelo ni consumen intentos de inicio fallidos. La admisión se confirma con la ejecución antes de la primera llamada al modelo. Una activación iniciada no se repite automáticamente tras una caída del worker; una operación de archivo o comando incierta no genera otra ejecución.
+
+Pausar, cambiar la tarea o el permiso local, eliminar la rutina o alcanzar su fin cancela el trabajo pendiente anterior en lugar de redirigirlo a otra carpeta. Una sesión de dispositivo revocada requiere revisión. Tres trabajos muertos o perdidos antes de la admisión detienen la rutina y crean un incidente para su propietario. El contexto del evento fallido sigue disponible en su exportación de datos. Los contextos iniciados y cancelados se borran de inmediato. Los metadatos terminados y contextos fallidos siguen la retención del historial de ejecuciones de la organización; el trabajo desconectado activo permanece hasta su admisión, cancelación o eliminación.
+
+Actualiza API, workers y escritorio juntos y drena los workers antiguos antes de habilitar el contrato. Las aplicaciones antiguas no confirman permisos de rutinas; las rutinas locales existentes requieren revisión explícita. La migración `0272_routine_device_waits.py` añade esperas sin cambiar la identidad de la rutina. Antes de revertirla, pausa las rutinas locales y drena sus trabajos: la reversión elimina el contexto pendiente y no lo ejecuta. Las ejecuciones locales antiguas suspendidas sin instantánea del destino necesitan una ejecución nueva.
+
+La elección de acceso local pertenece al agente seleccionado, no a un valor global heredado por otros agentes. Revocar una carpeta también elimina las elecciones guardadas y los consentimientos de programación de sus subcarpetas. Las aplicaciones de escritorio antiguas conservan el consentimiento para todo el equipo solo en una conversación; actualiza la aplicación para reutilizarlo en las conversaciones del mismo agente.
+
+La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
+
+ Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.

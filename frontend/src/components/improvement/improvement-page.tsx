@@ -376,7 +376,7 @@ function Session({
                       </p>
                     ))}
                   {blockedChanges && (
-                    <p role="alert" className="text-warning text-sm">
+                    <p role="alert" className="text-warning-ink text-sm">
                       {t("blockedChanges")}
                     </p>
                   )}
@@ -544,7 +544,7 @@ function Session({
           </Link>
         </div>
         {error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {error}
           </p>
         )}

@@ -37,7 +37,7 @@ export function graders(
 export function UngradedWarning({ count }: { count: number }) {
   const t = useTranslations("evals.estimate");
   if (count === 0) return null;
-  return <p className="text-warning text-xs">{t("ungraded", { count })}</p>;
+  return <p className="text-warning-ink text-xs">{t("ungraded", { count })}</p>;
 }
 
 function ArmLine({
@@ -139,7 +139,7 @@ export function EstimateSummary({
             <dd
               className={cn(
                 "max-w-[60%] text-right font-medium tabular-nums",
-                balance !== null && Number(balance) < 0 && "text-destructive",
+                balance !== null && Number(balance) < 0 && "text-destructive-ink",
               )}
             >
               {balance === null
@@ -152,12 +152,12 @@ export function EstimateSummary({
         ))}
       </dl>
       {judgedOwnModel && (
-        <p className="text-warning text-xs">
+        <p className="text-warning-ink text-xs">
           {t("judgeSameModel", { model: judgedOwnModel.model_label })}
         </p>
       )}
       <UngradedWarning count={estimate.ungraded_cases} />
-      {!estimate.affordable && <p className="text-destructive text-xs">{t("unaffordable")}</p>}
+      {!estimate.affordable && <p className="text-destructive-ink text-xs">{t("unaffordable")}</p>}
     </div>
   );
 }

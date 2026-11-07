@@ -15,6 +15,8 @@ beforeEach(() => {
     draftBrowser: undefined,
     codingByConversation: {},
     draftCoding: null,
+    codingPreferencesByConversation: {},
+    draftCodingPreferences: { model: null, effort: null },
   });
 });
 it("moves a new chat's local choice under its server identity", () => {
@@ -141,4 +143,50 @@ it("keeps a conversation's existing coding choice when adopting its folder state
   store.setCoding("existing-coding-chat", "claude_code");
   store.adopt("existing-coding-chat");
   expect(store.codingFor("existing-coding-chat")).toBe("claude_code");
+});
+
+it("keeps model and effort in their own topic and resets them when switching harnesses", () => {
+  const store = useWorkOnStore.getState();
+  store.setCoding(null, "claude_code");
+  store.setCodingPreferences(null, { model: "haiku", effort: "low" });
+  store.adopt("topic");
+  expect(store.codingPreferencesFor("topic")).toEqual({ model: "haiku", effort: "low" });
+  expect(store.codingPreferencesFor(null)).toEqual({ model: null, effort: null });
+  expect(store.codingPreferencesFor("other")).toEqual({ model: null, effort: null });
+  store.setCoding("topic", "claude_code");
+  expect(store.codingPreferencesFor("topic").effort).toBe("low");
+  store.setCoding("topic", "codex");
+  expect(store.codingPreferencesFor("topic")).toEqual({ model: null, effort: null });
+  store.setCodingPreferences(null, { model: "draft", effort: "high" });
+  store.resetDraft();
+  expect(store.codingPreferencesFor(null)).toEqual({ model: null, effort: null });
+});
+
+it("does not overwrite existing model choices with a draft when adopting a topic", () => {
+  const store = useWorkOnStore.getState();
+  store.setCodingPreferences("existing", { model: "existing", effort: "low" });
+  store.setCodingPreferences(null, { model: "draft", effort: "high" });
+  store.adopt("existing");
+  expect(store.codingPreferencesFor("existing")).toEqual({ model: "existing", effort: "low" });
+});
+
+it("revoking a folder forgets it for every agent and conversation without touching other folders", () => {
+  const store = useWorkOnStore.getState();
+  store.rememberForAgent("A", target);
+  store.rememberForAgent("B", target);
+  store.rememberForAgent("C", { ...target, folder: "/other" });
+  store.set("chat", target);
+  store.set(null, target);
+  store.forgetFolder(target.folder);
+  expect(store.agentTargetFor("A")).toBeNull();
+  expect(store.agentTargetFor("B")).toBeNull();
+  expect(store.agentTargetFor("C")?.folder).toBe("/other");
+  expect(store.targetFor("chat")).toBeNull();
+  expect(store.targetFor(null)).toBeNull();
+});
+it("an agent-specific choice does not become a global folder default", () => {
+  const store = useWorkOnStore.getState();
+  store.set("agent-chat", target, false);
+  expect(store.explicitTargetFor("agent-chat")).toEqual(target);
+  expect(store.targetFor("unrelated")).toBeNull();
 });

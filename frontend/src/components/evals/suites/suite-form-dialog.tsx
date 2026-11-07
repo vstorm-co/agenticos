@@ -209,7 +209,7 @@ export function SuiteFormDialog({
           </div>
         )}
         {failure && (
-          <div role="alert" className="text-destructive space-y-1 text-sm">
+          <div role="alert" className="text-destructive-ink space-y-1 text-sm">
             <p>{getErrorMessage(failure, tErrors)}</p>
             {assistanceOff && (
               <Link

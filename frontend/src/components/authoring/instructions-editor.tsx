@@ -93,7 +93,7 @@ export function InstructionsEditor({
         </div>
       )}
       {outside && (
-        <p role="alert" className="text-warning text-sm">
+        <p role="alert" className="text-warning-ink text-sm">
           {t("outside")}
         </p>
       )}

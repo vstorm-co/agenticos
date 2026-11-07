@@ -1,7 +1,10 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { useState } from "react";
-import { Check, FolderKanban, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -17,7 +20,7 @@ import {
 } from "@/components/ui";
 import { useProjects } from "@/hooks/use-projects";
 import { ROUTES } from "@/lib/constants";
-import { DIALOG_CONFIRM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types/projects";
 
@@ -52,13 +55,18 @@ export function ProjectPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_SCROLL)}>
-        <DialogHeader>
-          <DialogTitle>{t("pickTitle")}</DialogTitle>
+      <DialogContent className={cn(DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM)}>
+        <DialogHeader className="min-w-0 shrink-0">
+          <DialogTitle className="break-words">{t("pickTitle")}</DialogTitle>
           <DialogDescription>{t("pickHint")}</DialogDescription>
         </DialogHeader>
-        <SearchInput value={query} onChange={setQuery} placeholder={t("search")} />
-        <ul className="space-y-0.5">
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder={t("search")}
+          className="min-w-0 shrink-0 sm:w-full"
+        />
+        <ul className={cn(DIALOG_BODY, "min-w-0 space-y-0.5 overscroll-contain")}>
           <li>
             <PickRow
               label={t("noProject")}
@@ -75,6 +83,7 @@ export function ProjectPickerDialog({
             usable.map((project) => (
               <li key={project.id}>
                 <PickRow
+                  projectName={project.name}
                   label={project.name}
                   hint={project.description ?? t("chatCount", { count: project.chat_count })}
                   selected={project.id === selectedId}
@@ -86,7 +95,7 @@ export function ProjectPickerDialog({
         </ul>
         <Link
           href={ROUTES.PROJECTS}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs"
+          className="text-muted-foreground hover:text-foreground flex min-w-0 shrink-0 items-center gap-1.5 text-xs"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
           {t("manageProjects")}
@@ -97,11 +106,13 @@ export function ProjectPickerDialog({
 }
 
 function PickRow({
+  projectName,
   label,
   hint,
   selected,
   onClick,
 }: {
+  projectName?: string;
   label: string;
   hint: string;
   selected: boolean;
@@ -113,16 +124,22 @@ function PickRow({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left",
+        "flex w-full min-w-0 items-start gap-3 rounded-lg px-2.5 py-2 text-left",
         selected ? "bg-accent" : "hover:bg-accent/60",
       )}
     >
-      <span className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <FolderKanban className="h-4 w-4" aria-hidden />
-      </span>
+      {projectName !== undefined ? (
+        <ProjectAvatar name={projectName} size="md" />
+      ) : (
+        <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <FolderKanban className="size-4" aria-hidden />
+        </span>
+      )}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{label}</span>
-        <span className="text-muted-foreground block truncate text-xs">{hint}</span>
+        <span className="line-clamp-2 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>
+        <span className="text-muted-foreground line-clamp-2 text-xs [overflow-wrap:anywhere]">
+          {hint}
+        </span>
       </span>
       {selected && <Check className="h-4 w-4 shrink-0" aria-hidden />}
     </button>

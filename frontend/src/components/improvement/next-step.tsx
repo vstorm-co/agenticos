@@ -108,7 +108,7 @@ export function NextStep({
         </p>
       )}
       {moved && priced && (
-        <p role="alert" className="text-warning text-sm">
+        <p role="alert" className="text-warning-ink text-sm">
           {t("priceMoved", { cost: usd(priced.total_usd, locale) })}
         </p>
       )}
@@ -152,7 +152,7 @@ export function NextStep({
         </p>
       )}
       {refused && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {refused}
         </p>
       )}

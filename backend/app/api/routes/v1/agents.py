@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, Upl
 from fastapi.responses import JSONResponse
 
 from app.agents.capabilities import all_capabilities
+from app.agents.capabilities.mirage import catalog
 from app.agents.prompt_variables import SYSTEM_VARIABLES
 from app.agents.spec import AgentSpec
 from app.api.deps import (
@@ -34,12 +35,12 @@ from app.api.deps import (
     Auth,
     ConversationSvc,
     DBSession,
+    EvalHelperSvc,
     KnowledgeReachSvc,
     MentionSvc,
     MLSvc,
     PrefersAsync,
     SandboxConnectionSvc,
-    SystemAgentSvc,
     limit_agent_run,
     limit_dictation,
     require,
@@ -92,6 +93,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
 )
 from app.schemas.mention import MentionableList
+from app.schemas.mirage import MirageBackendList, MirageBackendRead
 from app.schemas.ml import DictationRead, DictationStatusRead
 from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
@@ -166,6 +168,23 @@ async def list_capability_catalog(ctx: Auth, sandboxes: SandboxConnectionSvc) ->
 
 
 @router.get(
+    "/capabilities/mirage/backends",
+    response_model=MirageBackendList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_mirage_backends() -> Any:
+    """What the virtual terminal can mount here, available ones first, with each form.
+
+    A backend this deployment cannot run is listed with its reason rather than
+    left out; `installed` is false when the terminal itself is not.
+    """
+    backends = catalog()
+    return MirageBackendList(
+        items=[MirageBackendRead.from_info(info) for info in backends], installed=bool(backends)
+    )
+
+
+@router.get(
     "/templates",
     response_model=AgentTemplateCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
@@ -236,7 +255,6 @@ async def list_platform_mcp_tools() -> Any:
             description=tool.summary,
             writes=tool.writes,
             ungated=tool.ungated,
-            held=tool.held,
         )
         for tool in platform_tool_catalog()
     ]
@@ -250,15 +268,21 @@ async def list_platform_mcp_tools() -> Any:
 )
 async def list_mcp_servers(
     db: DBSession,
-    q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
+    ctx: Auth,
+    q: str = Query(
+        "", max_length=255, description="Filter by key, name, description, host or category"
+    ),
     category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
     auth: Literal["", "none", "token", "oauth"] = Query(
         "", description="What the server asks for, or blank for any"
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    state: Literal["all", "connected", "not-connected"] = Query(
+        "all", description="Whether an accessible saved account exists, regardless of its health"
+    ),
 ) -> Any:
-    """One paged list: the curated catalog, then the mirrored public registry.
+    """One paged list: curated servers, the local registry mirror and custom servers.
 
     The console used to hold the curated hundred and filter it in the browser,
     which is right for a list the client holds - and this one stopped being that
@@ -267,13 +291,20 @@ async def list_mcp_servers(
     the list needs, so the join happens in `mcp_listing.page` and the client
     renders rows.
 
+    Connection state, search, category and sign-in filters apply before counting
+    and pagination. Connected includes every accessible saved account, including
+    disabled accounts and servers that need authorization or failed a check.
+    Personal accounts belong to the caller; organization accounts obey the same
+    permission and audience checks as their management endpoint.
+
     A registry row carries `reviewed: false`: nobody here wrote it, the description
     is the publisher's, and there is no token hint because the registry has no such
-    field. `verified` and `check` say what the last catalog check found, for either
-    kind; a registry listing it found dead or duplicated is not on the list.
+    field. `verified` and `check` say what the last catalog check found. Browsing
+    hides dead or duplicated registry listings; Connected keeps their saved
+    accounts manageable.
     """
     found = await mcp_listing.page(
-        db, query=q, category=category, auth=auth, skip=skip, limit=limit
+        db, ctx=ctx, query=q, category=category, auth=auth, state=state, skip=skip, limit=limit
     )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],
@@ -373,7 +404,7 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require(Perm.AGENTS_EDIT))],
 )
-async def create_system_agent(data: SystemAgentCreate, service: SystemAgentSvc, ctx: Auth) -> Any:
+async def create_system_agent(data: SystemAgentCreate, service: EvalHelperSvc, ctx: Auth) -> Any:
     """Create a system agent of the organization's own - today, a judge.
 
     It starts from its kind's definition and publishes when the caller may
@@ -950,6 +981,7 @@ async def run_agent(
         structured=structured,
         reports_failure=True,
         draft=data.draft,
+        parks_questions=True,
     )
     return AgentRunResult(
         run_id=run.id,
@@ -964,4 +996,5 @@ async def run_agent(
         cache_read_tokens=run.cache_read_tokens,
         cache_write_tokens=run.cache_write_tokens,
         parked=await service.parked_calls(ctx, run),
+        questions=await service.parked_questions(ctx, run),
     )

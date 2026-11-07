@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3f798c416272"
+source_sha: "e9573cb4bf21"
 ---
 
 # Projekte { #projects }
@@ -157,6 +157,65 @@ Drop auf eine Datei verwendet deren Ordner; freie Flächen beider Bereiche verwe
 das Projektverzeichnis. Blobby und das Dock behalten ihre eigene Übergabe an den
 Chat.
 
+## Graphansicht { #graph-view }
+
+Wähle im Dateiexplorer **Graph view**, um verknüpfte Markdown-Notizen zu erkunden.
+Die Ansicht funktioniert für gemeinsame Projektdateien, Sandbox-Workspaces und
+einen freigegebenen Desktop-Ordner. Jeder Ort hat seinen eigenen Graphen;
+lokale Notizen werden nicht hochgeladen.
+
+Der Graph öffnet sich im Vollbild mit farbigen Punkten, dünnen Verbindungen und
+Beschriftungen beim Vergrößern oder Auswählen einer Notiz. Richtungspfeile und
+ständige Beschriftungen sind optional. Suche, Dateien, Details und Zoom befinden
+sich in schwebenden Panels. Gruppen färben Notizen standardmäßig nach Ordner,
+wahlweise nach dem ersten Tag. Gruppen lassen sich ausblenden, Ordner einschließlich
+Unterordner filtern und Filter zurücksetzen.
+
+Der Dateibrowser verwendet denselben Ordnerbaum und dieselben Symbole wie andere Arbeitsbereiche. Nur indexierte
+Markdown-Notizen werden Knoten; andere Dateien öffnen sich in der gemeinsamen
+Vorschau. Das Verschieben von Punkten ändert nur die Ansicht, keine Dateien oder
+Links. Die Vollbildsteuerung oder Escape stellt die eingebettete Ansicht wieder
+her; der Zurück-Pfeil führt zu den Dateien.
+
+Verknüpfe Notizen mit `[[notes/topic|Beschriftung]]`, Inline-Markdown-Links wie
+`[Thema](topic.md)` oder Beziehungen im Frontmatter:
+
+```yaml
+---
+title: Agent-Gedächtnis
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` und `sources` akzeptieren Text oder Textlisten. Externe URLs
+bleiben Quellenangaben. Wiki-Links verwenden exakte Pfade oder eindeutige
+Dateinamen, Titel oder Aliase; doppelte Namen bleiben unaufgelöst. Markdown-Links
+sind relativ zur Notiz. Codebeispiele und HTML-Kommentare werden ignoriert.
+
+Suche nach Titeln, Pfaden, Aliasen oder Tags. Wähle einen Knoten für seine Links,
+Rückverweise und unaufgelösten Verweise; **Open note** öffnet die Notiz. Gemeinsame
+Projektdateien behalten **Edit file** und bestehende Berechtigungen. Die Tasten
+steuern den Zoom, Ziehen auf leerem Hintergrund verschiebt den Graphen. Die
+Notizliste lässt sich auch mit der Tastatur bedienen.
+
+Die Ansicht liest Dateien alle 30 Sekunden, solange sie geöffnet ist, bei
+Fensterfokus oder mit **Refresh**. Agenten aktualisieren Notizen und Links ohne
+HTML neu zu erzeugen. Apps aktualisieren bereits Tabellen- und Workflow-Log-Bindings,
+haben aber kein Workspace-Datei-Binding; dieser Graph liest Notizen direkt. Eine
+Graphaktualisierung startet keinen Agenten zur Prüfung von Fakten oder Quellen.
+
+Ein Scan umfasst bis zu 200 Markdown-Dateien, 256 KiB je Datei und insgesamt
+8 MiB, innerhalb der Grenzen der Quelldateiliste. Beziehungen sind auf 256 je
+Notiz und 2048 im gesamten Graphen begrenzt; erreichte Grenzen kennzeichnen
+den Graphen ebenfalls als unvollständig. Aliase und Tags sind zusammen auf
+128 Einträge je Notiz und 4096 im gesamten Graphen begrenzt. Ausgelassene oder unlesbare
+Dateien, ungültiges YAML und unvollständige Listen werden angezeigt. Ein fehlender
+Verweis kann eine ausgelassene Notiz bedeuten. Aktualisierungen erfolgen
+periodisch; gleichzeitige Änderungen können in verschiedene Scans fallen.
+
 ## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
 
 Der Tab **Dateien** trennt **Gemeinsame Projektdateien** und **Dieser Computer**. Ein beim Erstellen genehmigter Ordner öffnet sich auf dieser Installation automatisch; ohne Verbindung erscheinen zuerst gemeinsame Dateien. Wähle Dieser Computer, um einen Ordner zu verbinden. **Ordnereinstellungen** ändert oder trennt ihn; Pfad und Zugriffsmodus bleiben ohne wiederholtes Einrichtungsformular sichtbar.
@@ -227,8 +286,8 @@ mit ihm.
 
 ## Wo Projekte erscheinen { #where-projects-show-up }
 
-- **Projekte** in der Seitenleiste listet die fünf zuletzt genutzten über dem
-  Link zu allen.
+- **Projekte** in der Seitenleiste listet die drei zuletzt genutzten über dem
+  Link zu allen. Ein Symbol kennzeichnet Projekte mit einer noch ungelesenen Chatantwort.
 - Die Chat-Liste führt jeden Chat in den Projekten, die du sehen kannst - deine
   und die deiner Kolleginnen und Kollegen - unter dem Namen des Projekts, über
   den Chats außerhalb von Projekten.
@@ -237,3 +296,15 @@ mit ihm.
 - `GET /api/v1/projects` und seine Unterrouten gehören zur öffentlichen API, sodass
   ein Skript ein Projekt anlegen und mit Dateien füllen kann. Siehe [die
   API](api.md).
+
+
+## Ein Projekt auf Kurs halten { #keep-a-project-on-track }
+
+Wähle auf der Projektseite **Projekt auf Kurs halten**. Wähle einen veröffentlichten Agenten, den du bearbeiten darfst, prüfe Ressourcen und verbundene Konten, benenne den neuen Agenten und die Aufgabentabelle, wähle das Intervall und bestätige ausdrücklich die Veröffentlichung und den Start. Es entstehen eine private Kopie des Agenten, eine Aufgabentabelle (privat, sofern du nicht die Organisation als Zielgruppe wählst), gespeicherte Ansichten für alle Aufgaben, Board, offene Aufgaben und Blockaden sowie eine an die neue Version gebundene Routine. Der ursprüngliche Agent bleibt unverändert.
+
+Die Routine handelt als du im Projekt und berichtet in dessen Unterhaltung. Sie liest Aufgaben, prüft Fortschritte anhand der genehmigten Quellen, aktualisiert nächste Schritte und meldet Blockaden und Fristen. Externe Nachrichten benötigen weiterhin die übliche Autorisierung. Neue Quellen, eine erneute Kontozustimmung oder ein ersetzter Projektarbeitsbereich verlangen eine neue Quellenprüfung. Verlorener Projektzugriff stoppt weitere Werkzeuge; wartende Projektbenachrichtigungen prüfen den aktuellen Zugriff des Empfängers erneut. Ein identischer Wiederholungsversuch verwendet vorhandene Ressourcen. Intervall und Quellen verwaltest du unter Routinen; die Tabelle öffnest du auf der Projektseite.
+
+Eine geplante Unterhaltung ohne Eigentümer in einem Projekt kann von Personen mit Bearbeitungsrecht für dieses Projekt umbenannt, archiviert oder gelöscht werden. Von einer anderen Person gestartete Chats bleiben unter deren Verwaltung.
+
+
+Beim Löschen eines Projekts werden auch seine Gedächtniseinträge und abgeleiteten geteilten Kopien entfernt. Registrierte Provider-Webhooks werden vor der kaskadierenden Löschung der Routinen bestmöglich entfernt. Ein nicht erreichbarer Provider wird protokolliert und blockiert die Löschung nicht.

@@ -229,7 +229,7 @@ export function ContinueSession({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -241,7 +241,7 @@ export function ContinueSession({
           <>
             {t("discardBody")}
             {discardError && (
-              <span role="alert" className="text-destructive mt-2 block">
+              <span role="alert" className="text-destructive-ink mt-2 block">
                 {discardError}
               </span>
             )}

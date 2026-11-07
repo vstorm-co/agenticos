@@ -152,7 +152,7 @@ export function AddToDatasetDialog({
         <div className={cn(DIALOG_BODY, "space-y-5")}>
           {listingError && (
             <div role="alert" className="space-y-2 text-sm">
-              <p className="text-destructive">{getErrorMessage(listingError, tErrors)}</p>
+              <p className="text-destructive-ink">{getErrorMessage(listingError, tErrors)}</p>
               <Button variant="outline" size="sm" onClick={() => void refetch()}>
                 {tc("retry")}
               </Button>
@@ -169,7 +169,7 @@ export function AddToDatasetDialog({
             <p className="text-muted-foreground text-sm">{t("checkingSource")}</p>
           )}
           {source.error && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {getErrorMessage(source.error, tErrors)}
             </p>
           )}
@@ -204,7 +204,7 @@ export function AddToDatasetDialog({
             <DatasetSourcePreview question={asked.question} answer={answer} />
           )}
           {failure && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {failure}
             </p>
           )}

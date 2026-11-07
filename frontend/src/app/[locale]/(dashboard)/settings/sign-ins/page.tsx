@@ -1,9 +1,4 @@
-"use client";
-
-import { useTranslations } from "next-intl";
-
 import { MySignIns } from "@/components/browser/my-sign-ins";
-import { SectionHeading } from "@/components/ui";
 
 /**
  * Your kept browser sign-ins (#2129).
@@ -13,12 +8,5 @@ import { SectionHeading } from "@/components/ui";
  * them, so no permission gates the page.
  */
 export default function SignInsPage() {
-  const t = useTranslations("pages.signIns");
-
-  return (
-    <div className="flex flex-1 flex-col space-y-6">
-      <SectionHeading title={t("title")} description={t("description")} />
-      <MySignIns />
-    </div>
-  );
+  return <MySignIns />;
 }

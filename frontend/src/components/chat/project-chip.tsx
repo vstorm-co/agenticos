@@ -1,8 +1,10 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { FolderKanban, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -95,9 +97,7 @@ export function ProjectChip({
         // The agent picker's own chip beside it - its fill, its radius, a 24px
         // mark where the avatar sits - so the two read as one row of choices.
         <span className="bg-foreground/[0.06] text-foreground inline-flex max-w-48 min-w-0 items-center gap-1.5 rounded-lg py-1 pr-1.5 pl-1">
-          <span className="bg-foreground/8 flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-            <FolderKanban className="h-3 w-3" aria-hidden />
-          </span>
+          <ProjectAvatar name={project.name} size="sm" />
           <Link
             href={ROUTES.PROJECT_DETAIL(project.id)}
             className="truncate text-sm font-medium hover:underline"

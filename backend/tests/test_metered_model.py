@@ -111,3 +111,21 @@ async def test_a_spent_budget_refuses_the_stream_before_it_opens():
     with guarded_by(guard), pytest.raises(BudgetExceeded):
         async with agent.run_stream("hello") as run:
             await run.get_output()
+
+
+@pytest.mark.parametrize("streamed", [False, True])
+async def test_otari_ambient_requests_keep_the_provider_needed_to_price_the_selector(
+    streamed: bool,
+) -> None:
+    model = TestModel(custom_output_text="answer", model_name="anthropic:claude-sonnet-4-6")
+    model._system = "otari"
+    ledger = SpendLedger()
+    async with Agent(MeteredModel(model)) as agent:
+        with metered_by(ledger):
+            if streamed:
+                async with agent.run_stream("hello") as run:
+                    assert await run.get_output() == "answer"
+            else:
+                assert (await agent.run("hello")).output == "answer"
+    assert ledger.total_usd > 0
+    assert not ledger.has_unpriced_models

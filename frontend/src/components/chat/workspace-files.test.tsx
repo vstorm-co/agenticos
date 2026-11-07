@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 const localInvoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/desktop/shell", async (original) => ({
@@ -12,6 +13,7 @@ vi.mock("@/lib/desktop/shell", async (original) => ({
   invokeShell: localInvoke,
 }));
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
@@ -52,6 +54,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  useSourcesPanelStore.getState().close();
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue(workspace());
 });
@@ -649,6 +652,175 @@ describe("the workspace panel", () => {
     expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
+  describe("downloading a folder as a zip (#2479)", () => {
+    // The anchor's `click` and the toast are spied on; nothing else here is.
+    afterEach(() => vi.restoreAllMocks());
+
+    const repo = () =>
+      workspace({
+        items: [
+          { path: "/uploads/aaaaaaaa-repo", size: null, is_dir: true, modified_at: null },
+          { path: "/uploads/aaaaaaaa-repo/app.py", size: 8, is_dir: false, modified_at: null },
+        ],
+        total: 2,
+      });
+
+    function saved(): string[] {
+      const names: string[] = [];
+      Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        names.push(this.download);
+      });
+      vi.mocked(apiClient.raw).mockResolvedValue({
+        blob: async () => new Blob(["PK"]),
+      } as unknown as Response);
+      return names;
+    }
+
+    it("offers a folder as a zip, through the conversation", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(repo());
+      const names = saved();
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Download aaaaaaaa-repo as .zip" }),
+      );
+
+      await waitFor(() => expect(names).toEqual(["aaaaaaaa-repo.zip"]));
+      expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+        "/conversations/c1/workspace/archive?path=uploads%2Faaaaaaaa-repo",
+      );
+    });
+
+    it("offers the whole workspace as one zip", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(repo());
+      const names = saved();
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Download as .zip" }));
+
+      await waitFor(() => expect(names).toEqual(["workspace.zip"]));
+      expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+        "/conversations/c1/workspace/archive?path=",
+      );
+    });
+
+    it.each([
+      [
+        new ApiError(413, "This folder is too large to download as one zip."),
+        "This folder is too large to download as one zip.",
+      ],
+      [new TypeError("network error"), "The folder could not be downloaded."],
+    ])(
+      "says why a download failed: the server's reason, else a translated one (%s)",
+      async (failure, said) => {
+        const { toast } = await import("sonner");
+        const error = vi.spyOn(toast, "error");
+        vi.mocked(apiClient.get).mockResolvedValue(repo());
+        vi.mocked(apiClient.raw).mockRejectedValue(failure);
+
+        draw(
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[]}
+            revision={0}
+          />,
+        );
+        await openPanel();
+        await userEvent.click(await screen.findByRole("button", { name: "Download as .zip" }));
+
+        await waitFor(() => expect(error).toHaveBeenCalledWith(said));
+      },
+    );
+
+    it("offers an empty folder as a zip, which the server answers with that folder", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          items: [
+            { path: "/uploads/aaaaaaaa-repo/empty", size: null, is_dir: true, modified_at: null },
+          ],
+          total: 1,
+        }),
+      );
+      const names = saved();
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Download empty as .zip" }));
+
+      await waitFor(() => expect(names).toEqual(["empty.zip"]));
+      expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+        "/conversations/c1/workspace/archive?path=uploads%2Faaaaaaaa-repo%2Fempty",
+      );
+      expect(screen.getByRole("button", { name: "Download as .zip" })).toBeVisible();
+    });
+
+    it("offers nothing to zip in a workspace with no files", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(workspace({ items: [], total: 0 }));
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      expect(screen.queryByRole("button", { name: "Download as .zip" })).toBeNull();
+    });
+
+    it("counts an unpacked archive's folder as the attachment's copy", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(repo());
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[
+            {
+              id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+              filename: "repo.zip",
+              mime_type: "application/zip",
+              file_type: "archive",
+            },
+          ]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      expect(screen.queryByText("Attached to the chat")).toBeNull();
+    });
+  });
+
   describe("files people attached", () => {
     const attachment = (overrides: Record<string, unknown> = {}) => ({
       id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -878,4 +1050,19 @@ it("groups duplicate file names under their actual folders and opens the full pa
       "/conversations/c1/workspace/file?path=site%2Findex.html",
     ),
   );
+});
+
+it("switches between files and sources without keeping both panels open", async () => {
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+  );
+  await openPanel();
+  act(() =>
+    useSourcesPanelStore
+      .getState()
+      .open([{ index: 1, type: "web", title: "Source", url: "https://example.org" }]),
+  );
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  await openPanel();
+  expect(useSourcesPanelStore.getState().isOpen).toBe(false);
 });

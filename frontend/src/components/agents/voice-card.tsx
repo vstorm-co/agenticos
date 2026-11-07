@@ -1,6 +1,7 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { AudioLines, Headphones, Info, Mic } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -152,9 +153,14 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
     // The anchors the composer's call button and dictation hint link to.
     <Card id={AGENT_CALLS_ANCHOR} data-tour="agent-voice" className="scroll-mt-20">
       <span id={AGENT_DICTATION_ANCHOR} className="block scroll-mt-20" aria-hidden />
-      <CardHeader>
-        <CardTitle>{t("voiceTitle")}</CardTitle>
-        <CardDescription>{t("voiceDescription")}</CardDescription>
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <span className="bg-foreground/[0.05] text-foreground/80 flex size-10 shrink-0 items-center justify-center rounded-xl">
+          <Headphones className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <CardTitle>{t("voiceTitle")}</CardTitle>
+          <CardDescription>{t("voiceDescription")}</CardDescription>
+        </div>
       </CardHeader>
       {/* Two things people do with their voice, told apart rather than stacked:
           a call is a live, two-way conversation on a realtime model; dictation
@@ -162,18 +168,47 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
           own tab, under one sentence saying what it is. */}
       <CardContent>
         <Tabs value={tab} onValueChange={(next) => setTab(next as VoiceTab)}>
-          <TabsList>
-            {conversation && <TabsTrigger value="calls">{t("voiceTabCalls")}</TabsTrigger>}
-            <TabsTrigger value="dictation">{t("voiceTabDictation")}</TabsTrigger>
+          <TabsList
+            className={cn(
+              "grid gap-2 overflow-visible shadow-none sm:gap-2",
+              conversation && "sm:grid-cols-2",
+            )}
+          >
+            {conversation && (
+              <TabsTrigger
+                value="calls"
+                aria-label={t("voiceTabCalls")}
+                className="data-[state=active]:border-foreground/15 data-[state=active]:bg-foreground/[0.05] h-auto min-w-0 items-start justify-start gap-3 rounded-xl border border-transparent p-3 text-left whitespace-normal"
+              >
+                <AudioLines className="mt-0.5 size-5 shrink-0" aria-hidden />
+                <span className="min-w-0 space-y-1">
+                  <span className="block text-sm font-medium">{t("voiceTabCalls")}</span>
+                  <span className="text-muted-foreground block text-xs leading-5">
+                    {t("voiceCallsLead")}
+                  </span>
+                </span>
+              </TabsTrigger>
+            )}
+            <TabsTrigger
+              value="dictation"
+              aria-label={t("voiceTabDictation")}
+              className="data-[state=active]:border-foreground/15 data-[state=active]:bg-foreground/[0.05] h-auto min-w-0 items-start justify-start gap-3 rounded-xl border border-transparent p-3 text-left whitespace-normal"
+            >
+              <Mic className="mt-0.5 size-5 shrink-0" aria-hidden />
+              <span className="min-w-0 space-y-1">
+                <span className="block text-sm font-medium">{t("voiceTabDictation")}</span>
+                <span className="text-muted-foreground block text-xs leading-5">
+                  {t("voiceDictationLead")}
+                </span>
+              </span>
+            </TabsTrigger>
           </TabsList>
           {conversation && (
             <TabsContent value="calls" className="mt-4 space-y-4">
-              <p className="text-muted-foreground text-sm">{t("voiceCallsLead")}</p>
               <VoiceConversationFields {...conversation} disabled={disabled} />
             </TabsContent>
           )}
           <TabsContent value="dictation" className="mt-4 space-y-4">
-            <p className="text-muted-foreground text-sm">{t("voiceDictationLead")}</p>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="agent-voice-dictation-switch">{t("voiceDictationProvider")}</Label>

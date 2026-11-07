@@ -127,3 +127,20 @@ def test_describe_filters_names_columns_and_options_by_label():
         {"column": "Stage", "op": "is_null", "value": True},
         {"column": "Name", "op": "starts_with", "value": str(WON)},
     ]
+
+
+def test_schema_presents_only_live_columns_and_live_choices():
+    from app.services.virtual_tables.presentation import schema
+
+    archived = NAME.model_copy(update={"archived": True})
+    table = TABLE.model_copy(update={"columns": [STAGE, archived]})
+    assert schema(table)["columns"] == [
+        {
+            "id": str(STAGE.id),
+            "label": "Stage",
+            "type": "single_select",
+            "nullable": STAGE.nullable,
+            "options": ["Won", "Lost"],
+        }
+    ]
+    assert "options" not in schema(TABLE)["columns"][-1]

@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.vector_tables import VectorScope
@@ -22,7 +21,13 @@ from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import CollectionInfo
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
+from app.repositories import (
+    collection_teardown_repo,
+    knowledge_base_repo,
+    organization_repo,
+    rag_document_repo,
+    user_repo,
+)
 from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.schemas.rag import (
     RAGCollectionInfo,
@@ -36,6 +41,7 @@ from app.schemas.rag import (
 from app.schemas.sync_source import blank_is_absent
 from app.services.file_storage import get_file_storage
 from app.services.background_jobs import enqueue
+from app.services import rag_scratch
 from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
@@ -173,8 +179,7 @@ class RAGDocumentService:
         The teardown uses this lock before reserving a name and deleting its rows.
         A CLI insert therefore either precedes that delete or observes its tombstone.
         """
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
-        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+        if not await collection_teardown_repo.hold_unreserved(self.db, collection_name):
             raise BadRequestError(
                 message="Collection is being deleted. Try again shortly.",
                 details={"collection": collection_name},
@@ -232,10 +237,20 @@ class RAGDocumentService:
 
         `knowledge_gap_topic_id` is the knowledge gap topic a person wrote the
         document for, when they added it from the topic.
+        The previous attempts retired are those in the new row's own scope - the
+        base it is filed under, else the unfiled rows of `organization_id` - and
+        never another tenant's or another base's at the same path (#2747).
+
+        Raises:
+            NotFoundError: If `knowledge_base_id` names no knowledge base.
         """
         if source_path:
             await rag_document_repo.discard_failed(
-                self.db, collection_name=collection_name, source_path=source_path
+                self.db,
+                collection_name=collection_name,
+                source_path=source_path,
+                organization_id=organization_id,
+                scope=await self._filing_scope(knowledge_base_id),
             )
         return await rag_document_repo.create(
             self.db,
@@ -262,6 +277,18 @@ class RAGDocumentService:
             initiated_by_user_id=initiated_by_user_id,
             knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
+
+    async def _filing_scope(self, knowledge_base_id: UUID | None) -> CollectionScope | None:
+        """The scope of the base a new row is filed under, `None` for an unfiled one."""
+        if knowledge_base_id is None:
+            return None
+        kb = await knowledge_base_repo.get_by_id(self.db, knowledge_base_id)
+        if kb is None:
+            raise NotFoundError(
+                message="Knowledge base not found",
+                details={"knowledge_base_id": str(knowledge_base_id)},
+            )
+        return CollectionScope.of(kb)
 
     async def dispatch_upload(
         self,
@@ -338,11 +365,10 @@ class RAGDocumentService:
         # slipped into that window would `_ensure_collection`-recreate the table the
         # drop then destroys, orphaning this row and losing its vectors. The reservation
         # is committed with the delete, so this catches every upload that arrives after
-        # it. Deliberately unlocked: taking the teardown lock here, before the insert's
-        # foreign-key lock on the knowledge_bases row, would invert
-        # `KnowledgeBaseService.delete`'s order (that row first, then the teardown lock)
-        # and deadlock. Fully serialising the narrow commit-to-reserve window, and the
-        # worker ingestion paths, is #1382 (#1362, #1364).
+        # it. Unlocked, so it is best-effort: the teardown takes the name and then the
+        # base row (`KnowledgeBaseService._tear_down`), and nothing here holds the name.
+        # Fully serialising the narrow commit-to-reserve window, and the worker
+        # ingestion paths, is #1382 (#1362, #1364).
         if await collection_teardown_repo.is_reserved(self.db, collection_name):
             raise AlreadyExistsError(
                 message=f"A collection named '{collection_name}' is being torn down; "
@@ -411,7 +437,8 @@ class RAGDocumentService:
 
         The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
         storage may be somewhere the worker container cannot reach, and the
-        directory is shared between the two.
+        directory is shared between the two. One file per dispatch, removed by
+        the job once no attempt of it is coming (`app.services.rag_scratch`).
 
         Queued as an `ingest-document` job in this request's transaction: the job
         reads this document by id on a session of its own, and the two commit
@@ -420,9 +447,9 @@ class RAGDocumentService:
         in a child process of the ingest pool, so a parse that runs out of memory
         is stopped there and written down on the job, not in the API.
         """
-        tmp_dir = Path(settings.MEDIA_DIR) / "_rag_tmp"
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-        tmp_path = str(tmp_dir / f"{doc_id!s}{Path(filename).suffix.lower()}")
+        scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
+        scratch.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = str(scratch)
         # anyio, not open(): an upload can be tens of megabytes, and writing it
         # synchronously stalls every other request on this worker until it lands.
         async with await anyio.open_file(tmp_path, "wb") as f:
@@ -611,8 +638,18 @@ class RAGDocumentService:
         read back" rule `complete_ingestion` documents (#1598): a stale
         settlement - from an attempt a later retry already superseded - is
         ignored rather than overwriting a newer attempt's own outcome.
+
+        The document's organization and its uploader are taken `FOR KEY SHARE`
+        before the status write - what the failure notification's insert takes
+        anyway, only earlier. Taken after it, an account deletion holding them
+        could wait for this document's row (deleting it, or clearing its
+        uploader) while the notification waited for the deletion (#2682).
         """
         doc = await self.get_document(doc_id)
+        if doc.organization_id is not None:
+            await organization_repo.hold_key_share(self.db, doc.organization_id)
+        if doc.initiated_by_user_id is not None:
+            await user_repo.hold_key_share(self.db, [doc.initiated_by_user_id])
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -801,6 +838,19 @@ class RAGDocumentService:
                 delete_files_best_effort(deleted.storage_paths),
                 name="delete-document-file",
             )
+        # The parse scratch copies too (#2681), for a document still processing - and
+        # one a deployment from before #2681 never removed. A job still parsing one
+        # finds its row gone and ends as a refusal; the hourly sweep is the backstop
+        # for a copy this best-effort task loses.
+        spawn_after_commit(
+            self.db,
+            rag_scratch.discard_document(
+                doc.id,
+                filename=doc.filename,
+                attempts=doc.ingestion_attempt,
+            ),
+            name="delete-document-scratch",
+        )
 
     async def unlisted_by_source(
         self, *, sync_source_id: UUID, collection_name: str, listed: set[str]

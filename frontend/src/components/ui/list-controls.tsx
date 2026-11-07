@@ -154,7 +154,7 @@ export function SearchInput({
           }
         }}
         className={cn(
-          "border-foreground/12 h-9 rounded-xl border pl-8 md:text-[13px] [&::-webkit-search-cancel-button]:appearance-none",
+          "h-9 pl-8 md:text-[13px] [&::-webkit-search-cancel-button]:appearance-none",
           value ? "pr-11" : "pr-3",
         )}
       />
@@ -166,7 +166,7 @@ export function SearchInput({
             onChange("");
             input.current?.focus();
           }}
-          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring absolute inset-y-0 right-0 flex w-11 touch-manipulation items-center justify-center rounded-r-xl focus-visible:outline-2 focus-visible:-outline-offset-2"
+          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring absolute inset-y-0 right-0 flex w-11 touch-manipulation items-center justify-center rounded-r-lg focus-visible:outline-2 focus-visible:-outline-offset-2"
         >
           <X className="size-4" aria-hidden />
         </button>

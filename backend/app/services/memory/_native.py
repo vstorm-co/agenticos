@@ -68,7 +68,7 @@ async def read_file(
         return None if row is None else row.content
 
 
-async def _person_still_exists(db: AsyncSession, owner_key: str) -> bool:
+async def person_still_exists(db: AsyncSession, owner_key: str) -> bool:
     """Whether this note has somebody to be about, under the erasure's own lock.
 
     Only asked of a `person:` key; a room outlives every member of it. The lock
@@ -108,7 +108,7 @@ async def write_file(
     reaching for the wrong verb.
     """
     async with get_db_context() as db:
-        if not await _person_still_exists(db, owner_key):
+        if not await person_still_exists(db, owner_key):
             # Their account is being deleted, or is gone. `owner_key` has no
             # foreign key, so nothing else would have stopped this note from
             # being written about somebody who asked to be forgotten - and a

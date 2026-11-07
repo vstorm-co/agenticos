@@ -42,7 +42,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentKind, AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.schemas.agent import AgentCreate, LocalCodingAgent
+from app.schemas.agent import AgentCreate, LocalCodingAgent, PublishedCodingAgent
 from app.schemas.deployment_settings import DeploymentLimits
 from app.services import agent_templates
 from app.services.agent_registry import (
@@ -55,6 +55,12 @@ from app.services.agent_registry import (
 )
 
 REGISTRY_PATH = "app.services.agent_registry"
+
+
+@pytest.fixture(autouse=True)
+def _agent_deletion_fence(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deletion/FK serialization is covered against PostgreSQL in test_tasks."""
+    monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.fence_deletion", AsyncMock())
 
 
 @pytest.fixture(autouse=True)
@@ -528,11 +534,23 @@ class TestList:
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_icons",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
+                f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
                 new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_local_workspaces",
+                new=AsyncMock(return_value=set()),
             ),
         ):
             yield
@@ -575,23 +593,46 @@ class TestList:
                 new=AsyncMock(return_value={version_id: ["What can you do?"]}),
             ) as starters,
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
+                new=AsyncMock(
+                    return_value={version_id: {"What can you do?": "Explore possibilities"}}
+                ),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_icons",
+                new=AsyncMock(return_value={version_id: {"What can you do?": "compass"}}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities",
                 new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
+                f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
                 new=AsyncMock(
-                    return_value={version_id: LocalCodingAgent(harness="codex", access="edit")}
+                    return_value={
+                        version_id: PublishedCodingAgent(harness="codex", runs_on="this_computer")
+                    }
                 ),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_local_workspaces",
+                new=AsyncMock(return_value={version_id}),
             ),
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert rows[0].local_coding_agent == LocalCodingAgent(harness="codex", access="edit")
         assert rows[1].local_coding_agent is None
+        assert rows[0].local_workspace is True
+        assert rows[1].local_workspace is False
+        assert rows[0].personal_coding_harness is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
         assert rows[1].starters == []
+        assert rows[0].starter_icons == {"What can you do?": "compass"}
+        assert rows[1].starter_icons == {}
+        assert rows[0].starter_titles == {"What can you do?": "Explore possibilities"}
+        assert rows[1].starter_titles == {}
         assert rows[0].published_capabilities == ["sandbox", "computer_use"]
         assert rows[1].published_capabilities == []
 
@@ -3475,6 +3516,7 @@ class TestArchiveAndDelete:
             patch(f"{REGISTRY_PATH}.agent_repo.delete", new=AsyncMock()) as delete,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
+            patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -4400,6 +4442,7 @@ class TestWhatANewAgentOpensWith:
             patch.object(
                 AgentRegistryService, "template_skills", new=AsyncMock(return_value=skills)
             ),
+            patch("app.services.shipped_agents.ShippedAgentService.ensure_skills", new=AsyncMock()),
         ):
             await AgentRegistryService(_db()).create(_ctx(), spec, from_starter=from_starter)
         return create.call_args.kwargs["draft_spec"]
@@ -4424,6 +4467,7 @@ class TestWhatANewAgentOpensWith:
             for binding in agent_templates.for_this_deployment(
                 starter.capabilities, container_workspace=True
             )
+            if binding["id"] not in {"computer_use", "browser_use", "coding_agent"}
         ]
         assert written["mcp_servers"] == [
             {"account": "platform", "allowed_tools": None, "approval": "writes"}
@@ -4707,7 +4751,7 @@ class TestBrowserRefusedAtPublish:
     with `edit` writes - and the guard admits only public
     addresses, which refuses the isolated browser service on the deployment's own
     network and accepts a debugger exposed to the internet. `BROWSER_CDP_ALLOWED_HOSTS`
-    is the same control `MEM0_ALLOWED_HOSTS` is, for the same reason.
+    is a host allowlist, for the reason a spec-supplied address needs one.
 
     The blank case is here too, because `cdp_url` has to stay optional for the
     capability to be enumerable - so publish is the only place to demand one.
@@ -5085,7 +5129,7 @@ class TestAgentTemplates:
         entry.name = "Clinical procedure lookup"
         row = MagicMock()
         row.id, row.name = uuid4(), "Clinical procedure lookup"
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "procedure-assistant", template.name
 
         with (
@@ -5173,7 +5217,7 @@ class TestAgentTemplates:
 
         row = MagicMock()
         row.id, row.name = uuid4(), "artifact-pages"
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
@@ -5208,7 +5252,7 @@ class TestAgentTemplates:
         template.starters, template.avatar = (), None
         row = MagicMock()
         row.id, row.name = uuid4(), "artifact-pages"
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
@@ -5237,7 +5281,7 @@ class TestAgentTemplates:
         template.capabilities, template.skills = (), ()
         template.mcp, template.attach, template.budget_usd = (), (), None
         template.starters, template.avatar = ("What can you do?",), avatar
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
@@ -5268,7 +5312,7 @@ class TestAgentTemplates:
         template.skills, template.mcp, template.attach = (), (), ()
         template.budget_usd = None
         template.starters, template.avatar = (), None
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "release-notes-writer", template.name
 
         with (
@@ -5392,10 +5436,6 @@ class TestTheShippedTemplatesOnDisk:
                     await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
     def test_the_general_purpose_template_delegates_and_works_in_a_workspace(self):
-        """`general/agenticos` is the one template meant to be useful for
-        anything, so what it switches on is the point of it: files and a shell,
-        planning, delegation to specialists sharing that workspace, and the web.
-        """
         from app.services import agent_templates
 
         template = agent_templates.get("general/agenticos")
@@ -5403,25 +5443,17 @@ class TestTheShippedTemplatesOnDisk:
         bound = {binding["id"]: binding.get("config") or {} for binding in template.capabilities}
         assert {
             "sandbox",
-            "planning",
             "subagents",
             "web_research",
             "web_fetch",
             "browser_use",
-        } <= set(bound)
-        # Its own container, and nothing it would carry without anything to read:
-        # no knowledge or context bound, no past-conversation search, no tool search,
-        # and no second interpreter beside the shell.
-        assert bound["sandbox"]["backend"] == "service"
-        assert not {
-            "code_execution",
-            "knowledge",
-            "context",
-            "conversation_search",
+            "memory_files",
             "tool_search",
-        } & set(bound)
+        } <= set(bound)
+        assert "planning" not in bound
+        assert bound["sandbox"]["backend"] == "service"
         delegation = bound["subagents"]
-        assert delegation["share_with_delegates"] == ["sandbox"]
+        assert "sandbox" in delegation["share_with_delegates"]
         assert {specialist["name"] for specialist in delegation["inline"]} == {
             "explore",
             "research",
@@ -5608,6 +5640,9 @@ class TestUndoingADraft:
         delete = AsyncMock()
         monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
 
+        monkeypatch.setattr(
+            "app.repositories.task.has_agent_execution", AsyncMock(return_value=False)
+        )
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
 
         delete.assert_awaited_once_with(db, agent)
@@ -6009,6 +6044,24 @@ async def test_workflow_guidance_does_not_depend_on_unrelated_project_tools():
         new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
     ):
         actual = await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec)
-    assert "# Build automations and integrations" in actual.instructions
+    assert "# Choose the smallest reliable automation" in actual.instructions
     assert "# Ongoing work belongs in Projects" not in actual.instructions
     assert actual.mcp_servers == spec.mcp_servers
+
+
+def test_where_a_coding_agent_runs_decides_which_listing_field_names_it() -> None:
+    """The person's folder fills one field, a private cloud task on their account the other."""
+    from app.services.agent_registry import _local_coding_agent, _personal_coding_harness
+
+    local = PublishedCodingAgent(harness="codex", runs_on="this_computer", access="read_only")
+    personal = PublishedCodingAgent(harness="codex", runs_on="personal_sandbox")
+    shared = PublishedCodingAgent(runs_on="sandbox")
+
+    assert _local_coding_agent(local) == LocalCodingAgent(harness="codex", access="read_only")
+    assert _personal_coding_harness(local) is None
+    assert _local_coding_agent(personal) is None
+    assert _personal_coding_harness(personal) == "codex"
+    assert _local_coding_agent(shared) is None
+    assert _personal_coding_harness(shared) is None
+    assert _local_coding_agent(None) is None
+    assert _personal_coding_harness(None) is None

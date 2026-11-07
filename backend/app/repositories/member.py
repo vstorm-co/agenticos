@@ -38,7 +38,7 @@ async def get(
         OrganizationMember.user_id == user_id,
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -80,6 +80,7 @@ async def get_active(
     """
     result = await db.execute(
         select(OrganizationMember)
+        .execution_options(populate_existing=True)
         .join(User, User.id == OrganizationMember.user_id)
         .where(
             OrganizationMember.organization_id == organization_id,

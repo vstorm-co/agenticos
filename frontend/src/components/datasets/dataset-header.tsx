@@ -150,7 +150,7 @@ export function DatasetHeader({
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
+                    className="text-destructive-ink focus:text-destructive-ink"
                     onSelect={onDelete}
                   >
                     <Trash2 className="h-4 w-4" />

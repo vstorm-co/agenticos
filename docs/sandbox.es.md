@@ -1,5 +1,5 @@
 ---
-source_sha: "51c9d1428fce"
+source_sha: "4ff4f68268d0"
 ---
 
 # La sandbox { #the-sandbox }
@@ -20,6 +20,10 @@ otra, y cuánto sobrevive cada cosa.
 
 [Configuración](configuration.md#the-services-own-settings) es la referencia
 variable por variable.
+
+Los despliegues Podman usan la [ruta manual con Docker Compose](deploy.md#podman-support)
+y un override adicional para el socket sandbox y los permisos del workspace.
+El inicio rápido admite Docker; `podman-compose` 1.6.0 no está soportado.
 
 ## Qué se ejecuta dónde { #what-runs-where }
 
@@ -661,6 +665,53 @@ bytes son una columna de la fila que el listado ya leyó.
 El panel **Files** del chat y el listado propio de un workspace dibujan sus
 mosaicos como **All files**: las primeras líneas de un archivo de texto
 almacenado, y una imagen como miniatura dentro del mismo límite.
+
+### Descargar una carpeta como zip { #downloading-a-folder-as-a-zip }
+
+El panel **Files** del chat tiene **Descargar como .zip** para el workspace entero,
+y un botón de descarga en cada carpeta. Ambos llaman a
+`GET /api/v1/conversations/{id}/workspace/archive?path=<folder>` (un `path` vacío
+es el workspace entero), que se autoriza igual que `/workspace/raw`: leyendo la
+conversación. Así, una persona con la que se compartió el chat puede descargar una
+carpeta suya, y nadie más.
+
+El zip contiene lo que muestra el panel. Los prefijos y las carpetas de
+herramientas citados arriba (`.git`, `node_modules`, `.venv`, ...) se dejan fuera.
+El listado para un zip llega a 64 niveles de profundidad, no a seis, porque un
+repositorio es más profundo que una página de mosaicos, y pide al host hasta 100.000
+entradas, porque el host lista también las carpetas ocultas. Los archivos quedan
+bajo una carpeta superior con el nombre de la carpeta descargada.
+
+Las carpetas son entradas propias, así que una carpeta vacía, como una descomprimida
+de un archivo adjunto, también está en el zip. Una carpeta vacía descargada sola es
+un zip que contiene solo esa carpeta, no un 404: el panel la muestra, así que la
+descarga da lo que se mostró. Una carpeta que el panel no muestra es un 404.
+
+Una barra invertida, un `%` o un carácter de control en el nombre de un archivo se codifica
+con porcentajes en el zip (`a\b` pasa a ser `a%5Cb`), porque un descompresor en
+Windows lee la barra invertida como separador de carpetas.
+
+Se lista entera antes de enviar el primer byte. Una carpeta con más de
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` entradas (archivos y carpetas, la carpeta superior
+incluida, contadas como las de un archivo adjunto) o más de
+`WORKSPACE_ARCHIVE_MAX_BYTES`, o una que el host no pudo listar entera, se rechaza
+con un 413; un zip al que le faltan archivos sin decirlo sería peor. Después los
+archivos se leen y se transmiten de uno en uno.
+
+Un archivo que no se puede leer una vez empezada la descarga se deja fuera y se
+nombra, con el motivo que da el host, en un `NOT-INCLUDED.txt` en la carpeta
+superior del zip (`_NOT-INCLUDED.txt` si la carpeta tiene un archivo con ese
+nombre). Es un archivo borrado después del listado, o uno mayor que el propio límite
+de lectura del host (`SANDBOXD_MAX_READ_BYTES`, 8 MiB por defecto). Si el host deja
+de responder, o los archivos crecen por encima del límite de bytes después del
+listado, la transmisión se detiene, y la descarga queda incompleta y no se abre.
+
+Una carpeta de este ordenador, en la app de escritorio, no tiene ese botón: ya es
+una carpeta de este ordenador.
+
+Los archivos comprimidos van también en la otra dirección: un `.zip` o `.tar.gz`
+adjuntado a un chat se descomprime en `uploads/`; ver
+[Archivos comprimidos](file-processing.md#archives).
 
 ## Cuánto sobrevive cada cosa { #how-long-anything-survives }
 

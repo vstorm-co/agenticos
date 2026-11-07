@@ -4,6 +4,7 @@ import contextlib
 import logging
 import time
 from collections.abc import Mapping
+from contextlib import AsyncExitStack
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
@@ -175,6 +176,11 @@ def _turn_failed(exc: Exception) -> str:
 _ANSWER_NOT_SAVED = "the answer could not be saved."
 """What the away notice says when the run finished and its answer's write failed."""
 
+_UNSAVED_REPLY_NOTICE = (
+    "The assistant's reply could not be saved. "
+    "Copy any text you need before leaving this conversation."
+)
+
 
 class _Outcome(NamedTuple):
     """How a turn ended, for telling somebody who was not there to see it."""
@@ -198,6 +204,7 @@ class AgentSession:
         organization: Organization,
         auth_token: str | None = None,
     ) -> None:
+        self._admission_stack: AsyncExitStack | None = None
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
@@ -230,6 +237,7 @@ class AgentSession:
         # the socket: left unanswered, it parks the run rather than being read as
         # declined (#2064). A delegate's question has no such afterlife.
         self._round_parks = False
+        self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -452,7 +460,30 @@ class AgentSession:
     async def _run_turn(self, data: dict[str, Any]) -> None:
         """Run one turn, emitting a terminal `complete` even when stopped."""
         try:
-            await self.process_message(data)
+            async with AsyncExitStack() as admission:
+                self._admission_stack = admission
+                raw_id = data.get("conversation_id", self.current_conversation_id)
+                if isinstance(raw_id, str):
+                    try:
+                        conversation_id = UUID(raw_id)
+                    except ValueError:
+                        conversation_id = None
+                    if conversation_id is not None:
+                        from app.services.conversation_turns import claim
+
+                        async with get_db_context() as db:
+                            await ConversationService(db).get_conversation(
+                                conversation_id,
+                                organization_id=self.organization_id,
+                                user_id=self.user.id,
+                                for_write=True,
+                                turn=True,
+                                include_favourite=False,
+                            )
+                        await admission.enter_async_context(
+                            claim(conversation_id, background=False)
+                        )
+                await self.process_message(data)
         except asyncio.CancelledError:
             await self._emit(
                 "complete",
@@ -462,7 +493,10 @@ class AgentSession:
                 },
             )
             raise
+        except AppException as exc:
+            await self._emit("error", {"message": exc.message})
         finally:
+            self._admission_stack = None
             # `complete` precedes persistence/trace cleanup. Free the slot before
             # inviting another prompt, so receiving this frame is an admission guarantee.
             self._turn_task = None
@@ -622,6 +656,22 @@ class AgentSession:
             await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
+        self._question_detached = False
+        if prompt.newly_created and self.current_conversation_id:
+            await self._emit(
+                "conversation_created",
+                {"conversation_id": self.current_conversation_id},
+            )
+        if (
+            prompt.newly_created
+            and self.current_conversation_id
+            and self._admission_stack is not None
+        ):
+            from app.services.conversation_turns import claim
+
+            await self._admission_stack.enter_async_context(
+                claim(UUID(self.current_conversation_id), background=False)
+            )
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets
@@ -703,12 +753,6 @@ class AgentSession:
                         },
                     )
                 await chat_room.turn_begun(self._live, self.user.id)
-            if prompt.newly_created and self.current_conversation_id:
-                await self._emit(
-                    "conversation_created",
-                    {"conversation_id": self.current_conversation_id},
-                )
-
             await self._emit(
                 "user_prompt",
                 {
@@ -743,6 +787,7 @@ class AgentSession:
                     timeline=timeline,
                     tool_calls=collected_tool_calls,
                     prompt=user_message,
+                    draft_tools=lambda: opened[0].draft_tools if opened else (),
                 )
 
                 turn = await ChatAgentRunner(db).run(
@@ -814,12 +859,13 @@ class AgentSession:
                     parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
                     | set(turn.questions),
                     mcp_origins=turn.mcp_origins,
+                    draft_tools=turn.draft_tools,
                 )
-                # Written, so the `finally` below has nothing left to save. It
-                # cannot read `turn` to work that out - the whole point of it is
-                # the paths where `turn` was never assigned.
+                # The save was attempted, so `finally` must not retry an uncertain
+                # write. A failure is reported below, before the turn completes.
                 answered = True
-                await self._remember_context(turn)
+                if assistant_msg_id is not None:
+                    await self._remember_context(turn)
                 if turn.run_id is not None and not turn.parked and not turn.questions:
                     # Only an answer that is there to come back to. A write that
                     # failed returns no id, and "answered while you were away"
@@ -850,6 +896,9 @@ class AgentSession:
                                 "id": str(parked.approval_id),
                                 "tool_call_id": parked.tool_call_id,
                                 "tool_name": parked.tool_name,
+                                "subagent_name": parked.subagent,
+                                "can_remember": turn.agent_version_id is not None
+                                and parked.subagent is None,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
@@ -866,6 +915,13 @@ class AgentSession:
                             for parked in turn.parked
                         ],
                     },
+                )
+
+            if self.current_conversation_id and assistant_msg_id is None:
+                # Keep completion (and its usage) after the notice: the client
+                # still needs to finish the streamed reply and any approval card.
+                await self._emit(
+                    "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
                 )
 
             await self._emit(
@@ -992,7 +1048,7 @@ class AgentSession:
         run = opened[0]
         if self.current_conversation_id is None:
             return
-        await persist_assistant_turn(
+        assistant_msg_id = await persist_assistant_turn(
             self.current_conversation_id,
             output,
             run.model_label,
@@ -1004,7 +1060,17 @@ class AgentSession:
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
             mcp_origins=run.mcp_origins,
+            draft_tools=run.draft_tools,
         )
+        if assistant_msg_id is None:
+            await self._emit(
+                "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
+            )
+        else:
+            await self._emit(
+                "message_saved",
+                {"message_id": assistant_msg_id, "conversation_id": self.current_conversation_id},
+            )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
         """Put one question to the client and return the answer as a string.
@@ -1086,6 +1152,10 @@ class AgentSession:
         which question is open *inside* it - the attribution has to be
         serialized with the round it names, and a nested acquire would deadlock.
         """
+        if self._closed or self._question_detached:
+            if self._round_parks:
+                raise _LeftUnanswered
+            return []
         loop = asyncio.get_running_loop()
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
@@ -1317,6 +1387,7 @@ class AgentSession:
         await self._stop_following()
         conversation_id = _conversation_id(raw)
         if conversation_id is None:
+            self._park_question_when_leaving(conversation_id)
             await self._leave_room()
             return
         async with get_db_context() as db:
@@ -1330,8 +1401,21 @@ class AgentSession:
             except NotFoundError:
                 await self._leave_room()
                 return
+        self._park_question_when_leaving(conversation_id)
         await self._enter_room(conversation_id)
         await self._follow_if_running(conversation_id)
+
+    def _park_question_when_leaving(self, conversation_id: str | None) -> None:
+        """A chat switch leaves the socket open; its own unanswered call must still park."""
+        self._question_detached = conversation_id != self._live
+        pending = self._ask_user_future
+        if (
+            self._question_detached
+            and self._round_parks
+            and pending is not None
+            and not pending.done()
+        ):
+            pending.set_exception(_LeftUnanswered())
 
     async def _follow_if_running(self, conversation_id: str) -> None:
         """Follow the turn being written in the conversation, unless this socket writes it.

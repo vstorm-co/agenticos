@@ -15,10 +15,10 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 
 class Pool(enum.StrEnum):
@@ -50,6 +50,12 @@ class Payload(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class WakeTask(Payload):
+    organization_id: UUID
+    task_id: UUID
+    revision: int = Field(ge=1)
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -69,6 +75,39 @@ class MoveProjectWorkspacePayload(Payload):
 def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
     """Isolate each attempt, so a lost worker cannot write into the activated copy."""
     return uuid5(transfer_id, str(attempt))
+
+
+class ChannelDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    platform: Literal["sms", "imessage"]
+    payload: dict[str, JsonValue]
+
+
+class EmailDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    body: str = Field(max_length=25 * 1024 * 1024)
+    attachment_handles: list[str] = Field(default_factory=list, max_length=10)
+
+
+class ChannelHandbackCall(Payload):
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, JsonValue]
+    result: str | None = None
+
+
+class ChannelHandback(Payload):
+    organization_id: UUID
+    run_id: UUID
+    bot_id: UUID
+    platform_chat_id: str
+    private_chat: bool
+    output: str
+    tool_calls: list[ChannelHandbackCall] = Field(default_factory=list)
+    generated_files: frozenset[str] = frozenset()
+    notice: bool = False
 
 
 class NoPayload(Payload):
@@ -110,11 +149,27 @@ def sync_source_key(source_id: UUID) -> str:
     return f"sync-source:{source_id}"
 
 
+class DialPhone(Payload):
+    call_id: UUID
+
+
 class FireTrigger(Payload):
     trigger_id: UUID
+    source_policy_id: UUID | None = None
+    activation_id: UUID | None = None
     event_context: str | None = None
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
+
+
+class DeliverRoutineAnswer(Payload):
+    organization_id: UUID
+    run_id: UUID
+
+
+class ConversationTaskJob(Payload):
+    task_id: UUID
+    organization_id: UUID
 
 
 class RunAgent(Payload):
@@ -209,10 +264,27 @@ class ThinkForPerson(Payload):
     user_id: UUID
 
 
+class ExtractMemory(Payload):
+    """One finished chat run, to be read for what a later conversation should remember (#2090)."""
+
+    organization_id: UUID
+    run_id: UUID
+    audience_user_id: UUID | None = None
+    """The runner's admitted person; absent on jobs queued before audience capture existed."""
+    audience_room_key: str | None = Field(default=None, max_length=200, pattern=r"^room:[^:]+:.+$")
+
+    @model_validator(mode="after")
+    def _room_has_an_admitted_person(self) -> Self:
+        if self.audience_room_key is not None and self.audience_user_id is None:
+            raise ValueError("Room capture requires the runner's admitted person")
+        return self
+
+
 class LookThroughWatch(Payload):
     """One person's watch over one of their connections, due for a look (#2301)."""
 
     watch_id: UUID
+    scheduled_for: datetime | None = None
 
 
 class InstallRolePack(Payload):
@@ -237,7 +309,7 @@ class Restamp(Payload):
 
 
 class BasePurge(Payload):
-    """A deleted knowledge base whose collection's table another base keeps (#2537)."""
+    """A deleted knowledge base whose collection's table stays (#2537, #2747)."""
 
     collection: str
     knowledge_base_id: UUID
@@ -386,6 +458,14 @@ SYNC_SOURCE = Task(
 # and a worker that died under it may already have paid for its model calls and
 # made its tools' side effects. The dead job waits on Admin -> Background jobs,
 # where somebody who knows what the run did can retry it.
+WAKE_TASK = Task(
+    kind="wake-task",
+    payload_type=WakeTask,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.SCHEDULED,
+)
 FIRE_TRIGGER = Task(
     kind="fire-trigger",
     payload_type=FireTrigger,
@@ -394,6 +474,50 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+DIAL_PHONE = Task(
+    kind="dial-phone",
+    payload_type=DialPhone,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(seconds=60),
+    priority=Priority.INTERACTIVE,
+)
+
+END_PHONE = Task(
+    kind="end-phone",
+    payload_type=DialPhone,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.INTERACTIVE,
+)
+
+DELIVER_ROUTINE_ANSWER = Task(
+    kind="deliver-routine-answer",
+    payload_type=DeliverRoutineAnswer,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
+RUN_CONVERSATION_TASK = Task(
+    kind="run-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+RETURN_CONVERSATION_TASK = Task(
+    kind="return-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+
 # One attempt: a run a worker died under has already spent, and a second would
 # run the agent again - its model calls and its tools' side effects with it. The
 # caller reads `failed` and decides; that is what idempotency keys are for.
@@ -495,6 +619,17 @@ THINK_FOR_PERSON = Task(
     timeout=timedelta(minutes=10),
     priority=Priority.BULK,
 )
+# One attempt: a model call on the maintenance role's budget for one finished run.
+# The conversation is not lost if it fails - the agent can still `remember` - and a
+# retry would pay for the same read twice.
+EXTRACT_MEMORY = Task(
+    kind="extract-memory",
+    payload_type=ExtractMemory,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.BULK,
+)
 # One attempt, like the nightly look: a model call on the person's limit, and the
 # watch's next look is the retry.
 LOOK_THROUGH_WATCH = Task(
@@ -571,13 +706,16 @@ DISPATCH_DUE_SYNCS = _sweep("dispatch-due-syncs")
 RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
 SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
+SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
+SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
+CONSOLIDATE_MEMORY = _sweep("consolidate-memory", timeout=timedelta(minutes=10))
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 CHECK_EVAL_SUITES = _sweep("check-eval-suites")
 REAP_ABANDONED_EVALS = _sweep("reap-abandoned-evals")
@@ -588,6 +726,7 @@ WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
+RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
@@ -609,14 +748,48 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROCESS_CHANNEL_DELIVERY = Task(
+    kind="process-channel-delivery",
+    payload_type=ChannelDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
+PROCESS_EMAIL_DELIVERY = Task(
+    kind="process-email-delivery",
+    payload_type=EmailDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
+DELIVER_CHANNEL_HANDBACK = Task(
+    kind="deliver-channel-handback",
+    payload_type=ChannelHandback,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        PROCESS_CHANNEL_DELIVERY,
+        PROCESS_EMAIL_DELIVERY,
+        DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        WAKE_TASK,
+        DIAL_PHONE,
+        END_PHONE,
+        DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
         RUN_EVAL,
         RUN_AUTHORING,
@@ -625,8 +798,12 @@ TASKS: dict[str, TaskKind] = {
         CLASSIFY_GAPS,
         DRAFT_TOPIC,
         GENERATE_CASES,
+        RUN_CONVERSATION_TASK,
+        RETURN_CONVERSATION_TASK,
+        RECONCILE_CONVERSATION_TASKS,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
+        EXTRACT_MEMORY,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,
         INSTALL_ROLE_PACK,
@@ -640,13 +817,16 @@ TASKS: dict[str, TaskKind] = {
         RETRY_SANDBOX_DESTROYS,
         SWEEP_SANDBOX_OPERATIONS,
         SWEEP_MCP_CONNECTIONS,
+        SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
+        SWEEP_RAG_SCRATCH,
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
+        CONSOLIDATE_MEMORY,
         REAP_VOICE_CALLS,
         CHECK_EVAL_SUITES,
         REAP_ABANDONED_EVALS,

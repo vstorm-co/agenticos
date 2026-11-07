@@ -42,6 +42,8 @@ PAGES = (
     "desktop.md",
     "mobile.md",
     "sandbox.md",
+    "skills.md",
+    "context.md",
 )
 
 

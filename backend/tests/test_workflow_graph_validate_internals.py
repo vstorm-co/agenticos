@@ -898,3 +898,10 @@ async def test_an_edge_from_a_choice_on_a_step_without_it_is_refused(mock_db_ses
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
     with pytest.raises(GraphValidationError):
         await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+
+@pytest.fixture(autouse=True)
+def ordinary_tables_only(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("app.repositories.task.for_table", AsyncMock(return_value=None))

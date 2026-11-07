@@ -52,10 +52,10 @@ function tone(run: EvalRun, comparison: EvalComparison): string {
   const status = run.suite_check?.status;
   if (!status && comparison.verdict === "invalid") return "text-muted-foreground";
   if (status === "failed" || (!status && comparison.regressions_confirmed > 0)) {
-    return "border-destructive/40 text-destructive";
+    return "border-destructive/40 text-destructive-ink";
   }
   if (status === "passed" || (!status && comparison.verdict === "better")) {
-    return "border-success/40 text-success";
+    return "border-success/40 text-success-ink";
   }
   return "text-muted-foreground";
 }

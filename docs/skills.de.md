@@ -1,5 +1,5 @@
 ---
-source_sha: "6b5734e8d7df"
+source_sha: "4644400bc7f1"
 ---
 
 # Skills { #skills }
@@ -94,6 +94,8 @@ relevante Unterhaltung lädt.
 Skill-Liste. Auf das, was der Agent sieht, hat sie keine Wirkung — das Modell
 wählt über `description`, nie über die Kategorie.
 
+Lange Textressourcen werden seitenweise gelesen, damit nicht jedes Modell-Request das ganze Handbuch enthält: standardmäßig 8.000, höchstens 20.000 Zeichen. Übergib `args` mit `offset` und `limit` an `read_skill_resource`; die Antwort nennt den nächsten Offset. Lies nur relevante Bereiche und verwende bereits geladenes Material erneut.
+
 ## Wie ein Agent einen liest { #how-an-agent-reads-one }
 
 Über die [Capability `skills`](reference/capabilities.md#skills). Jeder Skill, den
@@ -176,9 +178,9 @@ nächste Leser hätte keine Möglichkeit, eine durchdachte Verbesserung von eine
 halluzinierten zu unterscheiden.
 
 Ein Schreibvorgang wird deshalb zu einem **Vorschlag**, und dieser erscheint über
-der Liste auf der Seite Skills für alle, die diesen Skill bearbeiten dürfen - seinen
-Besitzer oder wer eine Bearbeitungsfreigabe darauf hat - und bei einem Skill, den
-es noch nicht gibt, für alle, die Skills anlegen dürfen. Sonst sieht ihn niemand:
+der Liste auf der Seite Skills für jeden, der diesen Skill bearbeiten darf. Ein
+Vorschlag für einen neuen Skill erscheint für jeden, der `skills:edit` hält.
+Niemand sonst kann ihn auflisten oder öffnen:
 
 - **Apply** schreibt den Skill neu und erhöht seine Version, was jeden gebundenen
   Agent bei seinem nächsten Run erreicht.
@@ -235,35 +237,48 @@ und von zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
 
 **Schreiben Sie einen.** Skills → New, in der UI. Das ist der normale Weg.
 
-**Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
-ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
-und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
-[Apps](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
-ihnen. Das Anlegen einer Organisation kopiert
-die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
-Owners der Organisation und für die Organisation sichtbar.
+**Die mitgelieferte Bibliothek wird automatisch installiert.** Neue
+Organisationen erhalten Verfahren für Plattformaufbau, längere Arbeit, Recherche,
+Visualisierung, Apps und Präsentationen. Skills kennzeichnet die Kopien als
+`built-in`. Es sind gewöhnliche Skills der Organisation, keine Registry-Verweise.
 
-Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
-Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — sie
-kommen an, einmal, beim Anlegen.
+Das Kennzeichen `built-in` gilt auch für installierte Kopien aus der mitgelieferten Skill-Galerie, einschließlich der von Starteragenten hinzugefügten Skills. Es bezeichnet die Herkunft aus der Plattform, nicht eine automatische Installation. Galerie-Skills werden weiterhin gezielt installiert; vorhandene Anpassungen bleiben editierbar.
 
-**Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
-Zeile: bearbeiten oder löschen. Nichts holt einen gelöschten
-zurück.
+Bestehende Installationen erhalten neue Built-ins beim Aktualisieren der
+mitgelieferten Agenten nach dem Öffnen der Konsole. Auch ein neuer Agent aus der
+Standardvorlage synchronisiert die Bibliothek. Ein manueller Seed ist nicht nötig.
+Unveränderte Kopien samt Ressourcen werden aktualisiert; bearbeitete und
+abweichende unprotokollierte Kopien bleiben erhalten. Installationsbelege erkennen
+bewusst gelöschte Skills, die automatische Aktualisierung stellt sie nicht wieder
+her. Der ausdrückliche Seed-Befehl kann sie zurückbringen. Die Skill-Liste selbst
+bleibt schreibgeschützt.
 
-Das ist eine Änderung. Die Liste füllte sich früher selbst auf — sie kopierte
-jeden mitgelieferten Namen hinein, den die Organisation nicht hatte, bei jedem
-Öffnen der Seite —, sodass ein gelöschter Built-in beim nächsten Besuch
-zurückkam und Deaktivieren der einzige Weg war, einen außer Dienst zu stellen.
-Es bedeutete außerdem eine Seite, die beim Lesen Zeilen schreibt. Die Galerie ist
-der Ort, an dem ein Skill gewählt wird, und der Seed-Befehl unten ist der Weg,
-auf dem ein Deployment einen neuen mitgelieferten Skill absichtlich ausrollt.
+AgenticOS, Architect und neue Standardagenten binden:
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
 
-!!! info "Eine vor einem neuen mitgelieferten Skill angelegte Organisation bekommt ihn nicht von selbst"
+Die optionalen `platform-tables`, `platform-context`, `platform-skills` und API-Leitfäden der Galerie bleiben in der Bibliothek verfügbar, sind aber nicht mehr standardmäßig gebunden. Gewöhnliche MCP-Lese- und Schreibvorgänge erfordern keinen Skill. Aktuelle Tool-Beschreibungen bestimmen Operationen, Parameter und Berechtigungen; Skills ergänzen Entwurfsentscheidungen und Prüfmethoden. Ausführliche visuelle Rezepte werden nur bei Bedarf als Ressourcen geladen.
 
-    Führen Sie `seed-skills` für sie aus oder installieren Sie den Skill aus der
-    Galerie. Beides ist eine Entscheidung, und genau darum geht es: nichts kommt
-    beim Laden einer Seite an.
+Dazu kommen App-, Visualisierungs- und Präsentationsverfahren einschließlich
+Storyline und Review. Zunächst laden nur Namen und Beschreibungen, bei Bedarf
+Inhalte und Ressourcen. Skills gewähren weder Tools noch Konten oder Compiler.
+Architect erhält auch Apps und Charts.
+
+Die Aktualisierung schützt angepasste Felder für Prompt, Tools und Skill-Bindungen
+getrennt. Eine reine Modelländerung verhindert keine Aktualisierung anderer
+unveränderter Vorgaben. Neue Vorgaben gelten für neue Agenten; bestehende eigene
+Agenten werden nicht umgeschrieben.
+
+Plattform-MCP kann Context-Dateien suchen, anlegen und bearbeiten, `context_ids`
+an Agentenentwürfe binden sowie Skills lesen, bearbeiten und Textressourcen
+hinzufügen. Context verwendet `inject` für ständige Prompt-Inhalte und `link` zum
+Lesen bei Bedarf. Änderungen einer gebundenen Datei gelten beim nächsten Lauf;
+eine geänderte Entwurfsbindung muss veröffentlicht werden. Berechtigungen und
+Freigaben gelten weiterhin.
+
+Der Dokument-Skill enthält LaTeX-Ausgangsdateien und ein Build-/Render-Verfahren.
+HTML-Apps und Browserfolien sind keine kompilierten PDFs oder editierbaren PPTX.
+Der Agent prüft verfügbare Compiler, Generatoren und Renderer und nennt fehlende
+Builds oder visuelle Prüfungen ausdrücklich.
 
 Der Seed-Befehl tut dasselbe vom Terminal aus, für skriptgesteuerte Installationen:
 
@@ -306,7 +321,7 @@ und bearbeitet, genau wie ein mitgelieferter.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
-    Die mitgelieferten vier liegen in `app/core/catalog/skills/` und werden
+    Die mitgelieferte Bibliothek liegt in `app/core/catalog/skills/` und werden
     automatisch in **jede** Organisation kopiert. Die Gallery liegt in
     `app/core/catalog/skill_gallery/` und wird in **keine** kopiert — sie wird vom
     selben Parser gelesen, aus einem zweiten Verzeichnis, und nie geseedet.
@@ -433,7 +448,7 @@ Skill wird mit einer Warnung übersprungen, ohne den Run abzubrechen.
 - Einen Skill zu binden heißt, ihn zu **verleihen**, die veröffentlichende Person
   muss ihn also sehen können — und zur Laufzeit wird nichts erneut geprüft.
 - Die **Gallery** sind siebzig fertige Skills nach Branche, auf Anfrage
-  installiert — anders als die mitgelieferten drei, die von allein ankommen.
+  installiert — anders als die mitgelieferte Bibliothek, die von allein ankommen.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

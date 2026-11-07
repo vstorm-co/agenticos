@@ -1,5 +1,5 @@
 ---
-source_sha: "74b903bad6eb"
+source_sha: "49d132bd9406"
 ---
 
 # Begriffe { #concepts }
@@ -193,8 +193,7 @@ niemand zu, also antwortet er keiner identifizierten Person, genau wie ein
 Besucher eines eingebetteten Widgets. Diese pro Person geführten Speicher sind
 für ihn verschlossen:
 
-- [Gedächtnis](reference/capabilities.md#memory-files) und
-  [mem0](reference/capabilities.md#memory-mem0): Jedes Tool antwortet, dass die
+- [Gedächtnis](reference/capabilities.md#memory-files): Jedes Tool antwortet, dass die
   Unterhaltung kein Gedächtnis hat.
 - [Frühere Gespräche](reference/capabilities.md#conversation-search): Beide
   Tools verweigern.

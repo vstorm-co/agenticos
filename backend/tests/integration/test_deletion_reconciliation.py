@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AlreadyExistsError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.locks import LockScope, hold_name
 from app.db.models.conversation import Conversation
@@ -34,6 +34,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     conversation_repo,
     knowledge_base_repo,
@@ -52,7 +53,7 @@ from app.services.rag.models import (
     DocumentPageChunk,
     IngestionStatus,
 )
-from app.services.rag.vectorstore import PgVectorStore
+from app.services.rag.vectorstore import KnowledgeBaseRemovedError, PgVectorStore
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -583,7 +584,7 @@ class TestDeletingAnOrg:
             await s.flush()
             doc = _kb_document(collection, kb.id, org.id, stored)
             s.add(doc)
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(text(f"CREATE TABLE {table} (id int, metadata jsonb)"))
             await s.commit()
             kb_id, doc_id = kb.id, doc.id
 
@@ -904,9 +905,9 @@ class TestConcurrentSelfDeletes:
         arrivals = 0
         real_lock = user_repo.get_by_id_for_update
 
-        async def locking(db: Any, uid: uuid.UUID) -> Any:
+        async def locking(db: Any, uid: uuid.UUID, *, nowait: bool = False) -> Any:
             nonlocal arrivals
-            locked = await real_lock(db, uid)
+            locked = await real_lock(db, uid, nowait=nowait)
             arrivals += 1
             if arrivals >= 2:
                 both_hold_one.set()
@@ -943,7 +944,7 @@ class TestConcurrentSelfDeletes:
     ) -> None:
         """Memberships are not locked, so the two heir reads can disagree.
 
-        `_lock_for_delete` discovers heirs without a lock and locks them;
+        `_lock_user_rows` discovers heirs without a lock and locks them;
         `_release_owned_rows` re-reads authoritatively. An owner promoted between
         the two names an heir whose row was never locked, and `reassign_creator`
         would take their FK lock outside the ascending sequence - the cycle
@@ -1293,9 +1294,10 @@ class TestADeletedBasesChunksOnAKeptTable:
         of its tenant - its organization's for an organization's base, the
         tenant-less ones `rag-ingest` writes for an app-scoped one. Another
         tenant's unfiled rows stay with their files, since the caller has no
-        authority over them, but their chunks went with the table: they are marked
-        failed, so their next base lists them as failed rather than as
-        indexed, and one still being ingested has its attempt superseded. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
+        authority over them, but the table holds no chunk of theirs to keep it, so
+        it goes: they are marked failed, so their next base lists them as failed
+        rather than as indexed, and one still being ingested has its attempt
+        superseded. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
         dropped table, and the collection drop deleted every row under the name,
         in every organization (#2568)."""
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -2183,3 +2185,603 @@ async def test_personal_purge_locks_all_names_before_detaching_sources(
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
+
+
+async def _chunked_table(s, table: str) -> None:
+    """A runtime vector table with no chunks; only these columns matter to a teardown."""
+    await s.execute(
+        text(f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)")
+    )
+
+
+async def _operators_ingest(
+    factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    collection: str,
+) -> None:
+    """The real `rag-ingest` into `collection`, its embedding replaced by one chunk.
+
+    The rows are the command's own: filed under no base and tagged with no
+    organization, and so is the chunk, as a `VectorScope(tenant=None)` write is."""
+    from collections.abc import AsyncIterator
+
+    from app.commands import rag as rag_command
+    from app.services.rag.models import IngestionResult
+
+    @contextlib.asynccontextmanager
+    async def session() -> AsyncIterator[AsyncSession]:
+        async with factory() as db:
+            yield db
+            await db.commit()
+
+    async def write_chunk(**_: object) -> IngestionResult:
+        async with factory() as db:
+            await _document_chunk(db, f"rag_{collection}", "operator-0", "operator-doc", None)
+            await db.commit()
+        return IngestionResult(
+            status=IngestionStatus.DONE, document_id="operator-doc", chunk_count=1
+        )
+
+    (tmp_path / "manual.md").write_text("body")
+    logs = MagicMock(
+        create_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        complete_sync=AsyncMock(),
+    )
+    monkeypatch.setattr(rag_command, "get_db_context", session)
+    monkeypatch.setattr(rag_command, "RAGSyncService", lambda _db: logs)
+    await rag_command.ingest_path_async(
+        str(tmp_path),
+        collection,
+        True,
+        MagicMock(),
+        MagicMock(),
+        MagicMock(ingest_file=AsyncMock(side_effect=write_chunk)),
+    )
+
+
+async def _table_exists(s: AsyncSession, table: str) -> bool:
+    return (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is not None
+
+
+class TestALastHolderLeavesContentThatIsNotItsOwn:
+    """A base is the last holder of a name, and the table holds chunks no base owns.
+
+    A claim is refused on a name that already holds such content, but the content
+    can arrive after the claim: `rag-ingest` writes into a held name, and the
+    last holder's teardown then dropped the table with it, so a member with
+    ordinary `collections:edit` destroyed an operator's collection (#2747). The
+    caller has no authority over those chunks: the table stays and only the
+    base's own chunks are purged. These run the real job against a real table."""
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_an_operators_ingest_outlives_the_base_it_landed_beside(
+        self,
+        engine: AsyncEngine,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        route: str,
+    ) -> None:
+        """The exact sequence, from the claim on: a member creates a base, the
+        operator ingests into its name, the member deletes the base. The operator's
+        collection is then what `rag-ingest` left: its row, its chunk and no base,
+        which a member still cannot claim and `rag-drop` still removes whole."""
+        from app.repositories import collection_teardown_repo
+        from app.services.collection_access import CollectionAccessService
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            await CollectionAccessService(s).claim(ctx, collection)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            filed = _kb_document(collection, base.id, org.id, "")
+            filed.vector_document_id = "member-doc"
+            s.add(filed)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "member-0", "member-doc", base.id)
+            await s.commit()
+            base_id, filed_id = base.id, filed.id
+
+        try:
+            await _operators_ingest(factory, monkeypatch, tmp_path, collection)
+
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, base_id) is None
+                assert await s.get(RAGDocument, filed_id) is None
+                assert await _chunk_ids(s, table) == {"operator-0"}
+                rows = list(
+                    await s.scalars(
+                        select(RAGDocument).where(RAGDocument.collection_name == collection)
+                    )
+                )
+                assert [(row.status, row.vector_document_id) for row in rows] == [
+                    (DocumentStatus.DONE.value, "operator-doc")
+                ]
+                assert not await collection_teardown_repo.is_reserved(s, collection)
+                with pytest.raises(AlreadyExistsError):
+                    await CollectionAccessService(s).claim(ctx, collection)
+                await s.rollback()
+
+            async with factory() as s:
+                assert await KnowledgeBaseService(s).drop_collection_by_name(collection) is None
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert not await _table_exists(s, table)
+                assert (
+                    await s.scalar(
+                        select(RAGDocument.id).where(RAGDocument.collection_name == collection)
+                    )
+                ) is None
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_chunks_no_row_describes_keep_the_table_too(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """`rag-sync-gdrive` and `rag-sync-s3` write chunks with no tracking row, so
+        the table is what is asked, not the rows."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "member-0", "member-doc", base.id)
+            await _document_chunk(s, table, "synced-0", "synced-doc", None)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"synced-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_another_tenants_unfiled_chunks_keep_their_table_and_their_rows(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """The caller holds no authority over them, so they are not dropped and
+        their row is not failed: nothing behind it went. The caller's own tenant's
+        unfiled row goes with the base, its chunk purged by document id."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            ours = _kb_document(collection, None, org.id, "")
+            ours.vector_document_id = "ours-doc"
+            theirs = _kb_document(collection, None, other_org.id, "")
+            theirs.status = DocumentStatus.DONE.value
+            theirs.vector_document_id = "theirs-doc"
+            s.add_all([ours, theirs])
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "ours-0", "ours-doc", None, org.id)
+            await _document_chunk(s, table, "theirs-0", "theirs-doc", None, other_org.id)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base_id, ours_id, theirs_id = base.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(RAGDocument, ours_id) is None
+                kept = await s.get(RAGDocument, theirs_id)
+                assert kept is not None
+                assert kept.status == DocumentStatus.DONE.value
+                assert kept.vector_document_id == "theirs-doc"
+                assert await _chunk_ids(s, table) == {"theirs-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_a_kept_table_loses_everything_the_base_takes(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """The drop this replaces took every chunk of the base's, so the keep has to:
+        a chunk no row names, and a filed row's chunk that was never stamped with
+        the base, stayed behind and came back with the tenant's next base."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            filed = _kb_document(collection, base.id, org.id, "")
+            filed.vector_document_id = "filed-doc"
+            s.add(filed)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "filed-0", "filed-doc", base.id)
+            await _document_chunk(s, table, "unstamped-0", "filed-doc", None, org.id)
+            await _document_chunk(s, table, "rowless-0", "rowless-doc", None, org.id)
+            await _document_chunk(s, table, "operator-0", "operator-doc", None)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"operator-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_a_personal_bases_row_names_its_unstamped_chunk(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """A personal base outside an organization takes no unfiled chunk, but a chunk
+        its own row names is its own, stamped or not, as `delete_document` holds
+        (#2537). Left in the kept table, it would be the app scope's to read."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            base = _personal_kb(uuid.uuid4(), owner.id, collection)
+            base.organization_id = None
+            s.add(base)
+            await s.flush()
+            filed = _kb_document(collection, base.id, None, "")
+            filed.vector_document_id = "filed-doc"
+            s.add(filed)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "filed-0", "filed-doc", base.id)
+            await _document_chunk(s, table, "unstamped-0", "filed-doc", None)
+            await _document_chunk(s, table, "operator-0", "operator-doc", None)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=None, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"operator-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @_TEARDOWN_ROUTES
+    @pytest.mark.parametrize("collection", ["documents", "Legacy_Upper"])
+    async def test_a_name_the_store_refuses_can_still_be_deleted(
+        self, engine: AsyncEngine, route: str, collection: str
+    ) -> None:
+        """A base from before a naming rule is documented as deletable. No chunk can
+        reach it through the store, so the teardown does not ask, and asking would
+        refuse the delete."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        async with factory() as s:
+            await _tear_down(s, route, base_id, ctx)
+            await s.commit()
+            discard_deferred(s)
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, base_id) is None
+
+    @pytest.mark.security
+    async def test_clearing_a_last_default_keeps_the_operators_chunks(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A default keeps its row, so it holds the name after the clear as well:
+        its documents' chunks go and the operator's stay."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            s.add(default)
+            await s.flush()
+            filed = _kb_document(collection, default.id, org.id, "")
+            filed.vector_document_id = "member-doc"
+            s.add(filed)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "member-0", "member-doc", default.id)
+            await _document_chunk(s, table, "operator-0", "operator-doc", None)
+            await s.commit()
+            default_id = default.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await _chunk_ids(s, table) == {"operator-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_an_operators_rag_drop_still_drops_the_whole_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Only the operator's explicit `rag-drop` overrules it: they own what the
+        table holds, and it is the one way to remove a held name's table. The rows
+        left are failed, as the last holder's rules say of a dropped table (#2568)."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            operators = _kb_document(collection, None, None, "")
+            operators.status = DocumentStatus.DONE.value
+            operators.vector_document_id = "operator-doc"
+            s.add(operators)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "member-0", "member-doc", base.id)
+            await _document_chunk(s, table, "operator-0", "operator-doc", None)
+            await s.commit()
+            base_id, operators_id = base.id, operators.id
+
+        try:
+            async with factory() as s:
+                cleared = await KnowledgeBaseService(s).drop_collection_by_name(collection)
+                assert cleared is not None
+                assert cleared.id == base_id
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, base_id) is None
+                assert not await _table_exists(s, table)
+                left = await s.get(RAGDocument, operators_id)
+                assert left is not None
+                assert left.status == DocumentStatus.ERROR.value
+                assert left.vector_document_id is None
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+
+async def _chunk_count(s: AsyncSession, table: str) -> int:
+    return (await s.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one()  # noqa: S608
+
+
+async def _waiting_on_a_lock_or_done(engine: AsyncEngine, task: asyncio.Task[None]) -> None:
+    """Return once `task` has ended or a session of this database waits on a lock."""
+    while not task.done():
+        async with engine.connect() as connection:
+            waiting = await connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+                )
+            )
+        if waiting:
+            return
+        await asyncio.sleep(0.02)
+
+
+class TestAnUnfiledWriteInFlightAtTheTeardown:
+    """The last holder's probe reads committed chunks, so a write still open when it
+    ran was invisible to it: the teardown chose the drop, and the job dropped the
+    chunks that committed a moment later. An unfiled write holds the name through its
+    commit, so the probe waits for it, and one that comes after a drop is decided is
+    refused rather than written into a table about to go (#2747)."""
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("tracked", [True, False], ids=["rag-ingest", "rag-sync"])
+    async def test_the_teardown_waits_for_it_and_keeps_its_table(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, tracked: bool
+    ) -> None:
+        from app.repositories import collection_teardown_repo
+
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbflight{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            row = _kb_document(collection, None, None, "")
+            row.status = DocumentStatus.PROCESSING.value
+            if tracked:
+                s.add(row)
+            await s.commit()
+
+        writing, resume = asyncio.Event(), asyncio.Event()
+        ensure = store._ensure_collection
+
+        async def ensure_then_pause(name: str) -> None:
+            await ensure(name)
+            writing.set()
+            await resume.wait()
+
+        operators = _parsed("operator")
+        operators.metadata.rag_document_id = row.id if tracked else None
+
+        async def tear_down() -> None:
+            async with factory() as s:
+                await _tear_down(s, "kb_delete", base.id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+        try:
+            await store.insert_document(collection, _parsed("member"), base.vector_scope)
+            monkeypatch.setattr(store, "_ensure_collection", ensure_then_pause)
+            write = asyncio.create_task(
+                store.insert_document(collection, operators, VectorScope(tenant=None))
+            )
+            await asyncio.wait_for(writing.wait(), 10)
+            teardown = asyncio.create_task(tear_down())
+            await asyncio.wait_for(_waiting_on_a_lock_or_done(engine, teardown), 10)
+            resume.set()
+            await asyncio.wait_for(asyncio.gather(write, teardown), 30)
+
+            async with factory() as s:
+                assert await _table_exists(s, table)
+                assert (await s.execute(text(f"SELECT content FROM {table}"))).scalars().all() == [  # noqa: S608
+                    "operator"
+                ]
+                assert not await collection_teardown_repo.is_reserved(s, collection)
+                if tracked:
+                    kept = await s.get(RAGDocument, row.id)
+                    assert kept is not None
+                    assert kept.status == DocumentStatus.PROCESSING.value
+        finally:
+            resume.set()
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_a_write_after_the_drop_was_decided_is_refused(self, engine: AsyncEngine) -> None:
+        """Between the commit and the job the name is reserved, and a write with no
+        row to refuse it would land in the table the job then drops, reported done."""
+        from app.repositories import collection_teardown_repo
+
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbflight{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            await collection_teardown_repo.reserve(s, collection)
+            await s.commit()
+
+        try:
+            with pytest.raises(KnowledgeBaseRemovedError, match="being deleted"):
+                await store.insert_document(collection, _parsed("late"), VectorScope(tenant=None))
+            assert not await store._collection_exists(collection)
+        finally:
+            async with factory() as s:
+                await collection_teardown_repo.release(s, collection)
+                await s.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_a_rerun_of_the_job_leaves_a_write_made_after_its_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The first attempt released the name, so the write was rightly let through;
+        a job failing later, or a lost lease, then runs the same drop again."""
+        from app.repositories import collection_teardown_repo
+        from app.worker.tasks.teardown_tasks import cleanup_external_state
+
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbflight{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            await collection_teardown_repo.reserve(s, collection)
+            await s.commit()
+
+        try:
+            assert (await cleanup_external_state([], [collection]))["dropped"] == 1
+            await store.insert_document(collection, _parsed("after"), VectorScope(tenant=None))
+
+            assert (await cleanup_external_state([], [collection]))["dropped"] == 0
+
+            async with factory() as s:
+                assert await _chunk_count(s, f"rag_{collection}") == 1
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
+                await s.commit()

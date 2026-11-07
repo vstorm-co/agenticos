@@ -271,7 +271,11 @@ describe("paired device and folder grants", () => {
 it("validates whole-computer native consent and keeps cancellation explicit", async () => {
   invoke.mockResolvedValue(null);
   await expect(commands.allowWholeComputer(null)).resolves.toBeNull();
-  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", { conversationId: null });
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", {
+    conversationId: null,
+    agentId: null,
+    agentName: null,
+  });
   invoke.mockResolvedValue({ path: "/home/person", id: "consent" });
   await expect(commands.allowWholeComputer("chat")).resolves.toEqual({
     folder: "/home/person",
@@ -280,6 +284,13 @@ it("validates whole-computer native consent and keeps cancellation explicit", as
   });
   await commands.revokeWholeComputer("consent");
   expect(invoke).toHaveBeenLastCalledWith("local_revoke_computer", { id: "consent" });
+  // For one agent, the consent names it, so the app holds it across its chats.
+  await commands.allowWholeComputer("chat", { id: "agent-1", name: "AgenticOS" });
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", {
+    conversationId: "chat",
+    agentId: "agent-1",
+    agentName: "AgenticOS",
+  });
   invoke.mockResolvedValue({ path: "/home/person" });
   await expect(commands.allowWholeComputer("chat")).rejects.toThrow("malformed");
 });
@@ -293,6 +304,26 @@ it("checks native pin state and sends the pin and file picker policies", async (
   expect(invoke).toHaveBeenLastCalledWith("set_quick_ask_picker_open", { open: true });
   invoke.mockResolvedValue("true");
   await expect(commands.quickAskPinned()).rejects.toThrow("malformed");
+});
+
+it("checks the paired device identity while accepting older native statuses", () => {
+  const identity = {
+    origin: "https://example.com",
+    user_id: "00000000-0000-4000-8000-000000000001",
+    device_id: "00000000-0000-4000-8000-000000000002",
+  };
+  expect(commands.parseDeviceStatus({ linked: true, connected: true, identity })).toEqual({
+    linked: true,
+    connected: true,
+    identity,
+  });
+  expect(() =>
+    commands.parseDeviceStatus({
+      linked: true,
+      connected: true,
+      identity: { ...identity, device_id: false },
+    }),
+  ).toThrow("malformed");
 });
 
 describe("local skills", () => {
@@ -332,4 +363,24 @@ it("reads optional shared directory identity while accepting older desktop respo
   ]);
   invoke.mockResolvedValue([{ ...skill, shared_id: 42 }]);
   await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
+});
+
+it("reads bounded coding models with per-model reasoning choices", async () => {
+  const options = {
+    current_model: "fast",
+    current_effort: "low",
+    models: [{ value: "fast", name: "Fast", efforts: [{ value: "low", name: "Low" }] }],
+  };
+  invoke.mockResolvedValue(options);
+  await expect(commands.getLocalCodingOptions("codex")).resolves.toEqual(options);
+  expect(invoke).toHaveBeenLastCalledWith("local_agent_options", { id: "codex" });
+  for (const invalid of [
+    null,
+    {},
+    { ...options, models: [] },
+    { ...options, models: [{ ...options.models[0], efforts: false }] },
+    { ...options, models: [{ value: 2, name: "Bad", efforts: [] }] },
+  ]) {
+    expect(() => commands.parseLocalCodingOptions(invalid)).toThrow("malformed");
+  }
 });

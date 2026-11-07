@@ -22,6 +22,7 @@ from uuid import UUID
 from sqlalchemy import (
     ColumnElement,
     Select,
+    Table,
     Text,
     and_,
     cast,
@@ -34,13 +35,16 @@ from sqlalchemy import (
 )
 from sqlalchemy import case as sa_case
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, try_hold_subject
 from app.db.models.agent_run import AgentRun, ToolApproval
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
@@ -49,6 +53,8 @@ from app.db.models.case_generation import CaseProposal
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
+from app.db.models.coding_account import CodingAccount
+from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
@@ -62,19 +68,35 @@ from app.db.models.knowledge_gap import (
     KnowledgeGapTopic,
     KnowledgeSearch,
 )
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryClaim
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.outcome import Outcome
+from app.db.models.project_tracking import ProjectTracking
+from app.db.models.routine_delivery import RoutineDelivery
+from app.db.models.routine_device_wait import RoutineDeviceWait
+from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.suggestion import Suggestion
+from app.db.models.task_board import TaskBoard
+from app.db.models.telephony import PhoneCall, PhoneContact
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.virtual_table import (
+    VirtualTableRecord,
+    VirtualTableRecordHistory,
+    VirtualTableSchemaVersion,
+)
 from app.db.models.watch import Watch
+from app.repositories import memory_claim as memory_claim_repo
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
@@ -378,6 +400,20 @@ async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile
     return list(result.scalars().all())
 
 
+async def claims_about(db: AsyncSession, owner_key: str) -> list[MemoryClaim]:
+    """Every claim recorded about them, in every organization, whatever its status.
+
+    The history is part of what is held about a person: a claim that was corrected still
+    says what was once recorded, and it is erased with the rest.
+    """
+    result = await db.execute(
+        select(MemoryClaim)
+        .where(MemoryClaim.scope_key == owner_key)
+        .order_by(MemoryClaim.observed_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def identities_of(db: AsyncSession, user_id: UUID) -> list[ChannelIdentity]:
     """Their Slack, Telegram and Mattermost accounts, as this deployment knows them."""
     result = await db.execute(select(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
@@ -466,6 +502,11 @@ async def notification_preferences_of(
     return list(result.scalars().all())
 
 
+async def notification_routes_of(db: AsyncSession, user_id: UUID) -> list[NotificationRoute]:
+    result = await db.execute(select(NotificationRoute).where(NotificationRoute.user_id == user_id))
+    return list(result.scalars().all())
+
+
 async def purge_memory_about(db: AsyncSession, owner_key: str) -> int:
     """Delete what every agent remembers about them, in every organization.
 
@@ -486,7 +527,10 @@ async def purge_memory_about(db: AsyncSession, owner_key: str) -> int:
         sa_delete(AgentMemoryFile).where(AgentMemoryFile.owner_key == owner_key)
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    # The ledger is the same personal data in another table, and so are the copies
+    # somebody shared out of it (`derived_from`), which do not outlive their source.
+    claims = await memory_claim_repo.delete_everywhere_about(db, scope_key=owner_key)
+    return (result.rowcount or 0) + claims  # ty: ignore[unresolved-attribute]
 
 
 async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
@@ -1326,3 +1370,341 @@ async def asker_of(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> 
     )
     row = result.tuples().first()
     return None if row is None else row[0] or row[1]
+
+
+async def routine_deliveries_of(db: AsyncSession, user_id: UUID) -> list[RoutineDelivery]:
+    return list(
+        await db.scalars(
+            select(RoutineDelivery)
+            .where(RoutineDelivery.owner_user_id == user_id)
+            .order_by(RoutineDelivery.created_at, RoutineDelivery.run_id)
+        )
+    )
+
+
+async def routine_answer_export_size(db: AsyncSession, user_id: UUID) -> int:
+    """Content plus a bounded allowance for each receipt's fixed metadata fields."""
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(RoutineDelivery.answer)), 0)
+            + func.count(RoutineDelivery.run_id) * 1024
+        ).where(RoutineDelivery.owner_user_id == user_id)
+    )
+    return int(size or 0)
+
+
+async def routine_device_waits_of(db: AsyncSession, user_id: UUID) -> list[RoutineDeviceWait]:
+    return list(
+        await db.scalars(
+            select(RoutineDeviceWait)
+            .where(RoutineDeviceWait.user_id == user_id)
+            .order_by(RoutineDeviceWait.created_at, RoutineDeviceWait.id)
+        )
+    )
+
+
+async def routine_device_wait_export_size(db: AsyncSession, user_id: UUID) -> int:
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(RoutineDeviceWait.event_context)), 0)
+            + func.count(RoutineDeviceWait.id) * 1024
+        ).where(RoutineDeviceWait.user_id == user_id)
+    )
+    return int(size or 0)
+
+
+async def routine_health_of(db: AsyncSession, user_id: UUID) -> list[RoutineHealthObservation]:
+    return list(
+        await db.scalars(
+            select(RoutineHealthObservation)
+            .where(RoutineHealthObservation.user_id == user_id)
+            .order_by(RoutineHealthObservation.activation_at, RoutineHealthObservation.id)
+        )
+    )
+
+
+async def routine_health_export_size(db: AsyncSession, user_id: UUID) -> int:
+    count = await db.scalar(
+        select(func.count())
+        .select_from(RoutineHealthObservation)
+        .where(RoutineHealthObservation.user_id == user_id)
+    )
+    return int(count or 0) * 1024
+
+
+async def routine_sources_of(db: AsyncSession, user_id: UUID) -> list[AgentTrigger]:
+    return list(
+        await db.scalars(
+            select(AgentTrigger)
+            .where(AgentTrigger.created_by_user_id == user_id)
+            .order_by(AgentTrigger.id)
+        )
+    )
+
+
+async def routine_source_export_size(db: AsyncSession, user_id: UUID) -> int:
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(AgentTrigger.approved_sources, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(AgentTrigger.action_consents, Text))), 0)
+            + func.count(AgentTrigger.id) * 1024
+        ).where(AgentTrigger.created_by_user_id == user_id)
+    )
+    return int(size or 0)
+
+
+async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
+    """SET NULL ownership must not leave the erased actor in durable policy JSON."""
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(AgentTrigger.created_by_user_id == user_id)
+        .values(approved_sources=None, action_consents=[])
+    )
+    await db.execute(
+        sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)
+    )
+    await db.flush()
+
+
+async def project_trackers_of(db: AsyncSession, user_id: UUID) -> list[ProjectTracking]:
+    return list(
+        await db.scalars(
+            select(ProjectTracking)
+            .where(ProjectTracking.user_id == user_id)
+            .order_by(ProjectTracking.id)
+        )
+    )
+
+
+async def project_tracking_export_size(db: AsyncSession, user_id: UUID) -> int:
+    count = await db.scalar(
+        select(func.count()).select_from(ProjectTracking).where(ProjectTracking.user_id == user_id)
+    )
+    return int(count or 0) * 1024
+
+
+async def decision_episode_export_size(db: AsyncSession, user_id: UUID) -> int:
+    table = MemoryClaim.__table__
+    if not isinstance(table, Table):
+        raise TypeError("Memory claims must map to a concrete exportable table")
+    size = await db.scalar(
+        select(
+            func.coalesce(
+                func.sum(func.length(cast(func.to_jsonb(table.table_valued()), Text)) * 2 + 1024),
+                0,
+            )
+        ).where(MemoryClaim.scope_key == person_owner_key(user_id))
+    )
+    return int(size or 0)
+
+
+async def phone_contacts_of(db: AsyncSession, user_id: UUID) -> list[PhoneContact]:
+    return list(
+        await db.scalars(
+            select(PhoneContact).where(PhoneContact.user_id == user_id).order_by(PhoneContact.id)
+        )
+    )
+
+
+async def phone_calls_of(db: AsyncSession, user_id: UUID) -> list[PhoneCall]:
+    return list(
+        await db.scalars(
+            select(PhoneCall)
+            .where(PhoneCall.user_id == user_id)
+            .order_by(PhoneCall.created_at, PhoneCall.id)
+        )
+    )
+
+
+async def phone_export_size(db: AsyncSession, user_id: UUID) -> int:
+    calls = await db.scalar(
+        select(
+            func.coalesce(
+                func.sum(
+                    func.coalesce(func.length(PhoneCall.report), 0)
+                    + func.coalesce(func.length(PhoneCall.importance_reason), 0)
+                ),
+                0,
+            )
+            + func.count(PhoneCall.id) * 2048
+        ).where(PhoneCall.user_id == user_id)
+    )
+    contacts = await db.scalar(
+        select(
+            func.coalesce(
+                func.sum(
+                    func.length(PhoneContact.importance_instructions)
+                    + func.length(cast(PhoneContact.agent_ids, Text))
+                ),
+                0,
+            )
+            + func.count(PhoneContact.id) * 2048
+        ).where(PhoneContact.user_id == user_id)
+    )
+    attempts = await db.scalar(
+        select(func.count())
+        .select_from(Outcome)
+        .where(Outcome.user_id == user_id, Outcome.phone_attempted_at.is_not(None))
+    )
+    return int(calls or 0) + int(contacts or 0) + int(attempts or 0) * 256
+
+
+async def phone_case_attempts_of(db: AsyncSession, user_id: UUID) -> list[Outcome]:
+    return list(
+        await db.scalars(
+            select(Outcome).where(
+                Outcome.user_id == user_id, Outcome.phone_attempted_at.is_not(None)
+            )
+        )
+    )
+
+
+async def outcomes_of(db: AsyncSession, user_id: UUID) -> list[Outcome]:
+    return list(
+        await db.scalars(
+            select(Outcome)
+            .where(Outcome.user_id == user_id)
+            .order_by(Outcome.created_at, Outcome.id)
+        )
+    )
+
+
+async def outcome_export_size(db: AsyncSession, user_id: UUID) -> int:
+    table = Outcome.__table__
+    if not isinstance(table, Table):
+        raise TypeError("Outcomes must map to a concrete exportable table")
+    size = await db.scalar(
+        select(
+            func.coalesce(
+                func.sum(func.length(cast(func.to_jsonb(table.table_valued()), Text)) * 2 + 1024),
+                0,
+            )
+        ).where(Outcome.user_id == user_id)
+    )
+    return int(size or 0)
+
+
+async def coding_accounts_of(db: AsyncSession, user_id: UUID) -> list[CodingAccount]:
+    result = await db.execute(select(CodingAccount).where(CodingAccount.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def coding_changes_in(
+    db: AsyncSession, conversation_ids: list[UUID]
+) -> list[CodingTaskChange]:
+    if not conversation_ids:
+        return []
+    return list(
+        await db.scalars(
+            select(CodingTaskChange)
+            .where(CodingTaskChange.conversation_id.in_(conversation_ids))
+            .order_by(CodingTaskChange.created_at, CodingTaskChange.id)
+        )
+    )
+
+
+async def coding_change_export_size(db: AsyncSession, conversation_ids: list[UUID]) -> int:
+    if not conversation_ids:
+        return 0
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(CodingTaskChange.files, Text))), 0)
+            + func.count(CodingTaskChange.id) * 1024
+        ).where(CodingTaskChange.conversation_id.in_(conversation_ids))
+    )
+    return int(size or 0)
+
+
+async def connected_accounts_of(db: AsyncSession, user_id: UUID) -> list[McpConnection]:
+    return list(
+        await db.scalars(
+            select(McpConnection).where(
+                McpConnection.scope == "user",
+                McpConnection.user_id == user_id,
+                McpConnection.purpose == "account",
+            )
+        )
+    )
+
+
+async def private_task_boards_of(db: AsyncSession, user_id: UUID) -> list[TaskBoard]:
+    return list(
+        await db.scalars(
+            select(TaskBoard)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(TaskBoard.id)
+        )
+    )
+
+
+async def private_task_records_of(db: AsyncSession, user_id: UUID) -> list[VirtualTableRecord]:
+    return list(
+        await db.scalars(
+            select(VirtualTableRecord)
+            .join(TaskBoard, TaskBoard.table_id == VirtualTableRecord.table_id)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(VirtualTableRecord.id)
+        )
+    )
+
+
+async def private_task_export_size(db: AsyncSession, user_id: UUID) -> int:
+    records = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(VirtualTableRecord.values, Text))), 0)
+            + func.count(VirtualTableRecord.id) * 2048
+        )
+        .join(TaskBoard, TaskBoard.table_id == VirtualTableRecord.table_id)
+        .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    boards = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(TaskBoard.column_ids, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(TaskBoard.status_ids, Text))), 0)
+            + func.count(TaskBoard.id) * 1024
+        ).where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    history = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(VirtualTableRecordHistory.before, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(VirtualTableRecordHistory.after, Text))), 0)
+            + func.count(VirtualTableRecordHistory.id) * 2048
+        )
+        .join(TaskBoard, TaskBoard.table_id == VirtualTableRecordHistory.table_id)
+        .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    schemas = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(VirtualTableSchemaVersion.columns, Text))), 0)
+            + func.count(VirtualTableSchemaVersion.id) * 1024
+        )
+        .join(TaskBoard, TaskBoard.table_id == VirtualTableSchemaVersion.table_id)
+        .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    return int(records or 0) + int(boards or 0) + int(history or 0) + int(schemas or 0)
+
+
+async def private_task_history_of(
+    db: AsyncSession, user_id: UUID
+) -> list[VirtualTableRecordHistory]:
+    return list(
+        await db.scalars(
+            select(VirtualTableRecordHistory)
+            .join(TaskBoard, TaskBoard.table_id == VirtualTableRecordHistory.table_id)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(VirtualTableRecordHistory.id)
+        )
+    )
+
+
+async def private_task_schemas_of(
+    db: AsyncSession, user_id: UUID
+) -> list[VirtualTableSchemaVersion]:
+    return list(
+        await db.scalars(
+            select(VirtualTableSchemaVersion)
+            .join(TaskBoard, TaskBoard.table_id == VirtualTableSchemaVersion.table_id)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(VirtualTableSchemaVersion.table_id, VirtualTableSchemaVersion.version)
+        )
+    )

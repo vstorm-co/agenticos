@@ -138,7 +138,7 @@ function ListField({
       <legend className="text-sm font-medium">{t(`field.${field}`)}</legend>
       <p className="text-muted-foreground text-xs">{t(`hint.${field}`)}</p>
       {children}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && <p className="text-destructive-ink text-xs">{error}</p>}
     </fieldset>
   );
 }

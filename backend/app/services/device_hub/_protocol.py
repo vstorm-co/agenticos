@@ -29,6 +29,9 @@ class Capabilities(BaseModel):
     screen: bool = False
     """Whether the app can capture the screen and send input (permissions granted)."""
 
+    routine_grants: bool = False
+    """Explicit local work contexts and persistent per-routine operation grants."""
+
 
 class Hello(BaseModel):
     """The app's first frame, and again whenever what it can do changes."""

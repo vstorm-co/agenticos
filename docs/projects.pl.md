@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "3f798c416272"
+source_sha: "e9573cb4bf21"
 ---
 
 # Projekty { #projects }
@@ -146,6 +146,61 @@ Upuszczenie na plik wybiera folder, w którym się on znajduje, a upuszczenie na
 obszar dowolnego panelu wybiera główny katalog projektu. Blobby i Dock zachowują
 osobne dodawanie plików do czatu.
 
+## Widok grafu { #graph-view }
+
+W eksploratorze plików wybierz **Graph view**, aby przeglądać powiązane notatki
+Markdown. Widok działa dla współdzielonych plików projektu, workspace sandboxa
+i zatwierdzonego folderu Desktop. Każda lokalizacja ma osobny graf; lokalne
+notatki nie są wysyłane na serwer.
+
+Graf otwiera się na pełnym ekranie z kolorowymi punktami, cienkimi połączeniami
+i etykietami widocznymi po przybliżeniu lub wybraniu notatki. Strzałki kierunku
+i stałe etykiety można włączyć. Wyszukiwanie, pliki, szczegóły i zoom są w pływających
+panelach. Grupy kolorują notatki domyślnie według folderu, opcjonalnie pierwszego tagu.
+Możesz ukrywać grupy, filtrować folder wraz z podfolderami i resetować filtry.
+
+Przeglądarka plików używa wspólnego drzewa folderów i ikon. Węzłami są tylko
+zindeksowane notatki Markdown; pozostałe pliki otwierają się we wspólnym podglądzie.
+Przeciąganie punktów zmienia tylko widok, bez zapisywania plików lub linków.
+Przycisk rozwijania lub Escape przywraca widok osadzony, a strzałka wstecz wraca do plików.
+
+Łącz notatki przez `[[notes/topic|etykieta]]`, linki Markdown w treści, np.
+`[Temat](topic.md)`, lub relacje we frontmatter:
+
+```yaml
+---
+title: Pamięć agenta
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` i `sources` przyjmują tekst lub listę tekstów. Zewnętrzne URL-e
+pozostają cytowaniami. Wikilinki wskazują dokładną ścieżkę lub unikalną nazwę pliku,
+tytuł bądź alias; niejednoznaczne nazwy pozostają nierozwiązane. Linki Markdown są
+względne wobec notatki. Przykłady w kodzie i komentarze HTML są pomijane.
+
+Wyszukuj po tytule, ścieżce, aliasach lub tagach. Wybierz węzeł, aby zobaczyć jego
+linki, linki przychodzące i nierozwiązane odwołania; **Open note** otwiera notatkę.
+Współdzielone pliki projektu zachowują kontrolkę **Edit file** i dotychczasowe
+uprawnienia. Przybliżaj przyciskami, przesuwaj graf przez przeciąganie pustego tła;
+lista notatek działa również z klawiatury.
+
+Widok odczytuje pliki co 30 sekund, gdy jest otwarty, po powrocie do okna lub
+wybraniu **Refresh**. Agenci aktualizują notatki i linki, bez generowania HTML.
+Apps odświeżają już bindings do Tables i logów workflows, ale nie mają bindingu
+plików workspace; ten graf czyta notatki bezpośrednio. Odświeżenie grafu nie
+uruchamia agenta w celu weryfikacji faktów lub aktualizacji źródeł.
+
+Skan obejmuje do 200 plików Markdown, 256 KiB na plik i łącznie 8 MiB, w granicach
+listingu źródła. Limit relacji to 256 na notatkę i 2048 na cały graf; osiągnięcie
+limitu także oznacza niepełny graf. Aliasy i tagi mają wspólny limit 128 wpisów
+na notatkę i 4096 na cały graf. Widok wskazuje pominięte i nieczytelne pliki, niepoprawny YAML oraz
+niepełny listing. Brak odwołania może oznaczać pominiętą notatkę, nie tylko zerwany
+link. Odświeżanie jest okresowe; równoczesne edycje mogą trafić do różnych skanów.
+
 ## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
 
 Karta **Pliki** rozdziela **Wspólne pliki projektu** i **Ten komputer**. Folder zatwierdzony przy tworzeniu projektu otwiera się automatycznie na tej instalacji; bez powiązania najpierw widać wspólne pliki. Wybierz Ten komputer, aby podłączyć folder. **Ustawienia folderu** pozwalają go zmienić lub odłączyć; ścieżka i tryb dostępu są widoczne bez powtarzania formularza konfiguracji.
@@ -213,10 +268,22 @@ sięgał do niego już tylko projekt, więc znika razem z nim.
 
 ## Gdzie widać projekty { #where-projects-show-up }
 
-- **Projekty** w pasku bocznym pokazują pięć ostatnio używanych, nad linkiem do
-  wszystkich.
+- **Projekty** w pasku bocznym pokazują trzy ostatnio używanych, nad linkiem do
+  wszystkich. Ikona nowej odpowiedzi oznacza projekt z nieprzeczytaną odpowiedzią w chacie.
 - Lista czatów pokazuje każdy czat w projektach, które widzisz - twoje i twoich
   współpracowników - pod nazwą projektu, nad czatami spoza projektów.
 - Karta **Projekty** na dashboardzie pokazuje ich rząd, z czatami w każdym.
 - `GET /api/v1/projects` i trasy pod nim należą do publicznego API, więc skrypt
   może utworzyć projekt i wypełnić go plikami. Zobacz [API](api.md).
+
+
+## Pilnuj postępów projektu { #keep-a-project-on-track }
+
+Na stronie projektu wybierz **Pilnuj projektu**. Wskaż opublikowanego agenta, którego możesz edytować, przejrzyj zasoby i połączone konta, nazwij nowego agenta i tabelę zadań, wybierz częstotliwość i jawnie zatwierdź publikację oraz uruchomienie. Powstają prywatna kopia agenta, tabela zadań (prywatna, chyba że wybierzesz widoczność dla organizacji), zapisane widoki wszystkich zadań, tablicy, otwartych zadań i blokad oraz rutyna przypięta do nowej wersji. Oryginalny agent pozostaje bez zmian.
+
+Rutyna działa jako Ty wewnątrz projektu i raportuje w jego rozmowie. Czyta stan zadań, sprawdza postępy w zatwierdzonych źródłach, aktualizuje kolejne kroki i wskazuje blokady oraz terminy. Wysłanie zewnętrznego przypomnienia nadal wymaga zwykłej autoryzacji. Nowe źródła, ponowna zgoda konta lub wymiana przestrzeni projektu wymagają ponownego przeglądu źródeł. Utrata dostępu do projektu zatrzymuje kolejne narzędzia; oczekujące powiadomienia ponownie sprawdzają bieżący dostęp odbiorcy. Identyczna ponowiona konfiguracja wykorzystuje istniejące zasoby. Częstotliwość i źródła zmienisz w Rutynach, a tabelę otworzysz ze strony projektu.
+
+Rozmowę harmonogramową w projekcie, która nie ma właściciela, może zmienić, zarchiwizować lub usunąć osoba z prawem edycji tego projektu. Rozmowami rozpoczętymi przez inną osobę nadal zarządza ich właściciel.
+
+
+Usunięcie projektu usuwa również jego wpisy pamięci i pochodne udostępnione kopie oraz próbuje wyrejestrować webhooki u dostawców przed kaskadowym usunięciem rutyn. Niedostępność dostawcy jest logowana i nie blokuje usunięcia.

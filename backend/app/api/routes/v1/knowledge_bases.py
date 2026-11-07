@@ -138,7 +138,9 @@ async def delete_knowledge_base(
 
     Default KBs cannot be deleted. The physical `rag_<collection>` table is dropped
     by the durable cleanup the service dispatches after the commit, which builds its
-    own vector engine - so the route no longer wires a store in (#1266, #1349).
+    own vector engine - so the route no longer wires a store in (#1266, #1349). It
+    stays, with this base's chunks purged, while another base holds the name or it
+    holds chunks this base does not take, such as an operator's `rag-ingest` (#2747).
     """
     await service.delete(kb_id, ctx=ctx)
 
@@ -336,7 +338,11 @@ async def list_kb_sync_sources(
     return sync_source_svc.as_list(await access.kb_sync_sources(ctx, kb))
 
 
-@router.get("/{kb_id}/sync-sources/org-integrations", response_model=SyncSourceList)
+@router.get(
+    "/{kb_id}/sync-sources/org-integrations",
+    response_model=SyncSourceList,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
 async def list_org_integrations_for_kb(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
@@ -347,6 +353,12 @@ async def list_org_integrations_for_kb(
 
     Used by the wizard's 'pick existing' step so the user can clone an
     existing integration's credentials into this knowledge base.
+
+    Gated on `connections:manage`, as `GET /org/integrations` is: the rows are
+    the organization's integrations - every other base's and the unassigned
+    ones, with their config, the vault secret each uses and their last error -
+    not this base's, so reading this base is not what grants them (#2745). A
+    grant on a base cannot widen it for the same reason.
     """
     kb = await service.get(kb_id, ctx=ctx)
     all_org = await sync_source_svc.list_sources(organization_id=ctx.organization_id)
@@ -438,7 +450,7 @@ async def trigger_kb_sync_source(
 ) -> Any:
     """Manually trigger a sync run for one of this KB's sources."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(kb, str(source_id))
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
     sync_log = await sync_source_svc.trigger_sync(str(source_id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
@@ -469,7 +481,7 @@ async def list_kb_sync_source_logs(
     per-resource read on this surface answers.
     """
     kb = await service.get(kb_id, ctx=ctx)
-    source = await access.kb_sync_source(kb, str(source_id))
+    source = await access.kb_sync_source(ctx, kb, str(source_id))
     return await sync_source_svc.list_logs(source.id, limit=limit)
 
 
@@ -497,7 +509,7 @@ async def update_kb_sync_source(
     A key set to `null` in `config` removes it from the stored config.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(kb, str(source_id))
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
     if "collection_name" in data.model_fields_set and data.collection_name != kb.collection_name:
         raise refused_field(
             "collection_name", "A source cannot be moved to another knowledge base from here"
@@ -520,5 +532,5 @@ async def delete_kb_sync_source(
 ) -> None:
     """Remove a sync source from this KB."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(kb, str(source_id))
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
     await sync_source_svc.delete_source(str(source_id), ctx=ctx)

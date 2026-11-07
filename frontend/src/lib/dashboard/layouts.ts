@@ -331,6 +331,7 @@ const ME_SECTIONS: SectionDef[] = [
       { widget: "needs-attention", span: "s12", rows: "r2" },
       // Improvements stopped for a decision, each a click from its waiting step.
       { widget: "improvements-waiting", span: "s12", rows: "r2" },
+      { widget: "background-tasks", span: "s12", rows: "r2" },
       // Where their ongoing work is, a row of tiles under what they left open.
       { widget: "projects", span: "s12", rows: "r2" },
       { widget: "my-agents", span: "s6", rows: "r2" },

@@ -26,7 +26,7 @@ export function ImprovementMeasurement({ measurement }: { measurement: Measureme
         </p>
       )}
       {missing > 0 && (
-        <p role="status" className="text-warning text-sm">
+        <p role="status" className="text-warning-ink text-sm">
           {t("needed", { count: missing })}
         </p>
       )}

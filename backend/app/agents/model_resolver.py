@@ -42,13 +42,18 @@ itself, and a credential without one is refused rather than built to fail on its
 second run.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
+import httpx
+import httpx2
+from openai import AsyncOpenAI
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.providers import Provider, infer_provider_class
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from app.core.exceptions import BadRequestError
@@ -68,6 +73,36 @@ if TYPE_CHECKING:
 
 ModelApi = Literal["chat", "responses"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
+
+
+def api_for_model(surfaces: tuple[str, ...]) -> ModelApi | None:
+    """Prefer Chat Completions, then Responses; leave unknown surfaces unspecified."""
+    if "chat" in surfaces:
+        return "chat"
+    if "responses" in surfaces:
+        return "responses"
+    return None
+
+
+def otari_price_identity(model_name: str) -> tuple[str, str] | None:
+    """Resolve a direct Otari selector; a routing alias has no fixed upstream price."""
+    vendor, separator, model = model_name.partition(":")
+    if not separator:
+        vendor, separator, model = model_name.partition("/")
+    if not separator or not vendor or not model:
+        return None
+    vendor = {"gemini": "google", "vertexai": "google", "bedrock": "aws", "xai": "x-ai"}.get(
+        vendor, vendor
+    )
+    return vendor, model
+
+
+ModelRegion = Literal["eu", "eea", "global"]
+"""Allowed execution scopes for providers with regional routing."""
+
+STAV_BASE_URL = "https://api.stav.ai/v1"
+STAV_REGION_HEADER = "X-Stav-Runs-In"
+STAV_DEFAULT_REGION: ModelRegion = "eu"
 
 
 @dataclass(frozen=True)
@@ -93,8 +128,13 @@ class ProviderSpec:
     secret_kind: SecretKind
     base_url_param: str | None = None
     keyless: bool = False
+    requires_base_url: bool = False
     model_prefix: str = ""
     native_api: ModelApi | None = None
+    # The first supported region is the default.
+    regions: tuple[ModelRegion, ...] = ()
+    # Resolve the API from advertised model surfaces rather than a form selection.
+    api_from_model: bool = False
 
     @property
     def prefix(self) -> str:
@@ -121,6 +161,50 @@ class ProviderSpec:
             return None
         return self.native_api if base_url is None else "chat"
 
+    def default_region(self) -> ModelRegion | None:
+        """The region a profile gets when it names none; null where there is no choice."""
+        return self.regions[0] if self.regions else None
+
+
+class _StavClient(AsyncOpenAI):
+    def _process_response_data[ResponseT](
+        self, *, data: object, cast_to: type[ResponseT], response: httpx2.Response
+    ) -> ResponseT:
+        from app.agents.stav_cost import capture_stav_cost
+
+        capture_stav_cost(data, response.headers)
+        return super()._process_response_data(data=data, cast_to=cast_to, response=response)
+
+    async def _prepare_request(self, request: httpx2.Request) -> None:
+        await super()._prepare_request(request)
+        # Apply after request-level headers, which otherwise override the profile's region.
+        if region := self.default_headers.get(STAV_REGION_HEADER):
+            request.headers[STAV_REGION_HEADER] = region
+
+
+class _StavProvider(OpenAIProvider):
+    """Stav requests retain the profile's region and the provider-owned client lifecycle."""
+
+    def __init__(self, *, api_key: str, base_url: str, region: ModelRegion) -> None:
+        super().__init__(api_key=api_key, base_url=base_url)
+        if region != "global":
+            self._client = self._client.with_options(default_headers={STAV_REGION_HEADER: region})
+
+    def _create_openai_client(
+        self,
+        *,
+        base_url: str | None,
+        api_key: str | None,
+        http_client: httpx2.AsyncClient | httpx.AsyncClient | None,
+        default_headers: Mapping[str, str] | None = None,
+    ) -> AsyncOpenAI:
+        client = self._get_http_client(http_client)
+        if not isinstance(client, httpx2.AsyncClient):
+            raise TypeError("Stav requires an httpx2 client")
+        return _StavClient(
+            base_url=base_url, api_key=api_key, http_client=client, default_headers=default_headers
+        )
+
 
 class _EndpointOpenRouterProvider(OpenRouterProvider):
     """Keep OpenRouter's native model handling and SDK-owned client lifecycle."""
@@ -140,6 +224,7 @@ def _api_key(
     *,
     base_url_param: str | None = None,
     keyless: bool = False,
+    requires_base_url: bool = False,
     model_prefix: str = "",
     native_api: ModelApi | None = None,
 ) -> ProviderSpec:
@@ -150,6 +235,7 @@ def _api_key(
         secret_kind=SecretKind.API_KEY,
         base_url_param=base_url_param,
         keyless=keyless,
+        requires_base_url=requires_base_url,
         model_prefix=model_prefix,
         native_api=native_api,
     )
@@ -171,6 +257,13 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
+        _api_key(
+            "otari",
+            "Otari",
+            base_url_param="base_url",
+            model_prefix="openai-chat",
+            requires_base_url=True,
+        ),
         _api_key("alibaba", "Alibaba Cloud", base_url_param="base_url"),
         _api_key("cerebras", "Cerebras"),
         _api_key("deepseek", "DeepSeek"),
@@ -184,6 +277,20 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("ovhcloud", "OVHcloud AI Endpoints"),
         _api_key("sambanova", "SambaNova", base_url_param="base_url"),
         _api_key("together", "Together AI"),
+        # An EU inference gateway with an OpenAI-compatible API. Its own entry
+        # rather than an OpenAI profile with an endpoint because of the region:
+        # a profile chooses EU, EEA or global once, and every request it sends
+        # carries that limit. EU first, so a profile that names none stays in it.
+        ProviderSpec(
+            id="stav",
+            name="Stav.ai",
+            secret_kind=SecretKind.API_KEY,
+            base_url_param="base_url",
+            model_prefix="openai-chat",
+            native_api="chat",
+            regions=(STAV_DEFAULT_REGION, "eea", "global"),
+            api_from_model=True,
+        ),
         _api_key("vercel", "Vercel AI Gateway"),
         _api_key("zai", "Z.AI"),
         # `api_host`, not `base_url`: the xAI SDK names it differently, and a
@@ -294,6 +401,9 @@ class ResolvedCredential:
     # ones back to. `secret` is the pair as it was when the run resolved it,
     # which a refresh in any other run may already have spent.
     credential_source: OpenAICodexCredentialSource | None = None
+    # The profile's, like `api`: where the requests may run, for a provider that
+    # takes a region. `None` for every provider that does not.
+    region: ModelRegion | None = None
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -339,6 +449,16 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
     if isinstance(secret, OpenAICodexSecret):
         return _openai_codex_provider(spec, credential.credential_source)
 
+    if spec.id == "otari":
+        from pydantic_ai_otari import DEFAULT_BASE_URL, OtariProvider
+
+        if not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(message="Otari requires a vault API key")
+        return OtariProvider(
+            api_key=secret.api_key.get_secret_value(),
+            base_url=credential.base_url or DEFAULT_BASE_URL,
+        )
+
     endpoint: dict[str, str] = {}
     if credential.base_url is not None and spec.base_url_param is not None:
         endpoint[spec.base_url_param] = credential.base_url
@@ -353,6 +473,12 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         raise BadRequestError(
             message="This secret cannot authenticate a model provider",
             details={"kind": secret.kind.value, "provider": spec.id},
+        )
+    if spec.id == "stav":
+        return _StavProvider(
+            api_key=secret.api_key.get_secret_value(),
+            base_url=credential.base_url or STAV_BASE_URL,
+            region=credential.region or STAV_DEFAULT_REGION,
         )
     if spec.id == "openrouter" and credential.base_url is not None:
         return _EndpointOpenRouterProvider(
@@ -431,6 +557,15 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
     Raises:
         BadRequestError: If the provider has no catalog entry.
     """
+    model_client = _build_model(credential, model)
+    if credential.provider == "stav":
+        from app.agents.stav_cost import StavCostModel
+
+        return StavCostModel(model_client)
+    return model_client
+
+
+def _build_model(credential: ResolvedCredential, model: str) -> Model:
     spec = get_provider(credential.provider)
     if credential.api == "responses":
         # Local for the reason `_build_provider`'s are: a deployment that never

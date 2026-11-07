@@ -125,7 +125,7 @@ export function AssistantStrip({
       </CardHeader>
       <CardContent className="space-y-4">
         {latest?.status === "failed" && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {latest.error}
           </p>
         )}
@@ -135,7 +135,7 @@ export function AssistantStrip({
           </p>
         )}
         {assistant.error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {getErrorMessage(assistant.error, tErrors)}
           </p>
         )}

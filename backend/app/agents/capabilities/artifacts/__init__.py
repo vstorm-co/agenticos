@@ -85,10 +85,8 @@ class ArtifactsConfig(BaseModel):
 )
 def _build(ctx: CapabilityBuildContext) -> Artifacts:
     """Never `None`: an agent without a workspace still publishes content it passes inline."""
-    # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
-    # module level, which loops back through the factory to this package.
-    from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE
     from app.agents.capabilities.workflows import WORKFLOW_IDS_RESOURCE
+    from app.agents.table_bindings import TABLE_GRANTS_RESOURCE
 
     config = ctx.config if isinstance(ctx.config, ArtifactsConfig) else ArtifactsConfig()
     return Artifacts(

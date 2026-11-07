@@ -17,6 +17,20 @@ const push = vi.hoisted(() => vi.fn());
 const pointAt = vi.hoisted(() => vi.fn());
 const dialogs = vi.hoisted(() => [] as { agentId: string | null; template?: TriggerTemplate }[]);
 
+const watchDialogs = vi.hoisted(
+  () => [] as { agentId?: string; initialTask?: { title: string; instructions: string } }[],
+);
+vi.mock("@/components/watches/watch-dialog", () => ({
+  WatchDialog: (props: {
+    agentId?: string;
+    initialTask?: { title: string; instructions: string };
+    onOpenChange: (open: boolean) => void;
+  }) => {
+    watchDialogs.push(props);
+    return <button onClick={() => props.onOpenChange(false)}>Close watch review</button>;
+  },
+}));
+
 const servers = vi.hoisted(() => ({
   entry: null as { key: string; name: string; icon: string | null; url: string } | null,
   isLoading: false,
@@ -217,4 +231,26 @@ describe("SetupProposals", () => {
       expect(push).toHaveBeenCalledWith("/mcp-servers");
     });
   });
+});
+
+it("opens a watch proposal for review without creating or activating it", async () => {
+  render(
+    <SetupProposals
+      agentId="a-1"
+      proposals={[
+        proposal({
+          kind: "watch",
+          title: "Review requests",
+          request: "Watch GitHub for my review requests",
+        }),
+      ]}
+    />,
+  );
+  await take("Review requests");
+  expect(watchDialogs.at(-1)).toMatchObject({
+    agentId: "a-1",
+    initialTask: { title: "Review requests", instructions: "Watch GitHub for my review requests" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Close watch review" }));
+  expect(screen.queryByRole("button", { name: "Close watch review" })).not.toBeInTheDocument();
 });

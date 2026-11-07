@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { Building2, FlaskConical, Lock, Trash2, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
-import { Beam } from "@/components/ui/beam";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
@@ -28,19 +26,12 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
   const tc = useTranslations("common");
   const tt = useTranslations("time");
   const locale = useLocale();
-  const [hovered, setHovered] = useState(false);
   const VisibilityIcon = VISIBILITY_ICON[dataset.visibility];
   const edited = dataset.updated_at ?? dataset.created_at;
 
   return (
-    <Beam
-      size="md"
-      borderRadius={12}
-      active={hovered}
-      onHoverChange={setHovered}
-      className="h-full rounded-xl"
-    >
-      <div className="border-border bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
+    <div className="h-full">
+      <div className="border-foreground/8 bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
         <Link
           href={ROUTES.DATASET_DETAIL(dataset.id)}
           data-tour="dataset-card-open"
@@ -94,6 +85,6 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           )}
         </div>
       </div>
-    </Beam>
+    </div>
   );
 }

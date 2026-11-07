@@ -163,7 +163,7 @@ function TodayStart({
         {t("baseline")}
       </Button>
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}

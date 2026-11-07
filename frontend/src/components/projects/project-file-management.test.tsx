@@ -1,10 +1,11 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ProjectEntryActions } from "./project-entry-actions";
 import { ProjectFileEditor } from "./project-file-editor";
+import { qk } from "@/lib/query-keys";
 import * as api from "@/lib/projects-api";
 
 vi.mock("@/lib/projects-api", () => ({
@@ -157,4 +158,37 @@ it("does not close a file while its save is in flight", async () => {
   await act(async () => finish({ content: "# Notes\n new", revision: "b".repeat(64) }));
   await userEvent.click(screen.getAllByRole("button", { name: "Close" }).at(-1)!);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("unlocks a saved file while its graph refresh is still running", async () => {
+  let finish: (value: string) => void = () => {
+    throw new Error("Refresh not started");
+  };
+  function GraphRefresh() {
+    const query = useQuery({
+      queryKey: qk.wikiGraph.source({ kind: "project", id: "p-1" }),
+      queryFn: () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+      initialData: "initial",
+      staleTime: Infinity,
+    });
+    return <output>{query.isFetching ? "Graph refreshing" : "Graph idle"}</output>;
+  }
+  wrap(
+    <>
+      <GraphRefresh />
+      <ProjectFileEditor projectId="p-1" path="notes.md" />
+    </>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Edit file" }));
+  const editor = await screen.findByRole("textbox", { name: "File contents" });
+  await userEvent.type(editor, " new");
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(await screen.findByText("Graph refreshing")).toBeVisible();
+  await waitFor(() => expect(editor).toBeEnabled());
+  await userEvent.click(screen.getAllByRole("button", { name: "Close" }).at(-1)!);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await act(async () => finish("updated"));
 });

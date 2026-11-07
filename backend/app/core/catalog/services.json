@@ -27,6 +27,15 @@
     "icon": "exa"
   },
   {
+    "id": "keenable",
+    "label": "Keenable",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://docs.keenable.ai/authentication",
+    "description": "Web search without an account; an optional key uses your organization's allowance.",
+    "icon": "keenable"
+  },
+  {
     "id": "logfire",
     "label": "Logfire",
     "category": "observability",
@@ -43,14 +52,6 @@
     "help_url": "https://cloud.llamaindex.ai",
     "description": "Parse PDFs with LlamaParse, billed to this organization's own key.",
     "icon": "llamaparse"
-  },
-  {
-    "id": "mem0",
-    "label": "mem0",
-    "category": "other",
-    "kind": "api_key",
-    "help_url": "https://mem0.ai",
-    "description": "Store an agent's remembered facts in a mem0 service (cloud or self-hosted)."
   },
   {
     "id": "elevenlabs",

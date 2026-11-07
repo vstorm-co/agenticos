@@ -174,6 +174,11 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
+        # The chat's conversation belongs to the sender, so the session is not rotated.
+        patch(
+            f"{router}.conversation_repo.get_owner",
+            AsyncMock(return_value=getattr(identity, "user_id", None)),
+        ),
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
         ),
@@ -380,6 +385,34 @@ class TestReceivingWhatSomebodySent:
 
         assert len(stored) == 1
         assert len(refused) == 1
+
+    @pytest.mark.security
+    async def test_an_archive_refused_at_upload_is_one_refusal_not_a_failed_turn(self):
+        """An archive is read whole only at upload, so its refusal - a `../`
+        member, a link, a bomb - arrives as an exception there (#2479)."""
+        from app.core.exceptions import BadRequestError
+
+        service = _service()
+        service.uploads.upload = AsyncMock(
+            side_effect=[
+                BadRequestError(message="The archive holds a path that leads outside it (`..`)."),
+                MagicMock(filename="report.csv"),
+            ]
+        )
+        adapter = _adapter(downloads=b"PK\x03\x04 an archive")
+
+        stored, refused = await service.receive(
+            adapter,
+            "t",
+            [
+                _attachment(filename="repo.zip", mime_type="application/zip", size=30),
+                _attachment(size=30),
+            ],
+            user_id=uuid.uuid4(),
+        )
+
+        assert refused == ["repo.zip: The archive holds a path that leads outside it (`..`)."]
+        assert len(stored) == 1
 
 
 class TestATurnRefusedBeforeTheRunKeepsNothing:
@@ -756,6 +789,11 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
+        # The chat's conversation belongs to the sender, so the session is not rotated.
+        patch(
+            f"{router}.conversation_repo.get_owner",
+            AsyncMock(return_value=getattr(identity, "user_id", None)),
+        ),
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
         ),
@@ -1303,3 +1341,11 @@ async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
     answer = agents.answer if text.startswith("@") else agents.answer_default
     assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
     load.assert_awaited_once()
+
+
+@pytest.fixture(autouse=True)
+def ordinary_channel_histories(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.channels.router.primary_conversation_repo.agent_for_conversation",
+        AsyncMock(return_value=None),
+    )

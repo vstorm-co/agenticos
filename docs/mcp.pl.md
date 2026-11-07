@@ -1,5 +1,5 @@
 ---
-source_sha: "c5959a873d02"
+source_sha: "4447bf64274d"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -197,6 +197,13 @@ lista wyboru mówi to wprost i kieruje na stronę serwerów, bo tam sprawdza si�
 połączenie. Powiązanie, które już wymienia narzędzia, pokazuje właśnie je, więc
 to, z czym jest związane, pozostaje widoczne i wciąż można je zawęzić.
 
+Z [wyszukiwaniem narzędzi](reference/capabilities.md#tool-search) kwalifikujące się
+narzędzia MCP są ukryte, dopóki agent ich nie wyszuka. Ustawienia pozwalają odraczać
+narzędzia MCP, narzędzia capability lub oba rodzaje oraz pozostawiać wybrane
+przestrzenie nazw serwerów albo pojedyncze narzędzia widoczne od pierwszego żądania.
+Te wykluczenia zmieniają moment pokazania schematu narzędzia; listy dozwolonych
+narzędzi połączenia i powiązania nadal decydują, czy jest ono dostępne.
+
 ### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
 
 Każde powiązanie ma politykę `approval` dla narzędzi swojego serwera. Domyślna,
@@ -208,13 +215,11 @@ wywołanie: karta pokazuje dokładne argumenty, a wykonywane są te zatwierdzone
 samego serwera, więc `writes` jest tak ścisłe, jak serwer jest uczciwy — dla
 serwera, którego nie kontrolujesz, wybierz `all`.
 
-Własny szablon Architekta prosi
-o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
-imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
-`writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora. Dwa odczyty czekają jak zmiany: `read_conversation`
-udostępnia całą wcześniejszą rozmowę, a `get_project` instrukcje wybranego projektu.
-Przeczytana strona nie może po cichu wywołać żadnego z tych ujawnień.
+Szablon Architect używa `writes` dla serwera platformy. Powiązania z tym serwerem
+wymuszają co najmniej `writes`, także przy `none`, ponieważ narzędzia działają
+z uprawnieniami pytającej osoby. Odczyty, w tym `get_project` i `read_conversation`,
+działają automatycznie przy `writes`. Tworzenie, aktualizacja, usuwanie i inne
+operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać również o odczyty.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -720,17 +725,35 @@ wyszukiwanie, a nie wyliczanka:
   50 — więc arytmetyka mieszka w `mcp_listing.page`, z testem na tej granicy, bo
   pomyłka o jeden pomija tam serwer albo pokazuje go dwa razy na liście, na
   której nikt by nie zauważył którego.
+
+  **Podłączony (Connected)** obejmuje każdy dostępny serwis z zapisanym kontem
+  organizacji lub osobistym, w tym własne serwery oraz wpisy katalogu lub rejestru
+  na innych stronach. Wiele kont mieści się na jednej karcie serwera. Konta
+  wyłączone i wymagające uwagi pozostają widoczne, aby można było nimi zarządzać.
+  Filtry wyszukiwania, kategorii, logowania i stanu połączenia działają przed
+  zliczaniem i stronicowaniem wyników.
+
+  Zapisane linki do serwerów ponownie otwierają okno kont, nawet gdy nieudany test
+  rejestru lub duplikat ukrywa serwer w widoku **Wszystkie (All)**. Porównywanie URL
+  zachowuje wielkość liter w ścieżkach i wartościach parametrów zapytania, dzięki
+  czemu różne punkty końcowe pozostają osobne. Ponowna autoryzacja konta korzysta
+  z adresu URL zapisanego dla tego konta.
+
+  W Connected i rejestrze dokładny klucz serwera ma pierwszeństwo przed powiązanymi wynikami,
+  więc zapisany link działa także wtedy, gdy inne opisy zawierają ten sam klucz. Wpisy
+  rejestru o identycznych nazwach zachowują stałą kolejność między stronami.
+
+  Gdy synchronizacja usunie wpis rejestru, zapisany klucz katalogu nadal otwiera istniejące
+  konta. Powrót z logowania w popupie odświeża zarówno strony listy, jak i zapisane zakładki
+  kont.
+
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,
   po których rozpoznaje się każdą kategorię; wpis, który nie wymienia żadnego z
   nich, trafia do _other_, zamiast być zgadywany pod nagłówek. Filtr **Sign-in**
   pyta o to, czego serwer chce - OAuth, tokenu, niczego - a dla odbitego wpisu
   jest to to, co ustaliło sprawdzenie katalogu.
-- **Żadnego wbudowanego logo.** Konsola wstawia inline favikonę dla każdego
-  wyselekcjonowanego hosta, żeby plakietka renderowała się offline; po 1,9 KB
-  każda, zrobienie tego dla lustra dałoby 10,5 MB base64 w module, który ładuje
-  przeglądarka. Wiersze z rejestru spadają do serwisu favikon działającego
-  w czasie żądania — po to właśnie został napisany.
+- **Lokalne ikony.** Wyselekcjonowane usługi mają dołączone znaki marek. Wpisy rejestru bez znanego logo korzystają z ikon usługi lub kategorii zamiast pobierania favikony dla każdego serwera. Prywatne połączenia bez klasyfikacji zachowują monogram. Przeglądanie katalogu działa offline i nie ujawnia domen oglądanych serwerów zewnętrznej usłudze favikon.
 - **Snapshot, nie proxy.** Instalacja nie może przestać działać dlatego, że
   czyjś rejestr leży, a nazwa, która wczoraj się rozwiązywała, a dziś nie
   rozwiązuje się do niczego, jest gorsza niż taka, której nigdy nie było.
@@ -834,26 +857,26 @@ dostawca wydaje endpoint osobno dla każdego konta.
 
 ### Dane i analityka { #data-and-analytics }
 
-| Serwer             | Uwierzytelnianie | URL                              |
-| ------------------ | ---------------- | -------------------------------- |
-| PostgreSQL         | token            | self-hosted                      |
-| Supabase           | token            | `https://mcp.supabase.com/mcp`   |
-| Elasticsearch      | token            | self-hosted                      |
-| Airtable           | token            | `https://mcp.airtable.com/mcp`   |
-| Snowflake          | token            | self-hosted                      |
-| Databricks         | token            | self-hosted                      |
-| Google BigQuery    | oauth            | self-hosted                      |
-| PostHog            | token            | `https://mcp.posthog.com/mcp`    |
-| Mixpanel           | token            | `https://mcp.mixpanel.com/mcp`   |
-| Google Analytics 4 | token            | self-hosted                      |
-| Neon               | oauth            | `https://mcp.neon.tech/mcp`      |
-| Amplitude          | token            | `https://mcp.amplitude.com/mcp`  |
-| Firecrawl          | token            | `https://mcp.firecrawl.dev/mcp`  |
-| Exa                | token            | `https://mcp.exa.ai/mcp`         |
-| Tavily             | token            | `https://mcp.tavily.com/mcp`     |
-| Bright Data        | token            | `https://mcp.brightdata.com/mcp` |
-| Qdrant             | none             | `https://mcp.qdrant.tech/mcp`    |
-| Statsig            | token            | `https://api.statsig.com/v1/mcp` |
+| Serwer             | Uwierzytelnianie | URL                                   |
+| ------------------ | ---------------- | ------------------------------------- |
+| PostgreSQL         | token            | self-hosted                           |
+| Supabase           | token            | `https://mcp.supabase.com/mcp`        |
+| Elasticsearch      | token            | self-hosted                           |
+| Airtable           | token            | `https://mcp.airtable.com/mcp`        |
+| Snowflake          | token            | self-hosted                           |
+| Databricks         | token            | self-hosted                           |
+| Google BigQuery    | oauth            | `https://bigquery.googleapis.com/mcp` |
+| PostHog            | token            | `https://mcp.posthog.com/mcp`         |
+| Mixpanel           | token            | `https://mcp.mixpanel.com/mcp`        |
+| Google Analytics 4 | token            | self-hosted                           |
+| Neon               | oauth            | `https://mcp.neon.tech/mcp`           |
+| Amplitude          | token            | `https://mcp.amplitude.com/mcp`       |
+| Firecrawl          | token            | `https://mcp.firecrawl.dev/mcp`       |
+| Exa                | token            | `https://mcp.exa.ai/mcp`              |
+| Tavily             | token            | `https://mcp.tavily.com/mcp`          |
+| Bright Data        | token            | `https://mcp.brightdata.com/mcp`      |
+| Qdrant             | none             | `https://mcp.qdrant.tech/mcp`         |
+| Statsig            | token            | `https://api.statsig.com/v1/mcp`      |
 
 ### Komunikacja, wsparcie, wiedza { #communication-support-knowledge }
 
@@ -1002,6 +1025,113 @@ następnej publikacji: podepnij zamiast niego **Microsoft 365 (self-hosted)** al
 
 ### Gmail i Google Workspace { #gmail-and-google-workspace }
 
+### Oficjalne zdalne serwery Google { #official-google-remote-servers }
+
+Katalog zawiera hostowane serwery Workspace od Google: Gmail, Calendar, Drive,
+Docs, Sheets, Slides, Chat, People, Classroom i Universal Search. Są to usługi
+Developer Preview, niezależne od samodzielnie hostowanej integracji Workspace.
+Dołącz do programu testowego Google, włącz API produktu i usługę MCP, a następnie
+utwórz klienta OAuth typu web przeznaczonego dla agenta AI. Zarejestruj dokładny
+adres callback z okna połączenia i podaj tam identyfikator oraz sekret klienta.
+Chat wymaga też skonfigurowanej aplikacji Chat, a Classroom klasy i ucznia testowego.
+Zobacz [instrukcję Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Połączenia z hostowanymi serwerami MCP Google otwierają wymagany formularz klienta przed logowaniem, z adresem przekierowania i linkiem do instrukcji Google. Identyfikator i sekret klienta są wymagane; AgenticOS nie próbuje automatycznie rejestrować klienta w Google. Odrzucenie rejestracji przez innych dostawców zwraca instrukcję naprawy zamiast ogólnego komunikatu.
+
+Pozycje Cloud obejmują BigQuery, Cloud Storage, Cloud Run, Compute Engine, GKE,
+Firestore, Cloud SQL, Spanner, Logging, Monitoring i inne. Włącz API danej usługi
+i nadaj kontu rolę MCP Tool User oraz wymagane uprawnienia IAM produktu.
+Sprawdź dostępność, koszty i ograniczenia regionalne w podlinkowanej instrukcji.
+Secure Source Manager domyślnie używa przeglądu kodu w US Central, a Gemini
+Enterprise Agent Platform zestawu generate. Zmień adres dla innego udokumentowanego
+regionu lub zestawu narzędzi. [Katalog Google](https://docs.cloud.google.com/mcp/supported-products)
+zawiera również usługi, których adresów lub autoryzacji jeszcze tutaj nie obsługujemy.
+
+OAuth Google prosi o dostęp offline i ponowną zgodę, aby otrzymać token odświeżania.
+Połącz ponownie istniejące konto Google, jeśli go nie ma. Publiczny handshake i lista
+narzędzi nie oznaczają anonimowego dostępu do danych konta: audyt katalogu sprawdza
+również metadane OAuth. Wpisy katalogu pojawiają się na istniejących instalacjach po
+aktualizacji i restarcie. Konta podłącza się jawnie; zapisane adresy i dane logowania
+istniejących połączeń pozostają zachowane.
+
+| Serwer                                    | Oficjalny adres                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| Gmail                                     | `https://gmailmcp.googleapis.com/mcp/v1`                                     |
+| Google Calendar                           | `https://calendarmcp.googleapis.com/mcp/v1`                                  |
+| Google Chat                               | `https://chatmcp.googleapis.com/mcp/v1`                                      |
+| Google Classroom                          | `https://classroommcp.googleapis.com/mcp/v1`                                 |
+| Google Docs                               | `https://docsmcp.googleapis.com/mcp/v1`                                      |
+| Google Drive                              | `https://drivemcp.googleapis.com/mcp/v1`                                     |
+| Google People API                         | `https://people.googleapis.com/mcp/v1`                                       |
+| Google Sheets                             | `https://sheetsmcp.googleapis.com/mcp/v1`                                    |
+| Google Slides                             | `https://slidesmcp.googleapis.com/mcp/v1`                                    |
+| Google Workspace Universal Search         | `https://workspacemcp.googleapis.com/mcp/v1`                                 |
+| Google API keys                           | `https://apikeys.googleapis.com/mcp`                                         |
+| Google Agent Registry                     | `https://agentregistry.googleapis.com/mcp`                                   |
+| Google Agent Search                       | `https://discoveryengine.googleapis.com/mcp`                                 |
+| Google AlloyDB for PostgreSQL             | `https://alloydb.googleapis.com/mcp`                                         |
+| Google Android Management API             | `https://androidmanagement.googleapis.com/mcp`                               |
+| Google Apigee API hub                     | `https://apihub.googleapis.com/mcp`                                          |
+| Google App Lifecycle Manager              | `https://saasservicemgmt.googleapis.com/mcp`                                 |
+| Google App Topology                       | `https://apptopology.googleapis.com/mcp`                                     |
+| Google Audit Manager                      | `https://auditmanager.googleapis.com/mcp`                                    |
+| Google Backup and DR Service              | `https://backupdr.googleapis.com/mcp`                                        |
+| Google BigQuery Data Transfer Service     | `https://bigquerydatatransfer.googleapis.com/mcp`                            |
+| Google BigQuery Migration Service         | `https://bigquerymigration.googleapis.com/mcp`                               |
+| Google Bigtable                           | `https://bigtableadmin.googleapis.com/mcp`                                   |
+| Google Capacity Planner                   | `https://capacityplanner.googleapis.com/mcp`                                 |
+| Google Cloud Asset Inventory              | `https://cloudasset.googleapis.com/mcp`                                      |
+| Google Cloud CLI                          | `https://cloudcli.googleapis.com/mcp`                                        |
+| Google Cloud Location Finder              | `https://cloudlocationfinder.googleapis.com/mcp`                             |
+| Google Cloud Logging                      | `https://logging.googleapis.com/mcp`                                         |
+| Google Cloud Monitoring                   | `https://monitoring.googleapis.com/mcp`                                      |
+| Google Cloud NetApp Volumes               | `https://netapp.googleapis.com/mcp`                                          |
+| Google Cloud Quotas                       | `https://cloudquotas.googleapis.com/mcp`                                     |
+| Google Cloud Run                          | `https://run.googleapis.com/mcp`                                             |
+| Google Cloud SQL                          | `https://sqladmin.googleapis.com/mcp`                                        |
+| Google Cloud Storage                      | `https://storage.googleapis.com/storage/mcp`                                 |
+| Google Cloud Support API                  | `https://cloudsupport.googleapis.com/mcp`                                    |
+| Google Cloud Trace                        | `https://cloudtrace.googleapis.com/mcp`                                      |
+| Google Compute Engine                     | `https://compute.googleapis.com/mcp`                                         |
+| Google Database Center                    | `https://databasecenter.googleapis.com/mcp`                                  |
+| Google Database Migration Service         | `https://datamigration.googleapis.com/mcp`                                   |
+| Google Dataform                           | `https://dataform.googleapis.com/mcp`                                        |
+| Google Datastream                         | `https://datastream.googleapis.com/mcp`                                      |
+| Google Developer Connect                  | `https://developerconnect.googleapis.com/mcp`                                |
+| Google Developer Knowledge API            | `https://developerknowledge.googleapis.com/mcp`                              |
+| Google Error Reporting                    | `https://clouderrorreporting.googleapis.com/mcp`                             |
+| Google Filestore                          | `https://file.googleapis.com/mcp`                                            |
+| Google Firebase SQL Connect               | `https://firebasedataconnect.googleapis.com/mcp`                             |
+| Google Firestore                          | `https://firestore.googleapis.com/mcp`                                       |
+| Google GKE                                | `https://container.googleapis.com/mcp`                                       |
+| Google Gemini Cloud Assist                | `https://geminicloudassist.googleapis.com/mcp`                               |
+| Google Gemini Enterprise Agent Platform   | `https://aiplatform.googleapis.com/mcp/generate`                             |
+| Google Home Developer                     | `https://homedevelopers.googleapis.com/mcp`                                  |
+| Google Identity and Access Management     | `https://iam.googleapis.com/mcp`                                             |
+| Google Knowledge Catalog                  | `https://dataplex.googleapis.com/mcp`                                        |
+| Google Managed Service for Apache Kafka   | `https://managedkafka.googleapis.com/mcp`                                    |
+| Google Managed Service for Apache Spark   | `https://dataproc.googleapis.com/mcp`                                        |
+| Google Maps Grounding Lite                | `https://mapstools.googleapis.com/mcp`                                       |
+| Google Memorystore                        | `https://redis.googleapis.com/mcp`                                           |
+| Google Network Intelligence Center        | `https://networkmanagement.googleapis.com/mcp`                               |
+| Google Oracle Database@Google Cloud       | `https://oracledatabase.googleapis.com/mcp`                                  |
+| Google Organization Policy Service        | `https://orgpolicy.googleapis.com/mcp`                                       |
+| Google Pay and Wallet                     | `https://paydeveloper.googleapis.com/mcp`                                    |
+| Google Personalized Service Health        | `https://servicehealth.googleapis.com/mcp`                                   |
+| Google Policy Assist                      | `https://policyassist.googleapis.com/mcp`                                    |
+| Google Policy Troubleshooter              | `https://policytroubleshooter.googleapis.com/mcp`                            |
+| Google Pub/Sub                            | `https://pubsub.googleapis.com/mcp`                                          |
+| Google Recommender                        | `https://recommender.googleapis.com/mcp`                                     |
+| Google Resource Manager                   | `https://cloudresourcemanager.googleapis.com/mcp`                            |
+| Google Secure Source Manager              | `https://securesourcemanager.us-central1.rep.googleapis.com/mcp/code_review` |
+| Google Security Command Center Management | `https://securitycentermanagement.googleapis.com/mcp/manage-services`        |
+| Google Service Metadata API               | `https://cloud.googleapis.com/mcp`                                           |
+| Google Spanner                            | `https://spanner.googleapis.com/mcp`                                         |
+| Google Stitch                             | `https://stitch.googleapis.com/mcp`                                          |
+| Google Unified Maintenance                | `https://maintenance.googleapis.com/mcp`                                     |
+
+Usługi katalogu korzystają z dołączonych znaków marek, w tym osobnych ikon aplikacji Workspace. Wpisy rejestru bez logo otrzymują ikonę usługi lub kategorii, np. kalendarz dla CalendarMCP. Prywatne połączenia bez klasyfikacji zachowują monogram. Renderowanie ikon nie pobiera faviconów od stron trzecich.
+
 **Google Workspace (self-hosted)** to
 [`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
 uruchamiany z `--transport streamable-http` i `MCP_ENABLE_OAUTH21=true`, z Twoim
@@ -1083,6 +1213,10 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_knowledge_base`, `add_document`                                                                                                                                                                       | `collections:edit`                                                                                                                         |
 | `list_skills`                                                                                                                                                                                                 | `skills:view`                                                                                                                              |
 | `create_skill`                                                                                                                                                                                                | `skills:edit`                                                                                                                              |
+| `get_skill`                                                                                                                                                                                                   | `skills:view`                                                                                                                              |
+| `update_skill`, `add_skill_resource`                                                                                                                                                                          | `skills:edit`                                                                                                                              |
+| `list_context_files`, `get_context_file`                                                                                                                                                                      | `context:view`                                                                                                                             |
+| `create_context_file`, `update_context_file`                                                                                                                                                                  | `context:edit`                                                                                                                             |
 | `list_projects`                                                                                                                                                                                               | `projects:view`                                                                                                                            |
 | `get_project`                                                                                                                                                                                                 | dostęp do projektu                                                                                                                         |
 | `create_project`                                                                                                                                                                                              | `projects:edit`                                                                                                                            |
@@ -1094,6 +1228,8 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_datasets`                                                                                                                                                                                               | `datasets:view`                                                                                                                            |
 | `get_eval_run`                                                                                                                                                                                                | `runs:view`                                                                                                                                |
 | `estimate_knowledge_draft`, `draft_knowledge_topic`                                                                                                                                                           | `runs:view` i dostęp do edycji bazy wiedzy tematu                                                                                          |
+| `list_watches`, `delete_watch`                                                                                                                                                                                | własne obserwacje wywołującego                                                                                                             |
+| `create_watch`, `update_watch`                                                                                                                                                                                | zgoda człowieka w prywatnej rozmowie; `agents:run` przy wyborze agenta                                                                     |
 
 Narzędzia Popraw i evali wołają trasy, które nie należą jeszcze do publicznego API:
 odpowiadają Architektowi w aplikacji i klientowi MCP zalogowanemu przez OAuth, a
@@ -1103,11 +1239,10 @@ sprawdzenia, a Architekt używa tych, które coś zmieniają, tylko na prośbę.
 też może uruchamiać, przyjmować, publikować i kończyć sesje; tam zamiast karty
 Architekta decyduje własne okno zgody klienta.
 
-Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
-pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
-przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
-jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
-trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.
+Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów.
+Instrukcje i konfigurację wybranego projektu odczytuje `get_project`.
+To operacja tylko do odczytu: przy `writes` działa bez akceptacji,
+z zachowaniem uprawnień pytającej osoby do projektu.
 
 Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
 wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,
@@ -1157,16 +1292,13 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   niczego nie tworzy. Nic nowego nie jest przyznawane, a gdy za runem nikt nie
   stoi - publiczny widget, harmonogram działający w niczyim imieniu - bindingu nie
   ma.
-- **Zmiany czekają na zatwierdzenie.** Domyślne `writes` wstrzymuje każde
-  narzędzie, które coś zmienia (`create_agent_draft`, `publish_agent`,
-  `create_routine`, `run_agent`, `invite_member` i pozostałe), do zgody osoby;
-  `all` wstrzymuje też odczyt. `none` nie jest oferowane: te narzędzia działają z
-  uprawnieniami człowieka. Jedyny zapis, który nigdy nie czeka, to
-  `set_my_language`: zmienia język konsoli pytającego, na jego słowo, a karta
-  zatwierdzenia dla „przełącz na angielski” byłaby całą rozmową.
-  `set_my_profile` czeka jak pozostałe, bo to, co zapisuje, słyszy każdy agent,
-  którego ta osoba uruchamia, a strona przeczytana przez agenta nie może tego
-  zapisać niezauważenie.
+- **Zmiany podlegają polityce zgód powiązania.** Domyślne `writes` zatrzymuje
+  publikację, zaproszenia, usuwanie, uruchamianie teraz oraz tworzenie i edycję
+  własnych rutyn i obserwacji; `all` także odczyty. Tylko `set_my_language`
+  omija tę bramkę. Tożsamość człowieka w prywatnej rozmowie, własność i uprawnienia
+  pozostają wymagane, ale nie zastępują zatwierdzenia trwałej automatyzacji.
+  `set_my_profile` też czeka, bo jego treść trafia do przyszłych uruchomień agentów.
+
 - **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
   i oznaczają te, które coś zmieniają.
 
@@ -1217,8 +1349,30 @@ Serwer platformy MCP udostępnia też narzędzia workflows i Virtual Tables. Zac
 
 Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
 
-Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Istniejące capabilities pozostają edytowalne ze swoimi grantami; nie są automatycznie zamieniane na szerszy dostęp MCP.
+Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Dotychczasowe powiązania Workflows pozostają edytowalne. Capability Tables zostało usunięte: uprawnienia aplikacji przechodzą do `table_bindings`, a operacje na tabelach wymagają jawnego połączenia z platformowym MCP.
 
 Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala zaakceptować tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
 
 Dla istniejącego Architekta z własnymi zmianami uruchom `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+## Tworzenie Context i skilli { #context-and-skill-authoring }
+
+Przed `update_skill` odczytaj `get_skill`; pominięte pola zachowują wartości.
+`add_skill_resource` dodaje tekstowy szablon lub materiał, nie uruchamia skryptu.
+Znajdź Context przez `list_context_files`, odczytaj treść i tryb przez
+`get_context_file`, a zapisuj przez `create_context_file` i `update_context_file`.
+Wybierz `inject` dla kontekstu każdego uruchomienia albo `link` dla odczytu na
+żądanie. Oba narzędzia draftów agentów przyjmują `context_ids`; podana lista
+zastępuje cały zestaw powiązań. Edycja podpiętego pliku działa przy kolejnym
+uruchomieniu; zmiana powiązania draftu wymaga publikacji. Nadal obowiązują
+uprawnienia i zatwierdzenia zapisów.
+
+### Uprawnienia źródłowe połączonego konta { #connected-account-source-authority }
+
+Konto Google połączone przez klienta OAuth organizacji działa wyłącznie w tej organizacji. Użycie konta osobistego wymaga aktualnego członkostwa. Rotacja lub usunięcie klienta unieważnia skopiowaną zgodę do ponownego połączenia konta. Połączenia, ponowne połączenia i odłączenia kont organizacji są audytowane. Eksport osobisty zawiera metadane kont, bez tokenów i sekretów klienta.
+
+Migracja `0293_connected_account_sources.py` wymaga ponownej zgody dla starszych kont osobistych bez potwierdzonego źródła. Jej cofnięcie usuwa zgody kont osobistych, ponieważ starsza wersja nie potrafi egzekwować organizacji źródłowej; zwykłe połączenia MCP pozostają.
+
+Pauzy akceptacji Mirage przypinają tożsamość kont i generacje sekretów. Ich zmiana podczas oczekiwania wymaga nowego uruchomienia i zgody. Przegląd źródeł rutyny wiąże te same generacje, a zapis i komendy terminala wymagają zgody na skutki rutyny nawet przy wyłączonych akceptacjach zapisu dla montowania.
+
+Usunięcie członka trwale odwołuje jego osobiste zgody wydane przez tę organizację; ponowne zaproszenie wymaga nowej zgody.

@@ -470,6 +470,7 @@ class ToolCall(Base):
     )
     tool_call_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    presentation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     args: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")

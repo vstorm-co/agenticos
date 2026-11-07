@@ -370,7 +370,12 @@ class TestRuns:
         assert event.organization_id == run.organization_id
 
     async def test_a_run_s_change_is_published_to_its_organization(self, redis: Any) -> None:
-        run = MagicMock(organization_id=uuid.uuid4(), id=uuid.uuid4(), user_id=uuid.uuid4())
+        run = MagicMock(
+            organization_id=uuid.uuid4(),
+            id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            conversation_id=None,
+        )
 
         await change_feed.publish_run(run, "updated")
 
@@ -602,7 +607,9 @@ class TestRoute:
         await change_events(socket, organization)
 
         socket.accept.assert_awaited_once_with(subprotocol="events")
-        stream.assert_awaited_once_with(socket, organization_id=organization.id, auth_token="token")
+        stream.assert_awaited_once_with(
+            socket, organization_id=organization.id, auth_token="token", conversation_events=False
+        )
 
 
 class TestTheTab:
@@ -653,3 +660,36 @@ def test_improvement_decisions_announce_the_agent_after_commit(action):
         {"agent_id": str(agent), "run_id": str(run)},
     )
     assert event is not None and event.resource == "agent" and event.id == agent
+
+
+async def test_run_updates_publish_their_committed_conversation(redis: Any) -> None:
+    run = MagicMock(
+        organization_id=uuid.uuid4(),
+        id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        conversation_id=uuid.uuid4(),
+    )
+    await change_feed.publish_run(run, "updated")
+    events = [
+        ChangeEvent.model_validate_json(call.args[1]) for call in redis.raw.publish.await_args_list
+    ]
+    assert [(event.resource, event.id) for event in events] == [
+        ("run", run.id),
+        ("conversation", run.conversation_id),
+    ]
+    assert events[1].actor_user_id == run.user_id
+
+
+async def test_conversation_announcements_wait_for_commit(redis: Any) -> None:
+    from app.core.background import drain, start_deferred
+
+    db = MagicMock(info={})
+    org, conversation, actor = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    change_feed.announce_conversation(
+        db, organization_id=org, conversation_id=conversation, actor_user_id=actor
+    )
+    redis.raw.publish.assert_not_awaited()
+    start_deferred(db)
+    await drain()
+    event = ChangeEvent.model_validate_json(redis.raw.publish.await_args.args[1])
+    assert (event.resource, event.id, event.organization_id) == ("conversation", conversation, org)

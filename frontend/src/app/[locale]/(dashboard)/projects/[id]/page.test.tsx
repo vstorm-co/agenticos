@@ -1,3 +1,6 @@
+vi.mock("@/components/projects/project-tracking-control", () => ({
+  ProjectTrackingControl: () => null,
+}));
 import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
@@ -90,6 +93,7 @@ describe("project loading layout", () => {
     };
     rerender(<ProjectPage params={params} />);
     expect(await screen.findByRole("heading", { name: "Launch" })).toBe(header);
+    expect(screen.getByText("L")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("tablist")).toBe(tabs);
     expect(screen.getByRole("tabpanel", { name: "Files" })).toBe(files);
     expect(Array.from(files.querySelectorAll(".grid")).map((node) => node.className)).toEqual(

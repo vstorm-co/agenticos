@@ -1,5 +1,5 @@
 ---
-source_sha: "f186947f1867"
+source_sha: "07ab4376c975"
 ---
 
 # API HTTP { #the-http-api }
@@ -21,6 +21,11 @@ Trzy drogi wejścia, dla trzech różnych wywołujących.
 | **Klucz API organizacji** | `Authorization: Bearer aos_…`          | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
 | **JWT**                   | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem                                                           |
 | **Ciasteczko sesji**      | ustawiane przez konsolę                | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu                                                                  |
+
+Klucze organizacji wysyłaj przez `Authorization: Bearer aos_…`. `X-API-Key` służy osobnemu
+poświadczeniu usług wdrożenia; klucz `aos_…` w tym nagłówku nie uwierzytelnia żądania organizacji.
+Trasy sejfu, np. `GET /api/v1/secrets`, oraz trasa wiadomości konsoli wymagają zalogowanej sesji.
+Klient API czyta rozmowę przez `GET /api/v1/conversations/{id}/transcript`.
 
 ### Klucze API organizacji { #organization-api-keys }
 
@@ -184,6 +189,17 @@ Buildera: run testowy, dla klucza, którego wystawca może edytować agenta,
 odrzucany z podaniem powodu, gdy draft by się nie opublikował, i nigdy z
 `Prefer: respond-async`.
 
+Uruchomienia synchroniczne, także testy draftów, zwracają `status: awaiting_answer` i `questions`,
+gdy agent pyta użytkownika. Odpowiedz przez `POST /api/v1/runs/{run_id}/answers`, podając
+`{"responses":{"<tool_call_id>":[{"selected":["Wybór"]}]}}`; `answer` przyjmuje własny tekst, a
+`skipped: true` oznacza świadome pominięcie. Brak odpowiedzi nie jest automatyczną odmową.
+Platformowy MCP udostępnia ten przepływ przez `test_agent_draft` i `answer_agent_questions`.
+
+Historia rozmowy zachowuje odpowiedzi z kart pytań i udane załadowania odroczonych capabilities.
+Aktualnie przypięte skille wczytują bieżące instrukcje w następnej turze; odpięte skille nie
+odzyskują dostępu. Historyczne wyniki tabel nie zastępują aktualnych danych. Pole `starters` agenta
+opisuje wersję opublikowaną, a startery draftu są w `draft_spec.starters`.
+
 Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
 `PATCH` i `DELETE` pod `/api/v1/agents/{agent_id}/triggers`, a także
 `POST .../{trigger_id}/run`, żeby uruchomić jedną od razu - i do modeli organizacji
@@ -210,6 +226,18 @@ z zaparkowanym przebiegiem: klucz wznawia albo odpowiada tylko na przebieg
 rozpoczęty kluczem, a ten rozpoczęty przez osobę dostaje `403`, bo kontynuacja
 działa w jej imieniu. Rozmowa trafia na listę czatów wystawcy z etykietą **API**
 i pozostaje ukryta, dopóki nie włączy tam takich rozmów przełącznikiem.
+
+Przebieg zadany na czacie jest wyjątkiem od samodzielnego wznawiania. Gdy osoba
+rozstrzygnie jego ostatnie oczekujące zatwierdzenie albo odpowie na jego pytania,
+serwer kontynuuje run jako ona i wysyła odpowiedź na czat. Decyzja klucza nie
+kontynuuje niczego: osoba musi wznowić ten run z konsoli w ciągu około godziny od
+ostatniej decyzji, inaczej zostanie zakończony.
+
+Mówi o tym `continues_in_chat`: jest na `ApprovalRead`, na `AgentRunRead` (pojedynczy odczyt)
+i w wyniku wznowienia oraz odpowiedzi. Na `POST /agents/{id}/run` zawsze jest false,
+podobnie dla klucza API. Gdy jest true, nie wołaj `/resume`. `/resume`, które
+przyjdzie jako drugie, dostaje istniejące `400` ze `status` runa. Zob.
+[Rozstrzygnięte poza czatem](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` czyta jedną z rozmów wystawcy tura po
 turze, z narzędziami wywołanymi w każdej turze i kosztem, dla klucza z
@@ -658,7 +686,7 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 | `approval` | `id`, `decision` (`approve` albo `deny`)                                                                                           | Rozstrzygnięcie zatwierdzenia, na które czeka rozmowa |
 | `mute`     | `muted`                                                                                                                            | Relay: mikrofon wyciszony                             |
 | `played`   | `bytes`                                                                                                                            | Relay: ile audio agenta zostało odtworzone            |
-| `end`      | -                                                                                                                                  | Rozłączenie się                                       |
+| `end`      | ---                                                                                                                                | Rozłączenie się                                       |
 | _binarna_  | 16-bitowy PCM z częstotliwością wejściową modelu                                                                                   | Relay: audio dzwoniącego                              |
 
 **Serwer wysyła:**
@@ -676,7 +704,7 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 | `approval_settled`     | `id`, `outcome` (`approved`, `denied` albo `expired`)                                                                                 | Jak zakończyło się zatwierdzenie                                                                                                    |
 | `notice`               | `kind`, `message` (opcjonalne)                                                                                                        | Coś do powiedzenia słowami: trafienie guardraila, osiągany limit                                                                    |
 | `limit`                | `seconds_left`                                                                                                                        | Czas rozmowy prawie się skończył                                                                                                    |
-| `clear_playback`       | -                                                                                                                                     | Relay: odrzuć zakolejkowane audio agenta                                                                                            |
+| `clear_playback`       | ---                                                                                                                                   | Relay: odrzuć zakolejkowane audio agenta                                                                                            |
 | `ended`                | `reason`, `message`                                                                                                                   | Rozmowa się skończyła                                                                                                               |
 | _binarna_              | 16-bitowy PCM z częstotliwością wyjściową modelu                                                                                      | Relay: audio agenta                                                                                                                 |
 
@@ -858,3 +886,5 @@ tylko do przodu.
   odpytywania, więc długi run nie trzyma otwartego połączenia.
 - **Publiczne API jest w `/api/v1/public/openapi.json`** i w ramach v1 zmienia
   się tylko addytywnie, z 90 dniami deprecjacji; SDK jeszcze nie ma.
+
+Skille, których załadowanie wymaga akceptacji, wymagają jej ponownie w każdej turze; historia nie omija tej bramki.

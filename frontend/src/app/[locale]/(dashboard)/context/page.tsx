@@ -200,7 +200,7 @@ export default function ContextPage() {
 
   if (!isBusy && !can(Perm.contextView)) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
         <EmptyState
           icon={Lock}
@@ -213,9 +213,9 @@ export default function ContextPage() {
 
   if (isBusy) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
-        <ListCard layout="grid" namedByPage title={t("contextFiles")} counted={null}>
+        <ListCard fill namedByPage title={t("contextFiles")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -270,13 +270,13 @@ export default function ContextPage() {
     ) : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col space-y-4">
       {header}
 
       <ProposedContextChanges canEdit={canCreate} />
 
       <ListCard
-        layout="grid"
+        fill
         data-tour="context-list"
         namedByPage
         title={t("contextFiles")}

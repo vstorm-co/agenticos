@@ -80,7 +80,7 @@ describe("modelHint", () => {
  * key was only ever resolved through a helper that fell back to it.
  */
 describe("the catalog keys these helpers hand back", () => {
-  const providers = [undefined, "openrouter", "openai", "anthropic"];
+  const providers = [undefined, "openrouter", "openai", "anthropic", "otari"];
 
   it.each(providers)("resolves the placeholder for %s", (providerId) => {
     const placeholder = modelPlaceholder(providerId);

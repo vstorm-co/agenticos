@@ -43,6 +43,7 @@ AVATAR = "avatar.png"
 # Architect - and what it is, instructions and settings, is what a new agent
 # starts with, so "what a good agent has" is written once (#2301).
 STARTER_TEMPLATE = "general/agenticos"
+AGENTICOS_ONLY = frozenset({"computer_use", "browser_use", "coding_agent"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,12 +128,13 @@ def get(key: str) -> AgentTemplate | None:
     )
 
 
-def starter_capabilities(*, container_workspace: bool) -> dict[str, dict[str, Any]]:
+def starter_capabilities(*, container_workspace: bool | None = None) -> dict[str, dict[str, Any]]:
     """The starter template's capability bindings, keyed by capability id.
 
     Empty where the template is missing from this image, which recommends
     nothing rather than failing the catalog that asks. `container_workspace` is
-    whether the organization asking can run one - see `for_this_deployment`.
+    whether the organization asking can run one; omitted, use the deployment
+    default - see `for_this_deployment`.
     """
     starter = get(STARTER_TEMPLATE)
     if starter is None:
@@ -142,6 +144,7 @@ def starter_capabilities(*, container_workspace: bool) -> dict[str, dict[str, An
         for binding in for_this_deployment(
             starter.capabilities, container_workspace=container_workspace
         )
+        if binding["id"] not in AGENTICOS_ONLY
     }
 
 
@@ -150,7 +153,7 @@ SANDBOX = "sandbox"
 
 
 def for_this_deployment(
-    bindings: tuple[dict[str, Any], ...], *, container_workspace: bool
+    bindings: tuple[dict[str, Any], ...], *, container_workspace: bool | None = None
 ) -> list[dict[str, Any]]:
     """A template's bindings as this deployment and organization can publish them.
 
@@ -168,13 +171,19 @@ def for_this_deployment(
     none. A deployment running no browser leaves the capability out rather than
     handing every new agent a switch that refuses at publish.
     """
+    if container_workspace is None:
+        container_workspace = bool(settings.SANDBOXD_TOKEN)
     resolved = []
     for binding in bindings:
         if binding["id"] == SANDBOX and not container_workspace:
             config = {**(binding.get("config") or {}), "backend": "state"}
             config.pop("include_execute", None)
             binding = {**binding, "config": config}
-        if binding["id"] == BROWSER and not (binding.get("config") or {}).get("cdp_url"):
+        if (
+            binding["id"] == BROWSER
+            and (binding.get("config") or {}).get("connection") != "local"
+            and not (binding.get("config") or {}).get("cdp_url")
+        ):
             if not settings.BROWSER_SIGN_IN_CDP_URL:
                 continue
             binding = {

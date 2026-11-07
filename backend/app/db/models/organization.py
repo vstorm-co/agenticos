@@ -32,18 +32,22 @@ OrgRole = OrgRoleName
 
 
 class MembershipSource(enum.StrEnum):
-    """Who maintains a membership: an administrator, or the directory sync.
+    """Who maintains a membership: an administrator, the directory sync, or the Discord sync.
 
-    The directory sync only ever rewrites or removes rows it created itself. A
-    membership an administrator made - by invitation, or by changing a role the
-    sync had set - is theirs, and a later sign-in leaves it alone (#1773).
+    Each sync only ever rewrites or removes rows it created itself. A membership
+    an administrator made - by invitation, or by changing a role a sync had set -
+    is theirs, and a later sign-in or Discord turn leaves it alone (#1773, #2569).
+    The two syncs are separate sources so neither removes what the other placed:
+    a sign-in drops every directory row its groups no longer name, and would
+    otherwise drop the Discord ones with them.
     """
 
     MANUAL = "manual"
     DIRECTORY = "directory"
+    DISCORD = "discord"
 
 
-MembershipSourceLiteral = Literal["manual", "directory"]
+MembershipSourceLiteral = Literal["manual", "directory", "discord"]
 # When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
 ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
@@ -141,19 +145,10 @@ class Organization(Base, TimestampMixin):
     )
     welcome_dm_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Whether a chat session may grant standing consent to this agent's gated
-    # tools - `ApprovalMode.APPROVE_ALL` (#925). Off by default, and the default is
-    # the point: without a ceiling a Builder's deliberate gate on `send_email` is
-    # one click from nothing in every conversation, which makes the whole per-tool
-    # approval model advisory. An organization decides once that waiving is
-    # allowed at all; who may then do it is `approvals:decide`, which is a
-    # separate question and already answered.
-    #
-    # Only ever *widens* nothing: switching it off does not tighten an existing
-    # spec, it removes an override. So an upgrade changes nobody's behaviour until
-    # somebody turns it on deliberately.
+    # Whether a permitted chat user may choose standing consent for gated tools.
+    # New organizations allow the choice; the conversation must still opt in.
     chat_may_waive_approvals: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
+        Boolean, nullable=False, default=True, server_default="true"
     )
 
     # Off is enforced by the service that would start each model-backed run, not
@@ -310,7 +305,9 @@ class OrganizationMember(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
         Index("ix_org_member_org_role", "organization_id", "role"),
-        CheckConstraint("source IN ('manual', 'directory')", name="ck_org_member_source"),
+        CheckConstraint(
+            "source IN ('manual', 'directory', 'discord')", name="ck_org_member_source"
+        ),
     )
 
     def __repr__(self) -> str:

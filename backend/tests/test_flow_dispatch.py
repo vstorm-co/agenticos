@@ -273,6 +273,8 @@ async def test_an_uploaded_document_is_queued_for_parsing_on_the_session_that_wr
     assert isinstance(payload, jobs.IngestDocument)
     assert (payload.rag_document_id, payload.attempt, payload.replace) == (document.id, 1, False)
     assert Path(payload.filepath).read_bytes() == b"a policy nobody reads"
+    # One file per dispatch, so a retry's copy is never the one an ended job removes.
+    assert Path(payload.filepath) == tmp_path / "_rag_tmp" / f"{document.id}-1.txt"
     assert options["organization_id"] == document.organization_id
 
 
@@ -350,6 +352,7 @@ async def test_retrying_a_failed_document_parses_it_again(
         "that half-succeeded is represented twice in the collection"
     )
     storage.load.assert_awaited_once_with("rag/handbooks/policy.txt")
+    assert Path(payload.filepath) == tmp_path / "_rag_tmp" / f"{document.id}-2.txt"
 
 
 async def test_retrying_a_document_conditions_the_write_on_the_attempt_it_read(

@@ -40,7 +40,7 @@ from app.schemas.background_job import (
     JobStatus,
     KindActivityRead,
 )
-from app.worker.jobs import TASKS, Payload, Priority, Task
+from app.worker.jobs import INGEST_DOCUMENT, TASKS, Payload, Priority, Task
 
 
 async def enqueue[P: Payload](
@@ -214,8 +214,11 @@ class BackgroundJobService:
 
         Raises:
             NotFoundError: No such job.
-            BadRequestError: The job is not dead, or its settled domain work
-                requires a new request instead of queue-level replay.
+            BadRequestError: The job is not dead, or is a kind that cannot run
+                again: a workspace transfer, or a document ingest - its parse
+                copy went with it (#2681), and the document's own retry writes
+                a new one.
+            Settled eval work likewise requires a new request instead of queue-level replay.
             AlreadyExistsError: A newer job for the same work is already queued,
                 and two queued copies of one dedupe key cannot exist.
         """
@@ -224,6 +227,11 @@ class BackgroundJobService:
         if task is not None and task.retry_refusal is not None:
             raise BadRequestError(
                 message=task.retry_refusal,
+                details={"job_id": str(job_id)},
+            )
+        if job is not None and job.kind == INGEST_DOCUMENT.kind:
+            raise BadRequestError(
+                message="Retry the document from its knowledge base; a dead ingest's parse copy is gone",
                 details={"job_id": str(job_id)},
             )
         if (

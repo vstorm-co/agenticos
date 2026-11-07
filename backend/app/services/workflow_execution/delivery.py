@@ -60,6 +60,15 @@ async def deliver_result(db: AsyncSession, *, run: WorkflowRun) -> None:
         parts=[part.model_dump(exclude_none=True) for part in parts],
     )
 
+    from app.services.change_feed import announce_conversation
+
+    announce_conversation(
+        db,
+        organization_id=run.organization_id,
+        conversation_id=run.reply_conversation_id,
+        actor_user_id=run.execution_principal_user_id,
+    )
+
 
 async def wake_caller(db: AsyncSession, *, run: WorkflowRun) -> None:
     """Dispatch the step that called `run` again, if it still waits on it.

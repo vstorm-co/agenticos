@@ -496,7 +496,7 @@ describe("EstimateSummary", () => {
       expect(screen.getByText("Agent budget after this run")).toBeInTheDocument();
       expect(screen.getByText("Organization budget after this run")).toBeInTheDocument();
       if (exceeded) {
-        expect(screen.getByText(`Over by ${exceeded}`)).toHaveClass("text-destructive");
+        expect(screen.getByText(`Over by ${exceeded}`)).toHaveClass("text-destructive-ink");
         expect(screen.queryByText(`-${exceeded}`)).not.toBeInTheDocument();
       } else {
         expect(screen.queryByText(/Over by/)).not.toBeInTheDocument();
@@ -836,7 +836,7 @@ describe("CaseDetail", () => {
     expect(screen.getByText("Rerun 1")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByText("undecided")).toHaveClass("bg-secondary");
-    expect(screen.getAllByText("pass")[0]).toHaveClass("bg-success/10");
+    expect(screen.getAllByText("pass")[0]).toHaveClass("bg-success/12");
     expect(screen.getByText("not graded: The judge's run did not finish.")).toHaveClass(
       "whitespace-normal",
     );
@@ -972,7 +972,7 @@ it.each([
         })}
       />,
     );
-    expect(screen.getByText(label)).toHaveClass("bg-destructive/10");
+    expect(screen.getByText(label)).toHaveClass("bg-destructive/12");
     expect(screen.queryByText("First result")).not.toBeInTheDocument();
     expect(screen.queryByText("Inconclusive")).not.toBeInTheDocument();
   },

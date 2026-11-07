@@ -101,6 +101,7 @@ a file it can open, and one without gets the text in its prompt.
 | **Document (OpenDocument)** | …opendocument.text | .odt | Paragraphs via `odfpy`. Appended to prompt as context. |
 | **Email** | application/vnd.ms-outlook | .msg | Headers and body read from the OLE/MAPI streams via `olefile` (BSD); embedded attachments listed by name, not recursed. Appended to prompt as context. |
 | **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | UTF-8 decoded directly (XML by its declared BOM/encoding). Appended to prompt as context. |
+| **Archive** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Read whole at upload and refused if unsafe (see [Archives](#archives)). Its text is the list of what it holds. Unpacked into the workspace; refused by an agent without one. |
 
 ### Where an attachment goes depends on the agent
 
@@ -118,6 +119,52 @@ gets the file instead of the text:
 | pdf, docx, spreadsheet, document, presentation, email | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it (`email` always gets it — `lit` cannot read `.msg`); reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
 | tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
+| archive (`.zip`, `.tar.gz`) | refused: the model is told the agent has no workspace to unpack it into, and nothing of it is pasted | unpacked into `uploads/<id>-<name>/`; reference names the folder and lists the top of the tree |
+
+### Archives { #archives }
+
+A `.zip` or `.tar.gz` is how a repository, or any folder of files, is given to an
+agent. The platform unpacks it on the server, before the agent runs, rather than
+giving the archive to the agent to unpack. A stored workspace has no shell to run
+`unzip` in, a sandbox image is not certain to have one, and an archive is a known
+way to write outside a folder. One check on the server can be tested; an agent
+running `tar -xf` on what it was given cannot.
+
+The archive is read whole when it is uploaded. The upload is refused with a 400,
+and nothing is stored, when:
+
+- a member's path leads outside the archive (`../`), starts at the root (`/etc/x`)
+  or at a drive (`C:/`), contains a backslash or a control character;
+- a member is a symlink, a hard link, a device file or a FIFO;
+- the same path is in it twice, or as both a file and a folder;
+- a member is encrypted, or the file is not the archive its name says;
+- it holds more than `WORKSPACE_ARCHIVE_MAX_ENTRIES` files and folders (5000),
+  unpacks to more than `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB), or unpacks to more
+  than `WORKSPACE_ARCHIVE_MAX_RATIO` times its own size (100) — a decompression
+  bomb. Sizes are measured while the members are read, not taken from the
+  archive's headers, which can be false;
+- one file in it unpacks to more than `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES`
+  (50 MiB), since an unpack holds one file in memory at a time.
+
+The upload limit, `CHAT_MAX_UPLOAD_SIZE_MB`, applies to the archive itself.
+
+For an agent with a workspace, the members are written under
+`uploads/<first 8 hex of the file id>-<archive name without .zip>/`, with their
+folders kept — `repo.zip` holding `repo/src/app.py` becomes
+`uploads/3f2a1b9c-repo/repo/src/app.py`. The reference names that folder and
+starts with the first lines of the list of members. The members are written one
+at a time, so only one member is in memory at once. If the workspace refuses a
+write part of the way through, or the turn is stopped during the unpack, the
+folder is removed: the model is told the archive could not be written, and a
+half-unpacked tree is never taken for a whole one.
+
+An agent without a workspace has nowhere to unpack it. The model is told that it
+cannot open the archive and is not given the list of members, because a list of
+paths would let it answer questions about code it cannot read.
+
+To get files out again, the chat's **Files** panel offers each folder, and the
+whole workspace, as a `.zip` — see
+[Sandbox: downloading a folder](sandbox.md#downloading-a-folder-as-a-zip).
 
 **A later turn still has the file.** What the attachment added to the prompt -
 the paste, or the reference and its head - is kept beside the message and
@@ -251,7 +298,8 @@ not run when a surface is assembling its prompt.
 
 Chat attachments are read with **PyMuPDF**, and that is not configurable. An
 attachment belongs to no collection, so there is no stored configuration to read
-a parser choice from.
+a parser choice from. NUL characters are removed from the extracted text before
+it is stored so PostgreSQL can accept the upload. The original PDF bytes are kept.
 
 The `CHAT_PDF_PARSER` variable that used to select between three parsers is
 gone. Both alternatives were wrapped in `except Exception: return
@@ -334,6 +382,10 @@ the poll that read the mailbox. They follow the chat-upload file type allowlist 
 size limit: of the attachments a mailbox lists, only the first 10 per message are
 considered, and 25 MiB per message. One left out is listed with the reason, and a
 test run fetches nothing.
+
+A `.zip` or `.tar.gz` is left out as `type_not_allowed`:
+a chat checks an archive member by member before it unpacks it (see
+[Archives](#archives)), and nothing checks one that a workflow receives.
 
 An HTML file in a workflow, such as a stored page or an attachment, is read by
 [`html.parse`](reference/workflow-nodes.md#html-parse), not by `text.extract`, which
@@ -769,6 +821,22 @@ one of them is theirs.
 A name a caller does not supply is derived from the display name plus six random hex
 characters, and is claimed on the same path rather than trusted for being random.
 
+**Nor is a name holding content no base owns.** `rag-ingest` writes tracking rows and
+a `rag_<name>` table with no knowledge base and no organization. So `claim` refuses a
+name no base holds while it has unfiled rows describing chunks of any tenant but the
+caller's organization, or a vector table with such chunks. A member with
+`collections:edit` used to be able to create a base on an operator's collection and
+delete it, dropping the operator's chunks with it
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). A name a base holds
+is not checked: the caller may write every holder, and could delete or clear them all
+anyway. An app admin may adopt such a name; a failed row with no vector id describes
+no chunk and does not hold it. A `rag-ingest` killed mid-file leaves a `processing`
+row that holds the name until an app admin adopts it or runs `rag-drop <name>`.
+
+Content arriving *after* a base claims the name cannot be refused here, so the
+teardown spares it instead: the last holder's table stays while it holds an unfiled
+chunk the base does not take, as described under deleting a base below.
+
 **And a name mid-teardown is not free either.** Dropping a collection removes its
 knowledge-base rows in the request but drops the physical `rag_<name>` vector table
 only *after* the request commits, handed to a durable worker — so a rollback keeps
@@ -784,10 +852,10 @@ window cannot recreate the table the drop is about to destroy and lose its own c
 to it (#1364). The **worker** ingestion paths — a sync, a retry — check it too, at the
 `still_wanted` gate right before the vector write, so a sync into a cleared default
 (whose row the clear keeps) stops rather than repopulating a table being dropped
-(#1382). Both are best-effort reservation checks rather than lock-held serialisation:
-holding the teardown lock across a write would deadlock against an organization purge,
-which locks the `organizations` row first, so closing the last narrow window is left
-to #1382.
+(#1382). Both are best-effort reservation checks rather than lock-held serialisation.
+A write filed under a base relies on them and on its base and row locks, and closing
+the last narrow window is left to #1382. A chunk write with no base holds the teardown
+lock through its commit, as described under the last holder's teardown below.
 
 A reservation whose drop never ran — lost to a crash between the commit and the
 dispatch, or to a drop that fails for good — would block its name forever, since
@@ -815,6 +883,9 @@ base that holds the name, or drops a name no base holds (one `rag-ingest` filled
 its document rows. When several bases hold the name it refuses and lists their ids;
 `--knowledge-base <id>` names the one to clear, and the table stays for the others.
 A worker drops the table and removes the files after the command commits (#2560).
+
+The last holder's table goes whatever it holds: the operator asked for the drop, and
+owns the content a console delete would spare (#2747).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -932,15 +1003,44 @@ their tenant, and unfiled document rows stay listed under the bases of their ten
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 When no other base holds the name, both routes and `rag-drop` delete the same rows,
-with their files, and the cleanup job drops the table: the base's own rows and the
-unfiled rows of its tenant. That is its organization's for an organization's or a
-personal base, the ones with no organization (what `rag-ingest` writes) for an
-app-scoped base, and none for a personal base outside an organization.
+with their files: the base's own rows and the unfiled rows of its tenant. That is its
+organization's for an organization's or a personal base, the ones with no organization
+(what `rag-ingest` writes) for an app-scoped base, and none for a personal base
+outside an organization.
 
-Another tenant's unfiled rows under the name stay, with their files, because the
-caller has no authority over them. Their chunks go with the table, so they are marked
-as failed: that tenant's next base on the name lists them as failed, an uploaded
-document has to be uploaded again, and a sync indexes a synced document again.
+Both routes then keep the table if it holds an unfiled chunk the base does not take:
+an operator's `rag-ingest` or CLI sync into the held name, or another tenant's. A
+claim cannot refuse content that arrives after it, and the caller has no authority
+over it. Only the chunks the base takes are purged, and the other rows under the name
+stay as they are.
+
+Unless the base is a default, which stays on the name, the name is left as `rag-ingest`
+leaves it: no base holds it, `rag-drop <name>` removes it, and `claim` refuses it to
+everyone but an app admin and an organization whose chunks are all that remain
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+A chunk write with no base holds the name until it commits, so the table is asked only
+after any such write already running has finished. A write that reaches the name while
+it is reserved is refused, and the file has to be ingested again. The cleanup job drops
+only a reserved name, so a rerun of the job leaves a write made after its first drop.
+
+A large document can hold the name for several seconds. A create on the name
+(`POST /kb`, `POST /rag/collections/{name}`) waits for one second and then answers
+409 with a request to try again, because each waiting request occupies a database
+connection and enough of them refuse every other request. A delete waits for the
+write to finish.
+
+A personal base outside an organization takes no unfiled chunk, though a chunk its own
+rows name goes with it. A legacy chunk with no base, no organization and no row cannot
+be told from an operator's: it keeps the table too, stays until `rag-drop <name>`, and
+is the app scope's, so an app-scoped base on the name reads it.
+
+Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
+tenant's unfiled rows under the name stay, with their files, because the caller has no
+authority over them. Nothing stands behind them once the table is gone, so they are
+marked as failed: that tenant's next base on the name lists them as failed, an
+uploaded document has to be uploaded again, and a sync indexes a synced document
+again.
 
 Before, `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
 still listed as indexed, and the collection drop deleted every row under the name,
@@ -1076,13 +1176,18 @@ caller who asked for no such thing. A `NULL` address matches no comparison, whic
 is the answer wanted rather than one to work around, and it is what every row
 written before the column has.
 
-Three things decide what a retirement may take, and each of them was got wrong
+Four things decide what a retirement may take, and each of them was got wrong
 first:
 
 - **By address, never by filename.** That is the collision
   [#990](https://github.com/vstorm-co/agenticos/issues/990) removed on the vector
   side reached from the other direction: `a/readme.md` and `b/readme.md` in one
   bucket share a basename, so a name match deletes the other file's row.
+- **In the new row's scope, never by collection name.** A name is not unique, so
+  two organizations, or two bases of one, can sync the same path into it. A row
+  filed under a base retires only the rows that base lists — its own and its
+  tenant's unfiled ones — and an unfiled row only the unfiled rows of its own
+  organization ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, not "has no vector id".** Those are different sets, and treating
   them as one is a race: a `PROCESSING` row belongs to an attempt still running,
   and two overlapping ingestions of one source would have the second delete the

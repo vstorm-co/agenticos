@@ -79,6 +79,22 @@ describe("which mark a thing wears", () => {
 });
 
 describe("a group's tiles", () => {
+  it("keeps a large group compact and opens its complete list on demand", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node({ items: Array.from({ length: 24 }, (_, i) => tile(`skill-${i}`)) })]}
+      />,
+    );
+    expect(screen.queryByText("skill-23")).not.toBeInTheDocument();
+    expect(screen.getByText("+18 more · open to view all")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+    expect(
+      within(screen.getByRole("region", { name: "Details for Skills" })).getByText("skill-23"),
+    ).toBeVisible();
+  });
+
   it("draws one tile per thing rather than a paragraph of names", () => {
     // A list of names is read as one shape: a reader looking for "is Slack on
     // here" was scanning text. Each thing is its own tile with its own mark.
@@ -528,6 +544,20 @@ describe("AgentMap pan and zoom", () => {
     expect(content.style.transform).toBe("translate(0px, 0px) scale(1)");
   });
 
+  it("fits the whole diagram instead of returning an off-screen hub to the origin", async () => {
+    const { content, viewport } = draw();
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 500 },
+    });
+    Object.defineProperties(content, {
+      offsetWidth: { configurable: true, value: 1040 },
+      offsetHeight: { configurable: true, value: 1000 },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(content.style.transform).toBe("translate(156.64px, 16px) scale(0.468)");
+  });
+
   it("zooms in from the centre", async () => {
     const { content } = draw();
 
@@ -563,6 +593,16 @@ describe("AgentMap pan and zoom", () => {
 
     const scale = Number(/scale\(([\d.]+)\)/.exec(content.style.transform)![1]);
     expect(scale).toBeGreaterThan(0);
+  });
+
+  it("does not capture a node click as a canvas drag", async () => {
+    const { viewport } = draw();
+    viewport.setPointerCapture = vi.fn();
+    const skills = screen.getByRole("button", { name: "Skills" });
+    pointer(skills, "pointerdown", { pointerId: 1, clientX: 100, clientY: 100 });
+    expect(viewport.setPointerCapture).not.toHaveBeenCalled();
+    await userEvent.click(skills);
+    expect(screen.getByRole("region", { name: "Details for Skills" })).toBeVisible();
   });
 
   it("pans with a pointer drag", () => {

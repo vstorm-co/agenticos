@@ -2,12 +2,15 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     ActiveOrg,
     Auth,
+    CodingTaskChangeSvc,
     ConversationShareSvc,
     ConversationSvc,
+    ConversationTaskSvc,
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
@@ -15,10 +18,12 @@ from app.api.deps import (
     WorkspaceSvc,
     require,
 )
+from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
+from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -35,6 +40,7 @@ from app.schemas.conversation_share import (
     ConversationShareRead,
     SharedConversationRead,
 )
+from app.schemas.conversation_task import ConversationTaskRead
 from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
@@ -48,6 +54,31 @@ from app.schemas.workspace import (
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get("/background-tasks", response_model=list[ConversationTaskRead])
+async def list_background_tasks(
+    service: ConversationTaskSvc, ctx: Auth, conversation_id: UUID | None = None
+) -> Any:
+    """The current member's delegated topics, optionally from one source conversation."""
+    return await service.list_for_member(ctx, conversation_id=conversation_id)
+
+
+@router.post("/background-tasks/{task_id}/stop", response_model=ConversationTaskRead)
+async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx: Auth) -> Any:
+    """Stop the member's task, retaining its transcript and any work already done."""
+    return await service.stop(ctx, task_id)
+
+
+@router.get("/coding-changes/{change_id}", response_model=CodingTaskChangeRead)
+async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth) -> Any:
+    """What one coding-agent task changed: its files, then each file's part of the patch.
+
+    `change_id` is the `changes_id` a `run_coding_agent` result names. Readable by
+    whoever may read the conversation the task ran in - the transcript's own
+    check - and missing (404) for anybody else, in this organization or another.
+    """
+    return await service.get(ctx, change_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)
@@ -287,6 +318,7 @@ async def delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
     # The rows would cascade away with the conversation, but a container-backed
     # workspace lives outside this database and would sit on the host until its
@@ -674,3 +706,40 @@ async def read_workspace_bytes(
     )
     data = await workspaces.read_bytes(ctx, conversation_id=conversation_id, path=path)
     return file_response(data, path=path, download=download)
+
+
+@router.get("/{conversation_id}/workspace/archive", response_model=None)
+async def download_workspace_folder(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    path: str = Query(
+        "", description="Folder inside the workspace, as the listing gives it; empty for all of it"
+    ),
+) -> Any:
+    """One workspace folder as a `.zip`, streamed (#2479).
+
+    Authorised exactly as `/raw` is, by fetching the conversation first - so
+    somebody a chat was shared with downloads a folder of it, and nobody who
+    could not open one of its files can. Bounded by
+    `WORKSPACE_ARCHIVE_MAX_ENTRIES` and `WORKSPACE_ARCHIVE_MAX_BYTES`: a folder
+    past either is refused with a 413 before anything is sent, rather than
+    arriving as a zip that silently lacks files. Tooling folders the panel hides
+    (`.git`, `node_modules`, `.venv`, ...) are left out.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+        include_favourite=False,
+    )
+    folder = await workspaces.folder_zip(ctx, conversation_id=conversation_id, folder=path)
+    return StreamingResponse(
+        folder.chunks,
+        media_type="application/zip",
+        headers={"Content-Disposition": content_disposition("attachment", folder.name)},
+    )

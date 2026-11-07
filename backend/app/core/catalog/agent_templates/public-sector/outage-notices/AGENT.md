@@ -4,6 +4,7 @@ description: Writes outage and disruption notices that lead with what residents 
   do.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - clock

@@ -34,6 +34,8 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
+vi.mock("@/components/settings/notification-routes", () => ({ NotificationRoutes: () => null }));
+
 const setUser = vi.fn();
 const setPreference = vi.fn();
 let currentUser: Partial<User>;
@@ -105,8 +107,7 @@ describe("the notifications settings page", () => {
     // and the four workflow/page events offer both channels (17*2 = 34); budget_exceeded, approval_requested,
     // usage_report and agent_usage_report offer only in-app (4*1 = 4). 34 + 4 =
     // 38; and all twenty-one offer push (#2097), 38 + 21 = 59; plus the three
-    // legacy email switches above = 62; the seven evaluation and improvement
-    // events add both channels each (7*2 = 14) for 76 on the page total.
+    // 76 email/in-app switches plus the 28 selected chat-channel switches.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -166,7 +167,7 @@ describe("the notifications settings page", () => {
     ]) {
       expect(screen.getByRole("switch", { name: `${event} - Push` })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("switch")).toHaveLength(76);
+    expect(screen.getAllByRole("switch")).toHaveLength(104);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {
@@ -306,3 +307,18 @@ describe("the notifications settings page", () => {
     );
   });
 });
+
+it("selects event preferences independently for each supported chat channel", async () => {
+  currentUser = makeUser();
+  currentPreferences = [];
+  preferencesError = null;
+  preferencesLoading = false;
+  render(<NotificationsSettingsPage />);
+  await userEvent.click(screen.getByRole("combobox", { name: "Chat channel preferences" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Telegram" }));
+  expect(screen.queryByRole("switch", { name: "Run completed - Slack" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("switch", { name: "Run completed - Telegram" }));
+  expect(setPreference).toHaveBeenLastCalledWith("run_completed", "telegram", false);
+});
+
+vi.mock("@/components/phone/phone-settings", () => ({ PhoneSettings: () => null }));

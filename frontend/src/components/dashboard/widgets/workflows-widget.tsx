@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { CircleAlert, Workflow } from "lucide-react";
+import { CircleAlert } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 
 import { Figure } from "@/components/ui";
 import { WidgetFrame } from "../widget-frame";

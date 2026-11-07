@@ -39,6 +39,11 @@ from app.agents.capabilities.charts import Charts
 from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionConfig
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
+from app.agents.capabilities.mirage import (
+    MIRAGE_MOUNTS_RESOURCE,
+    ResolvedMount,
+    ResolvedTerminal,
+)
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch, WebResearchConfig
 from app.agents.hand_off import HAND_OFF_TOOL
@@ -163,6 +168,10 @@ class TestToolDeclarations:
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
         CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+        # The folders the runner resolved; one scratch folder needs no credential.
+        MIRAGE_MOUNTS_RESOURCE: ResolvedTerminal(
+            mounts=(ResolvedMount("/scratch/", "ram", "write", False, {}, "scratch"),)
+        ),
         # A skill that ships a file, which is the widest shape: `skills` offers
         # `read_skill_resource` only when at least one skill has something to
         # read, and a skill with no resources offers no tool at all.
@@ -267,6 +276,7 @@ class TestToolDeclarations:
         )
 
     CONFIGS: dict[str, dict[str, Any]] = {
+        "phone_calls": {"endpoint_id": "00000000-0000-4000-8000-000000000001"},
         # The only capability whose *tools* are configuration rather than a fixed
         # list: a binding names which lookups it allows, so the widest
         # configuration is the one that allows all of them. Same reason the
@@ -282,22 +292,13 @@ class TestToolDeclarations:
         # checklist) offers the six core tools and would hide the other three from
         # the comparison rather than check them.
         "planning": {"enable_subtasks": True},
+        # A terminal has no default folder; one scratch folder is the least it
+        # mounts, and its seven tools are the same whatever is mounted.
+        "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram", "mode": "write"}]},
         # Builds `None` from an empty blob on purpose - binding the capability
         # without setting a reminder attaches nothing. One reminder on is what
         # makes it build here; it offers no tools either way.
         "system_reminders": {"goal_reanchor": {}},
-        # Builds `None` with no table granted and creation off, and offers
-        # `create_table` only with `allow_create`: the widest shape grants a table
-        # every operation and turns creation on.
-        "virtual_tables": {
-            "tables": [
-                {
-                    "table_id": "00000000-0000-0000-0000-000000000001",
-                    "operations": ["read", "create", "update", "delete"],
-                }
-            ],
-            "allow_create": True,
-        },
         # Builds `None` naming no workflow: one named is what makes it offer its tools.
         "workflows": {"workflow_ids": ["00000000-0000-0000-0000-000000000002"]},
     }
@@ -527,6 +528,18 @@ class TestEffectiveTools:
 
         assert (tool.id, tool.name) == ("search_documents", "search_refund_policy")
         assert tool.description == get("knowledge").tools[0].description
+
+    @pytest.mark.security
+    def test_a_rename_cannot_take_a_tool_off_its_mandatory_approval(self):
+        shared = {
+            tool.id: tool
+            for tool in get("memory_files").effective_tools(
+                {"share_memory": ToolOverride(name="publish_memory")}
+            )
+        }["share_memory"]
+
+        assert shared.name == "publish_memory"
+        assert shared.always_requires_approval
 
     def test_a_reworded_description_keeps_the_declared_name(self):
         (tool,) = get("knowledge").effective_tools(
@@ -1217,14 +1230,16 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
         "hand_off": {
             "sandbox",
             "browser_use",
+            "mirage",
             "computer_use",
             "subagents",
             "background_tools",
+            "background_tasks",
             "coding_agent",
             "video_generation",
             "monitor",
         },
-        "never": {"channel_tools", "follow_ups"},
+        "never": {"channel_tools", "follow_ups", "drafts"},
     }
 
 

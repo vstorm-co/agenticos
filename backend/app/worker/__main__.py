@@ -79,7 +79,7 @@ def executors_for(pools: list[Pool]) -> dict[Pool, Executor]:
 
 
 async def serve(pools: list[Pool]) -> None:
-    from app.services import browse_plans, change_feed, live_browse
+    from app.services import browse_plans, change_feed, live_browse, live_turn
 
     claim_pooled_engines()
     # A fired routine publishes to an open Activity page, can be watched browsing
@@ -115,6 +115,10 @@ async def serve(pools: list[Pool]) -> None:
     try:
         async with AsyncExitStack() as services:
             if any(pool is not Pool.INGEST for pool in pools):
+                from app.services.channels import email_state
+
+                await services.enter_async_context(email_state.in_worker())
+                await services.enter_async_context(live_turn.in_worker())
                 from app.main import app
                 from app.services.platform_mcp import serve_platform_mcp
 

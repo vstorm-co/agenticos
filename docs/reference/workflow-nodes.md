@@ -42,12 +42,24 @@ starts, is refused at publish.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
-Its **Input fields** make the input a contract. A field has a name, a type - text,
+Its **Input fields** make the input a contract. A field has a name, a type - text, list of text,
 number, whole number, yes or no, date or choice - and whether it is required. With
 none, a run takes any JSON object. With some, **Start a run** asks for each by name,
 a run whose input misses one, sends one of the wrong type or sends one not declared
 is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
+
+**List of text** (`string_list`) accepts a JSON array of strings, for example
+`{"devices": ["leaf-01", "leaf-02"]}`. Scalars and non-string items are refused.
+The API accepts an empty array; a required field must be present and cannot be
+`null`, while an optional field may be omitted or `null`. Downstream steps read
+`payload.devices` as an array of strings.
+
+In **Start a run**, **Test draft** and public forms, enter one item per line.
+The form trims each line and drops blank lines, preserving order and duplicates.
+A blank required list needs an item; a blank optional list is omitted. API values
+are preserved exactly, including whitespace and empty strings. The same field type
+is available on Manual, Form and Called by a workflow triggers.
 
 ::: app.workflows.contracts.fields.InputField
 
@@ -803,13 +815,19 @@ the server:
 
 ## notification.send { #notification-send }
 
-Notifies members of the organization in the app, by email, or both, through
-the notification center. Recipients are members named by id. At run time each
+Notifies organization members through the notification center: in-app, email,
+push, Slack, Telegram, Mattermost, Microsoft Teams, SMS or iMessage. Recipients are members named by id. At run time each
 one must still be an active member who can see the workflow, and anyone else is
 dropped. If nobody is left, the step fails with `NO_PERMITTED_RECIPIENTS`. Each
 person's preferences for **Workflow notifications** still apply. The step
 completes when the notification is written, and email is delivered afterwards.
 A retried step writes no second notification.
+
+Private chat channels require the recipient's own explicit notification route
+and channel opt-in. Selecting a channel here never grants consent or redirects
+a notification to a workflow-supplied chat. The delivery sweep rechecks access,
+preferences and route authority before sending. Provider delivery happens after
+the step completes; completion does not prove receipt.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
@@ -927,6 +945,44 @@ link that is not the run's answers `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Await email reply.** Select the connected organization Gmail or Outlook mailbox,
+a provider `thread_id`, an exact `expected_sender`, `not_before` and `deadline` with
+timezones, and optionally an original RFC `anchor_message_id`. Outlook can name a
+shared mailbox its grant can read. The step reads metadata only, every 60–3600
+seconds (300 by default), using the existing durable workflow timer. It holds no
+worker or model while waiting. The account and its consent generation are retained
+across wakes; replacing the account never retargets the expectation.
+
+`reply` wins when a matching, authenticated sender replied after `not_before` and
+no later than the deadline. Optional RFC reply headers narrow that match; they
+never authorize a sender. Sent mail, drafts, automatic replies and receipts do not
+count. A final successful check with no verified match leaves by `deadline`, with
+`ignored_unverified` for rejected sender matches. This means **no verified matching
+reply**, not proof that nobody wrote. Unreadable, oversized or revoked mailboxes
+fail explicitly and never take the deadline branch. The bounded scan admits at most
+500 messages and five Graph pages. Replies arriving before the step first parks
+are still considered.
+
+The run's Steps tab shows the expectation. The principal or a workflow editor can
+pause or correct it while parked (only editors for test runs); an executing check
+answers 409. Pause keeps the original deadline and performs no mailbox reads.
+Explicitly reviewing renewed consent accepts only the same account. A step needing
+attention still requires its separate rerun decision. Cancelling the run closes
+its timer and prevents downstream work. The expectation lasts at most thirty days;
+the workflow's own deadline can end the run earlier. Prepare follow-ups on the
+`deadline` branch with the normal notification/approval nodes; this node sends no mail.
+
+If the deadline passes while checks are paused, the step fails without reading the
+mailbox or asserting that no reply arrived. Resume or correct it before that time.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

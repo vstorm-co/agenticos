@@ -164,6 +164,13 @@ async def resolve_access(
     if resource.organization_id != ctx.organization_id:
         return False
 
+    if resource_type is TABLE:
+        from app.services.task_access import table_access
+
+        managed = await table_access(db, ctx, resource.id, perm)
+        if managed is not None:
+            return managed
+
     if _scope_allows(ctx.scope_for(perm), resource, subject):
         return True
 
@@ -222,12 +229,23 @@ async def accessible_ids(
     scope = ctx.scope_for(perm)
     shared = await visible_resource_ids(db, ctx, resource_type=resource_type, perm=perm)
     granted = set(shared) if shared is not None else set()
-    return {
+    allowed = {
         resource.id
         for resource in resources
         if resource.organization_id == ctx.organization_id
         and (_scope_allows(scope, resource, subject) or resource.id in granted)
     }
+    if resource_type is TABLE:
+        from app.services.task_access import table_access
+
+        for resource in resources:
+            if resource.organization_id == ctx.organization_id:
+                managed = await table_access(db, ctx, resource.id, perm)
+                if managed is True:
+                    allowed.add(resource.id)
+                elif managed is False:
+                    allowed.discard(resource.id)
+    return allowed
 
 
 async def visible_resource_ids(
@@ -283,6 +301,32 @@ async def member_context(
         user_id=user_id,
         organization_id=organization_id,
         role=member.role,
+        is_app_admin=user.is_app_admin,
+    )
+
+
+async def decider_context(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> AuthContext | None:
+    """`user_id` as their own request was, for work done on their behalf afterwards.
+
+    Rebuilt the way `get_auth_context` builds a console request's context: the
+    user must exist and be active, the membership is read with `member_repo.get`
+    (not `get_active`, which the request does not use), and an app admin who is no
+    member is still accepted, with no role - they hold every permission anyway.
+    `None` when none of that holds. A continuation a person's decision started
+    runs as exactly who made it, no more and no less.
+    """
+    user = await user_repo.get_by_id(db, user_id)
+    if user is None or not user.is_active:
+        return None
+    membership = await member_repo.get(db, organization_id=organization_id, user_id=user_id)
+    if membership is None and not user.is_app_admin:
+        return None
+    return AuthContext(
+        user_id=user_id,
+        organization_id=organization_id,
+        role=membership.role if membership else "",
         is_app_admin=user.is_app_admin,
     )
 

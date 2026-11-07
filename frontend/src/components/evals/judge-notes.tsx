@@ -21,7 +21,7 @@ export function JudgeNotes({ run }: { run: EvalRun }) {
   return (
     <>
       {run.routing_error && (
-        <p className="text-warning text-sm">
+        <p className="text-warning-ink text-sm">
           {t("routingFailed", { reason: run.routing_error.message })}
         </p>
       )}
@@ -32,7 +32,7 @@ export function JudgeNotes({ run }: { run: EvalRun }) {
       )}
       {run.proposal_check && <p className="text-muted-foreground text-sm">{t("checkHeld")}</p>}
       {graded && (
-        <p className="text-warning text-sm">
+        <p className="text-warning-ink text-sm">
           {tScoring("judgeSameModel", { model: graded.model_label })}
         </p>
       )}

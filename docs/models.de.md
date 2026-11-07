@@ -1,5 +1,5 @@
 ---
-source_sha: "8dff2cdc1c17"
+source_sha: "bfe431b65940"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -284,8 +284,8 @@ Regler an einer Verbindung — und weil ein Spec, der das als Model Setting setz
 
 ### Responses oder Chat Completions { #responses-or-chat-completions }
 
-OpenAI veröffentlicht zwei APIs für dieselben Modelle, und ein Profile auf `openai`
-oder `azure` speichert, an welche davon seine Requests gehen: `responses` oder
+OpenAI veröffentlicht zwei APIs für dieselben Modelle, und ein Profile auf `openai`,
+`azure` oder `stav` speichert, an welche davon seine Requests gehen: `responses` oder
 `chat`. Jeder andere Provider bedient eine API und speichert hier nichts.
 
 Keine ist überall richtig. Die neuesten Modelle von OpenAI gibt es nur über
@@ -299,6 +299,7 @@ Completions implementieren. Deshalb ist die Wahl ein Feld des Profiles, unter
 | `openai`, ohne Endpunkt (die eigene API von OpenAI) | `responses` |
 | `openai` mit Endpunkt | `chat` |
 | `azure` | `chat`, weil die Responses-API eine aktuelle `api_version` braucht und das Secret eine ältere festlegen kann |
+| `stav` | aus dem Modell: `chat`, wo es bedient wird, sonst `responses` |
 
 Der Standard ist nur, wo das Formular beginnt. Ein regionaler OpenAI-Endpunkt wie
 `https://eu.api.openai.com/v1` ist ein Endpunkt, der Responses bedient, also
@@ -313,15 +314,40 @@ verschlüsselter Inhalt weitergegeben und nicht über eine gespeicherte Response
 also braucht nichts die gespeicherte Kopie. Ein Profile, das sie will, setzt
 `openai_store` in seinen Settings auf `true`.
 
+### Wo die Requests eines Stav-Profiles laufen { #where-a-stav-profiles-requests-run }
+
+Ein Profile auf `stav` speichert eine Region: `eu`, `eea` oder `global`. Stav
+antwortet nur von Endpunkten, die in dieser Region rechnen, weicht nur innerhalb
+davon aus und lehnt einen Request ab, den es dort nicht bedienen kann. `global`
+setzt selbst keine Grenze. Die Region schränkt nur ein, was die eigene Policy des
+Stav-Workspaces erlaubt.
+
+Gesetzt wird sie unter **Agents → add a model → Region**. Das Formular beginnt bei
+`eu`, und eine weggelassene Region wird als `eu` gespeichert - ein Profile verlässt
+die EU also nur, wenn es mit `eea` oder `global` gespeichert wurde.
+
+Die Region geht bei jedem Request als Header `X-Stav-Runs-In` mit, nicht im Body,
+damit ein `extra_body` in den Settings des Profiles sie nicht ersetzen kann.
+
+Ein eigener Stav-Katalog verwendet den im Formular ausgewählten Vault-Schlüssel. Der Benutzer muss auf diesen Schlüssel zugreifen dürfen; für eine eigene URL wird niemals ein verborgener Organisationsschlüssel gewählt. Authentifizierte Kataloge werden pro Zugangsdaten getrennt gecacht. `extra_headers` eines Requests können die EU- oder EEA-Beschränkung des Profils nicht überschreiben.
+
+### Otari-Gateway { #otari-gateway }
+
+Beim Hinzufügen eines Modells **Otari** wählen, einen Otari-API-Key im Vault speichern und im Profil auswählen. **Endpoint** ist erforderlich: für gehostetes Otari `https://api.otari.ai/api/v1` eintragen. Für ein Otari-Konto in der EU `https://eu.api.otari.ai/api/v1` eintragen; beim Selbsthosting den API-Stamm des Gateways mit `/api/v1` verwenden, erreichbar von API und Workern.
+
+Nach der Auswahl von Endpunkt und Schlüssel **Modelle laden** anklicken. Jede Änderung erfordert eine erneute Bestätigung; beim Tippen einer Adresse wird der Schlüssel nicht gesendet.
+
+Modellvorschläge stammen vom authentifizierten `/models`-Endpunkt dieses Gateways und verwenden den ausgewählten Schlüssel. Ein eigener Endpunkt erfordert `connections:manage` und Zugriff auf diesen Schlüssel. Der Katalog-Cache ist nach Endpunkt und Zugangsdaten getrennt; bei einem Fehler wird ein eigener Katalog nicht durch den gehosteten ersetzt. Das Modellfeld akzeptiert auch einen Selektor wie `anthropic:claude-sonnet-4-6` oder einen in Otari konfigurierten Alias beziehungsweise eine Routing-Policy.
+
+Die Integration verwendet [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): `OtariProvider` liefert das Modellfamilienprofil an das Chat-Completions-Modell von Pydantic AI, wie `OtariModel`. Anfragen nutzen immer Chat Completions; das Formular bietet weder Responses noch Stavs Regionsauswahl. Schlüssel und Endpunkt werden ausdrücklich aus dem Profil übergeben, ohne Rückgriff auf `OTARI_*` oder `OPENAI_API_KEY`. Otaris Gateway-Budgets und Routing ergänzen die weiterhin geltenden Budgets und Freigaben von AgenticOS.
+
+Direkte `provider:model`-Selektoren nutzen für AgenticOS-Budgets den gebündelten Katalogpreis des upstream Modells; bloße Routing-Aliase und unbekannte Modelle bleiben ausdrücklich teilweise bepreist. Das sind upstream Preisschätzungen: Gateway-Gebühren stehen in Otaris Nutzungsansicht.
+
 ## Provider { #providers }
 
-Achtundzwanzig, also alles, was Pydantic AI ausliefert und worauf ein
-Chat-Profile zeigen kann.
+Chat-Provider von Pydantic AI sowie Otari über sein Integrationspaket und Stav mit regionalem Routing.
 
-Es gibt hier keinen Builder pro Provider. Pydantic AI leitet die Provider-Klasse
-und den Model-Wrapper aus der Id ab, und was diese Plattform weiterhin wissen
-muss, ist der Teil, den die Ableitung nicht kennen kann: **welche Form von
-Zugangsdaten ein Provider verlangt.**
+Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. Die Plattform beschreibt die Form der Zugangsdaten und bindet bei Bedarf Provider-Pakete ein.
 
 !!! info "Was Custom URL bedeutet"
 
@@ -345,6 +371,7 @@ Zugangsdaten ein Provider verlangt.**
 | Anthropic | `anthropic` | API-Key | ✓ |
 | Google Gemini | `google` | API-Key | ✓ |
 | OpenRouter | `openrouter` | API-Key |  ✓ |
+| Otari | `otari` | API-Key | ✓ |
 | Alibaba Cloud | `alibaba` | API-Key | ✓ |
 | Cerebras | `cerebras` | API-Key | |
 | DeepSeek | `deepseek` | API-Key | |
@@ -357,6 +384,7 @@ Zugangsdaten ein Provider verlangt.**
 | Nebius AI Studio | `nebius` | API-Key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API-Key | |
 | SambaNova | `sambanova` | API-Key | ✓ |
+| Stav.ai | `stav` | API-Key | ✓ |
 | Together AI | `together` | API-Key | |
 | Vercel AI Gateway | `vercel` | API-Key | |
 | Z.AI | `zai` | API-Key | |

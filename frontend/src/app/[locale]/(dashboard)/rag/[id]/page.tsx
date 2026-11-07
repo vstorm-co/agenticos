@@ -1,6 +1,7 @@
 "use client";
 
-import { Files, ListChecks, RefreshCw } from "lucide-react";
+import { ListChecks, RefreshCw } from "lucide-react";
+import { DocumentIcon as Files } from "@/components/icons/product-icons";
 
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";

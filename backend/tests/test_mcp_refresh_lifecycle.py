@@ -15,7 +15,16 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "field", ["url", "user_id", "auth_type", "is_enabled", "purpose", "granted_scopes"]
+    "field",
+    [
+        "url",
+        "user_id",
+        "auth_type",
+        "is_enabled",
+        "purpose",
+        "granted_scopes",
+        "authorization_generation",
+    ],
 )
 async def test_a_changed_binding_never_receives_the_rotated_credential(monkeypatch, field):
     payload = _base_payload(access_token="old", refresh_token="rotate", expires_at=0)
@@ -27,9 +36,15 @@ async def test_a_changed_binding_never_receives_the_rotated_credential(monkeypat
         "is_enabled": False,
         "purpose": "portal",
         "granted_scopes": ["write"],
+        "authorization_generation": uuid4(),
     }
     after = _oauth_connection(
-        payload, id=before.id, user_id=before.user_id, purpose="mcp", granted_scopes=["read"]
+        payload,
+        id=before.id,
+        user_id=before.user_id,
+        purpose="mcp",
+        granted_scopes=["read"],
+        authorization_generation=before.authorization_generation,
     )
     setattr(after, field, values[field])
     lock, rotate = AsyncMock(return_value=after), AsyncMock()
@@ -132,3 +147,61 @@ async def test_settlement_failure_preserves_the_request_cancellation(monkeypatch
         release.set()
         with pytest.raises(asyncio.CancelledError):
             await task
+
+
+@pytest.mark.parametrize(
+    "change", ["no_payload", "no_access", "unbound_account", "revoked_client", "no_refresh"]
+)
+async def test_refresh_never_contacts_a_provider_without_the_original_live_grant(
+    monkeypatch, change
+):
+    payload = _base_payload(
+        access_token=None if change == "no_access" else "old",
+        refresh_token=None if change == "no_refresh" else "refresh",
+        expires_at=0,
+        account_source_organization_id=uuid4() if change == "revoked_client" else None,
+    )
+    connection = _oauth_connection(
+        payload, purpose="account" if change in {"unbound_account", "revoked_client"} else "mcp"
+    )
+    if change == "no_payload":
+        connection.oauth_payload = None
+    monkeypatch.setattr(
+        service.McpConnectionService, "_account_source_current", AsyncMock(return_value=False)
+    )
+    refresh = AsyncMock()
+    monkeypatch.setattr(service.mcp_oauth, "refresh_tokens", refresh)
+    assert await service._rotate_token(AsyncMock(), connection) is None
+    refresh.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "change", ["current", "legacy", "missing_payload", "missing_client", "missing_generation"]
+)
+def test_google_account_source_metadata_is_recovered_only_from_a_verifiable_grant(change):
+    from tests.test_connected_accounts import (
+        SOURCE_GENERATION,
+        SOURCE_ORG,
+        SOURCE_SECRET,
+        _account,
+        _payload,
+        _sealed,
+    )
+
+    account = _account(account_source_organization_id=None)
+    payload = (
+        _payload(account_source_organization_id=None)
+        if change == "legacy"
+        else _payload(account_source_secret_id=None)
+        if change == "missing_client"
+        else _payload(account_source_generation=None)
+        if change == "missing_generation"
+        else _payload()
+    )
+    account.oauth_payload = None if change == "missing_payload" else _sealed(account, payload)
+    assert service.account_client_identity(account) == (
+        (SOURCE_ORG, SOURCE_SECRET, SOURCE_GENERATION) if change == "current" else None
+    )
+    assert service.account_source_organization(account) == (
+        None if change in {"legacy", "missing_payload"} else SOURCE_ORG
+    )

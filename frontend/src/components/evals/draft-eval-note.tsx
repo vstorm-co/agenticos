@@ -60,11 +60,11 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
     run.arms.find((arm) => arm.id === outcome?.candidate_arm_id)?.ungraded_cases ?? [];
   const tone =
     outcome?.verdict === "worse"
-      ? "border-destructive/40 text-destructive"
+      ? "border-destructive/40 text-destructive-ink"
       : outcome?.verdict === "mixed" || ungraded
-        ? "border-warning/40 text-warning"
+        ? "border-warning/40 text-warning-ink"
         : outcome?.verdict === "better"
-          ? "border-success/40 text-success"
+          ? "border-success/40 text-success-ink"
           : "text-muted-foreground";
   return (
     <Link

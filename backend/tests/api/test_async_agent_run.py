@@ -8,6 +8,8 @@ service queues is `tests/integration/test_api_run_requests.py`'s.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -152,7 +154,9 @@ async def test_a_draft_is_run_as_the_draft() -> None:
         cache_write_tokens=0,
     )
     runner = MagicMock(
-        execute=AsyncMock(return_value=("Hello", run)), parked_calls=AsyncMock(return_value=[])
+        execute=AsyncMock(return_value=("Hello", run)),
+        parked_calls=AsyncMock(return_value=[]),
+        parked_questions=AsyncMock(return_value=[]),
     )
     conversations = MagicMock(for_api_run=AsyncMock(return_value=(uuid4(), [])))
     async with _client(MagicMock()) as client:
@@ -165,3 +169,45 @@ async def test_a_draft_is_run_as_the_draft() -> None:
     assert response.status_code == 200
     assert response.json()["output"] == "Hello"
     assert runner.execute.await_args.kwargs["draft"] is True
+
+
+@pytest.mark.parametrize("draft", [False, True])
+async def test_synchronous_runs_return_real_question_cards_instead_of_declining_them(
+    draft: bool,
+) -> None:
+    from app.agents.ask_user import QuestionItem
+    from app.schemas.agent import ParkedQuestion
+
+    run = SimpleNamespace(
+        id=uuid4(),
+        status="awaiting_answer",
+        cost_usd=Decimal("0"),
+        cost_is_partial=False,
+        input_tokens=5,
+        output_tokens=2,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+    )
+    question = ParkedQuestion(
+        tool_call_id="ask-expert",
+        questions=[QuestionItem(question="Who are you?", header="Expert")],
+    )
+    runner = MagicMock(
+        execute=AsyncMock(return_value=("", run)),
+        parked_calls=AsyncMock(return_value=[]),
+        parked_questions=AsyncMock(return_value=[question]),
+    )
+    conversation_id = uuid4()
+    conversations = MagicMock(for_api_run=AsyncMock(return_value=(conversation_id, [])))
+    async with _client(MagicMock()) as client:
+        app.dependency_overrides[deps.get_agent_runner_service] = lambda: runner
+        app.dependency_overrides[deps.get_conversation_service] = lambda: conversations
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/run", json={"prompt": "Interview me", "draft": draft}
+        )
+    assert response.status_code == 200
+    assert runner.execute.await_args.kwargs["parks_questions"] is True
+    assert runner.execute.await_args.kwargs["draft"] is draft
+    assert response.json()["status"] == "awaiting_answer"
+    assert response.json()["questions"][0]["tool_call_id"] == "ask-expert"
+    assert response.json()["questions"][0]["questions"][0]["question"] == "Who are you?"

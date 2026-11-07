@@ -1,5 +1,5 @@
 ---
-source_sha: "445f16218979"
+source_sha: "54831c55840b"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -38,6 +38,12 @@ Narzędzi deweloperskich i dokumentacyjnych (`uv sync --dev`, grupa zależności
 `docs`, `devDependencies`) nie ma ani w obrazach, ani w notach. Narzędzia
 budowania, które działają w etapie buildera i których nie ma w warstwie końcowej,
 takie jak `uv`, są zapisane w `licenses/components.toml` jako niedystrybuowane.
+
+Opcjonalnych extras `kerberos` i `mirage` nie ma w publikowanych obrazach,
+więc notki ich nie obejmują. Publikowany backend zawiera `browser`. Operator, który buduje obraz z `EXTRAS`,
+dystrybuuje również te pakiety, na ich własnych licencjach. Extra `mirage` wnosi
+[Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) i klienty usług, z
+których korzystają jego backendy.
 
 ## Inwentarz { #the-inventory }
 
@@ -203,7 +209,7 @@ zbudowany obraz jednak opublikuje, jest winne oferty źródeł do niego.
 
 ## Usługi hostowane i warunki providerów { #hosted-services-and-provider-terms }
 
-API providera modeli, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0, Daytona,
+API providera modeli, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona,
 Google Drive i S3 nie są oprogramowaniem, które ten projekt dystrybuuje, i nie mają
 licencji w powyższym sensie. Każde z nich to umowa o świadczenie usług między
 wdrożeniem a providerem, zawierana wtedy, gdy administrator zapisze poświadczenie

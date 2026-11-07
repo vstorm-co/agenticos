@@ -31,7 +31,7 @@ export function EndSession({ session }: { session: Improvement }) {
           <>
             {t("body")}
             {error && (
-              <span role="alert" className="text-destructive mt-2 block">
+              <span role="alert" className="text-destructive-ink mt-2 block">
                 {error}
               </span>
             )}

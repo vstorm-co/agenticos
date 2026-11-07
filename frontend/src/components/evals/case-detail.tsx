@@ -62,7 +62,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
         {attempt.answer !== null && (
           <p className="text-foreground text-sm whitespace-pre-wrap">{attempt.answer}</p>
         )}
-        {attempt.error && <p className="text-destructive text-xs">{attempt.error}</p>}
+        {attempt.error && <p className="text-destructive-ink text-xs">{attempt.error}</p>}
         {attempt.calls.length > 0 && (
           <ul className="space-y-1">
             {attempt.calls.map((call, index) => (

@@ -1,5 +1,5 @@
 ---
-source_sha: "51c9d1428fce"
+source_sha: "4ff4f68268d0"
 ---
 
 # Sandbox { #the-sandbox }
@@ -20,6 +20,10 @@ oraz jak długo cokolwiek z tego przeżywa.
 
 [Konfiguracja](configuration.md#the-services-own-settings) to referencja zmienna
 po zmiennej.
+
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
 
 ## Co gdzie działa { #what-runs-where }
 
@@ -646,6 +650,52 @@ bajty są kolumną wiersza, który zestawienie już odczytało.
 Panel **Files** w czacie i własna lista plików workspace'u rysują kafle tak samo
 jak **All files**: pierwsze linie zapisanego pliku tekstowego, a obraz jako
 miniaturę w tym samym limicie.
+
+### Pobieranie folderu jako zip { #downloading-a-folder-as-a-zip }
+
+Panel **Files** w czacie ma **Pobierz jako .zip** dla całego workspace'u oraz
+przycisk pobierania przy każdym folderze. Oba wywołują
+`GET /api/v1/conversations/{id}/workspace/archive?path=<folder>` (pusty `path` to
+cały workspace), autoryzowane tak samo jak `/workspace/raw`: przez odczyt
+rozmowy. Osoba, której udostępniono czat, może więc pobrać jego folder, a nikt
+inny nie może.
+
+Zip zawiera to, co pokazuje panel. Prefiksy i foldery narzędzi wymienione wyżej
+(`.git`, `node_modules`, `.venv`, ...) są pomijane. Lista dla zipa sięga 64
+poziomów w głąb, a nie sześciu, bo repozytorium jest głębsze niż strona kafli, i
+prosi host o najwyżej 100 000 wpisów, bo host listuje też ukryte foldery. Pliki
+leżą pod jednym folderem głównym nazwanym jak pobierany folder.
+
+Foldery są osobnymi wpisami, więc pusty folder, na przykład rozpakowany z
+załączonego archiwum, też trafia do zipa. Pusty folder pobrany osobno to zip
+zawierający tylko ten folder, a nie 404: panel go pokazuje, więc pobranie daje to,
+co pokazano. Folder, którego panel nie pokazuje, to 404.
+
+Ukośnik wsteczny,
+`%` albo znak sterujący w nazwie pliku są w zipie zakodowane procentowo (`a\b`
+staje się `a%5Cb`), bo program rozpakowujący na Windows czyta ukośnik wsteczny jako
+separator folderów.
+
+Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` wpisami (pliki i foldery, z folderem głównym,
+liczone jak w załączonym archiwum) albo większy niż `WORKSPACE_ARCHIVE_MAX_BYTES`,
+albo taki, którego host nie wylistował w całości, jest odrzucany z kodem 413; zip, w
+którym bez słowa brakuje plików, byłby gorszy. Potem pliki są czytane i
+strumieniowane po jednym.
+
+Plik, którego nie da się przeczytać po rozpoczęciu pobierania, jest pomijany i
+wymieniony, z powodem podanym przez host, w `NOT-INCLUDED.txt` w głównym folderze
+zipa (`_NOT-INCLUDED.txt`, jeśli folder ma plik o tej nazwie). To plik usunięty po
+wylistowaniu albo większy niż własny limit odczytu hosta (`SANDBOXD_MAX_READ_BYTES`,
+domyślnie 8 MiB). Jeśli host przestanie odpowiadać albo po wylistowaniu pliki urosną
+ponad limit bajtów, strumień się zatrzymuje, a pobrany plik jest niekompletny i się
+nie otworzy.
+
+Folder na tym komputerze, w aplikacji desktopowej, nie ma takiego przycisku: on
+już jest folderem na tym komputerze.
+
+Archiwa działają też w drugą stronę: `.zip` albo `.tar.gz` załączone do czatu
+jest rozpakowywane do `uploads/` — zob. [Archiwa](file-processing.md#archives).
 
 ## Jak długo cokolwiek przeżywa { #how-long-anything-survives }
 

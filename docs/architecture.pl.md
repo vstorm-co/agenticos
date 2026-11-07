@@ -1,5 +1,5 @@
 ---
-source_sha: "32fb44829f2c"
+source_sha: "a709a06f672e"
 ---
 
 # Architektura { #architecture }
@@ -1045,3 +1045,5 @@ opracowany przykład.
   nigdy przez `spawn`.
 - Cienka domena to moduł; gruba to podpakiet z fasadą, a nic spoza niego nie
   importuje jego podmodułów.
+
+Operacje telefoniczne również wymagają trwałej granicy: `telephony.runtime.dial`, przyjęcie połączenia, przekierowanie i zakończenie zatwierdzają zamiar przed wywołaniem operatora. Niepewny wynik zachowuje zamiar dla podpisanych callbacków i sprzątania, bez ponownego wybierania numeru. Przyjęcie strumienia zatwierdza jednorazową rezerwację przed otwarciem sesji modelu.

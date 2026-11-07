@@ -1,5 +1,7 @@
 "use client";
 
+import type { Delegation } from "@/types";
+
 import { memo, useId, useState } from "react";
 
 import { MentionChip } from "./mention-chip";
@@ -24,7 +26,7 @@ import { TURN_ACTION } from "./turn-action";
 import { SkillShortcut } from "./skill-shortcut";
 import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
-import { useChatStore, useFilePreviewStore } from "@/stores";
+import { useChatStore, useFilePreviewStore, useWorkingStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
@@ -48,13 +50,20 @@ import { KeptImage } from "./kept-image";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
+import { draftsOf, withDraftText } from "@/lib/drafts";
 import type { DelegateRef } from "@/lib/delegations";
 import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { writtenRoutines, RoutineResult } from "./tool-results/routine";
+import { writtenWatches, WatchResult } from "./tool-results/watch";
+
+import { PlatformObjects } from "./tool-results/platform-objects";
+
 import { TurnFiles } from "./turn-files";
 import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
+  delegations?: Delegation[];
   message: ChatMessage;
   /**
    * Open this turn's last tool step on mount.
@@ -110,6 +119,7 @@ interface MessageItemProps {
 
 export const MessageItem = memo(function MessageItem({
   message,
+  delegations,
   agent,
   groupPosition,
   continuesTurn = false,
@@ -168,6 +178,10 @@ export const MessageItem = memo(function MessageItem({
   const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
   const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
+  const routines = !isUser && authUser ? writtenRoutines(toolCallsOf(message)) : [];
+  const watches = !isUser && authUser ? writtenWatches(toolCallsOf(message)) : [];
+  // What the Copy action takes: the answer and the drafts the turn wrote, as plain text.
+  const copyText = withDraftText(message.content, isUser ? [] : draftsOf(toolCallsOf(message)));
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 
   const avatar = (
@@ -356,7 +370,7 @@ export const MessageItem = memo(function MessageItem({
             );
           })()}
 
-        {message.replyTo && (
+        {message.replyTo && !isUser && (
           <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
         )}
         <MessageBody
@@ -369,7 +383,25 @@ export const MessageItem = memo(function MessageItem({
           onCiteClick={onCiteClick}
         />
 
-        {!isUser && !message.isStreaming && apps.length > 0 && (
+        {!isUser && <PlatformObjects calls={toolCallsOf(message)} />}
+
+        {!isUser && routines.length > 0 && (
+          <div className="mt-1 max-w-xl space-y-2">
+            {routines.map((routine) => (
+              <RoutineResult key={routine.id} routine={routine} />
+            ))}
+          </div>
+        )}
+
+        {!isUser && watches.length > 0 && (
+          <div className="mt-1 max-w-xl space-y-2">
+            {watches.map((watchId) => (
+              <WatchResult key={watchId} watchId={watchId} />
+            ))}
+          </div>
+        )}
+
+        {!isUser && apps.length > 0 && (
           // What the turn made, under what it said: the app is the answer to
           // "build me a dashboard", and it used to be one line inside the folded
           // work above the reply.
@@ -380,8 +412,13 @@ export const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {!isUser && !message.isStreaming && endsTurn && (
-          <TurnDelegations toolCalls={toolCallsOf(message)} parent={agent} agents={agents} />
+        {!isUser && !message.isStreaming && (
+          <TurnDelegations
+            toolCalls={toolCallsOf(message)}
+            delegations={delegations}
+            parent={agent}
+            agents={agents}
+          />
         )}
 
         {hasSources && !isUser && (
@@ -463,9 +500,9 @@ export const MessageItem = memo(function MessageItem({
                 )}
               </span>
             )}
-            {message.content && (
+            {copyText && (
               <CopyButton
-                text={message.content}
+                text={copyText}
                 className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
             )}
@@ -474,7 +511,11 @@ export const MessageItem = memo(function MessageItem({
             )}
             {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
             {isUser && !pins && !message.isTemporaryId && message.content && (
-              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
+              <TurnShortcuts
+                request={message.content}
+                agentId={agent?.id ?? null}
+                conversationId={message.conversationId}
+              />
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
@@ -569,6 +610,11 @@ function MessageBody({
   endsTurn: boolean;
   onCiteClick?: (index: number) => void;
 }) {
+  const workingSince = useWorkingStore((state) =>
+    message.isStreaming && message.conversationId ? state.since[message.conversationId] : undefined,
+  );
+  const startedAt =
+    (workingSince ? new Date(workingSince) : message.runStartedAt) ?? message.timestamp;
   const t = useTranslations("chat");
   const parts = message.parts ?? [];
   const useParts = !isUser && parts.length > 0;
@@ -609,9 +655,10 @@ function MessageBody({
           openLastStep={openLastStep}
           fileSource={message.fileSource}
           onCiteClick={onCiteClick}
-          startedAt={message.timestamp}
+          startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
           stopped={message.wasStopped === true}
+          waitingFor={message.runWaitingFor}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */
@@ -623,9 +670,11 @@ function MessageBody({
               isStreaming={Boolean(message.isStreaming)}
             />
           )}
-          {message.content && (
+          {(message.content || (isUser && message.replyTo)) && (
             <TextBubble
               text={message.content}
+              replyTo={isUser ? message.replyTo : undefined}
+              replyAgents={agents}
               showCursor={!isUser && Boolean(message.isStreaming)}
               isUser={isUser}
               onCiteClick={onCiteClick}

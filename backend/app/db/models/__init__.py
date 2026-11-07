@@ -1,9 +1,14 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.task_board import TaskBoard, TaskLink
+from app.db.models.project_tracking import ProjectTracking
+from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
+from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
@@ -13,6 +18,7 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.browser_sign_in import BrowserSignIn
+from app.db.models.coding_account import CodingAccount
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -102,6 +108,9 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
+from app.db.models.primary_conversation import PrimaryConversation
+from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableMedia,
@@ -117,9 +126,15 @@ from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
+from app.db.models.outcome import Outcome, OutcomeStatus
+
+from app.db.models.discord_role_mapping import DiscordRoleMapping
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.notification_route import NotificationRoute
+from app.db.models.routine_device_wait import RoutineDeviceWait
+from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.apns_device import ApnsDevice
 from app.db.models.announcement import Announcement
@@ -128,7 +143,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
-from app.db.models.suggestion import Suggestion
+from app.db.models.suggestion import RoutineFindingRevision, Suggestion
 from app.db.models.watch import Watch
 from app.db.models.teams_conversation import TeamsConversation
 from app.db.models.oauth import (
@@ -197,13 +212,22 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "TaskBoard",
+    "TaskLink",
+    "PhoneCall",
+    "PhoneContact",
+    "PhoneEndpoint",
+    "ProjectTracking",
+    "RoutineDelivery",
     "DiagnosticsIdentity",
     "Visual",
     "ApiKey",
     "BrowserSignIn",
+    "CodingAccount",
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
+    "RoutineFindingRevision",
     "Suggestion",
     "Watch",
     "TeamsConversation",
@@ -230,6 +254,9 @@ __all__ = [
     "User",
     "Session",
     "Conversation",
+    "CodingTaskChange",
+    "ConversationTask",
+    "ConversationTurnClaim",
     "Message",
     "ToolCall",
     "ChatFile",
@@ -255,6 +282,7 @@ __all__ = [
     "UserSlashCommand",
     "DeploymentSettings",
     "DirectoryGroupMapping",
+    "DiscordRoleMapping",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",
@@ -331,6 +359,10 @@ __all__ = [
     "ContextProposal",
     "ContextMode",
     "AgentMemoryFile",
+    "MemoryClaim",
+    "MemoryScopeState",
+    "PrimaryConversation",
+    "SystemAgentProfile",
     "VirtualTable",
     "VirtualTableMedia",
     "VirtualTableOutbox",
@@ -348,12 +380,17 @@ __all__ = [
     "Group",
     "GroupMember",
     "Visibility",
+    "Outcome",
+    "OutcomeStatus",
     "Notification",
     "NotificationChannel",
     "NotificationEventType",
     "NotificationDelivery",
     "DeliveryStatus",
     "NotificationChannelPreference",
+    "NotificationRoute",
+    "RoutineDeviceWait",
+    "RoutineHealthObservation",
     "PushSubscription",
     "ApnsDevice",
     "Announcement",
@@ -399,3 +436,5 @@ __all__ = [
     "GeneratedMediaReservation",
     "VoiceEndReason",
 ]
+
+from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint

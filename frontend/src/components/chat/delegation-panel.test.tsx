@@ -287,32 +287,42 @@ describe("DelegationPanels - nesting", () => {
 });
 
 describe("DelegationPanels - once the turn is over", () => {
-  it("drops a delegation that answered in its turn, which its step already records", () => {
-    render(
+  it("leaves a finished exchange to the answer's byline rather than repeating it beneath", () => {
+    // The answer carries "Talked it through with…", which opens the same
+    // exchange; drawing it again under the transcript repeated it (2026-11-06).
+    const { container } = render(
       <DelegationPanels
         settled
         delegations={[
           delegation({ taskId: "t1", subagent: "researcher", status: "completed" }),
           delegation({ taskId: "t2", subagent: "writer", status: "failed", error: "refused" }),
+          delegation({ taskId: "t3", subagent: "critic", status: "cancelled" }),
+        ]}
+      />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("keeps a background exchange, which reports after the turn", () => {
+    render(
+      <DelegationPanels
+        settled
+        delegations={[
+          delegation({ taskId: "t1", subagent: "researcher", status: "completed" }),
           delegation({ taskId: "t3", subagent: "critic", status: "completed", mode: "async" }),
         ]}
       />,
     );
 
-    // The failure says why, and the background one reports after the turn.
-    expect(screen.queryByText("Researcher")).toBeNull();
-    expect(screen.getByText("Writer")).toBeInTheDocument();
-    expect(screen.getByText("Critic")).toBeInTheDocument();
+    expect(screen.getByRole("log").textContent).toMatch(/critic/i);
+    expect(screen.getByRole("log").textContent).not.toMatch(/researcher/i);
   });
 
-  it("drops a delegation the person stopped, which its step now says", () => {
-    // A stopped run left "Sales Researcher stopped" hanging under the answer
-    // while the step list still spun "Asking Sales Researcher".
-    const { container } = render(
-      <DelegationPanels settled delegations={[delegation({ status: "cancelled" })]} />,
-    );
+  it("keeps an exchange still at work after the answer", () => {
+    render(<DelegationPanels settled delegations={[delegation({ status: "running" })]} />);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("log")).toBeInTheDocument();
   });
 
   it("keeps a stopped specialist that can still be kept", () => {
@@ -324,14 +334,6 @@ describe("DelegationPanels - once the turn is over", () => {
     );
 
     expect(screen.getByText("stopped")).toBeInTheDocument();
-  });
-
-  it("draws nothing once every delegation is recorded elsewhere", () => {
-    const { container } = render(
-      <DelegationPanels settled delegations={[delegation({ status: "completed" })]} />,
-    );
-
-    expect(container).toBeEmptyDOMElement();
   });
 });
 
@@ -359,3 +361,23 @@ it.each(["completed", "failed", "cancelled"] as const)(
     expect(container).toBeEmptyDOMElement();
   },
 );
+
+it("keeps a nested specialist reachable after its synchronous parent is folded away", () => {
+  render(
+    <DelegationPanels
+      settled
+      delegations={[
+        delegation({ taskId: "parent", status: "completed" }),
+        delegation({
+          taskId: "child",
+          parentTaskId: "parent",
+          depth: 1,
+          subagent: "critic",
+          status: "completed",
+          specialist: SPECIALIST,
+        }),
+      ]}
+    />,
+  );
+  expect(screen.getByText("Critic")).toBeInTheDocument();
+});

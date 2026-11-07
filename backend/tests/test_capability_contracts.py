@@ -110,3 +110,12 @@ class TestToolContracts:
             contracts = await tool_contracts()
 
         assert contracts == {"toolset_free_for_this_test": {}}
+
+
+async def test_an_uninstalled_mirage_extra_needs_no_documentation_build(monkeypatch):
+    from app.services import capability_contracts
+
+    monkeypatch.setattr(capability_contracts, "mirage_catalog", lambda: ())
+    definition = SimpleNamespace(id="mirage", builder=MagicMock())
+    assert await capability_contracts._contracts_for(definition) == {}
+    definition.builder.assert_not_called()
