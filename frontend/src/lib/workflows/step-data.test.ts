@@ -20,6 +20,7 @@ import {
   sourcesOf,
   stepDataOf,
   tableOf,
+  testEntryGraph,
 } from "./step-data";
 import type { WorkflowNodeRunRead } from "./types";
 
@@ -215,5 +216,49 @@ describe("earlierSteps", () => {
   it("never offers the step itself, and has nothing before the first step", () => {
     expect(earlierSteps(graph, "c", new Set(["c"]))).not.toContain("c");
     expect(earlierSteps(graph, "a", new Set())).toEqual([]);
+  });
+});
+
+describe("testEntryGraph", () => {
+  it("returns the default entry's branch when it reaches the step", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [node("a", "trigger.manual"), node("c", "data.map")],
+      edges: [edge("e", "a", "out", "c", "in")],
+    });
+
+    expect(testEntryGraph(g, "c")?.entry_node_id).toBe("a");
+    expect(testEntryGraph(g, "c")?.nodes.map((n) => n.id)).toEqual(["a", "c"]);
+  });
+
+  it("picks the secondary trigger whose branch reaches the step, default first", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [node("a", "trigger.manual"), node("b", "trigger.manual"), node("c", "data.map")],
+      edges: [edge("e", "b", "out", "c", "in")],
+    });
+
+    expect(testEntryGraph(g, "c")?.entry_node_id).toBe("b");
+    expect(testEntryGraph(g, "c")?.nodes.map((n) => n.id)).toEqual(["b", "c"]);
+  });
+
+  it("keeps the default entry when several starts reach the step", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [node("a", "trigger.manual"), node("b", "trigger.manual"), node("c", "data.map")],
+      edges: [edge("e1", "a", "out", "c", "in"), edge("e2", "b", "out", "c", "in")],
+    });
+
+    expect(testEntryGraph(g, "c")?.entry_node_id).toBe("a");
+  });
+
+  it("returns null when no entry reaches the step", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [node("a", "trigger.manual"), node("c", "data.map")],
+      edges: [],
+    });
+
+    expect(testEntryGraph(g, "c")).toBeNull();
   });
 });

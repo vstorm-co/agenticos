@@ -3,14 +3,18 @@
 import re
 from collections.abc import Iterator, Mapping
 from graphlib import CycleError, TopologicalSorter
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from jsonschema import Draft202012Validator
+from jsonschema._utils import find_evaluated_property_keys_by_schema
 from jsonschema.exceptions import SchemaError, ValidationError
+from jsonschema.validators import extend
 from pydantic import JsonValue
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012, Schema
+
+from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 
 if TYPE_CHECKING:
     from referencing._core import Resolver
@@ -19,6 +23,8 @@ type InputSchema = dict[str, JsonValue]
 
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 MAX_NESTING = 64
+MAX_PROBLEMS = 100
+MAX_SCHEMA_BYTES = 262_144
 
 _SAME_VALUE = frozenset({"not", "if", "then", "else", "contentSchema"})
 _CHILD_VALUE = frozenset(
@@ -68,6 +74,84 @@ def _subschemas(
                 yield cast("dict[str, JsonValue] | bool", child), keyword != "prefixItems"
 
 
+def _unevaluated_properties(
+    validator: Any,
+    unevaluated_properties: Schema,
+    instance: JsonValue,
+    schema: Mapping[str, JsonValue],
+) -> Iterator[ValidationError]:
+    """Report each unevaluated property key on its own path.
+
+    `jsonschema` aggregates every unevaluated key into one error at the parent
+    object's path, so a schema-valued rule cannot say which key had the wrong
+    type and `false` cannot name the offending key. Overriding the keyword
+    keeps the library's own evaluated-key computation while yielding one error
+    per key. The private `find_evaluated_property_keys_by_schema` helper is the
+    exact one the library's keyword uses, so `properties`, `patternProperties`,
+    `$ref`, `allOf`/`anyOf`/`oneOf` and `if`/`then`/`else` stay Draft 2020-12
+    exact; the resolver context for local references and nested `$id` is the
+    one the keyword is invoked with, and the lockfile pins its version.
+    """
+    if not validator.is_type(instance, "object") or not isinstance(instance, dict):
+        return
+    evaluated_keys = set(find_evaluated_property_keys_by_schema(validator, instance, schema))
+    for key in instance:
+        if key in evaluated_keys:
+            continue
+        if unevaluated_properties is False:
+            yield ValidationError("Unevaluated property", path=[key])
+        else:
+            yield from validator.descend(
+                instance[key],
+                unevaluated_properties,
+                path=key,
+                schema_path=key,
+            )
+
+
+# `Any` above is the boundary with jsonschema's keyword-validator protocol, whose
+# concrete class is created here (and whose `descend`/`_resolver` the protocol omits).
+_InputValidator = extend(
+    Draft202012Validator,
+    {"unevaluatedProperties": _unevaluated_properties},
+)
+
+# jsonschema's `evolve` forwards every attrs init field from `self` into the new
+# validator; this is the same (attr_name, init_alias) list its `evolve_fields`
+# builds. `_ref_resolver` (alias `resolver`) is the deprecated legacy field and
+# stays `None`; `_registry` (alias `registry`) and `_resolver` (alias `_resolver`)
+# carry the local-reference resolver context. The names are pinned by the lockfile.
+_EVOLVE_FIELDS = (
+    ("schema", "schema"),
+    ("_ref_resolver", "resolver"),
+    ("format_checker", "format_checker"),
+    ("_registry", "registry"),
+    ("_resolver", "_resolver"),
+)
+
+
+def _evolve(self: Any, **changes: Any) -> Any:
+    """Rebuild `_InputValidator` regardless of any `$schema` a subschema declares.
+
+    The base `evolve` consults `validator_for`, which returns the globally
+    registered 2020-12 validator for a schema that carries `$schema` — silently
+    dropping this module's `unevaluatedProperties` override for that subschema.
+    `check_input_schema` has already fixed the whole document to Draft 2020-12,
+    so `evolve` may always reconstruct `_InputValidator`, forwarding the same
+    schema/resolver/format-checker/registry/resolver fields the base `evolve`
+    does. This preserves original schema contents (`const`/`default`/`enum`
+    annotations included) and never mutates the globally registered validators.
+    """
+    changes.setdefault("schema", self.schema)
+    for attr_name, init_name in _EVOLVE_FIELDS:
+        if init_name not in changes:
+            changes[init_name] = getattr(self, attr_name)
+    return _InputValidator(**changes)
+
+
+_InputValidator.evolve = _evolve
+
+
 def _checked_schema(contents: Schema) -> Mapping[str, JsonValue] | None:
     if isinstance(contents, bool):
         return None
@@ -94,6 +178,10 @@ def check_input_schema(schema: InputSchema) -> None:
     """
     if _too_deep(schema):
         raise ValueError("Input schema exceeds the maximum nesting depth")
+    try:
+        json_byte_size(schema, limit=MAX_SCHEMA_BYTES)
+    except PayloadTooLarge:
+        raise ValueError(f"Input schema may take at most {MAX_SCHEMA_BYTES} bytes") from None
     # Registry construction reads $id immediately, before reference traversal.
     _checked_schema(schema)
     visited: set[int] = set()
@@ -165,12 +253,19 @@ def _message(error: ValidationError) -> str:
             return f"Must satisfy the {error.validator or 'schema'} constraint"
 
 
-def _error_paths(error: ValidationError) -> Iterator[tuple[str | int, ...]]:
+def _error_paths(
+    error: ValidationError,
+    seen_required: set[tuple[tuple[str | int, ...], tuple[str, ...]]],
+) -> Iterator[tuple[str | int, ...]]:
     path = tuple(error.absolute_path)
     if error.validator == "required":
-        for name in error.validator_value:
-            if name not in error.instance:
-                yield (*path, name)
+        names = tuple(cast("list[str]", error.validator_value))
+        constraint = (path, names)
+        if constraint not in seen_required:
+            seen_required.add(constraint)
+            for name in names:
+                if name not in error.instance:
+                    yield (*path, name)
     elif (
         error.validator == "additionalProperties"
         and error.validator_value is False
@@ -212,6 +307,8 @@ def schema_input_problems(
 
     The same Draft 2020-12 contract used at publication governs admission.
     An empty registry ensures even a mutated schema cannot cause network I/O.
+    At most `MAX_PROBLEMS` problems are rendered; when more exist the final
+    entry is a value-free truncation summary.
     """
     if _too_deep(run_input):
         return [
@@ -222,17 +319,30 @@ def schema_input_problems(
             }
         ]
     problems: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    seen_required: set[tuple[tuple[str | int, ...], tuple[str, ...]]] = set()
+    truncated = False
     try:
-        for error in Draft202012Validator(schema, registry=Registry()).iter_errors(run_input):
+        for error in _InputValidator(schema, registry=Registry()).iter_errors(run_input):
             for specific in _specific_errors(error):
-                for path in _error_paths(specific):
+                for path in _error_paths(specific, seen_required):
                     problem = {
                         "field": ".".join(str(part) for part in path),
                         "message": _message(specific),
                         "type": str(specific.validator or "schema"),
                     }
-                    if problem not in problems:
-                        problems.append(problem)
+                    key = (problem["field"], problem["message"], problem["type"])
+                    if key in seen:
+                        continue
+                    if len(problems) >= MAX_PROBLEMS - 1:
+                        truncated = True
+                        break
+                    seen.add(key)
+                    problems.append(problem)
+                if truncated:
+                    break
+            if truncated:
+                break
     except RecursionError:
         return [
             {
@@ -241,4 +351,12 @@ def schema_input_problems(
                 "type": "max_depth",
             }
         ]
+    if truncated:
+        problems.append(
+            {
+                "field": "",
+                "message": "More problems than can be shown",
+                "type": "truncated",
+            }
+        )
     return problems

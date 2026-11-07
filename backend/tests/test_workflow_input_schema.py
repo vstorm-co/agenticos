@@ -3,10 +3,13 @@
 from copy import deepcopy
 
 import pytest
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import JsonValue, ValidationError
 
 from app.workflows.contracts.input_schema import (
     MAX_NESTING,
+    MAX_PROBLEMS,
+    _error_paths,
     check_input_schema,
     schema_input_problems,
 )
@@ -424,4 +427,386 @@ def test_a_long_reference_chain_cannot_crash_run_admission() -> None:
             "message": "Input exceeds the schema validation nesting limit",
             "type": "max_depth",
         }
+    ]
+
+
+def test_schema_valued_unevaluated_properties_report_the_key_and_its_type_error() -> None:
+    config = TriggerInputConfig(input_schema={"unevaluatedProperties": {"type": "integer"}})
+    assert input_problems(config, {"extra": "private-value"}) == [
+        {"field": "extra", "message": "Must be of type integer", "type": "type"}
+    ]
+    assert "private-value" not in str(input_problems(config, {"extra": "private-value"}))
+
+
+def test_boolean_unevaluated_properties_report_each_forbidden_key() -> None:
+    config = TriggerInputConfig(input_schema={"unevaluatedProperties": False})
+    assert input_problems(config, {"extra": "private-value"}) == [
+        {
+            "field": "extra",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_true_unevaluated_properties_allow_any_key() -> None:
+    config = TriggerInputConfig(input_schema={"unevaluatedProperties": True})
+    assert input_problems(config, {"anything": [1]}) == []
+
+
+def test_nested_unevaluated_properties_keep_the_parent_path() -> None:
+    config = TriggerInputConfig(
+        input_schema={"properties": {"nested": {"unevaluatedProperties": {"type": "integer"}}}}
+    )
+    assert input_problems(config, {"nested": {"extra": "private-value"}}) == [
+        {"field": "nested.extra", "message": "Must be of type integer", "type": "type"}
+    ]
+
+
+def test_evaluated_keys_from_a_valid_composition_are_not_unevaluated() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "allOf": [{"properties": {"known": {"type": "integer"}}}],
+            "unevaluatedProperties": False,
+        }
+    )
+    assert input_problems(config, {"known": 3}) == []
+    assert input_problems(config, {"known": 3, "extra": "private-value"}) == [
+        {
+            "field": "extra",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_evaluated_keys_from_pattern_properties_are_not_unevaluated() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "patternProperties": {"^allowed_": {"type": "integer"}},
+            "unevaluatedProperties": False,
+        }
+    )
+    assert input_problems(config, {"allowed_key": 3}) == []
+    assert input_problems(config, {"allowed_key": 3, "other": 1}) == [
+        {
+            "field": "other",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_evaluated_keys_from_a_reference_are_not_unevaluated() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$defs": {"obj": {"properties": {"known": {"type": "integer"}}}},
+            "allOf": [{"$ref": "#/$defs/obj"}],
+            "unevaluatedProperties": False,
+        }
+    )
+    assert input_problems(config, {"known": 3}) == []
+    assert input_problems(config, {"known": 3, "extra": "private-value"}) == [
+        {
+            "field": "extra",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_unevaluated_properties_respect_nested_resource_scopes() -> None:
+    schema: dict[str, JsonValue] = {
+        "$id": "https://example.com/root",
+        "$defs": {"outer": {"properties": {"x": {"type": "integer"}}}},
+        "properties": {
+            "nested": {
+                "$id": "nested",
+                "$defs": {"inner": {"properties": {"y": {"type": "integer"}}}},
+                "allOf": [{"$ref": "#/$defs/inner"}],
+                "unevaluatedProperties": False,
+            }
+        },
+    }
+    config = TriggerInputConfig(input_schema=schema)
+    # `y` is evaluated by `nested`'s own `$defs/inner`; `x` belongs to the outer
+    # resource, so the nested resource must not count it as evaluated.
+    assert input_problems(config, {"nested": {"y": 1}}) == []
+    assert input_problems(config, {"nested": {"y": 1, "x": 2}}) == [
+        {
+            "field": "nested.x",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_schema_valued_unevaluated_properties_resolve_local_references() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$defs": {"integer": {"type": "integer"}},
+            "unevaluatedProperties": {"$ref": "#/$defs/integer"},
+        }
+    )
+    assert input_problems(config, {"extra": "private-value"}) == [
+        {"field": "extra", "message": "Must be of type integer", "type": "type"}
+    ]
+
+
+def test_mixed_required_and_type_errors_keep_deterministic_order() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "type": "object",
+            "required": ["a", "b", "c"],
+            "properties": {"a": {"type": "integer"}},
+        }
+    )
+    assert [(p["field"], p["type"]) for p in input_problems(config, {"a": "wrong"})] == [
+        ("b", "required"),
+        ("c", "required"),
+        ("a", "type"),
+    ]
+
+
+def test_required_missing_names_expand_once_per_constraint_not_per_error() -> None:
+    """50 sibling `required` errors share one constraint and expand 50 names, not 2500."""
+    names = [f"f{i}" for i in range(50)]
+    errors = [
+        JsonSchemaValidationError(
+            "x is a required property",
+            validator="required",
+            validator_value=names,
+            instance={},
+        )
+        for _ in range(50)
+    ]
+    seen_required: set[tuple[tuple[str | int, ...], tuple[str, ...]]] = set()
+    paths = [path for error in errors for path in _error_paths(error, seen_required)]
+    assert paths == [(f"f{i}",) for i in range(50)]
+    assert len(seen_required) == 1
+
+
+def test_missing_names_within_the_cap_are_all_reported() -> None:
+    names = [f"f{i}" for i in range(MAX_PROBLEMS - 1)]
+    config = TriggerInputConfig(input_schema={"required": names})
+    problems = input_problems(config, {})
+    assert [p["field"] for p in problems] == names
+    assert all(p["type"] == "required" and p["message"] == "Field required" for p in problems)
+
+
+@pytest.mark.parametrize("count", [400, 800])
+def test_hundreds_of_missing_names_are_capped_and_ordered(count: int) -> None:
+    config = TriggerInputConfig(input_schema={"required": [f"f{i}" for i in range(count)]})
+    problems = input_problems(config, {})
+    assert len(problems) == MAX_PROBLEMS
+    assert [p["field"] for p in problems[:-1]] == [f"f{i}" for i in range(MAX_PROBLEMS - 1)]
+    assert all(p["type"] == "required" and p["message"] == "Field required" for p in problems[:-1])
+    assert problems[-1] == {
+        "field": "",
+        "message": "More problems than can be shown",
+        "type": "truncated",
+    }
+
+
+def test_large_arrays_keep_indices_while_capped() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "type": "object",
+            "properties": {
+                "rows": {"type": "array", "items": {"type": "object", "required": ["id"]}}
+            },
+        }
+    )
+    problems = input_problems(config, {"rows": [{} for _ in range(800)]})
+    assert len(problems) == MAX_PROBLEMS
+    assert [p["field"] for p in problems[:-1]] == [f"rows.{i}.id" for i in range(MAX_PROBLEMS - 1)]
+    assert all(p["type"] == "required" for p in problems[:-1])
+    assert problems[-1] == {
+        "field": "",
+        "message": "More problems than can be shown",
+        "type": "truncated",
+    }
+
+
+def test_unevaluated_properties_false_does_not_restrict_non_object_values() -> None:
+    config = TriggerInputConfig(
+        input_schema={"properties": {"v": {"unevaluatedProperties": False}}}
+    )
+    assert input_problems(config, {"v": []}) == []
+    assert input_problems(config, {"v": "private-value"}) == []
+    assert input_problems(config, {"v": {"extra": "private-value"}}) == [
+        {
+            "field": "v.extra",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_duplicate_allof_type_errors_render_one_diagnostic() -> None:
+    config = TriggerInputConfig(
+        input_schema={"properties": {"v": {"allOf": [{"type": "integer"}, {"type": "integer"}]}}}
+    )
+    assert input_problems(config, {"v": "private-value"}) == [
+        {"field": "v", "message": "Must be of type integer", "type": "type"}
+    ]
+    assert "private-value" not in str(input_problems(config, {"v": "private-value"}))
+
+
+def test_schema_valued_unevaluated_properties_survive_an_explicit_nested_dialect() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "properties": {
+                "child": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "unevaluatedProperties": {"type": "integer"},
+                }
+            }
+        }
+    )
+    assert input_problems(config, {"child": {"extra": "private-value"}}) == [
+        {"field": "child.extra", "message": "Must be of type integer", "type": "type"}
+    ]
+
+
+def test_boolean_unevaluated_properties_survive_an_explicit_nested_dialect() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "properties": {
+                "child": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "unevaluatedProperties": False,
+                }
+            }
+        }
+    )
+    assert input_problems(config, {"child": {"extra": "private-value"}}) == [
+        {
+            "field": "child.extra",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_explicit_dialect_keeps_nested_reference_scope() -> None:
+    schema: dict[str, JsonValue] = {
+        "$defs": {"value": {"type": "integer"}},
+        "properties": {
+            "child": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$id": "child",
+                "$defs": {"value": {"type": "string"}},
+                "properties": {"name": {"$ref": "#/$defs/value"}},
+                "unevaluatedProperties": {"type": "integer"},
+            }
+        },
+    }
+    config = TriggerInputConfig(input_schema=schema)
+    # `child.name` resolves to `child`'s own string definition, not the root's
+    # integer one; the explicit dialect must not move the resolver context.
+    assert input_problems(config, {"child": {"name": "ok", "extra": 1}}) == []
+    assert [
+        (p["field"], p["type"])
+        for p in input_problems(config, {"child": {"name": 1, "extra": "x"}})
+    ] == [
+        ("child.name", "type"),
+        ("child.extra", "type"),
+    ]
+
+
+def test_recursive_ref_to_root_with_an_explicit_dialect() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "properties": {"child": {"$ref": "#"}},
+            "unevaluatedProperties": {"type": "integer"},
+        }
+    )
+    assert input_problems(config, {"child": {"extra": "private-value"}}) == [
+        {"field": "child.extra", "message": "Must be of type integer", "type": "type"}
+    ]
+
+
+def test_reference_to_a_schema_inside_an_annotation_reports_its_key() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$defs": {
+                "holder": {
+                    "default": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "unevaluatedProperties": False,
+                    }
+                }
+            },
+            "properties": {"value": {"$ref": "#/$defs/holder/default"}},
+        }
+    )
+    assert input_problems(config, {"value": {"extra": "private-value"}}) == [
+        {
+            "field": "value.extra",
+            "message": "Additional properties are not allowed",
+            "type": "unevaluatedProperties",
+        }
+    ]
+
+
+def test_an_annotation_schema_keeps_its_const_data_meaning() -> None:
+    schema: dict[str, JsonValue] = {
+        "$defs": {
+            "holder": {
+                "default": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "unevaluatedProperties": False,
+                }
+            }
+        },
+        "properties": {
+            "as_schema": {"$ref": "#/$defs/holder/default"},
+            "as_const": {
+                "const": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "unevaluatedProperties": False,
+                }
+            },
+        },
+    }
+    config = TriggerInputConfig(input_schema=schema)
+    # The annotation object doubles as a `$ref` target and as literal `const`
+    # data; its `$schema` key must survive so the const comparison stays exact.
+    assert [
+        (p["field"], p["type"])
+        for p in input_problems(
+            config,
+            {
+                "as_schema": {"extra": "private-value"},
+                "as_const": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "unevaluatedProperties": False,
+                },
+            },
+        )
+    ] == [("as_schema.extra", "unevaluatedProperties")]
+    assert [
+        p["field"]
+        for p in input_problems(
+            config, {"as_schema": {}, "as_const": {"unevaluatedProperties": False}}
+        )
+    ] == ["as_const"]
+
+
+def test_nested_dynamic_refs_keep_resolver_context_with_an_explicit_dialect() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$id": "https://example.com/tree",
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$dynamicAnchor": "node",
+            "properties": {"children": {"type": "array", "items": {"$dynamicRef": "#node"}}},
+            "unevaluatedProperties": {"type": "integer"},
+        }
+    )
+    # `$dynamicRef` resolves back to the root node (which carries the dialect);
+    # the overridden keyword still names the offending key, not its parent.
+    assert input_problems(config, {"children": [{"extra": "private-value"}]}) == [
+        {"field": "children.0.extra", "message": "Must be of type integer", "type": "type"}
     ]

@@ -1,5 +1,5 @@
 ---
-source_sha: "f4560e57f1b5"
+source_sha: "be32d7b712ae"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -135,6 +135,24 @@ wejście zwraca `WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami.
 Schemat nie konwertuje wartości ani nie wstawia wartości domyślnych. Bez prostych
 pól i schematu, także przy pustym obiekcie schematu, zachowane zostaje dotychczasowe
 nietypowane wejście w postaci obiektu JSON.
+
+Surowy schemat może mieć najwyżej 256 KiB przy publikacji. Przed przyjęciem
+runu żądanie walidacji zapisane jako JSON, zawierające schemat i wejście, musi
+mieścić się w 1 MiB. Walidacja działa w izolowanym procesie z limitem dwóch
+sekund, wliczając start procesu. Każda pętla zdarzeń API lub workera dopuszcza
+najwyżej dwie równoczesne walidacje; gdy oba miejsca są zajęte, przyjęcie runu
+jest od razu odrzucane z `429`. Dotychczasowe kontrakty prostych pól nadal są
+sprawdzane bez osobnego procesu.
+
+Przekroczenie czasu lub limitu rozmiaru protokołu walidacji odrzuca przyjęcie
+runu z `422 WORKFLOW_RUN_INPUT_INVALID`, wskazując `input` w `error.details.fields`
+i `validation_limit` jako `type` problemu w dotychczasowym formacie. Błąd startu
+walidatora, nieprawidłowe zakończenie procesu (także przez limit zasobów systemu
+operacyjnego) lub nieprawidłowa odpowiedź zwraca
+`503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Żadna z tych odmów nie tworzy runu.
+Zwracanych jest najwyżej 100 wpisów diagnostycznych; gdy problemów jest więcej,
+ostatni wpis podsumowuje ucięcie listy. Diagnostyka nigdy nie cytuje przesłanych
+wartości.
 
 Wywołujący może sprawdzić efektywny kontrakt przed wykonaniem przez
 [API schematu wejścia workflow](../api.md#running-a-workflow) lub

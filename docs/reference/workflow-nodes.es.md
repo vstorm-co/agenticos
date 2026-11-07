@@ -1,5 +1,5 @@
 ---
-source_sha: "f4560e57f1b5"
+source_sha: "be32d7b712ae"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -136,6 +136,25 @@ contrato del borrador. Una entrada inválida devuelve `WORKFLOW_RUN_INPUT_INVALI
 con rutas de campos y mensajes. El esquema no convierte valores ni inserta valores
 predeterminados. Sin campos simples ni esquema, incluido un objeto de esquema
 vacío, se conserva la entrada existente como objeto JSON sin tipado.
+
+Los esquemas sin procesar tienen un límite de 256 KiB al publicar. Antes de
+admitir un run, la petición de validación serializada como JSON, con el esquema
+y la entrada, debe caber en 1 MiB. La validación se ejecuta en un proceso aislado
+con un plazo de dos segundos, incluido el arranque. Cada bucle de eventos de la
+API o de un worker admite como máximo dos validaciones simultáneas; si ambas
+plazas están ocupadas, la admisión se rechaza inmediatamente con `429`. Los
+contratos existentes de campos simples siguen validándose sin un proceso
+separado.
+
+Un tiempo de espera agotado o un límite de tamaño del protocolo de validación
+rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en
+`error.details.fields` y `validation_limit` como el `type` del problema en el
+formato existente. Un fallo al arrancar el validador, una terminación anormal
+(incluida la causada por un límite de recursos del sistema operativo) o una salida
+inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
+rechazos crea un run. Se devuelven como máximo 100 entradas de diagnóstico; si hay
+más problemas, la última resume el truncamiento de la lista. Los diagnósticos nunca citan los
+valores enviados.
 
 Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante la
 [API del esquema de entrada del workflow](../api.md#running-a-workflow) o el

@@ -28,6 +28,7 @@ import {
   jsonBytes,
   knownInput,
   knownOutputs,
+  testEntryGraph,
 } from "@/lib/workflows/step-data";
 import { effectiveDefinition } from "@/lib/workflows/ports";
 import {
@@ -258,6 +259,9 @@ export function OutputPane({
   const { start } = useWorkflowRuns(workflowId, asking);
   const [draft, setDraft] = useState<string | null>(null);
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
+  // The start a test admits from: the first entry (default first) whose branch
+  // reaches this step, matching the backend's choice when no entry is named.
+  const branch = useMemo(() => testEntryGraph(graph, node.id), [graph, node.id]);
 
   const problems = useMemo(
     () => validateGraph(graph, { items: catalog, total: catalog.length }, t),
@@ -275,13 +279,17 @@ export function OutputPane({
         ? t("publishSaving")
         : null;
 
-  const test = (input: Record<string, unknown>) =>
+  const test = (input: Record<string, unknown>) => {
+    // A step no entry reaches cannot be tested; validation blocks the button, so
+    // this only guards the degenerate case instead of starting the wrong entry.
+    if (branch === null) return;
     start.mutate(
       {
         workflow_id: workflowId,
+        entry_node_id: branch.entry_node_id,
         mode: "test",
         input,
-        step: { node_id: node.id, outputs: knownOutputs(graph, node.id, stepData) },
+        step: { node_id: node.id, outputs: knownOutputs(branch, node.id, stepData) },
       },
       {
         onSuccess: (run) => {
@@ -290,12 +298,14 @@ export function OutputPane({
         },
       },
     );
+  };
   const begin = () => {
-    const input = knownInput(graph, stepData);
+    if (branch === null) return;
+    const input = knownInput(branch, stepData);
     if (input !== null) test(input);
-    else if (declaredFields(graph).length > 0 || declaredInputSchema(graph) !== null)
+    else if (declaredFields(branch).length > 0 || declaredInputSchema(branch) !== null)
       setAsking(true);
-    else test(sampleRunInput(graph));
+    else test(sampleRunInput(branch));
   };
   const ask = () => (definition.effect_kind === "write" ? setConfirming(true) : begin());
 
@@ -477,8 +487,8 @@ export function OutputPane({
           busy={start.isPending}
           error={start.error}
           onInputChange={start.reset}
-          testFields={declaredFields(graph)}
-          testInputSchema={declaredInputSchema(graph)}
+          testFields={declaredFields(branch)}
+          testInputSchema={declaredInputSchema(branch)}
           onStart={({ input }) => test(input)}
         />
       )}

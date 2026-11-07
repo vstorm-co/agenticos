@@ -1,5 +1,5 @@
 ---
-source_sha: "f4560e57f1b5"
+source_sha: "be32d7b712ae"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -140,6 +140,25 @@ den Vertrag des Drafts. Ungültige Eingaben liefern `WORKFLOW_RUN_INPUT_INVALID`
 mit Feldpfaden und Meldungen. Das Schema konvertiert keine Werte und setzt keine
 Standardwerte ein. Ohne einfache Felder und ohne Schema, auch bei einem leeren
 Schema-Objekt, bleibt die bisherige untypisierte JSON-Objekteingabe erhalten.
+
+Rohe Schemas sind bei der Veröffentlichung auf 256 KiB begrenzt. Vor dem
+Annehmen eines Runs muss die als JSON serialisierte Validierungsanfrage mit
+Schema und Eingabe in 1 MiB passen. Die Validierung läuft in einem isolierten
+Prozess mit einer Frist von zwei Sekunden einschließlich Prozessstart. Jede
+Ereignisschleife der API oder eines Workers erlaubt höchstens zwei gleichzeitige
+Validierungen; sind beide Plätze belegt, wird der Run sofort mit `429` abgelehnt.
+Bestehende Verträge mit einfachen Feldern werden weiterhin ohne separaten
+Prozess validiert.
+
+Eine Zeitüberschreitung oder ein Größenlimit des Validierungsprotokolls lehnt
+den Run mit `422 WORKFLOW_RUN_INPUT_INVALID` ab; `error.details.fields` nennt
+`input`, und der Problemtyp `type` im bisherigen Format ist `validation_limit`.
+Ein Fehler beim Starten des Validators, ein abnormaler Prozessabbruch (auch durch
+ein Ressourcenlimit des Betriebssystems) oder eine ungültige Ausgabe liefert
+`503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Beide Ablehnungen legen keinen Run
+an. Höchstens 100 Diagnoseeinträge werden zurückgegeben; gibt es weitere
+Probleme, fasst der letzte Eintrag die Kürzung zusammen. Diagnosen zitieren nie
+übermittelte Werte.
 
 Aufrufer können den wirksamen Vertrag vor der Ausführung über die
 [Workflow-Eingabeschema-API](../api.md#running-a-workflow) oder die

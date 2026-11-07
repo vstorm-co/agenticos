@@ -128,6 +128,21 @@ schema does not coerce values or insert defaults. With neither simple fields nor
 a schema, including an empty schema object, the existing untyped JSON-object
 input is preserved.
 
+Raw schemas are limited to 256 KiB at publication. Before admission, the
+serialized JSON validation request containing the schema and input must fit
+1 MiB. Validation runs in an isolated process with a two-second deadline,
+including startup. Each API or worker event loop permits at most two concurrent
+validations; when both slots are busy, admission is refused immediately with
+`429`. Existing simple-field contracts continue to validate inline.
+
+A timeout or validation protocol-size limit refuses admission with
+`422 WORKFLOW_RUN_INPUT_INVALID`, naming `input` in `error.details.fields` and
+`validation_limit` as the legacy problem's `type`. Validator startup failure,
+abnormal exit (including termination by an OS resource limit), or invalid output
+returns `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Neither refusal creates a
+run. At most 100 diagnostic entries are returned; when more problems exist, the
+final entry is a truncation summary. Diagnostics never quote submitted values.
+
 Callers can inspect the effective contract before execution through the
 [workflow input-schema API](../api.md#running-a-workflow) or
 [MCP discovery](../mcp.md#workflow-and-table-tools). Existing simple-field

@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
   local `$defs`/`$ref` references. Published versions freeze the contract; invalid
   input is rejected before a run starts with field paths. API and MCP discovery
   expose the effective schema, preserving existing simple-field and untyped inputs.
+  Raw-schema validation runs in an isolated process with bounded resources and
+  diagnostics. Step tests use the contract of the entry that reaches the tested step.
 
 ## [1.56.0] - 2026-11-07
 

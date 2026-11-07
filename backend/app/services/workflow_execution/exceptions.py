@@ -289,6 +289,17 @@ class WorkflowParentStoppedError(WorkflowDispatchRefusedError):
         super().__init__(details={"run_id": run_id})
 
 
+class WorkflowInputValidationUnavailableError(AppException):
+    """The isolated input validator could not return a trustworthy answer (503)."""
+
+    message = "Workflow input validation is unavailable; retry in a moment"
+    code = "WORKFLOW_INPUT_VALIDATION_UNAVAILABLE"
+    status_code = 503
+
+    def __init__(self, *, reason: Literal["not_started", "failed", "invalid_output"]) -> None:
+        super().__init__(details={"reason": reason})
+
+
 class WorkflowRunInputInvalidError(AppException):
     """The run's input does not fit its trigger's fields or JSON Schema contract (422).
 
