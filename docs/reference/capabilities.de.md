@@ -103,9 +103,18 @@ und `cause_execution` diesen Aufruf und geben an, ob er gestartet wurde. Fehler-
 und Feldprobleme bleiben über die Sandbox-Grenze erhalten. Bei unbekanntem äußerem
 Ergebnis müssen frühere Aktionen vor einer erneuten Skriptausführung geprüft werden.
 
+Fehlende Pflichtfelder werden einzeln benannt. Wertebeschränkungen nennen die
+zulässigen Optionen oder die erforderliche Länge. Die MCP-Argumentprüfung nutzt
+das bereitgestellte Schema, ohne externe Referenzen abzurufen. Ungültige,
+nicht auflösbare oder rekursive Schemas liefern vor dem Aufruf `tool_unavailable`.
+
 Beim Leeren von Tool-Ergebnissen bleiben kontrollierte Fehlerstrukturen erhalten,
 auch wenn die konfigurierte Anzahl beibehaltener Ergebnisse null ist.
 Zusammenfassungen und gleitende Fenster können ältere Nachrichten weiterhin kürzen.
+
+Ein ausgeschöpftes Budget, Guardrail-Sperren, Schleifenstopps und Nutzungslimits des
+Modells beenden weiterhin den Lauf und behalten ihre bisherige Abrechnung bei.
+Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 
 ## Was ausgeliefert wird { #what-ships }
 

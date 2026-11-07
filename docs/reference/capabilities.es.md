@@ -103,9 +103,19 @@ los problemas de los campos se conservan al cruzar el límite del sandbox. Un
 resultado externo desconocido exige comprobar las acciones anteriores antes de
 volver a ejecutar el script.
 
+Los campos obligatorios que faltan se indican por separado. Las restricciones de
+valor muestran las opciones permitidas o la longitud exigida. La validación de
+argumentos MCP utiliza el esquema publicado sin obtener referencias externas.
+Los esquemas inválidos, irresolubles o recursivos devuelven `tool_unavailable`
+antes de invocar la herramienta.
+
 La limpieza de resultados de herramientas conserva los errores estructurados
 controlados, incluso si el número configurado de resultados retenidos es cero.
 Los resúmenes y las ventanas deslizantes aún pueden reducir intercambios anteriores.
+
+El agotamiento del presupuesto, los bloqueos de guardrails, las paradas de bucles y
+los límites de uso del modelo siguen terminando la ejecución y conservan su
+contabilidad. El modo de código mantiene esas paradas al cruzar el límite del sandbox.
 
 ## Qué se entrega { #what-ships }
 

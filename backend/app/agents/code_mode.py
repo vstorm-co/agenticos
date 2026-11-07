@@ -42,7 +42,9 @@ from app.agents.deps import AgentDeps
 from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder
 from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.tool_errors import (
+    RUN_STOP_ERRORS,
     ControlledToolError,
+    ToolRunStopped,
     capture_tool_errors,
     nested_tool_error,
     tool_error,
@@ -130,6 +132,10 @@ class CodeCalls(AbstractCapability[AgentDeps]):
             try:
                 with capture_tool_errors() as errors:
                     return await handler(args)
+            except ToolRunStopped as stopped:
+                raise stopped.error from None
+            except RUN_STOP_ERRORS:
+                raise
             except Exception as exc:
                 failure = _code_failure(
                     exc,

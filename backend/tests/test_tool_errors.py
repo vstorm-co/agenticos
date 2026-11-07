@@ -323,6 +323,7 @@ async def test_many_mcp_issues_are_bounded_without_exposing_argument_values() ->
     result = await agent.run("run remote", deps=AgentDeps())
     (envelope,) = _errors(result.all_messages())
     assert len(envelope.error.issues) == 10
+    assert all(issue.expected_type == "string" for issue in envelope.error.issues)
     assert "private-secret" not in envelope.model_dump_json()
     assert remote.executed == []
 

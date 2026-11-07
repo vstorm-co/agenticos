@@ -100,9 +100,18 @@ wskazują to wywołanie i określają, czy się rozpoczęło. Identyfikator bł�
 pól przechodzą przez granicę sandboxa. Nieznany wynik zewnętrznego wywołania nadal
 wymaga sprawdzenia wcześniejszych działań przed ponownym uruchomieniem skryptu.
 
+Brakujące wymagane pola są wskazywane osobno. Ograniczenia wartości podają dozwolone
+opcje lub wymaganą długość. Walidacja argumentów MCP korzysta z udostępnionego schematu
+bez pobierania odwołań zewnętrznych. Nieprawidłowy, nierozwiązywalny lub rekurencyjny
+schemat zwraca `tool_unavailable` przed wywołaniem narzędzia.
+
 Czyszczenie wyników narzędzi zachowuje kontrolowane struktury błędów, nawet gdy
 skonfigurowana liczba zachowywanych wyników wynosi zero. Podsumowania i przesuwane
 okna nadal mogą ograniczać starsze wymiany.
+
+Wyczerpanie budżetu, blokady guardraili, zatrzymanie pętli i limity użycia modelu
+nadal kończą wykonanie i zachowują dotychczasowe rozliczanie. Tryb kodu zachowuje te
+zatrzymania po przejściu przez granicę sandboxa.
 
 ## Co jest dostarczane { #what-ships }
 

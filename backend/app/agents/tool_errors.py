@@ -6,6 +6,7 @@ Only errors built here carry the provenance used by transcript rendering;
 matching JSON from an external server is still untrusted diagnostic text.
 """
 
+import json
 import logging
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
@@ -23,15 +24,19 @@ from pydantic_ai.capabilities import (
     RawToolArgs,
     ValidatedToolArgs,
     WrapRunHandler,
+    WrapToolExecuteHandler,
     WrapToolValidateHandler,
 )
-from pydantic_ai.exceptions import ToolFailed
+from pydantic_ai.exceptions import ToolFailed, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import ToolDefinition
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 
+from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
+from app.agents.loop_guard import ToolLoopStopped
 from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
@@ -49,6 +54,9 @@ type Recovery = Literal[
 ]
 
 TOOL_ERROR_METADATA = "agenticos_tool_error"
+
+RUN_STOP_ERRORS = (BudgetExceeded, GuardrailBlocked, ToolLoopStopped, UsageLimitExceeded)
+"""Run outcomes the runner accounts for, never recoverable tool failures."""
 
 
 class ToolArgumentIssue(BaseModel):
@@ -96,6 +104,14 @@ class ToolErrorEnvelope(BaseModel):
 
 class ControlledToolError(str):
     """In-process provenance; external MCP JSON cannot construct this type."""
+
+
+class ToolRunStopped(BaseException):
+    """Carry a run stop past Monty's catchable external-exception boundary."""
+
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        super().__init__()
 
 
 _captured_errors: ContextVar[list[ControlledToolError] | None] = ContextVar(
@@ -260,9 +276,16 @@ def _expected_type(schema: dict[str, JsonValue], code: str) -> str:
         )
     if isinstance(kind, str):
         return kind
-    return {"list_type": "array", "string_type": "string", "int_parsing": "integer"}.get(
-        code, "schema-compatible value"
-    )
+    return {
+        "list_type": "array",
+        "string_type": "string",
+        "int_parsing": "integer",
+        "int_type": "integer",
+        "float_parsing": "number",
+        "float_type": "number",
+        "bool_parsing": "boolean",
+        "bool_type": "boolean",
+    }.get(code, "schema-compatible value")
 
 
 @dataclass
@@ -288,6 +311,10 @@ class ToolErrors(AbstractCapability[AgentDeps]):
     ) -> ValidatedToolArgs:
         try:
             validated = await handler(args)
+        except RUN_STOP_ERRORS as error:
+            if _captured_errors.get() is not None:
+                raise ToolRunStopped(error) from error
+            raise
         except ValidationError as error:
             issues: list[ToolArgumentIssue] = []
             for problem in error.errors(
@@ -296,10 +323,9 @@ class ToolErrors(AbstractCapability[AgentDeps]):
                 location = problem["loc"]
                 name = ".".join(str(item) for item in location) or "arguments"
                 code = problem["type"]
-                expected = _expected_type(
-                    _field_schema(tool_def.parameters_json_schema, location), code
-                )
-                issues.append(self._issue(name, code, expected))
+                schema = _field_schema(tool_def.parameters_json_schema, location)
+                expected = _expected_type(schema, code)
+                issues.append(self._issue(name, code, expected, schema=schema))
             raise ToolFailed(self._invalid_arguments(call.tool_name, issues)) from error
         # MCPToolset validates the JSON container, leaving its advertised input
         # schema to the remote server. Check that schema before approval or dispatch
@@ -317,18 +343,37 @@ class ToolErrors(AbstractCapability[AgentDeps]):
                 checker = validator(schema, format_checker=FormatChecker(), registry=Registry())
                 for problem in checker.iter_errors(validated):
                     location = tuple(problem.absolute_path)
-                    name = ".".join(str(item) for item in location) or "arguments"
-                    field_schema = _field_schema(schema, location)
+                    # JSON Schema locates a missing property at its parent object.
+                    # Derive its name from the schema, never from an error message
+                    # that could contain submitted values.
+                    locations = (
+                        [
+                            (*location, name)
+                            for name in problem.validator_value
+                            if name not in problem.instance
+                        ]
+                        if problem.validator == "required"
+                        else [location]
+                    )
                     code = (
                         "uuid_parsing"
                         if problem.validator == "format" and problem.validator_value == "uuid"
                         else str(problem.validator)
                     )
-                    expected = _expected_type(field_schema, code)
-                    issues.append(self._issue(name, code, expected))
+                    for location in locations:
+                        name = ".".join(str(item) for item in location) or "arguments"
+                        field_schema = _field_schema(schema, location)
+                        if problem.validator != "required" and isinstance(problem.schema, dict):
+                            field_schema = problem.schema
+                        expected = _expected_type(field_schema, code)
+                        issue = self._issue(name, code, expected, schema=field_schema)
+                        if issue not in issues:
+                            issues.append(issue)
+                        if len(issues) == 10:
+                            break
                     if len(issues) == 10:
                         break
-            except (SchemaError, Unresolvable) as error:
+            except (SchemaError, Unresolvable, RecursionError) as error:
                 raise ToolFailed(
                     tool_error(
                         tool=call.tool_name,
@@ -343,8 +388,35 @@ class ToolErrors(AbstractCapability[AgentDeps]):
                 raise ToolFailed(self._invalid_arguments(call.tool_name, issues))
         return validated
 
-    def _issue(self, name: str, code: str, expected: str) -> ToolArgumentIssue:
+    def _issue(
+        self, name: str, code: str, expected: str, *, schema: dict[str, JsonValue]
+    ) -> ToolArgumentIssue:
         message = f"Invalid `{name}`: expected {expected}."
+        alternatives = schema.get("anyOf")
+        if expected == "string" and isinstance(alternatives, list):
+            non_null = [
+                alternative
+                for alternative in alternatives
+                if isinstance(alternative, dict) and alternative.get("type") != "null"
+            ]
+            if len(non_null) == 1:
+                schema = non_null[0]
+        if code in ("missing", "missing_argument", "required"):
+            message = f"Missing required `{name}`: expected {expected}."
+        elif code in ("literal_error", "enum", "const"):
+            choices = schema.get("enum")
+            if "const" in schema:
+                choices = [schema["const"]]
+            if isinstance(choices, list):
+                message = f"`{name}` must be one of {json.dumps(choices, ensure_ascii=False)}."
+        elif code in ("string_too_long", "maxLength") and isinstance(
+            maximum := schema.get("maxLength"), int
+        ):
+            message = f"`{name}` must contain at most {maximum} characters."
+        elif code in ("string_too_short", "minLength") and isinstance(
+            minimum := schema.get("minLength"), int
+        ):
+            message = f"`{name}` must contain at least {minimum} characters."
         if expected == "array of strings":
             example = '["name", "primary_ip"]' if name == "fields" else '["value"]'
             message = f"`{name}` must be an array of strings, for example {example}."
@@ -373,6 +445,24 @@ class ToolErrors(AbstractCapability[AgentDeps]):
             issues=issues,
         )
 
+    async def wrap_tool_execute(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: ValidatedToolArgs,
+        handler: WrapToolExecuteHandler,
+    ) -> object:
+        try:
+            return await handler(args)
+        except RUN_STOP_ERRORS as error:
+            if _captured_errors.get() is not None:
+                # Ordinary exceptions become catchable sandbox values. A run stop
+                # must leave the sandbox before the script can dispatch more work.
+                raise ToolRunStopped(error) from error
+            raise
+
     async def on_tool_execute_error(
         self,
         ctx: RunContext[AgentDeps],
@@ -382,6 +472,8 @@ class ToolErrors(AbstractCapability[AgentDeps]):
         args: ValidatedToolArgs,
         error: Exception,
     ) -> object:
+        if isinstance(error, RUN_STOP_ERRORS):
+            raise error
         code: ErrorCode = "execution_unknown"
         recovery: Recovery = "inspect_execution_status"
         if isinstance(error, PermissionError) or (

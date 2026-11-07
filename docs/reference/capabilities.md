@@ -61,6 +61,12 @@ an `error` object with an `id`, `code`, `tool`, `execution`, `message`, `issues`
 `field`, validation `code` and `expected_type`, with a correction message or example.
 For example, a workflow ID must be a UUID returned by workflow discovery; an array
 of field names must be sent as `["name", "primary_ip"]`, not a comma-separated string.
+Missing required fields are named individually. Value constraints give their allowed
+choices or required length.
+
+MCP argument validation uses the advertised schema without fetching external
+references. Invalid, unresolved or recursive schemas return `tool_unavailable`
+before dispatch.
 
 `execution` is `not_started` when validation or registration rejects the call before
 invocation, `started` when a start is established, and `unknown` when a failure
@@ -95,6 +101,10 @@ actions before replaying the script.
 Clearing tool results retains controlled error envelopes, even when the configured
 number of retained results is zero. Summaries and sliding windows can still reduce
 older exchanges.
+
+Budget exhaustion, guardrail blocks, loop stops and model usage limits still end
+the run and retain their existing accounting. Code mode preserves those stops
+across the sandbox boundary.
 
 ## What ships
 

@@ -21,7 +21,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Tool failures now keep actionable structured details through model continuation, approval resume and saved transcripts: field validation and correction examples, execution disposition, recovery guidance and an error ID that identifies the detailed server log. Unknown tool names report unavailable registration rather than missing permission, and agents check uncertain execution outcomes before retrying.
+- Tool failures now keep actionable structured details through model continuation,
+  approval resume and saved transcripts: named missing fields, allowed values and
+  length constraints, correction examples, execution disposition, recovery guidance
+  and an error ID that identifies the detailed server log. Unknown tool names report
+  unavailable registration rather than missing permission, and agents check uncertain
+  execution outcomes before retrying. Budgets, guardrails, loop stops and usage limits
+  retain their terminal behavior through code mode. Only calls that pass complete
+  validation count as successful argument repairs.
 
 ## [1.56.1] - 2026-11-07
 
