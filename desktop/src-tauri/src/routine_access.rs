@@ -5,7 +5,9 @@ use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use agenticos_shell_core::routine_grants::{DeviceIdentity, Operations, RoutineGrant, RoutineScope, WorkContext};
+use agenticos_shell_core::routine_grants::{
+    local_root, DeviceIdentity, Operations, RoutineGrant, RoutineScope, WorkContext,
+};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
@@ -192,7 +194,8 @@ pub async fn routine_allow(app: AppHandle, request: Request) -> Result<Option<Ro
     if request.name.chars().count() > 200 || request.root.len() > 4096 {
         return Err("The routine name or folder exceeds its size limit".into());
     }
-    let root = fs::canonicalize(&request.root).map_err(|_| "That folder is not available".to_owned())?;
+    let requested_root = local_root(Path::new(&request.root)).map_err(str::to_owned)?;
+    let root = fs::canonicalize(&requested_root).map_err(|_| "That folder is not available".to_owned())?;
     if !root.is_dir() {
         return Err("Choose a folder".into());
     }
@@ -262,13 +265,9 @@ pub async fn routine_allow(app: AppHandle, request: Request) -> Result<Option<Ro
         .map_err(|_| "Routine permissions are unavailable".to_owned())?;
     let path = store(&app)?;
     let mut grants = load(&path)?;
-    // One grant per routine, and one for all of a person's routines - replaced,
-    // not stacked, so revoking it in settings revokes it.
-    grants.retain(|old| {
-        !(owns(old, &grant.identity)
-            && old.organization_id == grant.organization_id
-            && old.routine_id == grant.routine_id)
-    });
+    // A shared grant may already be referenced by other routines. Only an
+    // explicit regrant for one routine replaces that routine's old authority.
+    grants.retain(|old| !grant.replaces(old));
     if grants.len() >= MAX_GRANTS {
         return Err("Remove an unused routine permission before adding another".into());
     }
