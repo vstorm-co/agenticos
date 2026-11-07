@@ -1541,3 +1541,70 @@ async def test_application_write_setting_is_sealed_and_legacy_grants_remain_read
     else:
         account.oauth_payload = payload
     assert McpConnectionService.application_writes_enabled(account) == (payload == "legacy")
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_invalid_pasted_slack_tokens_are_expected_setup_failures(
+    ctx, native_repo, monkeypatch, for_organization
+):
+    from pydantic import SecretStr
+
+    from app.core.exceptions import BadRequestError
+
+    monkeypatch.setattr(
+        service_module.slack_oauth,
+        "identify",
+        AsyncMock(side_effect=service_module.OAuthError("Slack refused this token")),
+    )
+    with pytest.raises(BadRequestError, match="Slack refused this token"):
+        await McpConnectionService(AsyncMock()).connect_slack_token(
+            ctx, token=SecretStr("xoxb-invalid-token"), label="", for_organization=for_organization
+        )
+    native_repo.create.assert_not_awaited()
+    native_repo.create_org_scoped.assert_not_awaited()
+
+
+async def test_native_slack_trigger_cannot_bind_an_unreadable_selected_history(
+    ctx, native_repo, monkeypatch
+):
+    from pydantic import SecretStr
+
+    from app.core.exceptions import BadRequestError
+    from app.services.integrations import IntegrationService
+
+    row = _account(
+        user_id=ctx.user_id,
+        catalog_key="slack",
+        account_source_organization_id=ctx.organization_id,
+        auth_type="bearer",
+        granted_scopes=["channels:history"],
+        is_enabled=True,
+    )
+    native_repo.get_by_id = AsyncMock(return_value=row)
+    monkeypatch.setattr(
+        McpConnectionService, "account_needs_reconnect", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        McpConnectionService,
+        "integration_access_token",
+        AsyncMock(return_value=SecretStr("private-token")),
+    )
+    check = AsyncMock(
+        side_effect=BadRequestError(message="Slack cannot read a selected conversation")
+    )
+    monkeypatch.setattr(service_module.slack_oauth, "validate_conversations", check)
+    with pytest.raises(BadRequestError, match="selected conversation"):
+        await McpConnectionService(AsyncMock()).get_polled_connection(
+            ctx, row.id, portal_key="slack", channels=("D-direct",)
+        )
+    check.assert_awaited_once_with(SecretStr("private-token"), ("D-direct",))
+    monkeypatch.setattr(
+        McpConnectionService, "integration_access_token", AsyncMock(return_value=None)
+    )
+    with pytest.raises(AuthorizationError, match="Reconnect"):
+        await IntegrationService(AsyncMock()).validate_feed_selection(
+            row, ("D-direct",), organization_id=ctx.organization_id
+        )
+    await IntegrationService(AsyncMock()).validate_feed_selection(
+        row, (), organization_id=ctx.organization_id
+    )

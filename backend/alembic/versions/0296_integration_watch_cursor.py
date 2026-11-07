@@ -32,6 +32,7 @@ def _replace_checks(checks: dict[str, str]) -> None:
 
 
 def upgrade() -> None:
+    op.create_index("ix_agent_triggers_connection_id", "agent_triggers", ["connection_id"])
     _replace_checks(_NEW_CHECKS)
     op.add_column("watches", sa.Column("integration_cursor", postgresql.JSONB(), nullable=True))
 
@@ -52,3 +53,4 @@ def downgrade() -> None:
         )
     _replace_checks(_OLD_CHECKS)
     op.drop_column("watches", "integration_cursor")
+    op.drop_index("ix_agent_triggers_connection_id", table_name="agent_triggers")

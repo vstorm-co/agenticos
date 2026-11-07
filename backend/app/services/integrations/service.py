@@ -184,6 +184,22 @@ class IntegrationService:
                 message="Writes were not enabled when connecting this application account"
             )
 
+    async def validate_feed_selection(
+        self, account: McpConnection, channels: tuple[str, ...], *, organization_id: UUID
+    ) -> None:
+        """Confirm selected Slack histories after the caller authorizes the account."""
+        if account.catalog_key != "slack" or not channels:
+            return
+        from app.services.integrations.slack_oauth import validate_conversations
+        from app.services.mcp_connection import McpConnectionService
+
+        token = await McpConnectionService(self.db).integration_access_token(
+            account, organization_id=organization_id
+        )
+        if token is None:
+            raise AuthorizationError(message="Reconnect the selected Slack account")
+        await validate_conversations(token, channels)
+
     async def source_token(
         self,
         *,

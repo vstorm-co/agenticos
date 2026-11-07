@@ -26,6 +26,8 @@ This setup requires a readable Graph role claim in the token returned by the fix
 
 Slack accepts existing `xoxp-` user tokens or `xoxb-` bot tokens. A bot can post as the app, but it cannot use user-only search APIs. Actual granted scopes are checked before each operation. Tokens and service-account keys are sealed in the Vault, never stored in an agent spec.
 
+Before saving a Slack trigger, watch or knowledge source, AgenticOS checks history access for every selected conversation. This verifies the matching public/private channel or direct/group-message scope and membership, without requesting extra directory permissions. Unreadable conversations are refused at setup.
+
 **IMAP** is a separate read-only mail connection using a host, verified TLS port, username, app password and fixed folder. The operator must allow the exact host in `MIRAGE_ALLOWED_HOSTS`. It reuses the installed Mirage mail client. Microsoft 365 basic-auth IMAP is not an alternative to Microsoft OAuth here.
 
 ## Choose what an agent can do

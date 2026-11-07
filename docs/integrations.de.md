@@ -1,5 +1,5 @@
 ---
-source_sha: "3e8d1a15aa54"
+source_sha: "8f017c44c86c"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -29,6 +29,8 @@ Microsoft-Anwendungskonten speichern nur die vom Tenant zurückgegebenen Graph-R
 Diese Einrichtung benötigt einen lesbaren Graph-Rollen-Claim im Token des festen Microsoft-Token-Endpunkts. Opake oder verschlüsselte Anwendungstoken werden mit einem Hinweis auf delegiertes OAuth abgelehnt; AgenticOS fordert keine verzeichnisweiten Rechte zur Prüfung der Zustimmung an. Der Claim ist Konfigurationsmetadatum und authentifiziert keinen Plattformbenutzer; Microsoft Graph validiert das Bearer-Token.
 
 Slack akzeptiert vorhandene Benutzertokens `xoxp-` und Bottokens `xoxb-`. Ein Bot schreibt als App, kann aber keine benutzerexklusive Suche verwenden. Tatsächliche Scopes werden vor jeder Operation geprüft. Tokens und Schlüssel bleiben verschlüsselt im Vault, niemals in der Agentenspezifikation.
+
+Vor dem Speichern eines Slack-Triggers, Watches oder einer Wissensquelle prüft AgenticOS den Verlaufzugriff jeder ausgewählten Unterhaltung. So werden die passenden Rechte für öffentliche/private Kanäle und Direkt-/Gruppennachrichten sowie die Mitgliedschaft ohne zusätzliche Verzeichnisrechte geprüft. Unlesbare Unterhaltungen werden bei der Einrichtung abgelehnt.
 
 **IMAP** ist eine getrennte, nur lesende Mailverbindung: Host, Port mit geprüftem TLS, Benutzername, App-Passwort und fester Ordner. Der Betreiber muss den exakten Host in `MIRAGE_ALLOWED_HOSTS` zulassen. Der installierte Mirage-Mailclient wird wiederverwendet. Microsoft-365-IMAP mit Basic Auth wird hier nicht als OAuth-Alternative angeboten.
 

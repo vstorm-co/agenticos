@@ -271,3 +271,53 @@ async def test_unique_account_names_take_precedence_over_ambiguous_display_label
         )
         is selected
     )
+
+
+async def test_graph_folder_pagination_keeps_the_fixed_endpoint_and_encodes_the_skip_token(
+    monkeypatch,
+):
+    real_client = httpx.AsyncClient
+    seen = []
+
+    def respond(request):
+        seen.append(request)
+        if "$skipToken" not in request.url.params:
+            return httpx.Response(
+                200,
+                json={
+                    "value": [{"id": "first"}],
+                    "@odata.nextLink": "https://graph.microsoft.com/v1.0/drives/drive/items/folder/children?$skipToken=next%2Bpage%2F%3D",
+                },
+            )
+        assert request.url.params["$skipToken"] == "next+page/="
+        return httpx.Response(200, json={"value": [{"id": "last"}]})
+
+    monkeypatch.setattr(
+        client.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    operation = next(
+        op for op in PRODUCTS["microsoft_files"].operations if op.id == "list_children"
+    )
+    first = await client.execute(
+        operation,
+        SecretStr("private"),
+        parameters={"drive_id": "drive", "item_id": "folder"},
+        query={},
+        body=None,
+    )
+    token = parse_qs(urlparse(first["@odata.nextLink"]).query)["$skipToken"][0]
+    second = await client.execute(
+        operation,
+        SecretStr("private"),
+        parameters={"drive_id": "drive", "item_id": "folder"},
+        query={"$skipToken": token},
+        body=None,
+    )
+    assert second["value"] == [{"id": "last"}]
+    assert all(
+        request.url.host == "graph.microsoft.com"
+        and request.url.path == "/v1.0/drives/drive/items/folder/children"
+        for request in seen
+    )

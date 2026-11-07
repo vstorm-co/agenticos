@@ -383,6 +383,14 @@ class SyncSourceService:
                 "Reconnect the account with this knowledge product's read permissions",
             )
 
+        if provider == "slack":
+            from app.services.rag.connectors.slack import SlackKnowledgeConfig
+
+            selected = SlackKnowledgeConfig.model_validate(config)
+            await IntegrationService(self.db).validate_feed_selection(
+                account, tuple(selected.channels), organization_id=ctx.organization_id
+            )
+
     async def _checked_secret(
         self, secret_id: UUID | None, connector_type: str, ctx: AuthContext
     ) -> str | None:

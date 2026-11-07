@@ -273,6 +273,15 @@ class WatchService:
                 )
         return reads
 
+    async def _validate_feed_selection(
+        self, ctx: AuthContext, connection: McpConnection, sources: WatchSources
+    ) -> None:
+        from app.services.integrations import IntegrationService
+
+        await IntegrationService(self.db).validate_feed_selection(
+            connection, sources.integration_channels, organization_id=ctx.organization_id
+        )
+
     async def create(self, ctx: AuthContext, data: WatchCreate) -> WatchRead:
         """Set up a watch, first read within a minute.
 
@@ -310,6 +319,7 @@ class WatchService:
             pinned_version_id=data.pinned_version_id,
         )
         sources = approve_sources(spec, connection, data.integration_product_id)
+        await self._validate_feed_selection(ctx, connection, sources)
         source_conversation_id = await self._source_conversation(ctx, data.agent_id)
         watch = await watch_repo.create(
             self.db,
@@ -375,6 +385,13 @@ class WatchService:
                 ).model_dump(mode="json")
             else:
                 constrain_sources(spec, WatchSources.model_validate(watch.approved_sources))
+            await self._validate_feed_selection(
+                ctx,
+                connection,
+                WatchSources.model_validate(
+                    changes.get("approved_sources", watch.approved_sources)
+                ),
+            )
             if watch.agent_id is None:
                 changes["source_conversation_id"] = await self._source_conversation(ctx, agent_id)
                 changes["next_run_at"] = datetime.now(UTC)

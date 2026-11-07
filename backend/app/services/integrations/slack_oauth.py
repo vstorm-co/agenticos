@@ -6,6 +6,7 @@ import httpx
 from pydantic import BaseModel, SecretStr, ValidationError
 
 from app.agents.mcp_oauth import OAuthError
+from app.core.exceptions import BadRequestError, ExternalServiceError
 
 AUTHORIZE_ENDPOINT = "https://slack.com/oauth/v2/authorize"
 TOKEN_ENDPOINT = "https://slack.com/api/oauth.v2.access"
@@ -138,3 +139,35 @@ async def refresh_user_token(
         expires_in=parsed.expires_in,
         scope=parsed.scope,
     )
+
+
+async def validate_conversations(token: SecretStr, channels: tuple[str, ...]) -> None:
+    """Probe history access without assuming a conversation type from its ID.
+
+    Private channels can have C-prefixed IDs; G can also identify a group DM.
+    The history endpoint checks the exact scope and membership without requiring
+    additional conversation-directory permissions.
+    """
+    if len(channels) > 20:
+        raise BadRequestError(message="Choose at most twenty Slack conversations")
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
+            for channel in dict.fromkeys(channels):
+                response = await client.get(
+                    "https://slack.com/api/conversations.history",
+                    params={"channel": channel, "limit": "1"},
+                    headers={"Authorization": f"Bearer {token.get_secret_value()}"},
+                )
+                if not response.is_success:
+                    raise ExternalServiceError(
+                        message="Slack could not check conversation access; try again"
+                    )
+                result = SlackIdentity.model_validate_json(response.content)
+                if not result.ok:
+                    raise BadRequestError(
+                        message="Slack cannot read a selected conversation; check membership and its channels:history, groups:history, im:history or mpim:history permission"
+                    )
+    except httpx.HTTPError, ValidationError:
+        raise ExternalServiceError(
+            message="Slack could not check conversation access; try again"
+        ) from None

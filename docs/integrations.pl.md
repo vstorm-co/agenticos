@@ -1,5 +1,5 @@
 ---
-source_sha: "3e8d1a15aa54"
+source_sha: "8f017c44c86c"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -29,6 +29,8 @@ Konta aplikacyjne Microsoft zapisują tylko role Graph zwrócone przez tenant i 
 Konfiguracja wymaga czytelnego pola ról Graph w tokenie zwróconym przez stały endpoint Microsoft. Tokeny aplikacyjne o nieprzezroczystym lub zaszyfrowanym formacie są odrzucane ze wskazaniem delegowanego OAuth; AgenticOS nie żąda dostępu do całego katalogu, aby sprawdzać zgody. Pole jest metadanymi konfiguracji, a nie uwierzytelnieniem użytkownika platformy; token weryfikuje Microsoft Graph.
 
 Slack przyjmuje istniejące tokeny użytkownika `xoxp-` i bota `xoxb-`. Bot publikuje jako aplikacja, ale nie używa wyszukiwania dostępnego tylko użytkownikom. Przed operacją sprawdzane są rzeczywiście przyznane zakresy. Tokeny i klucze są szyfrowane przez Vault, nigdy zapisywane w specyfikacji agenta.
+
+Przed zapisaniem triggera, watcha lub źródła wiedzy Slack AgenticOS sprawdza dostęp do historii każdej wybranej rozmowy. Weryfikuje właściwe uprawnienie dla kanału publicznego/prywatnego lub wiadomości bezpośrednich/grupowych oraz członkostwo, bez dodatkowych uprawnień do katalogu. Rozmowy bez dostępu są odrzucane podczas konfiguracji.
 
 **IMAP** to osobne połączenie poczty tylko do odczytu: host, port ze zweryfikowanym TLS, użytkownik, hasło aplikacji i stały folder. Operator musi dopuścić dokładny host w `MIRAGE_ALLOWED_HOSTS`. Połączenie korzysta z zainstalowanego klienta Mirage. Basic-auth IMAP Microsoft 365 nie jest tu alternatywą dla OAuth Microsoftu.
 

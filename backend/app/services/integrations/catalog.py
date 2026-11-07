@@ -500,12 +500,12 @@ PRODUCTS: dict[str, Product] = {
             ),
             Operation(
                 "list_children",
-                "List items in a OneDrive or SharePoint folder.",
+                "List folder items. Pass the nextLink $skipToken as query.$skipToken for subsequent pages.",
                 "GET",
                 "https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/children",
                 ("Files.Read", "Files.Read.All", "Files.ReadWrite", "Files.ReadWrite.All"),
                 ("drive_id", "item_id"),
-                ("$top",),
+                ("$top", "$skipToken"),
                 False,
             ),
             Operation(

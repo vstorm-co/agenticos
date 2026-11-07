@@ -236,3 +236,27 @@ async def test_knowledge_sync_cannot_spend_unselected_default_application_roles(
     await SyncSourceService(AsyncMock())._checked_account(
         {"connection_id": str(identifier)}, "sharepoint", None, ctx
     )
+
+
+async def test_slack_knowledge_binding_checks_selected_histories_before_saving(monkeypatch):
+    from app.core.exceptions import BadRequestError
+    from app.services.integrations import IntegrationService
+    from app.services.sync_source import SyncSourceService
+
+    org, person, identifier = uuid4(), uuid4(), uuid4()
+    row = McpConnection(
+        id=identifier,
+        scope="org",
+        organization_id=org,
+        catalog_key="slack",
+        granted_scopes=["channels:history"],
+    )
+    monkeypatch.setattr(IntegrationService, "binding_account", AsyncMock(return_value=row))
+    check = AsyncMock(side_effect=BadRequestError(message="selected history requires im:history"))
+    monkeypatch.setattr(IntegrationService, "validate_feed_selection", check)
+    ctx = AuthContext(user_id=person, organization_id=org, role="builder")
+    with pytest.raises(BadRequestError, match="im:history"):
+        await SyncSourceService(AsyncMock())._checked_account(
+            {"connection_id": str(identifier), "channels": ["D1"]}, "slack", None, ctx
+        )
+    check.assert_awaited_once_with(row, ("D1",), organization_id=org)

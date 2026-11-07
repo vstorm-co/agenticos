@@ -2487,7 +2487,10 @@ class McpConnectionService:
             raise AuthorizationError(
                 message="Connecting an account requires current organization membership"
             )
-        identity, scopes = await slack_oauth.identify(token)
+        try:
+            identity, scopes = await slack_oauth.identify(token)
+        except OAuthError as exc:
+            raise BadRequestError(message=str(exc)) from None
         scope = (
             VaultScope.organization(ctx.organization_id)
             if for_organization
@@ -3478,6 +3481,9 @@ class McpConnectionService:
             raise BadRequestError(
                 message="Reconnect this account with the selected product's read permissions"
             )
+        await IntegrationService(self.db).validate_feed_selection(
+            row, channels or (), organization_id=ctx.organization_id
+        )
         return row
 
     async def get_org_portal_connection(

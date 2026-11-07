@@ -438,6 +438,7 @@ class AgentTrigger(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("mcp_connections.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     delivery_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     provider_webhook_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

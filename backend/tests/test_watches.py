@@ -1325,3 +1325,39 @@ async def test_integration_cursor_is_persisted_only_after_an_authorized_consumed
         assert update.await_args.kwargs["changes"] == {"integration_cursor": cursor}
     else:
         update.assert_not_awaited()
+
+
+async def test_native_slack_watch_checks_the_selected_history_before_it_is_saved():
+    from app.services.integrations import IntegrationService
+
+    connection = _named(_connection(server="slack", purpose="account"))
+    connection.account_source_organization_id = ORG
+    connection.auth_type = "bearer"
+    connection.granted_scopes = ["channels:history"]
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Monitor",
+            "capabilities": [
+                {"id": "slack", "config": {"account": "personal", "channels": ["D1"]}}
+            ],
+        }
+    )
+    create, patches = TestSettingOneUp._patches(_organization(), connection)
+    check = AsyncMock(
+        side_effect=BadRequestError(message="selected conversation requires im:history")
+    )
+    with (
+        patches[0],
+        patches[1],
+        patches[2],
+        patches[3],
+        patch.object(WatchService, "_selected_spec", new=AsyncMock(return_value=spec)),
+        patch.object(IntegrationService, "validate_feed_selection", new=check),
+        pytest.raises(BadRequestError, match="im:history"),
+    ):
+        await WatchService(MagicMock()).create(
+            _ctx(),
+            _create(connection_id=connection.id, preset_key=None, integration_product_id="slack"),
+        )
+    check.assert_awaited_once_with(connection, ("D1",), organization_id=ORG)
+    create.assert_not_awaited()

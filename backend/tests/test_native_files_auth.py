@@ -610,3 +610,55 @@ async def test_entra_unreadable_permission_metadata_has_an_explicit_safe_failure
             )
         )
     assert token not in str(exc.value) and "private" not in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "channels", [("C-public",), ("C-private",), ("D-direct",), ("G-group-dm",)]
+)
+@pytest.mark.parametrize("permitted", [False, True])
+async def test_slack_checks_history_access_for_each_selected_conversation_type(
+    transport, channels, permitted
+):
+    from app.core.exceptions import BadRequestError
+
+    seen = []
+
+    def respond(request):
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={"ok": permitted, "error": "missing_scope"}
+            if not permitted
+            else {"ok": True, "messages": []},
+        )
+
+    transport(respond)
+    if permitted:
+        await slack_oauth.validate_conversations(TOKEN, channels * 2)
+    else:
+        with pytest.raises(BadRequestError, match="selected conversation"):
+            await slack_oauth.validate_conversations(TOKEN, channels)
+    assert len(seen) == 1
+    assert seen[0].url.path == "/api/conversations.history"
+    assert dict(seen[0].url.params) == {"channel": channels[0], "limit": "1"}
+    assert seen[0].headers["authorization"] == f"Bearer {TOKEN.get_secret_value()}"
+
+
+@pytest.mark.parametrize("failure", ["unreachable", "http", "malformed", "too-many"])
+async def test_slack_conversation_validation_keeps_outages_explicit(transport, failure):
+    from app.core.exceptions import BadRequestError
+
+    def respond(request):
+        if failure == "unreachable":
+            raise httpx.ConnectError("provider offline", request=request)
+        return (
+            httpx.Response(503) if failure == "http" else httpx.Response(200, content=b"not JSON")
+        )
+
+    transport(respond)
+    if failure == "too-many":
+        with pytest.raises(BadRequestError, match="twenty"):
+            await slack_oauth.validate_conversations(TOKEN, tuple(f"C{i}" for i in range(21)))
+    else:
+        with pytest.raises(ExternalServiceError, match="try again"):
+            await slack_oauth.validate_conversations(TOKEN, ("C1",))
