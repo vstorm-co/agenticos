@@ -177,6 +177,7 @@ from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
+from app.agents.computer_on_use import ComputerAccessCallback, RequestComputerOnUse
 from app.agents.connect_on_use import (
     ConnectionCallback,
     ConnectionRequest,
@@ -1852,6 +1853,17 @@ async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _without_sandbox(spec: AgentSpec) -> AgentSpec:
+    """The spec for a turn whose computer workspace is to be asked for, not opened.
+
+    The sandbox binding goes for this turn only: its tools would have nothing to
+    work in, and `request_computer_access` stands in for them.
+    """
+    return spec.model_copy(
+        update={"capabilities": [b for b in spec.capabilities if b.id != "sandbox"]}
+    )
+
+
 def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
     """Describe the selected environment after its device and service grants resolve."""
     from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
@@ -2652,7 +2664,12 @@ def _catalog_delegate_access(ctx: AuthContext, agent_id: UUID) -> Callable[[], A
                 raise AuthorizationError(message="The delegation's member is no longer active")
             if current.role != ctx.role or current.is_app_admin != ctx.is_app_admin:
                 raise AuthorizationError(message="Delegation authority changed; start a new run")
-            current = replace(current, api_key_id=ctx.api_key_id, key_scopes=ctx.key_scopes)
+            current = replace(
+                current,
+                api_key_id=ctx.api_key_id,
+                key_scopes=ctx.key_scopes,
+                key_internal=ctx.key_internal,
+            )
             agent = await AgentRegistryService(db).get(current, agent_id, perm=Perm.AGENTS_RUN)
             if agent.status != AgentStatus.PUBLISHED.value:
                 raise AuthorizationError(message="The discovered delegate is no longer published")
@@ -3219,6 +3236,7 @@ class AgentRunnerService:
         output_schema: dict[str, Any] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        request_computer_access: ComputerAccessCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
         voice: VoiceRun | None = None,
@@ -3288,6 +3306,11 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            request_computer_access: How to ask the person at the keyboard where
+                the agent may work on their computer while the run waits. Given,
+                an agent whose workspace is that computer and has none chosen
+                starts without it and is offered `request_computer_access`,
+                instead of the whole turn being refused.
             public_origin: An outsider supplied this run's input - a delivery
                 fired an event trigger, or a workflow admitted by an external door
                 runs the agent - so nobody is behind it, whoever `ctx` names.
@@ -3379,6 +3402,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            request_computer_access=request_computer_access,
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
             voice=voice,
@@ -3521,6 +3545,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        request_computer_access: ComputerAccessCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
         impersonated: bool = False,
@@ -4072,7 +4097,16 @@ class AgentRunnerService:
             ),
             on_wait=on_sandbox_wait,
             local=local,
+            defer_local=request_computer_access is not None and routine is None,
         )
+        computer_on_use = None
+        if workspace is None and local is None and request_computer_access is not None:
+            from app.services.sandbox_workspace import sandbox_config
+
+            config = sandbox_config(spec)
+            if config is not None and config.backend == "local":
+                spec = _without_sandbox(spec)
+                computer_on_use = RequestComputerOnUse(request_access=request_computer_access)
         if existing_run is None and ctx.routine_activation_id is not None:
             from app.services.routine_devices import admit_activation
 
@@ -4478,6 +4512,7 @@ class AgentRunnerService:
             spec_toolsets = []
             extra_toolsets = []
             on_use = None
+            computer_on_use = None
 
         built = build_agent(
             spoken_spec if voice is not None else spec,
@@ -4503,6 +4538,7 @@ class AgentRunnerService:
             ],
             extra_capabilities=(
                 *(() if on_use is None else (on_use,)),
+                *(() if computer_on_use is None else (computer_on_use,)),
                 *guard_for(routine_check, agent_id=agent.id),
             ),
             agent_period_spend=agent_period_spend,

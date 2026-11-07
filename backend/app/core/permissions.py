@@ -534,6 +534,14 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    key_internal: bool = False
+    """The key is a run credential the platform minted for an agent, not one the person issued.
+
+    A key the person created in the console, or an MCP client's OAuth token they
+    authorized, is that person acting; a run credential is an agent acting for
+    them, which may be following text nobody vetted.
+    """
+
     source_conversation_id: UUID | None = None
     """A private chat carried by a platform-issued run credential.
 
@@ -563,6 +571,30 @@ class AuthContext:
         a role.
         """
         return cls(user_id=None, organization_id=organization_id, role=_NO_ROLE)
+
+    @property
+    def acts_in_person(self) -> bool:
+        """Whether this caller is the person themselves, deciding for themselves.
+
+        A signed-in session, a key or MCP token the person issued, or the run
+        credential of their own private chat (the agent there acts on what the
+        person just asked). Not a background turn - a fired routine, a publisher
+        fallback, a resumed run carrying only a key's scopes - and not an agent's
+        run credential outside a private chat. Impersonation lives in the request
+        context, so callers check `current_impersonator()` beside this.
+        """
+        if (
+            self.user_id is None
+            or self.subject_is_publisher_fallback
+            or self.fired_as_creator is not None
+            or self.routine_id is not None
+        ):
+            return False
+        if self.source_conversation_id is not None:
+            return True
+        if self.api_key_id is None:
+            return self.key_scopes is None
+        return not self.key_internal
 
     @property
     def is_anonymous(self) -> bool:

@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "051c0d1f170f"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -65,6 +65,23 @@ Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihr
 Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
 Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
 auf einem öffentlichen Widget.
+
+**Arbeit, die als Sie handelt, richten Sie auch mit einem selbst ausgestellten
+Schlüssel ein.** Ein Schlüssel, den Sie erstellt haben, oder das Token eines
+MCP-Clients, den Sie autorisiert haben, darf Ihre eigenen [Routinen](triggers.md),
+die als Sie handeln (`runs_as_creator`), und Ihre [Watches](console.md) anlegen und
+ändern, die Quellen einer Routine prüfen und einen Agenten veröffentlichen, ohne
+die Zustimmung Ihrer als Sie handelnden Routinen zu entziehen. Der Lauf einer
+solchen Routine bleibt an ihre geprüften Quellen und ihr Budget gebunden. Die
+Laufberechtigung eines Agenten außerhalb Ihres privaten Chats kann das nicht,
+ebenso wenig ein Administrator, der Sie imitiert.
+
+Auch Unterhaltungen sind öffentlich: `GET /api/v1/conversations` listet die Chats
+des Ausstellers (`runs:view`), `POST /api/v1/conversations` mit `title` und
+`PATCH /api/v1/conversations/{id}` öffnen und benennen einen Chat (`agents:run`) -
+etwa einen Themen-Chat, in dem eine Routine antwortet.
+`POST /api/v1/me/mcp-connections/{id}/test` prüft eine eigene Verbindung und
+aktualisiert ihre Tools (`agents:run`).
 
 Auch die Verbindungssuche ist lesend öffentlich: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` und `GET /sandbox-connections/{id}/policy`

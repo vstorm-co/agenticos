@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
 from app.core.permissions import AuthContext
+from app.db.models.agent_trigger import AgentTrigger
 from app.repositories import agent_trigger_repo, session_repo
 from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.local_target import LocalTarget, RoutineLocalScope
@@ -163,3 +164,36 @@ async def ready(db: AsyncSession, ctx: AuthContext, local: LocalTarget) -> devic
             details={"routine_id": scope.routine_id},
         )
     return device
+
+
+async def follow_signed_in_session(db: AsyncSession, trigger: AgentTrigger) -> None:
+    """Point a routine's computer at the person's current desktop session.
+
+    A routine remembers the session its folder was approved on. Signing in to the
+    app again starts a new one, and the routine would wait on a session that is
+    gone. When that session has ended and the person's app is connected now, the
+    routine moves to the newest connected session. Whether it may work there is
+    still the app's decision: a permission for every routine of the person
+    survives a new sign-in, a permission for one routine does not, and that
+    routine is then blocked for review as before.
+    """
+    if trigger.local_target is None or not trigger.runs_as_creator:
+        return
+    try:
+        local = LocalTarget.model_validate(trigger.local_target)
+    except ValidationError:
+        return  # Admission blocks it for review, with the reason, as before.
+    user_id = trigger.created_by_user_id
+    if local.routine_grant is None or local.device_id is None or user_id is None:
+        return
+    now = datetime.now(UTC)
+    if await session_repo.active_device(db, session_id=local.device_id, user_id=user_id, now=now):
+        return
+    for device in await device_hub.connected(user_id):
+        if await session_repo.active_device(
+            db, session_id=device.session_id, user_id=user_id, now=now
+        ):
+            moved = local.model_copy(update={"device_id": device.session_id})
+            trigger.local_target = moved.model_dump(mode="json")
+            await db.flush()
+            return

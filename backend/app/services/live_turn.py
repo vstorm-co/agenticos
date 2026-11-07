@@ -60,6 +60,7 @@ NOT_KEPT = frozenset(
     {
         "ask_user",
         "connect_account",
+        "computer_access",
         "user_prompt",
         "conversation_created",
         "steer_unapplied",
@@ -68,7 +69,7 @@ NOT_KEPT = frozenset(
 )
 """Frames meant for the socket that sent the message, not for someone watching.
 
-A question or a connection request waits on the session that asked it, which an
+A question, a connection request or a request for the computer waits on the session that asked it, which an
 answer from another socket cannot reach; the prompt is already in the transcript;
 `conversation_created` names a chat the follower already has open."""
 

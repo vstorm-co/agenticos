@@ -150,7 +150,11 @@ async def complete_mcp_oauth(
     )
 
 
-@router.post("/{connection_id}/test", response_model=McpConnectionTestResult)
+@router.post(
+    "/{connection_id}/test",
+    response_model=McpConnectionTestResult,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def test_mcp_connection(
     connection_id: UUID,
     service: McpConnectionSvc,

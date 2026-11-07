@@ -371,10 +371,15 @@ The server checks the sign-in before forwarding each local operation. Revoked or
 
 In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
 native consent. Each person approves their own target in desktop chat. Such an
-agent has no cloud workspace, so **Work on** offers no Cloud for it. Its first
-message asks once where it may work - **Whole computer** or a folder - and the
-answer is remembered for that agent on this computer, so its later chats start
-there without asking. When creating a
+agent has no cloud workspace, so **Work on** offers no Cloud for it.
+
+You can write to
+it before granting anything: it answers what needs no files, and only when a
+request needs your files does it ask where it may work - **Whole computer** or a
+folder. The run waits for your choice, then the chat continues with the files on
+its own. The answer is remembered for that agent on this computer, so its later
+chats start there without asking. In the web console, where there is no computer
+to grant, it says it cannot reach your files. When creating a
 project, **Project sandbox → Computer · your files** opens the personal folder
 selector; other members keep the project’s shared workspace.
 
@@ -465,9 +470,12 @@ and about its own public address.
 ## What it deliberately does not do
 
 - **No navigation guard.** A link that leaves the server's origin opens inside the
-  window, because an OAuth flow - connecting an MCP server - has to come back to
-  the same webview for its cookie to land. The window's title names any other host
-  it shows.
+  window, because some OAuth flows - connecting an account for a terminal - have to
+  come back to the same webview for their cookie to land. The window's title names
+  any other host it shows. Connecting an MCP server is not one of them: its consent
+  opens in your own browser, where your sign-ins and passkeys are, because the
+  callback is authenticated by its `state` alone. Finish there and come back; the
+  server appears in the app once it is authorised.
 
 - **No standing access.** Linking the computer grants nothing on its own: a run
   reaches only approved folders or a separately approved whole-computer conversation, and the screen only
@@ -662,9 +670,11 @@ Quick Ask has a microphone button for click-to-start dictation as well as hold-t
 
 ## Local routines { #local-routines }
 
-Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine, then the desktop app asks native confirmation for that routine's ID, organization, server, folder and operations. Cancelling keeps the same routine paused; retrying completes its setup without creating another routine. A general chat folder grant never authorizes a routine.
+Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine. The first time, the desktop app asks once, natively, to let **all your routines** in this organization work in that folder and the folders inside it, with those operations; choose your home folder for the whole computer.
 
-**Settings → Desktop → Routine permissions** lists the current account and organization's grants on this computer. Revoke one there to stop future operations. Re-pairing, unlinking, signing out or changing server clears these grants. Changing a folder or increasing operations needs fresh native confirmation. Browser, screen, local models, local MCP services and whole-computer access are outside a routine folder grant. The published agent must already enable Sandbox; choosing a local target does not enable capabilities.
+Every later routine in that folder, now or later, is saved without asking, and the permission holds after the app updates and after you sign in again. Cancelling keeps the same routine paused; retrying completes its setup without creating another routine. A general chat folder grant never authorizes a routine.
+
+**Settings → Desktop → Routine permissions** lists the current account and organization's grants on this computer. Revoke one there to stop future operations. Changing server or account clears them; a permission for one routine, granted by an older app, also ends with its session. Changing a folder or increasing operations needs fresh native confirmation. Browser, screen, local models, local MCP services and whole-computer access are outside a routine folder grant. The published agent must already enable Sandbox; choosing a local target does not enable capabilities.
 
 When the exact approved computer is offline before execution, a durable activation waits in PostgreSQL. The routine row shows the pending count. Scheduled/manual occurrences coalesce while waiting; distinct incoming events retain their own context and activation ID. The existing minute worker checks for reconnection. Offline readiness checks make no model call and do not consume dispatch failure attempts. Start admission commits with the run before its first model call. A started activation is never automatically replayed after a worker crash; an uncertain file or shell operation is never turned into a new run.
 

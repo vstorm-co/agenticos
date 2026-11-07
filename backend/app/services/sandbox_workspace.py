@@ -696,8 +696,13 @@ class SandboxWorkspaceService:
         scope_override: SessionScope | None = None,
         on_wait: SandboxWaitSink | None = None,
         local: LocalTarget | None = None,
+        defer_local: bool = False,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
+
+        `defer_local` is a run that can ask for the computer when it needs it: an
+        agent whose workspace is the person's computer, with none chosen yet, then
+        starts with no workspace instead of being refused.
 
         `local` is the chat's "Work on: This computer" (#2305): the same sandbox
         tools, carried out by the person's desktop app in the folder they picked.
@@ -735,6 +740,8 @@ class SandboxWorkspaceService:
                 on_wait=on_wait,
             )
         if config.backend == "local":
+            if defer_local:
+                return None
             raise BadRequestError(
                 message="This agent uses your computer. In desktop chat settings, choose a folder or Whole computer and approve access.",
                 details={"target": "local"},

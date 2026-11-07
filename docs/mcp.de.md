@@ -1,5 +1,5 @@
 ---
-source_sha: "7a4618e328b7"
+source_sha: "4c43178a7b56"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1238,7 +1238,9 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
 | `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1253,9 +1255,9 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
 | `list_watches`, `delete_watch` | eigene Beobachtungen des Aufrufers |
-| `create_watch`, `update_watch` | private menschliche Zustimmung; `agents:run` bei der Agentenwahl |
+| `create_watch`, `update_watch` | die Person selbst - angemeldet, über einen von ihr ausgestellten Schlüssel oder ein MCP-Token oder in ihrem privaten Chat; `agents:run` bei der Agentenwahl |
 
 Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen.
 `get_project` liest die Anweisungen und Konfiguration eines ausgewählten Projekts.

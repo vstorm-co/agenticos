@@ -262,3 +262,84 @@ async def test_atomic_admission_refuses_a_lost_compare_and_set(
 def test_empty_local_selection_cannot_silently_choose_a_device_folder() -> None:
     with pytest.raises(ValidationError):
         LocalTarget()
+
+
+class TestFollowingTheSignedInSession:
+    """A new sign-in on the same computer moves the routine; the app still decides."""
+
+    @staticmethod
+    def _trigger(local: LocalTarget | None = None, *, acting: bool = True):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            local_target=None if local is None else local.model_dump(mode="json"),
+            runs_as_creator=acting,
+            created_by_user_id=uuid4(),
+        )
+
+    @staticmethod
+    def _device(session_id):
+        return device_hub.Device(
+            user_id=uuid4(),
+            session_id=session_id,
+            platform="macos",
+            capabilities=Capabilities(routine_grants=True, sandbox_modes=["read_only"]),
+        )
+
+    async def test_an_ended_session_moves_to_the_connected_one(self, monkeypatch) -> None:
+        local = target()
+        trigger = self._trigger(local)
+        current = uuid4()
+        active = AsyncMock(side_effect=lambda _db, *, session_id, **_: session_id == current)
+        monkeypatch.setattr(module.session_repo, "active_device", active)
+        monkeypatch.setattr(
+            device_hub, "connected", AsyncMock(return_value=[self._device(current)])
+        )
+        db = AsyncMock()
+
+        await module.follow_signed_in_session(db, trigger)
+
+        moved = LocalTarget.model_validate(trigger.local_target)
+        assert moved.device_id == current
+        assert moved.routine_grant == local.routine_grant
+        db.flush.assert_awaited_once()
+
+    @pytest.mark.parametrize("case", ["live", "nothing-connected", "not-acting", "no-folder"])
+    async def test_nothing_moves_otherwise(self, monkeypatch, case) -> None:
+        local = target()
+        trigger = self._trigger(None if case == "no-folder" else local, acting=case != "not-acting")
+        before = trigger.local_target
+        monkeypatch.setattr(
+            module.session_repo, "active_device", AsyncMock(return_value=case == "live")
+        )
+        monkeypatch.setattr(
+            device_hub,
+            "connected",
+            AsyncMock(return_value=[] if case == "nothing-connected" else [self._device(uuid4())]),
+        )
+        db = AsyncMock()
+
+        await module.follow_signed_in_session(db, trigger)
+
+        assert trigger.local_target == before
+        db.flush.assert_not_awaited()
+
+    async def test_a_legacy_folder_without_a_routine_grant_is_left_alone(self, monkeypatch) -> None:
+        trigger = self._trigger()
+        trigger.local_target = {"folder": "/work", "mode": "read_only", "device_id": str(uuid4())}
+        active = AsyncMock()
+        monkeypatch.setattr(module.session_repo, "active_device", active)
+
+        await module.follow_signed_in_session(AsyncMock(), trigger)
+
+        active.assert_not_awaited()
+
+    async def test_an_unreadable_folder_is_left_for_admission_to_block(self, monkeypatch) -> None:
+        trigger = self._trigger()
+        trigger.local_target = {"folder": "/work", "operations": {"read": False}}
+        active = AsyncMock()
+        monkeypatch.setattr(module.session_repo, "active_device", active)
+
+        await module.follow_signed_in_session(AsyncMock(), trigger)
+
+        active.assert_not_awaited()

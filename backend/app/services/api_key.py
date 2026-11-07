@@ -404,6 +404,7 @@ class ApiKeyService:
                 role=membership.role,
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
+                key_internal=key.internal,
                 source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )

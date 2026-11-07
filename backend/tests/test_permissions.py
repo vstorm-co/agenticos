@@ -7,6 +7,7 @@ a permission that has no rows to scope, is a bug the tests should catch before
 an endpoint does.
 """
 
+import dataclasses
 import operator
 import uuid
 
@@ -228,3 +229,41 @@ class TestRequireDependency:
             await dependency(ctx)
         assert exc.value.details is not None
         assert set(exc.value.details["required"]) == {"members:manage", "budgets:manage"}
+
+
+@pytest.mark.parametrize(
+    ("changes", "in_person"),
+    [
+        ({}, True),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset()}, True),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset(), "key_internal": True}, False),
+        (
+            {
+                "api_key_id": uuid.uuid4(),
+                "key_internal": True,
+                "source_conversation_id": uuid.uuid4(),
+            },
+            True,
+        ),
+        ({"key_scopes": frozenset()}, False),
+        ({"subject_is_publisher_fallback": True}, False),
+        ({"fired_as_creator": "schedule"}, False),
+        ({"routine_id": uuid.uuid4()}, False),
+        ({"user_id": None}, False),
+    ],
+    ids=[
+        "session",
+        "own-key",
+        "run-credential",
+        "private-chat",
+        "resumed-scopes",
+        "publisher",
+        "fired",
+        "routine",
+        "nobody",
+    ],
+)
+def test_acts_in_person_is_the_person_or_a_key_they_issued(changes, in_person) -> None:
+    """A key or MCP token the person issued is them; an agent's credential is not."""
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+    assert dataclasses.replace(ctx, **changes).acts_in_person is in_person

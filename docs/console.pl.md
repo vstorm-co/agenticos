@@ -1,5 +1,5 @@
 ---
-source_sha: "361689f179db"
+source_sha: "697e47433e04"
 ---
 
 # Konsola { #the-console }
@@ -174,7 +174,9 @@ Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta w
 harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
 **Moje obserwacje** tylko odczytują osobiste połączenia i przekazują znaleziska do
 prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
-`/routines?tab=watches` otwiera obserwacje.
+`/routines?tab=watches` otwiera obserwacje. Jedno sprawdzenie wykonuje najwyżej
+30 zapytań do modelu, a długie wyniki są przycinane, więc obserwacja dużego
+workspace pozostaje tania.
 
 Organizacja → Proaktywność oddziela sugestie, monitoring, wspólne limity, harmonogram dostarczania i powitania. Niezapisane zmiany można odrzucić. Usługi działające w tle pokazują stan i zużycie, a ustawienia modelu i budżetu rozwija się przy konkretnej usłudze.
 

@@ -5,7 +5,7 @@ use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use agenticos_shell_core::routine_grants::{Operations, RoutineGrant, RoutineScope, WorkContext};
+use agenticos_shell_core::routine_grants::{DeviceIdentity, Operations, RoutineGrant, RoutineScope, WorkContext};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
@@ -101,6 +101,15 @@ pub fn revoke_folder(app: &AppHandle, root: &str) -> Result<(), String> {
     save(&path, &grants)
 }
 
+/// Whether this signed-in person holds `grant`: a grant for every routine is
+/// theirs on any session of this server; a grant for one routine, on the
+/// session that approved it.
+fn owns(grant: &RoutineGrant, identity: &DeviceIdentity) -> bool {
+    grant.identity.origin == identity.origin
+        && grant.identity.user_id == identity.user_id
+        && (grant.routine_id.is_none() || &grant.identity == identity)
+}
+
 #[tauri::command]
 pub fn routine_grants(app: AppHandle, organization_id: Uuid, user_id: Uuid) -> Result<Vec<RoutineGrant>, String> {
     let identity = crate::device::identity(&app)?;
@@ -114,7 +123,7 @@ pub fn routine_grants(app: AppHandle, organization_id: Uuid, user_id: Uuid) -> R
         .map_err(|_| "Routine permissions are unavailable".to_owned())?;
     Ok(load(&store(&app)?)?
         .into_iter()
-        .filter(|grant| grant.identity == identity && grant.organization_id == organization_id)
+        .filter(|grant| owns(grant, &identity) && grant.organization_id == organization_id)
         .collect())
 }
 
@@ -131,7 +140,7 @@ pub fn routine_revoke(app: AppHandle, id: Uuid, organization_id: Uuid, user_id: 
         .map_err(|_| "Routine permissions are unavailable".to_owned())?;
     let path = store(&app)?;
     let mut grants = load(&path)?;
-    grants.retain(|grant| grant.id != id || grant.identity != identity || grant.organization_id != organization_id);
+    grants.retain(|grant| grant.id != id || !owns(grant, &identity) || grant.organization_id != organization_id);
     save(&path, &grants)
 }
 
@@ -162,7 +171,9 @@ pub async fn routine_choose_folder(app: AppHandle) -> Result<Option<String>, Str
 #[serde(deny_unknown_fields)]
 pub struct Request {
     organization_id: Uuid,
-    routine_id: Uuid,
+    /// One routine, or none for every routine of this person.
+    #[serde(default)]
+    routine_id: Option<Uuid>,
     user_id: Uuid,
     device_id: Uuid,
     name: String,
@@ -197,14 +208,30 @@ pub async fn routine_allow(app: AppHandle, request: Request) -> Result<Option<Ro
         "read only"
     };
     let (answered, answer) = tokio::sync::oneshot::channel();
+    let (title, message) = match request.routine_id {
+        Some(routine_id) => (
+            "Allow this routine to work in this folder?",
+            format!(
+                "Routine: {}\nRoutine ID: {}\nOrganization ID: {}\nServer: {}\nFolder: {}\nAllowed: {}\n\n\
+            This routine may use these operations without this dialog while the app is open. \
+            Revoke this permission in Desktop settings to stop future operations.",
+                request.name, routine_id, request.organization_id, identity.origin, root, allowed,
+            ),
+        ),
+        None => (
+            "Allow your routines to work in this folder?",
+            format!(
+                "Every routine you set up to act as you in this organization, now or later, may use \
+            this folder and the folders inside it.\n\nOrganization ID: {}\nServer: {}\nFolder: {}\nAllowed: {}\n\n\
+            They run without this dialog while the app is open, also after you sign in again. \
+            Revoke this permission in Desktop settings to stop future operations.",
+                request.organization_id, identity.origin, root, allowed,
+            ),
+        ),
+    };
     app.dialog()
-        .message(format!(
-            "Routine: {}\nRoutine ID: {}\nOrganization ID: {}\nServer: {}\nFolder: {}\nAllowed: {}\n\n\
-        This routine may use these operations without this dialog while the app is open. \
-        Revoke this permission in Desktop settings to stop future operations.",
-            request.name, request.routine_id, request.organization_id, identity.origin, root, allowed,
-        ))
-        .title("Allow this routine to work in this folder?")
+        .message(message)
+        .title(title)
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Allow routine".into(),
@@ -235,8 +262,10 @@ pub async fn routine_allow(app: AppHandle, request: Request) -> Result<Option<Ro
         .map_err(|_| "Routine permissions are unavailable".to_owned())?;
     let path = store(&app)?;
     let mut grants = load(&path)?;
+    // One grant per routine, and one for all of a person's routines - replaced,
+    // not stacked, so revoking it in settings revokes it.
     grants.retain(|old| {
-        !(old.identity == grant.identity
+        !(owns(old, &grant.identity)
             && old.organization_id == grant.organization_id
             && old.routine_id == grant.routine_id)
     });
@@ -293,7 +322,6 @@ pub fn preflight(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agenticos_shell_core::routine_grants::DeviceIdentity;
 
     #[test]
     fn replacement_and_revocation_survive_reopening_the_store() {
@@ -308,7 +336,7 @@ mod tests {
                 device_id: Uuid::new_v4(),
             },
             organization_id: Uuid::new_v4(),
-            routine_id: Uuid::new_v4(),
+            routine_id: Some(Uuid::new_v4()),
             name: "Report".into(),
             root: "/work/reports".into(),
             operations: Operations {
@@ -327,6 +355,43 @@ mod tests {
         save(&path, &[]).unwrap();
         assert!(load(&path).unwrap().is_empty());
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_grant_for_every_routine_is_held_across_sessions_and_one_routine_s_is_not() {
+        let identity = DeviceIdentity {
+            origin: "https://console.example.com".into(),
+            user_id: Uuid::new_v4(),
+            device_id: Uuid::new_v4(),
+        };
+        let mut grant = RoutineGrant {
+            id: Uuid::new_v4(),
+            identity: identity.clone(),
+            organization_id: Uuid::new_v4(),
+            routine_id: None,
+            name: "All routines".into(),
+            root: "/Users/person".into(),
+            operations: Operations {
+                read: true,
+                write: false,
+                execute: false,
+            },
+        };
+        let again = DeviceIdentity {
+            device_id: Uuid::new_v4(),
+            ..identity.clone()
+        };
+        assert!(owns(&grant, &again));
+        assert!(!owns(
+            &grant,
+            &DeviceIdentity {
+                user_id: Uuid::new_v4(),
+                ..again.clone()
+            }
+        ));
+        grant.routine_id = Some(Uuid::new_v4());
+        assert!(owns(&grant, &identity));
+        assert!(!owns(&grant, &again));
     }
 
     #[test]

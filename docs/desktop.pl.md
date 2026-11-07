@@ -1,5 +1,5 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "17a6e7ec37a0"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -385,9 +385,15 @@ Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana l
 W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
 natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
 Taki agent nie ma przestrzeni w chmurze, więc **Work on** nie oferuje dla niego
-chmury. Pierwsza wiadomość pyta raz, gdzie może pracować - **Cały komputer** albo
-folder - a odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego
-kolejne czaty startują tam bez pytania. Przy
+chmury.
+
+Możesz do niego
+pisać, zanim cokolwiek udzielisz: odpowiada na to, co nie wymaga plików, i dopiero
+gdy prośba potrzebuje twoich plików, pyta, gdzie może pracować - **Cały komputer**
+albo folder. Przebieg czeka na twój wybór, a potem czat sam kontynuuje z plikami.
+Odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego kolejne
+czaty startują tam bez pytania. W konsoli w przeglądarce, gdzie nie ma komputera do
+udostępnienia, agent mówi, że nie ma dostępu do twoich plików. Przy
 tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
 prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 
@@ -477,9 +483,12 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 ## Czego celowo nie robi { #what-it-deliberately-does-not-do }
 
 - **Brak strażnika nawigacji.** Link wychodzący poza origin serwera otwiera się w
-  oknie, bo przepływ OAuth - podłączanie serwera MCP - musi wrócić do tego samego
-  webview, żeby jego ciasteczko trafiło na miejsce. Tytuł okna nazywa każdy inny
-  host, który pokazuje.
+  oknie, bo niektóre przepływy OAuth - podłączanie konta dla terminala - muszą
+  wrócić do tego samego webview, żeby ich ciasteczko trafiło na miejsce. Tytuł okna
+  nazywa każdy inny host, który pokazuje. Podłączanie serwera MCP do nich nie
+  należy: jego zgoda otwiera się w twojej przeglądarce, gdzie są twoje logowania i
+  passkeye, bo callback uwierzytelnia sam `state`. Dokończ tam i wróć; serwer
+  pojawi się w aplikacji po autoryzacji.
 
 - **Brak stałego dostępu.** Połączenie komputera samo niczego nie daje: run sięga
   tylko zatwierdzonych folderów lub całego komputera po osobnej zgodzie dla rozmowy, a ekranu dopiero po
@@ -673,9 +682,11 @@ Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok ist
 
 ## Rutyny lokalne { #local-routines }
 
-Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę, a potem aplikacja komputerowa prosi w natywnym oknie o zgodę na jej identyfikator, organizację, serwer, folder i operacje. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę. Za pierwszym razem aplikacja komputerowa pyta raz, w natywnym oknie, czy **wszystkie twoje rutyny** w tej organizacji mogą pracować w tym folderze i jego podfolderach, z tymi operacjami; wybierz folder domowy, aby objąć cały komputer.
 
-**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Ponowne parowanie, odłączenie, wylogowanie lub zmiana serwera usuwa te zgody. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
+Każda kolejna rutyna w tym folderze zapisuje się bez pytania, a zgoda przetrwa aktualizację aplikacji i ponowne zalogowanie. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+
+**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Zmiana serwera lub konta usuwa te zgody; zgoda na jedną rutynę, udzielona przez starszą aplikację, kończy się też razem z jej sesją. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
 
 Gdy konkretny zatwierdzony komputer jest offline przed wykonaniem, trwała aktywacja czeka w PostgreSQL. Wiersz rutyny pokazuje liczbę oczekujących aktywacji. Wywołania harmonogramu i ręczne łączą się podczas oczekiwania; odrębne zdarzenia zachowują własny kontekst i identyfikator aktywacji. Istniejący worker sprawdza połączenie co minutę. Sprawdzanie gotowości nie wywołuje modelu i nie zużywa prób błędnych uruchomień. Dopuszczenie do wykonania zatwierdza się z przebiegiem przed pierwszym wywołaniem modelu. Rozpoczęta aktywacja nie jest automatycznie powtarzana po awarii workera; niepewna operacja plikowa lub polecenie nie tworzy nowego przebiegu.
 

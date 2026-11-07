@@ -1,5 +1,5 @@
 ---
-source_sha: "7a4618e328b7"
+source_sha: "4c43178a7b56"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1218,7 +1218,9 @@ permiso que faltaba.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1233,9 +1235,9 @@ permiso que faltaba.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
-| `create_watch`, `update_watch` | consentimiento humano privado; `agents:run` al elegir agente |
+| `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres.
 `get_project` lee las instrucciones y la configuración de un proyecto elegido.

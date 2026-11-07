@@ -13,6 +13,7 @@ import { useOrgStore } from "@/stores/org-store";
 import { useLocalAccessStore } from "@/stores/local-access-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { Agent } from "@/types/agents";
+import type { ComputerAccessRequest } from "@/types/chat";
 
 export function worksOnThisComputer(agent: Agent | undefined): agent is Agent {
   return agent !== undefined && (agent.local_workspace === true || !!agent.local_coding_agent);
@@ -21,7 +22,12 @@ export function worksOnThisComputer(agent: Agent | undefined): agent is Agent {
 const accountScope = () =>
   [useAuthStore.getState().user?.id, useOrgStore.getState().activeOrgId].join(":");
 
-/** Send only after resolving this agent's access, without inheriting another agent's default. */
+/**
+ * Send with this agent's access to this computer when it has one that still holds:
+ * the chat's own choice, or the one remembered for the agent. Never asks - an agent
+ * asks for the computer when it needs it (`useComputerAccessOnUse`). Never inherits
+ * another agent's default.
+ */
 export function useLocalAccessGate<A extends unknown[]>(
   send: (...args: A) => unknown,
   agent: Agent | undefined,
@@ -97,14 +103,11 @@ export function useLocalAccessGate<A extends unknown[]>(
           return;
         }
         if (!stillHere()) return;
-        const target = await useLocalAccessStore
-          .getState()
-          .request({ id: agent.id, name: agent.name, coding: !!agent.local_coding_agent });
-        if (target === null || !stillHere()) return;
-        const store = useWorkOnStore.getState();
-        if (!target.computer_grant || target.computer_grant_agent === agent.id)
-          store.rememberForAgent(agent.id, target);
-        store.set(conversationId, target, false);
+        // Nothing granted that still holds: send without the computer. The agent
+        // answers what needs no files, and asks for them when it reaches for them
+        // - see `useComputerAccessOnUse`. A choice that no longer holds is not
+        // sent along, or the run would be refused for it.
+        if (explicit !== null) useWorkOnStore.getState().set(conversationId, null, false);
         send(...args);
       })().catch((error: unknown) => {
         reportShellFailure("checking local access", error);
@@ -127,4 +130,73 @@ export function useLocalAccessGate<A extends unknown[]>(
       else toast.error(t("agentUnavailable"));
   }, [agent, gate, metadataPending, t]);
   return gate;
+}
+
+/** Ask where an agent may work on this computer, and remember the answer for it. */
+export async function askForComputer(
+  agent: Agent,
+  conversationId: string | null,
+): Promise<LocalTarget | null> {
+  const target = await useLocalAccessStore
+    .getState()
+    .request({ id: agent.id, name: agent.name, coding: !!agent.local_coding_agent });
+  if (target === null || useConversationStore.getState().currentConversationId !== conversationId)
+    return null;
+  const store = useWorkOnStore.getState();
+  if (!target.computer_grant || target.computer_grant_agent === agent.id)
+    store.rememberForAgent(agent.id, target);
+  store.set(conversationId, target, false);
+  return target;
+}
+
+/**
+ * Answer a run that paused on `computer_access`: ask the person, remember their
+ * choice for the agent and the chat, release the run, and - once its turn has
+ * ended - send the turn that continues with their files.
+ *
+ * Outside the desktop app there is no computer to grant, so the run is told at once.
+ */
+export function useComputerAccessOnUse({
+  pending,
+  respond,
+  agent,
+  idle,
+  send,
+}: {
+  pending: ComputerAccessRequest | null;
+  respond: (granted: boolean) => void;
+  agent: Agent | undefined;
+  idle: boolean;
+  send: (content: string) => unknown;
+}): void {
+  const desktop = isDesktopShell(useShell());
+  const t = useTranslations("chat.localAccess");
+  const continueIn = useRef<string | null | undefined>(undefined);
+  const asked = useRef<ComputerAccessRequest | null>(null);
+  useEffect(() => {
+    if (pending === null || asked.current === pending) return;
+    asked.current = pending;
+    if (!desktop || !worksOnThisComputer(agent)) {
+      respond(false);
+      return;
+    }
+    const conversationId = useConversationStore.getState().currentConversationId;
+    askForComputer(agent, conversationId)
+      .then((target) => {
+        if (target !== null) continueIn.current = conversationId;
+        respond(target !== null);
+      })
+      .catch((error: unknown) => {
+        reportShellFailure("asking for local access", error);
+        toast.error(t("failed"));
+        respond(false);
+      });
+  }, [pending, desktop, agent, respond, t]);
+  useEffect(() => {
+    if (!idle || continueIn.current === undefined) return;
+    const conversationId = continueIn.current;
+    continueIn.current = undefined;
+    if (useConversationStore.getState().currentConversationId === conversationId)
+      send(t("continue"));
+  }, [idle, send, t]);
 }

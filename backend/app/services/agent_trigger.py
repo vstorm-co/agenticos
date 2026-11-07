@@ -134,6 +134,7 @@ from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
     RoutineLocalConsentRequired,
+    follow_signed_in_session,
     local_scope,
 )
 from app.services.routine_devices import ready as local_device_ready
@@ -345,19 +346,15 @@ def _refuse_past_end(ends_at: datetime | None) -> None:
 def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     """Whether this caller is `person`, in person, and so may let a trigger act as them (#2027).
 
+    A key or MCP token the person issued is them acting, as their session is.
     Not an administrator acting as them through impersonation - the #1438 rule for
-    every identity binding - and not a script holding one of their API keys, which
-    could otherwise turn a leaked key into standing access to their mailbox.
-    A private chat's short-lived internal credential retains the signed-in
-    person's source conversation; it is the same person creating through MCP.
+    every identity binding - and not an agent's run credential outside their
+    private chat, which could be following a prompt nobody vetted.
     """
     return (
         person is not None
         and ctx.user_id == person
-        and not ctx.subject_is_publisher_fallback
-        and ctx.fired_as_creator is None
-        and ctx.routine_id is None
-        and (ctx.api_key_id is None or ctx.source_conversation_id is not None)
+        and ctx.acts_in_person
         and current_impersonator() is None
     )
 
@@ -2600,6 +2597,7 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
+        await follow_signed_in_session(self.db, trigger)
         waiting = await device_wait_repo.get(self.db, activation_id)
         intent = activation_intent(trigger)
         if waiting is not None:
@@ -2765,7 +2763,7 @@ class AgentTriggerService:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
-        except BadRequestError:
+        except BadRequestError as refusal:
             # The agent is no longer runnable - unpublished back to a draft,
             # archived, or its version withdrawn - so `get_runnable_spec` refuses
             # inside execute. Left active, every cadence would dispatch another run
@@ -2774,7 +2772,26 @@ class AgentTriggerService:
             # before the blanket `Exception` below, which would otherwise find no run
             # of this fire's to recover and simply return, leaving the schedule to
             # dispatch the same doomed run every cadence.
-            await self._disable(trigger, reason="agent_not_runnable")
+            #
+            # Preparation flushed this fire's run before refusing; rolled back, it
+            # does not linger as `running` until the stale-run sweep calls it a
+            # crash. The owner is told the refusal itself - "this agent works on
+            # your computer" is a different fix from "it was unpublished".
+            await self.db.rollback()
+            current = await agent_trigger_repo.get_by_id(self.db, local_trigger_id, fresh=True)
+            if current is None:
+                return
+            await self._disable(current, reason="agent_not_runnable")
+            await NotificationService(self.db).routine_blocked(
+                organization_id=current.organization_id,
+                owner_user_id=current.created_by_user_id,
+                routine_id=current.id,
+                routine_kind="trigger",
+                reason="run",
+                name=local_trigger_name,
+                detail=refusal.message,
+                observed_at=datetime.now(UTC),
+            )
             return
         except Exception:
             # The run failed on something the runner re-raises instead of recording

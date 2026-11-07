@@ -34,6 +34,7 @@ import type {
   ChatMessageFile,
   ChatPerson,
   Compaction,
+  ComputerAccessRequest,
   ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
@@ -341,6 +342,10 @@ export function useChat(options: UseChatOptions = {}) {
   const questionOfferedForRef = useRef<Set<string>>(new Set());
   // A run paused until the person connects one of their own services, or `null`.
   const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
+  const [pendingComputerAccess, setPendingComputerAccess] = useState<ComputerAccessRequest | null>(
+    null,
+  );
+  const awaitingComputerRef = useRef(false);
   // Whether a run on the server is still waiting on that card. Beside the state
   // because leaving the conversation takes the card down, and a run nobody
   // answers waits for as long as the socket stays open.
@@ -1124,9 +1129,11 @@ export function useChat(options: UseChatOptions = {}) {
         case "error": {
           setPendingQuestions(null);
           setPendingConnection(null);
+          setPendingComputerAccess(null);
           // An open that failed ends the turn here, with no `complete` after it.
           setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
+          awaitingComputerRef.current = false;
           const { message, code } = wsEvent.data as { message: string; code?: string };
           // A reply save failure means the prompt already ran, even if reconnecting
           // lost its acknowledgement. Offering Retry would execute it again.
@@ -1213,6 +1220,14 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "computer_access": {
+          // The agent reached for the person's files, and the run waits for them
+          // to choose a folder or the whole computer.
+          setPendingComputerAccess(wsEvent.data as ComputerAccessRequest);
+          awaitingComputerRef.current = true;
+          break;
+        }
+
         case "connect_account": {
           // The agent reached for a service this person has not connected, and
           // the run is waiting on them - the only moment the card is worth its space.
@@ -1291,7 +1306,9 @@ export function useChat(options: UseChatOptions = {}) {
           // A turn that ended is waiting on nothing: a card left up would answer
           // a run that is gone - a sibling tool failing or parking ends it too.
           setPendingConnection(null);
+          setPendingComputerAccess(null);
           awaitingConnectionRef.current = false;
+          awaitingComputerRef.current = false;
           // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
           // this handler parsed, and reading a field off it silently yields
           // `undefined` - which looked exactly like a turn nobody measured.
@@ -1822,6 +1839,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingQuestions(null);
     setParkedQuestion(null);
     setPendingConnection(null);
+    setPendingComputerAccess(null);
     offeredApprovalBatchesRef.current = new Set();
     decidingApprovalRef.current = null;
     setResumingDelegations(new Set());
@@ -1901,12 +1919,17 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingQuestions(null);
     setParkedQuestion(null);
     setPendingConnection(null);
+    setPendingComputerAccess(null);
     // The card goes with the conversation it was in, and the run waiting on it
     // is told to carry on without - or it holds the turn open behind a card
     // nobody can see any more.
     if (awaitingConnectionRef.current) {
       awaitingConnectionRef.current = false;
       sendMessage({ type: "connect_account_response", connected: false });
+    }
+    if (awaitingComputerRef.current) {
+      awaitingComputerRef.current = false;
+      sendMessage({ type: "computer_access_response", granted: false });
     }
     setCompacting(null);
     setCompactionImpossible(null);
@@ -2561,6 +2584,18 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, sendMessage],
   );
 
+  /** Release a run paused on `computer_access`: `true` once a folder or the computer was granted. */
+  const sendComputerAccessResponse = useCallback(
+    (granted: boolean) => {
+      if (stoppingRef.current !== null) return;
+      if (!isConnected) return;
+      setPendingComputerAccess(null);
+      awaitingComputerRef.current = false;
+      sendMessage({ type: "computer_access_response", granted });
+    },
+    [isConnected, sendMessage],
+  );
+
   /** Take the turn off screen without telling the server anything.
    *
    *  What `stopGeneration` does after it has sent its frame, and what a
@@ -2583,7 +2618,9 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingQuestions(null);
     setParkedQuestion(null);
     setPendingConnection(null);
+    setPendingComputerAccess(null);
     awaitingConnectionRef.current = false;
+    awaitingComputerRef.current = false;
     setDelegations(closeOpenDelegations);
     // A dropped socket can no longer bring `sandbox_ready`, and the next turn
     // on the open sandbox sends no preparation frames to clear it (#2251).
@@ -3079,5 +3116,8 @@ export function useChat(options: UseChatOptions = {}) {
     /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
     pendingConnection,
     sendConnectionResponse,
+    /** What a paused run asked the person's computer for. See `useComputerAccessOnUse`. */
+    pendingComputerAccess,
+    sendComputerAccessResponse,
   };
 }

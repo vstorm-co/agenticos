@@ -129,7 +129,10 @@ pub struct RoutineGrant {
     pub id: Uuid,
     pub identity: DeviceIdentity,
     pub organization_id: Uuid,
-    pub routine_id: Uuid,
+    /// One routine, or `None` for every routine of this person in this
+    /// organization: the person said once that their routines may work here.
+    #[serde(default)]
+    pub routine_id: Option<Uuid>,
     pub name: String,
     pub root: String,
     pub operations: Operations,
@@ -145,13 +148,27 @@ impl RoutineGrant {
     ) -> Result<(), &'static str> {
         self.operations.validate()?;
         scope.operations.validate()?;
+        // A grant for every routine is the person's, on this computer, wherever
+        // they are signed in to it: a new session after signing in again keeps it.
+        // A grant for one routine stays bound to the session that approved it.
+        let same_person = match self.routine_id {
+            Some(_) => &self.identity == identity,
+            None => {
+                self.identity.origin == identity.origin && self.identity.user_id == identity.user_id
+            }
+        };
+        let routine_matches = self.routine_id.is_none_or(|id| id == scope.routine_id);
+        let root_matches = match self.routine_id {
+            Some(_) => self.root == root,
+            None => within(root, &self.root),
+        };
         if self.id != scope.grant_id
-            || &self.identity != identity
+            || !same_person
             || scope.user_id != identity.user_id
             || scope.device_id != identity.device_id
             || self.organization_id != scope.organization_id
-            || self.routine_id != scope.routine_id
-            || self.root != root
+            || !routine_matches
+            || !root_matches
             || !self.operations.contains(scope.operations)
             || !scope.operations.allows(op)
         {
@@ -161,6 +178,16 @@ impl RoutineGrant {
         }
         Ok(())
     }
+}
+
+/// Whether `root` is `parent` or a folder inside it, by whole path segments.
+fn within(root: &str, parent: &str) -> bool {
+    let parent = parent.trim_end_matches(['/', '\\']);
+    root == parent
+        || parent.is_empty()
+        || root
+            .strip_prefix(parent)
+            .is_some_and(|rest| rest.starts_with('/') || rest.starts_with('\\'))
 }
 
 #[cfg(test)]
@@ -177,7 +204,7 @@ mod tests {
             id: Uuid::new_v4(),
             identity,
             organization_id: Uuid::new_v4(),
-            routine_id: Uuid::new_v4(),
+            routine_id: Some(Uuid::new_v4()),
             name: "Prepare reports".into(),
             root: "/work/reports".into(),
             operations: Operations {
@@ -189,7 +216,7 @@ mod tests {
         let scope = RoutineScope {
             grant_id: grant.id,
             organization_id: grant.organization_id,
-            routine_id: grant.routine_id,
+            routine_id: grant.routine_id.unwrap(),
             user_id: grant.identity.user_id,
             device_id: grant.identity.device_id,
             operations: grant.operations,
@@ -237,6 +264,73 @@ mod tests {
         assert!(grant
             .authorize(&grant.identity, &scope, "/work/other", "fs.read")
             .is_err());
+    }
+
+    #[test]
+    fn a_grant_for_every_routine_covers_its_folder_and_survives_a_new_session() {
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        let other_routine = RoutineScope {
+            routine_id: Uuid::new_v4(),
+            ..scope.clone()
+        };
+        assert!(grant
+            .authorize(
+                &grant.identity,
+                &other_routine,
+                "/work/reports/q3",
+                "fs.read"
+            )
+            .is_ok());
+        // Signed in again: a new session, the same person on the same server.
+        let mut again = grant.identity.clone();
+        again.device_id = Uuid::new_v4();
+        let rebound = RoutineScope {
+            device_id: again.device_id,
+            ..scope.clone()
+        };
+        assert!(grant
+            .authorize(&again, &rebound, &grant.root, "fs.read")
+            .is_ok());
+        for (identity, root) in [
+            (
+                DeviceIdentity {
+                    user_id: Uuid::new_v4(),
+                    ..again.clone()
+                },
+                grant.root.as_str(),
+            ),
+            (
+                DeviceIdentity {
+                    origin: "https://elsewhere.example.com".into(),
+                    ..again.clone()
+                },
+                grant.root.as_str(),
+            ),
+            (again.clone(), "/work/reports-old"),
+            (again.clone(), "/work"),
+        ] {
+            let scope = RoutineScope {
+                device_id: identity.device_id,
+                user_id: identity.user_id,
+                ..scope.clone()
+            };
+            assert!(grant.authorize(&identity, &scope, root, "fs.read").is_err());
+        }
+    }
+
+    #[test]
+    fn a_grant_from_an_older_app_still_names_its_routine() {
+        let (grant, _) = granted();
+        let stored = serde_json::to_value(&grant).unwrap();
+        let read: RoutineGrant = serde_json::from_value(stored).unwrap();
+        assert_eq!(read.routine_id, grant.routine_id);
+        let mut legacy = serde_json::to_value(&grant).unwrap();
+        legacy["routine_id"] = serde_json::Value::String(grant.routine_id.unwrap().to_string());
+        assert_eq!(
+            serde_json::from_value::<RoutineGrant>(legacy).unwrap(),
+            grant
+        );
     }
 
     #[test]
