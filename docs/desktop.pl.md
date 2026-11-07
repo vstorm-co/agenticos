@@ -1,5 +1,5 @@
 ---
-source_sha: "a94f681fabc6"
+source_sha: "529ca359c570"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -358,6 +358,8 @@ i wysłaniem danych pliku.
 
 Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
 wtedy, gdy jest zainstalowany `bwrap` z obsługą `--bind-fd`. Aplikacja utrzymuje uchwyt katalogu otwartego bez podążania za dowiązaniami do startu sandboxa, więc zmiana nazwy folderu ani podmiana go na dowiązanie symboliczne nie zmieni zatwierdzonego katalogu. Na Linuksie zmienne środowiskowe zadania są ustawiane wewnątrz sandboxa, a nie w procesie, który go uruchamia; ich wartości są przekazywane przez prywatny deskryptor.
+
+Ścieżka korzenia folderu routine nie może zawierać dowiązań symbolicznych ani junctions. Wybierz rzeczywisty folder w pickerze; dopuszczenie zadania w tle nie rozwiązuje dowiązań w ścieżce korzenia.
 
 **Decyduje komputer, nie serwer.** Wybrane foldery wraz z trybami są trzymane w
 ustawieniach aplikacji, a każda operacja podaje folder i tryb, które aplikacja z

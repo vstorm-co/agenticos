@@ -195,14 +195,12 @@ pub async fn routine_allow(app: AppHandle, request: Request) -> Result<Option<Ro
         return Err("The routine name or folder exceeds its size limit".into());
     }
     let requested_root = local_root(Path::new(&request.root)).map_err(str::to_owned)?;
-    let root = fs::canonicalize(&requested_root).map_err(|_| "That folder is not available".to_owned())?;
-    if !root.is_dir() {
-        return Err("Choose a folder".into());
-    }
+    let approved_folder = crate::local_fs::open(&requested_root)
+        .map_err(|_| "Choose an available folder without symbolic links".to_owned())?;
     if request.operations.write && !crate::local_work::modes().contains(&"workspace_write") {
         return Err("This computer cannot sandbox routine writes and commands; choose read only".into());
     }
-    let root = root.to_string_lossy().into_owned();
+    let root = request.root;
     let allowed = if request.operations.execute {
         "read, write and sandboxed commands"
     } else if request.operations.write {
@@ -249,6 +247,7 @@ pub async fn routine_allow(app: AppHandle, request: Request) -> Result<Option<Ro
     if crate::device::identity(&app)? != identity {
         return Err("The device connection changed; review the routine again".into());
     }
+    drop(approved_folder);
     let grant = RoutineGrant {
         id: Uuid::new_v4(),
         identity,
@@ -293,7 +292,23 @@ pub fn check(app: &AppHandle, scope: &RoutineScope, root: &str, op: &str) -> Res
         .iter()
         .find(|grant| grant.id == scope.grant_id)
         .ok_or("This routine's folder permission was revoked; review it on this computer")?;
-    grant.authorize(&identity, scope, root, op).map_err(str::to_owned)
+    authorize_folder(grant, &identity, scope, root, op)
+}
+
+fn authorize_folder(
+    grant: &RoutineGrant,
+    identity: &DeviceIdentity,
+    scope: &RoutineScope,
+    root: &str,
+    op: &str,
+) -> Result<PathBuf, String> {
+    let root = grant.authorize(identity, scope, root, op).map_err(str::to_owned)?;
+    // Admission must not follow a replaced grant root or one of its ancestors.
+    // Effects reopen without following links too; shell startup retains its FD.
+    let directory = crate::local_fs::open(&root)
+        .map_err(|_| "The routine folder is unavailable or contains symbolic links".to_owned())?;
+    drop(directory);
+    Ok(root)
 }
 
 pub fn preflight(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, String> {
@@ -321,6 +336,88 @@ pub fn preflight(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn replacing_the_stored_grant_root_cannot_move_its_authority_outside() {
+        let base = std::env::temp_dir().join(format!("agenticos-routine-root-{}", Uuid::new_v4()));
+        fs::create_dir_all(base.join("approved")).unwrap();
+        fs::create_dir_all(base.join("outside")).unwrap();
+        let base = base.canonicalize().unwrap();
+        let root = base.join("approved");
+        let grant = RoutineGrant {
+            id: Uuid::new_v4(),
+            identity: DeviceIdentity {
+                origin: "https://console.example.com".into(),
+                user_id: Uuid::new_v4(),
+                device_id: Uuid::new_v4(),
+            },
+            organization_id: Uuid::new_v4(),
+            routine_id: None,
+            name: "All routines".into(),
+            root: root.to_string_lossy().into_owned(),
+            operations: Operations {
+                read: true,
+                write: false,
+                execute: false,
+            },
+        };
+        let scope = RoutineScope {
+            grant_id: grant.id,
+            organization_id: grant.organization_id,
+            routine_id: Uuid::new_v4(),
+            user_id: grant.identity.user_id,
+            device_id: grant.identity.device_id,
+            operations: grant.operations,
+        };
+        let admitted = authorize_folder(&grant, &grant.identity, &scope, &grant.root, "routine.check").unwrap();
+        let child = root.join("child");
+        fs::create_dir(&child).unwrap();
+        assert!(authorize_folder(
+            &grant,
+            &grant.identity,
+            &scope,
+            child.to_str().unwrap(),
+            "routine.check"
+        )
+        .is_ok());
+        assert!(authorize_folder(
+            &grant,
+            &grant.identity,
+            &scope,
+            root.join("missing").to_str().unwrap(),
+            "routine.check"
+        )
+        .is_err());
+        fs::write(root.join("file"), "not a directory").unwrap();
+        assert!(authorize_folder(
+            &grant,
+            &grant.identity,
+            &scope,
+            root.join("file").to_str().unwrap(),
+            "routine.check"
+        )
+        .is_err());
+        for (name, target) in [("internal-alias", child), ("escape", base.join("outside"))] {
+            let alias = root.join(name);
+            std::os::unix::fs::symlink(target, &alias).unwrap();
+            assert!(authorize_folder(
+                &grant,
+                &grant.identity,
+                &scope,
+                alias.to_str().unwrap(),
+                "routine.check"
+            )
+            .is_err());
+        }
+
+        fs::rename(&root, base.join("moved")).unwrap();
+        std::os::unix::fs::symlink(base.join("outside"), &root).unwrap();
+        assert!(crate::local_fs::open(&admitted).is_err());
+        let result = authorize_folder(&grant, &grant.identity, &scope, &grant.root, "routine.check");
+        fs::remove_dir_all(base).unwrap();
+        assert!(result.is_err(), "a replaced root was admitted as {result:?}");
+    }
 
     #[test]
     fn replacement_and_revocation_survive_reopening_the_store() {

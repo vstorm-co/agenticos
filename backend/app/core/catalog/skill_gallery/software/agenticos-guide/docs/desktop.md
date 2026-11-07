@@ -347,6 +347,8 @@ Larger writes are refused before encoding or sending any file bytes.
 Windows offers read only and full access. Linux offers writing in the folder only
 when `bwrap` with `--bind-fd` support is installed. The app holds a no-follow directory handle through sandbox startup, so renaming a folder or replacing it with a symbolic link cannot change the approved directory. On Linux, task environment variables are applied inside the sandbox rather than to its launcher; their values are passed through a private descriptor.
 
+Routine folder roots must not contain symbolic links or junctions. Choose the actual folder in the picker; background admission never resolves links in the root path.
+
 **The computer decides, not the server.** The folders you picked, with their modes,
 are kept in the app's settings, and every operation names a folder and a mode that
 the app checks against them: a folder you never picked, a mode wider than you

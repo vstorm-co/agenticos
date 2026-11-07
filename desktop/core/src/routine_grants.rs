@@ -188,8 +188,9 @@ impl RoutineGrant {
             && self.organization_id == old.organization_id
     }
 
-    /// Return the authorized operation root. All-routine descendants are resolved
-    /// before comparison; execute against this path rather than the supplied alias.
+    /// Check identity, operations and lexical containment without filesystem I/O.
+    /// The caller must open the returned root without following links before use;
+    /// resolving either the grant or request first could retarget its authority.
     pub fn authorize(
         &self,
         identity: &DeviceIdentity,
@@ -224,26 +225,14 @@ impl RoutineGrant {
                 "This routine has no current consent for that folder operation on this device",
             );
         }
-        let authorized_root = if self.routine_id.is_none() {
+        if self.routine_id.is_none() {
             let approved = local_root(Path::new(&self.root))?;
             let requested = local_root(Path::new(root))?;
             if !requested.starts_with(&approved) {
                 return Err("The routine folder is outside its approved folder");
             }
-            let parent = approved
-                .canonicalize()
-                .map_err(|_| "The approved routine folder is unavailable")?;
-            let requested = requested
-                .canonicalize()
-                .map_err(|_| "The requested routine folder is unavailable")?;
-            if !parent.is_dir() || !requested.is_dir() || !requested.starts_with(&parent) {
-                return Err("The routine folder is outside its approved folder");
-            }
-            requested
-        } else {
-            PathBuf::from(root)
-        };
-        Ok(authorized_root)
+        }
+        Ok(PathBuf::from(root))
     }
 }
 
@@ -524,49 +513,25 @@ mod tests {
                 "shell.run"
             )
             .is_err());
-        let missing = Path::new(&grant.root).join("missing");
-        assert!(grant
-            .authorize(
-                &grant.identity,
-                &scope,
-                missing.to_str().unwrap(),
-                "fs.read"
-            )
-            .is_err());
     }
 
-    #[cfg(unix)]
     #[test]
-    fn all_routine_roots_resolve_symlinks_and_return_the_authorized_path() {
-        use std::os::unix::fs::symlink;
-
+    fn lexical_authorization_does_not_resolve_or_require_a_filesystem_root() {
         let folder = TestFolder::new();
         let (mut grant, scope) = granted();
         grant.routine_id = None;
-        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
-        let escape = Path::new(&grant.root).join("escape");
-        symlink(folder.0.join("outside"), &escape).unwrap();
-        assert!(grant
-            .authorize(
-                &grant.identity,
-                &scope,
-                escape.to_str().unwrap(),
-                "shell.run"
-            )
-            .is_err());
-        let alias = Path::new(&grant.root).join("alias");
-        let child = folder.0.join("reports/q3");
-        symlink(&child, &alias).unwrap();
+        grant.root = folder.0.join("not-created").to_string_lossy().into_owned();
+        let requested = Path::new(&grant.root).join("child");
         assert_eq!(
             grant
                 .authorize(
                     &grant.identity,
                     &scope,
-                    alias.to_str().unwrap(),
-                    "shell.run"
+                    requested.to_str().unwrap(),
+                    "fs.read"
                 )
                 .unwrap(),
-            child
+            requested
         );
     }
 

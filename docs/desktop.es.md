@@ -1,5 +1,5 @@
 ---
-source_sha: "a94f681fabc6"
+source_sha: "529ca359c570"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -371,6 +371,8 @@ escrituras mayores se rechazan antes de codificar o enviar los datos del archivo
 
 Windows ofrece solo lectura y acceso completo. Linux ofrece escribir en la carpeta
 solo cuando está instalado `bwrap` con soporte para `--bind-fd`. La app mantiene abierto un descriptor de directorio sin seguir enlaces hasta el inicio del sandbox. Renombrar la carpeta o sustituirla por un enlace simbólico no puede cambiar el directorio aprobado. En Linux, las variables de entorno de la tarea se aplican dentro del sandbox, no a su proceso de lanzamiento; sus valores se pasan mediante un descriptor privado.
+
+La ruta raíz de una carpeta de rutina no puede contener enlaces simbólicos ni junctions. Selecciona la carpeta real en el selector; la admisión en segundo plano nunca resuelve enlaces en la ruta raíz.
 
 **Decide el ordenador, no el servidor.** Las carpetas elegidas, con sus modos, se
 guardan en los ajustes de la app, y cada operación nombra una carpeta y un modo que

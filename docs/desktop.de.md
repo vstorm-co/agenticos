@@ -1,5 +1,5 @@
 ---
-source_sha: "a94f681fabc6"
+source_sha: "529ca359c570"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -376,6 +376,8 @@ Kodierung und Übertragung der Dateidaten abgelehnt.
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
 wenn `bwrap` mit Unterstützung für `--bind-fd` installiert ist. Die App hält bis zum Sandbox-Start ein ohne Folgen symbolischer Links geöffnetes Verzeichnishandle fest. Umbenennen oder Ersetzen des Ordners durch einen symbolischen Link kann das genehmigte Verzeichnis dadurch nicht ändern. Unter Linux werden Umgebungsvariablen der Aufgabe innerhalb der Sandbox gesetzt, nicht in ihrem Startprozess; ihre Werte werden über einen privaten Deskriptor übergeben.
+
+Der Stammpfad eines Routine-Ordners darf keine symbolischen Links oder Junctions enthalten. Wählen Sie im Dialog den tatsächlichen Ordner; die Hintergrundzulassung löst keine Links im Stammpfad auf.
 
 **Der Computer entscheidet, nicht der Server.** Die gewählten Ordner mit ihren
 Modi stehen in den Einstellungen der App, und jede Operation nennt einen Ordner und
