@@ -68,6 +68,7 @@ def _approve_native(
         "microsoft": "outlook_mail",
         "slack": "slack",
         "imap": "imap_mail",
+        "odoo": "odoo_contacts",
     }.get(connection.catalog_key or "")
     if (
         product_id
@@ -79,6 +80,12 @@ def _approve_native(
             "teams",
             "slack",
             "imap_mail",
+            "odoo_contacts",
+            "odoo_crm",
+            "odoo_sales",
+            "odoo_accounting",
+            "odoo_inventory",
+            "odoo_projects",
         }
         or PRODUCTS[product_id].provider != connection.catalog_key
     ):
@@ -87,6 +94,12 @@ def _approve_native(
         )
     binding = _native_binding(spec, product_id)
     selection = AccountSelection.model_validate(binding.config)
+    from app.services.integrations import can_read_feed
+
+    if not can_read_feed(connection, product_id, tuple(selection.channels)):
+        raise AuthorizationError(
+            message="Reconnect this watch account with the product's read permissions"
+        )
     if selection.account_name and selection.account_name not in {
         connection.name,
         connection.label,

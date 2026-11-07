@@ -18,6 +18,7 @@ from app.schemas.connected_account import (
     ConnectedAccountToken,
     ConnectedApplicationAccount,
     ConnectedImapAccount,
+    ConnectedOdooAccount,
 )
 from app.schemas.mcp_connection import McpOAuthStartResult
 from app.services.integrations import IntegrationSetup
@@ -109,6 +110,25 @@ async def connect_application_account(
         products=data.products,
         write=data.write,
         label=data.label,
+        for_organization=False,
+    )
+    return ConnectedAccountRead.from_model(row)
+
+
+@router.post(
+    "/odoo",
+    response_model=ConnectedAccountRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def connect_odoo_account(
+    data: ConnectedOdooAccount, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Validate an Odoo 19+ JSON-2 API key and seal its database connection."""
+    row = await service.connect_odoo_account(
+        ctx,
+        credential=data.credential,
+        label=data.label,
+        write=data.write,
         for_organization=False,
     )
     return ConnectedAccountRead.from_model(row)

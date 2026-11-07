@@ -567,3 +567,40 @@ async def test_poller_never_sends_one_providers_token_to_another(poller, monkeyp
         await triggers.poll_account(AsyncMock(), row)
     token.assert_not_awaited()
     store.assert_not_awaited()
+
+
+async def test_odoo_watch_and_trigger_share_the_bounded_record_feed(
+    native_watch, poller, monkeypatch
+):
+    from app.core.odoo_credential import OdooCredential
+    from app.services.integrations import odoo_feed
+
+    credential = OdooCredential(
+        origin="https://erp.example.com", database="company", api_key="private-key"
+    )
+    monkeypatch.setattr(
+        McpConnectionService, "integration_odoo_credential", lambda *args, **kwargs: credential
+    )
+    read = AsyncMock(
+        return_value=feeds.Changes(
+            events=[feeds.Change(id="record:7", payload={"product_id": "odoo_contacts"})],
+            cursor={"models": {"res.partner": {"id": 7}}},
+        )
+    )
+    monkeypatch.setattr(odoo_feed, "changes", read)
+    row, saved, sources, receipt, old_read, tool = native_watch
+    row.catalog_key, row.auth_type = "odoo", "odoo"
+    sources = sources.model_copy(
+        update={"catalog_key": "odoo", "integration_product_id": "odoo_contacts"}
+    )
+    await tool(approved=sources)()
+    assert receipt.integration_cursor == {"models": {"res.partner": {"id": 7}}}
+    old_read.assert_not_awaited()
+    account, rows, service, store, add = poller
+    account.catalog_key, account.auth_type = "odoo", "odoo"
+    add("odoo_contacts", {"product_id": "odoo_contacts"})
+    await triggers.poll_account(AsyncMock(), account)
+    assert read.await_args.args[:2] == (credential, "odoo_contacts")
+    assert (
+        store.await_args.kwargs["cursor"]["products"]["odoo_contacts"] == receipt.integration_cursor
+    )

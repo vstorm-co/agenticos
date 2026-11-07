@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import Field, SecretStr
 
 from app.core.mail_credential import ImapCredential
+from app.core.odoo_credential import OdooCredential
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.base import BaseSchema
 
@@ -19,7 +20,7 @@ class ConnectedAccountRead(BaseSchema):
     """One connected account, as its owner and an agent's editor see it."""
 
     id: UUID
-    provider: Literal["google", "microsoft", "slack", "imap"]
+    provider: Literal["google", "microsoft", "slack", "imap", "odoo"]
     email: str
     name: str = ""
     label: str | None = None
@@ -41,6 +42,8 @@ class ConnectedAccountRead(BaseSchema):
             if account.catalog_key == "slack"
             else "imap"
             if account.catalog_key == "imap"
+            else "odoo"
+            if account.catalog_key == "odoo"
             else "google",
             email=account.account_email or account.label or account.name,
             scopes=sorted(account.granted_scopes or ()),
@@ -84,3 +87,9 @@ class ConnectedApplicationAccount(BaseSchema):
 class ConnectedImapAccount(BaseSchema):
     credential: ImapCredential
     label: str = Field(default="", max_length=64)
+
+
+class ConnectedOdooAccount(BaseSchema):
+    credential: OdooCredential
+    label: str = Field(default="", max_length=64)
+    write: bool = False

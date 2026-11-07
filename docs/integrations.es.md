@@ -1,5 +1,5 @@
 ---
-source_sha: "b4ca7a237e75"
+source_sha: "267d8df1cde3"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -42,7 +42,7 @@ Los nodos de archivo reciben base64, nunca rutas locales del servidor. Word crea
 
 Las fuentes Drive y SharePoint seleccionan la misma conexión de organización en vez de credenciales separadas. OneDrive usa el conector SharePoint con unidad/carpeta elegida. Slack indexa solo canales elegidos y sus hilos. Cada sincronización revalida la autorización; una fuente compartida no utiliza cuentas privadas de miembros.
 
-Los triggers reutilizan la cola transaccional, deduplicación y política de fuentes aprobadas existentes. Filtros Gmail/Outlook, anticipación de eventos y cambios de archivos funcionan con cuentas nativas. Slack añade mensajes, menciones y DM; Teams mensajes/menciones; IMAP correo nuevo. Sheets sigue **filas añadidas al final** de una hoja elegida. La base es la última fila ocupada de la columna A. Mantenga esa columna poblada: insertar/eliminar filas y editar filas existentes no son eventos de adición.
+Los triggers reutilizan la cola transaccional, deduplicación y política de fuentes aprobadas existentes. Filtros Gmail/Outlook, anticipación de eventos y cambios de archivos funcionan con cuentas nativas. Slack añade mensajes, menciones y DM; Teams mensajes/menciones; IMAP correo nuevo. Sheets sigue **filas añadidas al final** de una hoja elegida. La base es la última fila ocupada en las columnas A:ZZ; insertar/eliminar filas y editar filas existentes no son eventos de adición.
 
 Una watch elige una conexión personal y producto, y recibe solo una herramienta fija de cambios de lectura. Active el producto en el agente primero. Elija conversaciones Slack y chats Teams delegados en la capability. Los canales Teams usan `channel/team-id/channel-id`; app-only sin conversaciones lee todos los chats del usuario configurado.
 
@@ -51,3 +51,17 @@ Cada watch mantiene un cursor persistente independiente que avanza tras consumir
 Consulte [capabilities](reference/capabilities.md), [triggers](triggers.md), [gobernanza y watches](governance.md#proactive-work) y [MCP](mcp.md).
 
 Asigne una etiqueta como Trabajo al conectar; use la misma etiqueta para la cuenta correspondiente de cada persona.
+
+## Odoo { #odoo }
+
+Conecte Odoo 19+ mediante JSON-2 con el origen HTTPS, la base de datos y la clave API de un usuario de negocio. El operador debe autorizar el host exacto en `ODOO_ALLOWED_HOSTS`; se rechazan rutas, redirecciones y puertos personalizados. Odoo Online requiere un plan Custom para APIs externas. Instale los módulos necesarios y limite los permisos y reglas de registros del usuario. Las claves caducan: rótelas y vuelva a conectar. La escritura es opcional y cada escritura del agente requiere aprobación.
+
+Las capabilities cubren contactos, CRM, ventas, facturas, inventario y proyectos. Ofrecen metadatos de campos, búsqueda/lectura limitada y herramientas separadas para crear/editar donde se admite. Las existencias son de solo lectura; las operaciones de inventario usan transferencias y movimientos. Herramientas y nodos de workflow comparten cuenta y adaptador JSON-2. No se permiten modelos, métodos ni contexto arbitrarios.
+
+Watches y triggers leen registros nuevos/modificados del área seleccionada. Cada modelo tiene su cursor `(write_date, id)`; la primera lectura establece una base silenciosa. Las siguientes consumen hasta 100 registros por modelo y conservan el resto. Las eliminaciones no son eventos. Los timestamps Odoo tienen precisión de segundos; cambios del mismo registro dentro de un segundo pueden agruparse. La sincronización de conocimiento indexa solo los campos seleccionados mediante una cuenta de organización; listas limitadas nunca eliminan documentos no vistos.
+
+La confirmación de ventas, contabilización de facturas y confirmación/reserva/validación de transferencias tienen herramientas con aprobación. Use estas acciones en vez de escribir el estado. Pueden devolver un asistente que debe completarse en Odoo; lea el registro antes de comunicar éxito. Las facturas requieren `move_type` explícito (cliente, proveedor, abono o recibo). Se admiten campos escalares y vincular/reemplazar/vaciar IDs de relaciones. Cree o edite los registros relacionados con sus propias herramientas; se rechazan mutaciones ORM anidadas y valores de objetos JSON.
+
+## Exchange Online { #exchange-online }
+
+Outlook mail y Outlook Calendar conectan Microsoft Exchange Online mediante Microsoft Graph. Use el asistente Microsoft con OAuth delegado o una cuenta de aplicación Entra con permisos aprobados por el administrador y el buzón objetivo. No necesita contraseña IMAP separada ni licencia Work IQ. Esta vía cubre Exchange Online; no añade Exchange local ni EWS.

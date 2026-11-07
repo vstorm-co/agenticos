@@ -366,6 +366,11 @@ def test_native_watch_carries_one_account_and_removes_every_executable_capabilit
     connection = _connection()
     connection.purpose = "account"
     connection.catalog_key = provider
+    connection.granted_scopes = {
+        "google": ["https://www.googleapis.com/auth/gmail.readonly"],
+        "microsoft": ["Mail.Read"],
+        "slack": ["channels:history"],
+    }[provider]
     connection.label = "Work"
     original = _spec()
     original.capabilities.append(

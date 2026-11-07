@@ -1609,6 +1609,7 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
     case "teams":
     case "google_sheets":
     case "imap_mail":
+    case "odoo":
     case "google_drive":
     case "microsoft_files":
     case "google_calendar":

@@ -58,6 +58,7 @@ async def test_workflow_node_calls_the_same_operation_as_the_agent_tool(native_c
     assert isinstance(result, Completed) and result.output.result == {"id": "remote-result"}
     assert native_calls.await_args.kwargs["person_id"] == current.auth.user_id
     assert native_calls.await_args.kwargs["organization_id"] == current.organization_id
+    assert native_calls.await_args.kwargs["workflow_run_id"] == current.workflow_run_id
     assert native_calls.await_args.kwargs["query"] == {"q": "in:inbox"}
 
 
@@ -114,12 +115,16 @@ async def test_agent_tools_do_not_read_personal_data_to_a_room(native_calls, aud
 async def test_agent_tool_uses_the_current_run_person_and_reports_account_refusals(native_calls):
     person = uuid4()
     deps = AgentDeps(
-        organization_id=uuid4(), run_person=person, audience=RunAudience(user_id=person)
+        organization_id=uuid4(),
+        run_id=uuid4(),
+        run_person=person,
+        audience=RunAudience(user_id=person),
     )
     ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage(), prompt="test")
     tool = tools.build_toolset("gmail", AccountSelection()).tools["gmail_search_threads"].function
     assert await tool(ctx, query={"q": "unread"}) == {"id": "remote-result"}
     assert native_calls.await_args.kwargs["person_id"] == person
+    assert native_calls.await_args.kwargs["agent_run_id"] == deps.run_id
     native_calls.side_effect = AuthorizationError(message="reconnect")
     assert await tool(ctx) == {"error": "reconnect"}
     deps.organization_id = None

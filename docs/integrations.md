@@ -38,7 +38,7 @@ File nodes accept base64 content, never a server-local path. Word writes accept 
 
 Drive and SharePoint sources can select the same organization connection instead of a separate credential. OneDrive uses the SharePoint connector with the selected drive/folder. Slack sync indexes only selected channels and their threads. The account is revalidated at every sync; private member accounts are not silently spent by a shared knowledge source.
 
-Routine triggers reuse the existing transactional queue, deduplication and approved-source policy. Gmail/Outlook filters, calendar leads and file changes work on native accounts. Slack adds channel messages, mentions and DMs; Teams adds messages and mentions; IMAP adds new mail. Sheets tracks **appended rows** in a selected spreadsheet and sheet, baselining the last occupied row in column A. Keep that column populated; row insertion/deletion and edits to existing rows are not append events.
+Routine triggers reuse the existing transactional queue, deduplication and approved-source policy. Gmail/Outlook filters, calendar leads and file changes work on native accounts. Slack adds channel messages, mentions and DMs; Teams adds messages and mentions; IMAP adds new mail. Sheets tracks **appended rows** in a selected spreadsheet and sheet, baselining the last occupied row across columns A:ZZ; row insertion/deletion and edits to existing rows are not append events.
 
 A watch selects one personal connection and product, with only a fixed read-only change tool. Enable that product on the agent first. Slack conversations and delegated Teams chats must be selected in the capability. Teams channels use `channel/team-id/channel-id`; an app-only Teams feed with no conversations reads all chats of its configured subject.
 
@@ -47,3 +47,17 @@ Each watch has an independent durable cursor; it advances only after a successfu
 See [capabilities](reference/capabilities.md), [triggers](triggers.md), [governance and watches](governance.md#proactive-work) and [MCP](mcp.md) for their existing controls.
 
 Set a label such as Work when connecting; use the same label for each person’s corresponding account.
+
+## Odoo
+
+Connect Odoo 19+ through JSON-2 with the HTTPS origin, database name and a business user's API key. The operator must list the exact host in `ODOO_ALLOWED_HOSTS`; paths, redirects and custom ports are refused. Odoo Online requires a Custom plan for external API access. Install the business modules you intend to use and restrict the user's Odoo ACLs and record rules. Keys expire: rotate them and reconnect the account. Write access is opt-in and every agent write still needs approval.
+
+Toolbox capabilities cover Contacts, CRM, Sales, Invoicing, Inventory and Projects. Each exposes field inspection, bounded record search/read and explicit create/update tools where supported. Stock levels are read-only; use transfers and stock moves for inventory operations. Tools and workflow nodes use the same account and JSON-2 adapter. Arbitrary models, methods and user-supplied context are not accepted.
+
+Watches and routine triggers read created/modified records in their selected business area. Each model has an independent `(write_date, id)` cursor; the first check establishes a quiet baseline. Subsequent checks consume at most 100 records per model and retain the remaining backlog. Deletions are not events. Odoo timestamps have second precision, so repeated updates to the same record within one second may coalesce. Knowledge sync indexes only explicitly selected fields through an organization account; capped listings never remove unseen documents.
+
+Odoo sales confirmation, invoice posting and transfer confirmation/reservation/validation have dedicated approval-gated tools. Use these business actions instead of writing a state field. Actions can return a wizard that needs completion in Odoo; read the record afterward before reporting success. Create invoices with an explicit `move_type` (customer, supplier, refund or receipt). Scalar fields and link/set/clear relation IDs are supported. Create or update related records with their own tools; nested ORM mutations and JSON-object field values are refused.
+
+## Exchange Online
+
+Outlook mail and Outlook Calendar connect to Microsoft Exchange Online through Microsoft Graph. Use the Microsoft wizard with delegated OAuth, or an Entra application account with admin-consented application permissions and the target mailbox. No separate IMAP password or Work IQ licence is needed. This path targets Exchange Online; it does not add on-premises Exchange or EWS support.

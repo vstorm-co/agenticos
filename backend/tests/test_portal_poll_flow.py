@@ -531,6 +531,12 @@ class TestWhichGrantsAreRead:
             "teams",
             "google_sheets",
             "imap",
+            "odoo_contacts",
+            "odoo_crm",
+            "odoo_sales",
+            "odoo_accounting",
+            "odoo_inventory",
+            "odoo_projects",
         ]
 
 

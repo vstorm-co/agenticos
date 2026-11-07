@@ -30,6 +30,7 @@ export type EventSource =
   | "teams"
   | "google_sheets"
   | "imap_mail"
+  | "odoo"
   | "github"
   | "gmail"
   | "google_calendar"

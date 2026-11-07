@@ -55,6 +55,7 @@ def handler_for(
                     parameters=node_input.parameters,
                     query=node_input.query,
                     body=node_input.body,
+                    workflow_run_id=current.workflow_run_id,
                 )
             return Completed(output=IntegrationOutput(result=result))
         except AppException as exc:
@@ -72,12 +73,7 @@ def check_for(
         if not isinstance(config, AccountSelection):
             return [("account", "Choose an integration account")]
         try:
-            await IntegrationService(db).account(
-                PRODUCTS[product_id],
-                config,
-                organization_id=auth.organization_id,
-                person_id=auth.user_id,
-            )
+            await IntegrationService(db).binding_account(PRODUCTS[product_id], config, auth)
         except AppException as exc:
             return [("account", exc.message)]
         return []

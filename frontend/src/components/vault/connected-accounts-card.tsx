@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
 import { Button, ConfirmDialog, IconButton, ListCard, ListCardEmpty } from "@/components/ui";
+import { OdooSetupDialog } from "@/components/vault/odoo-setup-dialog";
 import { ImapSetupDialog } from "@/components/vault/imap-setup-dialog";
 import { IntegrationSetupDialog } from "@/components/vault/integration-setup-dialog";
 import type { IntegrationProvider } from "@/hooks/use-connected-accounts";
@@ -49,7 +50,7 @@ export function ConnectedAccountsCard({ owner, canManage }: ConnectedAccountsCar
   return (
     <>
       <div className="mb-3 flex gap-2">
-        {(["google", "microsoft", "slack", "imap"] as const).map((id) => (
+        {(["google", "microsoft", "slack", "imap", "odoo"] as const).map((id) => (
           <Button
             key={id}
             variant={provider === id ? "secondary" : "ghost"}
@@ -146,7 +147,10 @@ export function ConnectedAccountsCard({ owner, canManage }: ConnectedAccountsCar
       {settingUp && provider === "imap" && (
         <ImapSetupDialog owner={owner} onClose={() => setSettingUp(false)} />
       )}
-      {settingUp && provider !== "imap" && (
+      {settingUp && provider === "odoo" && (
+        <OdooSetupDialog owner={owner} onClose={() => setSettingUp(false)} />
+      )}
+      {settingUp && provider !== "imap" && provider !== "odoo" && (
         <IntegrationSetupDialog
           owner={owner}
           provider={provider}

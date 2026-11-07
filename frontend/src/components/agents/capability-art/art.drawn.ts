@@ -5,6 +5,13 @@
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
   word: 220,
   imap_mail: 220,
+  odoo_contacts: 280,
+  odoo_crm: 280,
+  odoo_sales: 280,
+  odoo_accounting: 280,
+  odoo_inventory: 280,
+  odoo_projects: 280,
+
   gmail: 220,
   google_calendar: 220,
   google_drive: 220,
@@ -316,6 +323,13 @@ const INTEGRATION =
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   word: INTEGRATION,
   imap_mail: INTEGRATION,
+  odoo_contacts: INTEGRATION,
+  odoo_crm: INTEGRATION,
+  odoo_sales: INTEGRATION,
+  odoo_accounting: INTEGRATION,
+  odoo_inventory: INTEGRATION,
+  odoo_projects: INTEGRATION,
+
   gmail: INTEGRATION,
   google_calendar: INTEGRATION,
   google_drive: INTEGRATION,

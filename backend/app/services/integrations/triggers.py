@@ -51,7 +51,22 @@ async def poll_account(db: AsyncSession, account: McpConnection) -> int:
             continue
         old = positions.get(key)
         cursor = old if isinstance(old, dict) else None
-        if key == "imap":
+        if account.catalog_key == "odoo":
+            from app.services.integrations.odoo_feed import changes as odoo_changes
+
+            changes = await odoo_changes(
+                connections.integration_odoo_credential(account, organization_id=organization_id),
+                key,
+                cursor,
+            )
+            read = PolledEvents(
+                events=tuple(
+                    PolledEvent(delivery_id=event.id, payload=event.payload)
+                    for event in changes.events
+                ),
+                cursor=changes.cursor,
+            )
+        elif key == "imap":
             from app.services.integrations.imap import changed_mail
 
             credential = connections.integration_mail_credential(

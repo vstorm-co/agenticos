@@ -3161,3 +3161,7 @@ While local coding sessions run, `[session:api] Use the EU numbers` redirects th
 
 
 Built-in Google, Microsoft, Slack and IMAP connections also work here. See [built-in integrations](../integrations.md) for setup, account selection, capabilities, workflow operations, knowledge sync and durable change feeds.
+
+### Odoo business areas
+
+`odoo_contacts`, `odoo_crm`, `odoo_sales`, `odoo_accounting`, `odoo_inventory` and `odoo_projects` use the same account settings as the other built-in integrations. Search/read and field-inspection tools are read-only; create/update tools always require approval. Stock levels are read-only. The JSON-2 transport, installed-module requirements, change-feed limits and selected-field knowledge sync are described under [Odoo](../integrations.md#odoo). Binding an organization account requires access to that connection; execution rechecks the published version author's current authority.

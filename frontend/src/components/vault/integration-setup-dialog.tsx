@@ -39,7 +39,7 @@ export function IntegrationSetupDialog({
   onClose,
 }: {
   owner: AccountOwner;
-  provider: Exclude<IntegrationProvider, "imap">;
+  provider: Exclude<IntegrationProvider, "imap" | "odoo">;
   onClose: () => void;
 }) {
   const t = useTranslations("pages.vault.connectedAccounts.setup");
@@ -156,7 +156,11 @@ export function IntegrationSetupDialog({
                   <Label key={product.id} className="flex items-center gap-2">
                     <Checkbox
                       checked={products.includes(product.id)}
-                      disabled={method === "application" && !product.application_supported}
+                      disabled={
+                        method === "application" &&
+                        !product.application_supported &&
+                        !products.includes(product.id)
+                      }
                       onCheckedChange={(checked) =>
                         setProducts((current) =>
                           checked

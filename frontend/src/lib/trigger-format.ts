@@ -383,6 +383,8 @@ function summaryText(summary: TriggerSummary, t: Translate, zone: string): strin
           return t("event.teams");
         case "google_sheets":
           return t("event.google_sheets");
+        case "odoo":
+          return t("event.odoo");
         case "imap_mail":
           return t("event.imap_mail");
         case "google_drive":

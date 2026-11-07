@@ -1,5 +1,5 @@
 ---
-source_sha: "b4ca7a237e75"
+source_sha: "267d8df1cde3"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -42,7 +42,7 @@ Węzły plikowe przyjmują base64, nigdy lokalną ścieżkę serwera. Word przyj
 
 Źródła Drive i SharePoint wybierają to samo konto organizacji zamiast osobnego credentiala. OneDrive używa konektora SharePoint z wybranym dyskiem/folderem. Slack indeksuje tylko wybrane kanały i ich wątki. Przy każdej synchronizacji sprawdzana jest autoryzacja konta; wspólna baza wiedzy nie używa po cichu prywatnych kont członków.
 
-Triggery rutyn używają istniejącej kolejki transakcyjnej, deduplikacji i zatwierdzonych źródeł. Na kontach natywnych działają filtry Gmail/Outlook, zapowiedzi spotkań i zmiany plików. Slack dodaje wiadomości, wzmianki i DM, Teams wiadomości i wzmianki, a IMAP nową pocztę. Sheets śledzi **dopisywane wiersze** wybranego arkusza i zakładki; pierwsze sprawdzenie zapamiętuje ostatni zajęty wiersz kolumny A. Utrzymuj tę kolumnę wypełnioną. Wstawianie/usuwanie wierszy i edycje istniejących nie są dopisaniem.
+Triggery rutyn używają istniejącej kolejki transakcyjnej, deduplikacji i zatwierdzonych źródeł. Na kontach natywnych działają filtry Gmail/Outlook, zapowiedzi spotkań i zmiany plików. Slack dodaje wiadomości, wzmianki i DM, Teams wiadomości i wzmianki, a IMAP nową pocztę. Sheets śledzi **dopisywane wiersze** wybranego arkusza i zakładki; pierwsze sprawdzenie zapamiętuje ostatni zajęty wiersz w zakresie kolumn A:ZZ. Wstawianie/usuwanie wierszy i edycje istniejących nie są dopisaniem.
 
 Watch wybiera jedno osobiste konto i produkt oraz otrzymuje stałe narzędzie zmian tylko do odczytu. Najpierw włącz produkt na agencie. Rozmowy Slack i delegowane czaty Teams wybiera się w capability. Kanały Teams mają zapis `channel/team-id/channel-id`; app-only Teams bez wskazanych rozmów czyta wszystkie czaty skonfigurowanego użytkownika.
 
@@ -51,3 +51,17 @@ Każdy watch ma osobny trwały kursor, przesuwany dopiero po pomyślnym sprawdze
 Zobacz [capabilities](reference/capabilities.md), [triggery](triggers.md), [zarządzanie i watche](governance.md#proactive-work) oraz [MCP](mcp.md).
 
 Przy łączeniu nadaj etykietę, np. Praca; używaj tej samej etykiety dla odpowiedniego konta każdej osoby.
+
+## Odoo { #odoo }
+
+Połącz Odoo 19+ przez JSON-2, podając adres HTTPS, nazwę bazy i klucz API użytkownika biznesowego. Operator musi dodać dokładny host do `ODOO_ALLOWED_HOSTS`; ścieżki, przekierowania i niestandardowe porty są odrzucane. Zewnętrzne API Odoo Online wymaga planu Custom. Zainstaluj używane moduły i ogranicz uprawnienia oraz reguły rekordów użytkownika w Odoo. Klucze wygasają: po rotacji połącz konto ponownie. Zapis jest opcjonalny, a każdy zapis agenta wymaga zatwierdzenia.
+
+Capabilities obejmują kontakty, CRM, sprzedaż, faktury, magazyn i projekty. Udostępniają metadane pól, ograniczone wyszukiwanie i odczyt oraz osobne narzędzia tworzenia i edycji tam, gdzie są obsługiwane. Stany magazynowe są tylko do odczytu; operacje magazynowe korzystają z transferów i ruchów. Narzędzia i węzły workflow używają wspólnego konta i adaptera JSON-2. Dowolne modele, metody i kontekst podany przez użytkownika są niedozwolone.
+
+Watche i triggery rutyn czytają nowe i zmienione rekordy wybranego obszaru. Każdy model ma własny kursor `(write_date, id)`; pierwszy odczyt tworzy cichą bazę. Kolejne odczyty pobierają do 100 rekordów modelu, zachowując pozostałe do następnego przebiegu. Usunięcia nie są zdarzeniami. Znaczniki Odoo mają dokładność sekundy, więc zmiany tego samego rekordu w jednej sekundzie mogą się połączyć. Synchronizacja wiedzy indeksuje wyłącznie wskazane pola przez konto organizacji; niepełne listy nie usuwają niewidocznych dokumentów.
+
+Potwierdzenie sprzedaży, księgowanie faktur oraz potwierdzanie, rezerwacja i zatwierdzanie transferów mają osobne narzędzia wymagające zatwierdzenia. Używaj tych akcji zamiast zmieniać pole stanu. Akcja może zwrócić kreator do dokończenia w Odoo; przed zgłoszeniem sukcesu odczytaj rekord. Tworzenie faktury wymaga jawnego `move_type` (klient, dostawca, korekta lub paragon). Obsługiwane są pola skalarne i dołączanie/zastępowanie/czyszczenie identyfikatorów relacji. Powiązane rekordy twórz i edytuj ich własnymi narzędziami; zagnieżdżone mutacje ORM i wartości pól będące obiektami JSON są odrzucane.
+
+## Exchange Online { #exchange-online }
+
+Outlook mail i Outlook Calendar łączą się z Microsoft Exchange Online przez Microsoft Graph. W kreatorze Microsoft użyj delegowanego OAuth albo konta aplikacyjnego Entra z uprawnieniami zatwierdzonymi przez administratora i wskazaną skrzynką. Osobne hasło IMAP i licencja Work IQ nie są potrzebne. Ta ścieżka dotyczy Exchange Online; nie dodaje obsługi lokalnego Exchange ani EWS.

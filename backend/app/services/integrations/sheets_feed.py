@@ -21,7 +21,7 @@ async def rows_since(
     previous = (cursor or {}).get("last_row")
     baseline = not isinstance(previous, int) or previous < 0
     sheet = "'" + sheet_name.replace("'", "''") + "'"
-    selected = f"{sheet}!A:A" if baseline else f"{sheet}!A{previous + 1}:ZZ{previous + 100}"
+    selected = f"{sheet}!A:ZZ" if baseline else f"{sheet}!A{previous + 1}:ZZ{previous + 100}"
     operation = Operation(
         "sheet_changes",
         "Read appended spreadsheet rows",

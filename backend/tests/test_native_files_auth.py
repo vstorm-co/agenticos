@@ -17,7 +17,7 @@ from app.core.secret_kinds import EntraAppSecret, GcpServiceAccountSecret
 from app.services.integrations import app_auth, client, files, slack_oauth
 from app.services.integrations.catalog import PRODUCTS, Operation
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 TOKEN = SecretStr("token-must-not-leak")
 
 
@@ -447,3 +447,109 @@ async def test_slack_write_manifest_matches_explicit_consent_scopes():
     assert set(manifest["oauth_config"]["scopes"]["user"]) == set(
         info.products[0].read_scopes + info.products[0].write_scopes
     )
+
+
+@pytest.mark.parametrize(
+    "shape", ["nested", "flat_user", "bot", "revoked", "refused", "unreadable", "status"]
+)
+async def test_slack_rotation_preserves_user_authority_and_the_new_refresh_token(transport, shape):
+    from app.agents.mcp_oauth import OAuthError, OAuthGrantRevoked
+
+    data = {
+        "access_token": "user-access",
+        "refresh_token": "next-refresh",
+        "expires_in": 43200,
+        "scope": "search:read",
+    }
+    body = {"ok": True, "authed_user": data, "access_token": "bot-token"}
+    if shape == "flat_user":
+        body = {"ok": True, "token_type": "user", **data}
+    if shape == "bot":
+        body = {"ok": True, "token_type": "bot", **data}
+    if shape == "revoked":
+        body = {"ok": False, "error": "invalid_refresh_token"}
+    if shape == "refused":
+        body = {"ok": False}
+
+    def respond(request):
+        assert request.url == slack_oauth.TOKEN_ENDPOINT
+        assert b"grant_type=refresh_token" in request.content
+        return httpx.Response(
+            503 if shape == "status" else 200,
+            content=b"bad" if shape == "unreadable" else None,
+            json=None if shape == "unreadable" else body,
+        )
+
+    transport(respond)
+    if shape in {"nested", "flat_user"}:
+        result = await slack_oauth.refresh_user_token(
+            client_id="client", client_secret="secret", refresh_token=SecretStr("old-refresh")
+        )
+        assert result.access_token.get_secret_value() == "user-access"
+        assert result.refresh_token.get_secret_value() == "next-refresh"
+    else:
+        with pytest.raises(OAuthGrantRevoked if shape == "revoked" else OAuthError):
+            await slack_oauth.refresh_user_token(
+                client_id="client", client_secret="secret", refresh_token=SecretStr("old-refresh")
+            )
+
+
+async def test_slack_rotation_network_failure_does_not_echo_the_key(transport):
+    from app.agents.mcp_oauth import OAuthError
+
+    def fail(request):
+        raise httpx.ReadTimeout("secret")
+
+    transport(fail)
+    with pytest.raises(OAuthError, match="could not refresh"):
+        await slack_oauth.refresh_user_token(
+            client_id="client", client_secret="secret", refresh_token=SecretStr("old-refresh")
+        )
+
+
+def test_slack_client_hint_contains_only_the_public_client_id_suffix():
+    from app.core.secret_kinds import SlackOAuthAppSecret
+
+    value = SlackOAuthAppSecret(client_id="client-1234", client_secret="private-secret")
+    assert value.hint == "1234"
+    assert "private-secret" not in repr(value)
+
+
+def test_word_reading_keeps_formatted_runs_inside_their_original_paragraph():
+    from docx import Document
+
+    document = Document()
+    paragraph = document.add_paragraph("Hello ")
+    paragraph.add_run("bold").bold = True
+    paragraph.add_run(" world.")
+    document.add_paragraph("Next paragraph.")
+    output = io.BytesIO()
+    document.save(output)
+    result = files.file_text(
+        output.getvalue(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        word=True,
+    )
+    assert result["text"] == "Hello bold world.\nNext paragraph."
+
+
+async def test_sharepoint_connected_account_never_uses_an_application_secret(transport):
+    from uuid import uuid4
+
+    from app.services.integrations import AccountToken
+    from app.services.rag.connectors.sharepoint import _Graph
+
+    token = AccountToken(connection_id=uuid4(), provider="microsoft", api_key="delegated-token")
+    async with httpx.AsyncClient() as http:
+        graph = _Graph(token, http, 0)
+        assert await graph._bearer() == "delegated-token"
+
+
+async def test_application_file_feed_baselines_without_reading_me(transport):
+    from app.services.portals.microsoft_files import MicrosoftFilesPortalAdapter
+
+    transport(lambda request: pytest.fail("an application identity has no /me endpoint"))
+    read = await MicrosoftFilesPortalAdapter(subject="mailbox@example.com").poll(
+        access_token="application-token", cursor=None
+    )
+    assert read.events == () and read.cursor["account"] == "mailbox@example.com"

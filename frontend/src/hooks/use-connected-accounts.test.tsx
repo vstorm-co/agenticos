@@ -99,3 +99,75 @@ describe("useConnectedAccounts", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Not yours"));
   });
 });
+
+it("starts consent with the selected provider, products and label", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://example.com/consent" });
+  const { result } = renderHook(() => useConnectedAccounts("personal", { provider: "slack" }), {
+    wrapper,
+  });
+  await waitFor(() => expect(result.current.accounts).toEqual([ACCOUNT]));
+  expect(apiClient.get).toHaveBeenCalledWith("/me/connected-accounts?provider=slack");
+  const options = { provider: "slack" as const, products: ["slack"], write: false, label: "Work" };
+  act(() => result.current.connect("/vault", options));
+  await waitFor(() =>
+    expect(apiClient.post).toHaveBeenCalledWith("/me/connected-accounts/oauth/start", options),
+  );
+});
+it.each(["connectToken", "connectApplication", "connectImap", "connectOdoo"] as const)(
+  "%s refreshes choices after success and reports a refused credential",
+  async (method) => {
+    const { result } = renderHook(() => useConnectedAccounts("organization"), { wrapper });
+    await waitFor(() => expect(result.current.accounts).toEqual([ACCOUNT]));
+    const data = {
+      connectOdoo: {
+        credential: { origin: "https://erp.example.com", database: "company", api_key: "test-key" },
+        label: "ERP",
+        write: false,
+      },
+      connectToken: { token: "xoxp-test", label: "Work" },
+      connectApplication: {
+        provider: "microsoft" as const,
+        secret_id: "app",
+        subject: "a@example.com",
+        products: ["outlook_mail"],
+        write: false,
+        label: "Work",
+      },
+      connectImap: {
+        credential: {
+          host: "imap.example.com",
+          port: 993,
+          username: "a",
+          password: "test",
+          folder: "INBOX",
+        },
+        label: "Work",
+      },
+    };
+    const connect = () => {
+      if (method === "connectToken")
+        return result.current.connectToken.mutateAsync(data.connectToken);
+      if (method === "connectApplication")
+        return result.current.connectApplication.mutateAsync(data.connectApplication);
+      if (method === "connectOdoo") return result.current.connectOdoo.mutateAsync(data.connectOdoo);
+      return result.current.connectImap.mutateAsync(data.connectImap);
+    };
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "new" });
+    await act(async () => {
+      await connect();
+    });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    const suffix = {
+      connectToken: "slack/token",
+      connectApplication: "application",
+      connectImap: "imap",
+      connectOdoo: "odoo",
+    }[method];
+    expect(apiClient.post).toHaveBeenCalledWith(`/connected-accounts/${suffix}`, data[method]);
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("Credential refused"));
+    await act(async () => {
+      await expect(connect()).rejects.toThrow("Credential refused");
+    });
+    expect(toastError).toHaveBeenCalledWith("Credential refused");
+  },
+);

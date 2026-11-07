@@ -728,6 +728,7 @@ async def test_native_watch_authority_is_revoked_before_another_account_read(
         purpose="account",
         name="Work",
         catalog_key="google",
+        granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
         url="https://www.googleapis.com",
         account_source_organization_id=world.organization.id,
         is_enabled=True,

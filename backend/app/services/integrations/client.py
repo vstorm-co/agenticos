@@ -74,7 +74,6 @@ async def execute(
         headers["Content-Type"] = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
-    response_type = "application/octet-stream"
     try:
         async with (
             httpx.AsyncClient(timeout=20, follow_redirects=False) as client,

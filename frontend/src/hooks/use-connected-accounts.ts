@@ -10,7 +10,7 @@ import { rememberMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { qk } from "@/lib/query-keys";
 import type { ConnectedAccountList } from "@/types/mirage";
 
-export type IntegrationProvider = "google" | "microsoft" | "slack" | "imap";
+export type IntegrationProvider = "google" | "microsoft" | "slack" | "imap" | "odoo";
 export interface AccountConnectOptions {
   label?: string;
   provider: IntegrationProvider;
@@ -72,6 +72,15 @@ export function useConnectedAccounts(
     },
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
+  const connectOdoo = useMutation({
+    mutationFn: (data: {
+      credential: { origin: string; database: string; api_key: string };
+      label: string;
+      write: boolean;
+    }) => apiClient.post(`${PREFIX[owner]}/odoo`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY[owner]() }),
+    onError: (cause) => toast.error(getErrorMessage(cause, t)),
+  });
   const connectImap = useMutation({
     mutationFn: (data: {
       credential: {
@@ -119,6 +128,7 @@ export function useConnectedAccounts(
     connectToken,
     connectApplication,
     connectImap,
+    connectOdoo,
     disconnect: (id: string) => disconnect.mutate(id),
   };
 }

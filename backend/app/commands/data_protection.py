@@ -110,7 +110,18 @@ UNREFERENCED_BY_DESIGN = (SCRATCH_DIRECTORY,)
 # `tests/test_data_protection_report.py` asserts every registered capability is
 # either named here or in `CAPABILITIES_STAYING_INSIDE`, so a new one fails a
 # test rather than quietly leaving the inventory short.
+from app.services.integrations import PRODUCTS
+
+_NATIVE_DESTINATIONS = {
+    "google": "the selected Google Workspace account's APIs",
+    "microsoft": "Microsoft Graph for the selected account, including Exchange Online",
+    "slack": "Slack Web API for the selected workspace account",
+    "imap": "the selected IMAP server on MIRAGE_ALLOWED_HOSTS",
+    "odoo": "the selected Odoo database on ODOO_ALLOWED_HOSTS",
+}
+
 OUTBOUND_CAPABILITIES: dict[str, str] = {
+    **{product.id: _NATIVE_DESTINATIONS[product.provider] for product in PRODUCTS.values()},
     "phone_calls": "the configured telephony provider and explicitly consented recipients",
     # The pages it opens are the destination a reviewer has to know about. What
     # each step sends the model - the page's address, element labels and an

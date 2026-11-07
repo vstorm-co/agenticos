@@ -7310,7 +7310,7 @@
           "redirect": "Redirect URL",
           "copyRedirect": "Copy redirect URL",
           "google": "Create a Cloud project, enable the APIs below, configure an Internal or External consent screen, and create a web OAuth client. External apps in Testing issue refresh tokens lasting seven days. Native integrations use ordinary APIs; no MCP preview or AI-powered client is required.",
-          "microsoft": "Register a web application in Entra. Choose a tenant or common for work and personal accounts, add the redirect URL and delegated permissions below. Add a client secret. Some permissions need tenant administrator consent.",
+          "microsoft": "Register a web application in Entra. Choose a tenant or common for work and personal accounts, add the redirect URL and delegated permissions below. Add a client secret. Some permissions need tenant administrator consent. Outlook mail and calendar connect to Exchange Online through Microsoft Graph.",
           "slack": "Create an internal app in each workspace, or add these user scopes and redirect URL to your existing channel bot app. Installation may require administrator approval and counts toward the workspace app limit. Native tools do not need the Agents MCP Server toggle; enable it only when using Slack MCP.",
           "openConsole": "Open provider console",
           "saveClient": "Save OAuth app in Vault",
@@ -7321,7 +7321,8 @@
             "google": "Google",
             "microsoft": "Microsoft",
             "slack": "Slack",
-            "imap": "IMAP"
+            "imap": "IMAP",
+            "odoo": "Odoo"
           },
           "tokenPath": "Use an existing Slack user or bot token",
           "accountLabel": "Account label",
@@ -7345,7 +7346,12 @@
           "saveCredential": "Save credential in Vault",
           "googleMcp": "For hosted Google MCP, join the Workspace MCP preview, enable both product and MCP APIs, configure consent and create a web OAuth client marked for an AI-powered agent. External Testing refresh tokens can expire in seven days. Copy the redirect exactly.",
           "slackMcp": "For Slack MCP, register an internal or Marketplace app, add this redirect and server scopes, then enable Agents → MCP Server. Workspace app limits and admin approval still apply.",
-          "microsoftMcp": "Register an Entra web app with this redirect and the delegated scopes required by the MCP server. Microsoft Work IQ has separate licence requirements."
+          "microsoftMcp": "Register an Entra web app with this redirect and the delegated scopes required by the MCP server. Microsoft Work IQ has separate licence requirements.",
+          "odoo": "Use Odoo 19+ JSON-2. Create an API key for a business user with only the required access rights. Ask the operator to approve the exact HTTPS host in ODOO_ALLOWED_HOSTS. Odoo Online requires a Custom plan for external API access. Keys expire; reconnect after rotating them.",
+          "odooOrigin": "Odoo HTTPS origin",
+          "odooDatabase": "Database name",
+          "odooKey": "Odoo API key",
+          "connectDirect": "Connect account"
         },
         "accountOwner": "Account owner",
         "chooseAccount": "Choose a connected account",
@@ -8741,7 +8747,8 @@
       "slack": "Slack",
       "teams": "Teams",
       "google_sheets": "Google Sheets",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo": "Odoo"
     },
     "panelTitle": "Routines",
     "panelDescription": "When this agent runs itself - on a schedule, or when an event arrives.",
@@ -9347,7 +9354,14 @@
       "google_slides": "Google Slides",
       "word": "Word",
       "teams": "Teams",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo_contacts": "Odoo Contacts",
+      "odoo_crm": "Odoo CRM",
+      "odoo_sales": "Odoo Sales",
+      "odoo_accounting": "Odoo Invoicing",
+      "odoo_inventory": "Odoo Inventory",
+      "odoo_projects": "Odoo Projects",
+      "odoo": "Odoo"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -11544,6 +11558,54 @@
       "example2": "Prepare a change and request approval",
       "needs": "An account connected in Vault with the required product scopes.",
       "never": "Never reads another person’s account; writes require approval."
+    },
+    "odoo_contacts": {
+      "name": "Odoo Contacts",
+      "does": "Read and update Odoo Contacts business records through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "odoo_crm": {
+      "name": "Odoo CRM",
+      "does": "Read and update Odoo CRM business records through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "odoo_sales": {
+      "name": "Odoo Sales",
+      "does": "Read and update Odoo Sales business records through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "odoo_accounting": {
+      "name": "Odoo Invoicing",
+      "does": "Read and update Odoo Invoicing business records through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "odoo_inventory": {
+      "name": "Odoo Inventory",
+      "does": "Read and update Odoo Inventory business records through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
+      "never": "Never reads another person’s account; writes require approval."
+    },
+    "odoo_projects": {
+      "name": "Odoo Projects",
+      "does": "Read and update Odoo Projects business records through a connected account.",
+      "example1": "Search information in the selected account",
+      "example2": "Prepare a change and request approval",
+      "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
+      "never": "Never reads another person’s account; writes require approval."
     }
   },
   "capabilityCategories": {
@@ -12467,6 +12529,138 @@
       }
     },
     "word": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "odoo_contacts": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "odoo_crm": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "odoo_sales": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "odoo_accounting": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "odoo_inventory": {
+      "account": {
+        "title": "Account owner",
+        "description": "Use each person's own account or an organization account."
+      },
+      "account_name": {
+        "title": "Account name",
+        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+      },
+      "connection_id": {
+        "title": "Organization account",
+        "description": "The organization account to use when account owner is organization."
+      },
+      "channels": {
+        "title": "Conversations",
+        "description": "Conversation IDs to read in Slack or Teams change feeds. Teams channels use channel/team-id/channel-id. Leave empty for Teams app-only reads of all chats for the configured subject."
+      },
+      "disabled_tools": {
+        "title": "Disabled tools",
+        "description": "Stable tool IDs this capability must not offer."
+      }
+    },
+    "odoo_projects": {
       "account": {
         "title": "Account owner",
         "description": "Use each person's own account or an organization account."

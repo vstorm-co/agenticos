@@ -43,7 +43,9 @@ export function ConfigureStep({
         ? "microsoft"
         : connector.type === "slack"
           ? "slack"
-          : undefined;
+          : connector.type === "odoo"
+            ? "odoo"
+            : undefined;
   const schema = provider
     ? {
         ...connector.config_schema,

@@ -567,5 +567,125 @@
         "event_config": {}
       }
     ]
+  },
+  {
+    "key": "odoo_contacts",
+    "name": "Odoo Contacts",
+    "description": "Run an agent when Odoo Contacts records change.",
+    "category": "productivity",
+    "event_source": "odoo",
+    "delivery": "polling",
+    "icon": "database",
+    "native_provider": "odoo",
+    "presets": [
+      {
+        "key": "record_changed",
+        "label": "Record changed",
+        "description": "A record was created or modified.",
+        "event_config": {
+          "product_id": "odoo_contacts"
+        }
+      }
+    ]
+  },
+  {
+    "key": "odoo_crm",
+    "name": "Odoo CRM",
+    "description": "Run an agent when Odoo CRM records change.",
+    "category": "productivity",
+    "event_source": "odoo",
+    "delivery": "polling",
+    "icon": "database",
+    "native_provider": "odoo",
+    "presets": [
+      {
+        "key": "record_changed",
+        "label": "Record changed",
+        "description": "A record was created or modified.",
+        "event_config": {
+          "product_id": "odoo_crm"
+        }
+      }
+    ]
+  },
+  {
+    "key": "odoo_sales",
+    "name": "Odoo Sales",
+    "description": "Run an agent when Odoo Sales records change.",
+    "category": "productivity",
+    "event_source": "odoo",
+    "delivery": "polling",
+    "icon": "database",
+    "native_provider": "odoo",
+    "presets": [
+      {
+        "key": "record_changed",
+        "label": "Record changed",
+        "description": "A record was created or modified.",
+        "event_config": {
+          "product_id": "odoo_sales"
+        }
+      }
+    ]
+  },
+  {
+    "key": "odoo_accounting",
+    "name": "Odoo Invoicing",
+    "description": "Run an agent when Odoo Invoicing records change.",
+    "category": "productivity",
+    "event_source": "odoo",
+    "delivery": "polling",
+    "icon": "database",
+    "native_provider": "odoo",
+    "presets": [
+      {
+        "key": "record_changed",
+        "label": "Record changed",
+        "description": "A record was created or modified.",
+        "event_config": {
+          "product_id": "odoo_accounting"
+        }
+      }
+    ]
+  },
+  {
+    "key": "odoo_inventory",
+    "name": "Odoo Inventory",
+    "description": "Run an agent when Odoo Inventory records change.",
+    "category": "productivity",
+    "event_source": "odoo",
+    "delivery": "polling",
+    "icon": "database",
+    "native_provider": "odoo",
+    "presets": [
+      {
+        "key": "record_changed",
+        "label": "Record changed",
+        "description": "A record was created or modified.",
+        "event_config": {
+          "product_id": "odoo_inventory"
+        }
+      }
+    ]
+  },
+  {
+    "key": "odoo_projects",
+    "name": "Odoo Projects",
+    "description": "Run an agent when Odoo Projects records change.",
+    "category": "productivity",
+    "event_source": "odoo",
+    "delivery": "polling",
+    "icon": "database",
+    "native_provider": "odoo",
+    "presets": [
+      {
+        "key": "record_changed",
+        "label": "Record changed",
+        "description": "A record was created or modified.",
+        "event_config": {
+          "product_id": "odoo_projects"
+        }
+      }
+    ]
   }
 ]

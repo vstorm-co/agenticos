@@ -8205,9 +8205,11 @@ async def test_preparation_only_mints_source_provenance_for_private_human_chat(k
 
 @pytest.mark.anyio
 @pytest.mark.security
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("change", ["current", "additional_tools", "no_tools"])
 async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_and_origin(
     change,
+    native,
 ) -> None:
     from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
     from app.services.watch_sources import approve_sources, source_identity
@@ -8232,6 +8234,16 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         url="https://github.example/mcp",
         allowed_tools=None,
     )
+    if native:
+        source.purpose = "account"
+        source.catalog_key = "google"
+        source.scope = "user"
+        source.user_id = ctx.user_id
+        source.account_source_organization_id = ctx.organization_id
+        source.granted_scopes = ["https://www.googleapis.com/auth/gmail.readonly"]
+        source.auth_type = "oauth"
+        spec.mcp_servers = []
+        spec.capabilities.append(CapabilityBindingSpec(id="gmail"))
     approved = approve_sources(spec, source)
     published = spec.model_copy(update={"collection_ids": [*spec.collection_ids, uuid.uuid4()]})
     authority = SimpleNamespace(
@@ -8276,7 +8288,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         ) as mcp,
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
-        if change != "current":
+        if change != "current" and not (native and change == "no_tools"):
             with pytest.raises((AuthorizationError, BadRequestError)):
                 await service.prepare(
                     ctx,

@@ -45,6 +45,7 @@ def _operation_tool(
                     parameters=parameters or {},
                     query=query or {},
                     body=body,
+                    agent_run_id=deps.run_id,
                 )
         except AppException as exc:
             return {"error": exc.message}
@@ -53,7 +54,7 @@ def _operation_tool(
         operation.description
         + f"\n\nRequired parameters: {', '.join(operation.parameters) or 'none'}. "
         + f"Allowed query fields: {', '.join(operation.query) or 'none'}. "
-        + "The body follows this product's native API format. "
+        + "The body follows this operation's documented format. "
         + "Only the selected connected account is reachable.\n\nReturns:\n"
         + "    The provider's JSON object with its next-page cursor when present, or an error. "
         + "Responses exceeding 2 MB are refused; narrow the query."

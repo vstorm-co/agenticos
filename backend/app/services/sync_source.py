@@ -343,9 +343,12 @@ class SyncSourceService:
             raise refused_field(
                 "config.connection_id", "Choose a connected account or a vault credential, not both"
             )
-        provider = {"gdrive": "google", "sharepoint": "microsoft", "slack": "slack"}.get(
-            connector_type
-        )
+        provider = {
+            "gdrive": "google",
+            "sharepoint": "microsoft",
+            "slack": "slack",
+            "odoo": "odoo",
+        }.get(connector_type)
         if provider is None:
             raise refused_field(
                 "config.connection_id", "This source cannot use a connected account"
@@ -359,13 +362,15 @@ class SyncSourceService:
                 "config.connection_id", "Choose a valid organization connected account"
             ) from None
         product = PRODUCTS[
-            {"google": "google_drive", "microsoft": "microsoft_files", "slack": "slack"}[provider]
+            {
+                "google": "google_drive",
+                "microsoft": "microsoft_files",
+                "slack": "slack",
+                "odoo": "odoo_contacts",
+            }[provider]
         ]
-        await IntegrationService(self.db).account(
-            product,
-            AccountSelection(account="organization", connection_id=connection_id),
-            organization_id=ctx.organization_id,
-            person_id=ctx.user_id,
+        await IntegrationService(self.db).binding_account(
+            product, AccountSelection(account="organization", connection_id=connection_id), ctx
         )
 
     async def _checked_secret(
@@ -490,6 +495,11 @@ class SyncSourceService:
 
         if "secret_id" in updates:
             hint = await self._checked_secret(updates["secret_id"], existing.connector_type, ctx)
+
+        if "secret_id" in updates and "config" not in updates:
+            await self._checked_account(
+                _raw_config(existing), existing.connector_type, updates["secret_id"], ctx
+            )
 
         if "config" in updates and updates["config"] is not None:
             raw_existing = _raw_config(existing)

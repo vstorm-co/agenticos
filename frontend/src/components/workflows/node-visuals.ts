@@ -257,6 +257,13 @@ export const PICKER_SECTIONS = [
       "word",
       "teams",
       "imap_mail",
+      "odoo_contacts",
+      "odoo_crm",
+      "odoo_sales",
+      "odoo_accounting",
+      "odoo_inventory",
+      "odoo_projects",
+
       "microsoft_365",
       "slack",
       "mattermost",

@@ -62,7 +62,20 @@ def build_watch_toolset(
                 raise AuthorizationError(
                     message="This integration watch's account authorization changed"
                 )
-            if sources.integration_product_id == "imap_mail":
+            if account.catalog_key == "odoo":
+                from app.services.integrations.odoo_feed import changes as odoo_changes
+
+                credential = McpConnectionService(db).integration_odoo_credential(
+                    account, organization_id=organization_id
+                )
+                read = await odoo_changes(
+                    credential,
+                    sources.integration_product_id,
+                    _CURSOR.validate_python(watch.integration_cursor)
+                    if watch.integration_cursor
+                    else None,
+                )
+            elif sources.integration_product_id == "imap_mail":
                 from app.services.integrations.feeds import Change, Changes
                 from app.services.integrations.imap import changed_mail
 

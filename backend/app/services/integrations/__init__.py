@@ -11,6 +11,7 @@ from app.schemas.watch_sources import WatchSources
 from app.services.integrations import slack_oauth
 from app.services.integrations.app_auth import google_token, microsoft_token
 from app.services.integrations.catalog import (
+    ODOO_MODELS,
     PRODUCTS,
     Operation,
     Product,
@@ -19,10 +20,18 @@ from app.services.integrations.catalog import (
 )
 from app.services.integrations.client import execute as execute_operation
 from app.services.integrations.feeds import Change, Changes, changes_since
-from app.services.integrations.service import AccountSelection, AccountToken, IntegrationService
+from app.services.integrations.odoo import execute as execute_odoo_operation
+from app.services.integrations.service import (
+    AccountSelection,
+    AccountToken,
+    IntegrationService,
+    OdooAccountToken,
+    can_read_feed,
+)
 from app.services.integrations.setup import IntegrationSetup, setup_for
 
 __all__ = [
+    "ODOO_MODELS",
     "PRODUCTS",
     "AccountSelection",
     "AccountToken",
@@ -30,12 +39,15 @@ __all__ = [
     "Changes",
     "IntegrationService",
     "IntegrationSetup",
+    "OdooAccountToken",
     "Operation",
     "Product",
     "Provider",
     "application_scopes",
     "build_watch_toolset",
+    "can_read_feed",
     "changes_since",
+    "execute_odoo_operation",
     "execute_operation",
     "google_token",
     "microsoft_token",

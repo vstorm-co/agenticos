@@ -6588,7 +6588,7 @@
           "redirect": "Weiterleitungs-URL",
           "copyRedirect": "Weiterleitungs-URL kopieren",
           "google": "Erstellen Sie ein Cloud-Projekt, aktivieren Sie die APIs, konfigurieren Sie Internal oder External und erstellen Sie einen Web-OAuth-Client. Im Modus External/Testing laufen Refresh-Token nach sieben Tagen ab. Native Integrationen benötigen weder MCP Preview noch einen AI-powered-Client.",
-          "microsoft": "Registrieren Sie eine Webanwendung in Entra. Wählen Sie einen Tenant oder common für geschäftliche und persönliche Konten, fügen Sie die Weiterleitungs-URL und delegierte Berechtigungen hinzu und erstellen Sie ein Client Secret. Einige Berechtigungen benötigen die Zustimmung des Administrators.",
+          "microsoft": "Registrieren Sie eine Webanwendung in Entra. Wählen Sie einen Tenant oder common für geschäftliche und persönliche Konten, fügen Sie die Weiterleitungs-URL und delegierte Berechtigungen hinzu und erstellen Sie ein Client Secret. Einige Berechtigungen benötigen die Zustimmung des Administrators. Outlook-Mail und -Kalender verbinden Exchange Online über Microsoft Graph.",
           "slack": "Erstellen Sie pro Workspace eine interne App oder ergänzen Sie Benutzerberechtigungen und Weiterleitungs-URL in Ihrer bestehenden Bot-App. Die Installation kann Administratorzustimmung benötigen und zählt zum App-Limit. Native Tools benötigen Agents MCP Server nur bei Verwendung von Slack MCP.",
           "openConsole": "Provider-Konsole öffnen",
           "saveClient": "OAuth-App im Vault speichern",
@@ -6599,7 +6599,8 @@
             "google": "Google",
             "microsoft": "Microsoft",
             "slack": "Slack",
-            "imap": "IMAP"
+            "imap": "IMAP",
+            "odoo": "Odoo"
           },
           "tokenPath": "Vorhandenes Slack-Benutzer- oder Bot-Token verwenden",
           "accountLabel": "Kontobezeichnung",
@@ -6623,7 +6624,12 @@
           "saveCredential": "Zugangsdaten im Vault speichern",
           "googleMcp": "Für Google MCP der Workspace MCP Preview beitreten, Produkt- und MCP-APIs aktivieren, Zustimmung und einen Web-OAuth-Client für einen AI-powered agent konfigurieren. External-Testing-Refresh-Tokens können nach sieben Tagen ablaufen. Callback exakt kopieren.",
           "slackMcp": "Für Slack MCP eine Internal- oder Marketplace-App registrieren, Callback und Server-Scopes hinzufügen und Agents → MCP Server aktivieren. App-Limits und Administratorfreigabe gelten weiterhin.",
-          "microsoftMcp": "Entra-Web-App mit diesem Callback und delegierten MCP-Server-Scopes registrieren. Microsoft Work IQ hat eigene Lizenzanforderungen."
+          "microsoftMcp": "Entra-Web-App mit diesem Callback und delegierten MCP-Server-Scopes registrieren. Microsoft Work IQ hat eigene Lizenzanforderungen.",
+          "odoo": "Verwende JSON-2 mit Odoo 19+. Erstelle einen API-Schlüssel für einen Benutzer mit den erforderlichen Geschäftsrechten. Der Betreiber muss den genauen HTTPS-Host in ODOO_ALLOWED_HOSTS freigeben. Odoo Online erfordert für externe APIs einen Custom-Tarif. Schlüssel laufen ab; verbinde das Konto nach der Rotation erneut.",
+          "odooOrigin": "Odoo-HTTPS-Adresse",
+          "odooDatabase": "Datenbankname",
+          "odooKey": "Odoo-API-Schlüssel",
+          "connectDirect": "Konto verbinden"
         },
         "accountOwner": "Kontoinhaber",
         "chooseAccount": "Verbundenes Konto auswählen",
@@ -8620,7 +8626,8 @@
       "slack": "Slack",
       "teams": "Teams",
       "google_sheets": "Google Sheets",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo": "Odoo"
     },
     "panelTitle": "Routinen",
     "panelDescription": "Wann dieser Agent sich selbst ausführt – nach Zeitplan oder wenn ein Ereignis eintrifft.",
@@ -9220,7 +9227,14 @@
       "google_slides": "Google Slides",
       "word": "Word",
       "teams": "Teams",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo_contacts": "Odoo Contacts",
+      "odoo_crm": "Odoo CRM",
+      "odoo_sales": "Odoo Sales",
+      "odoo_accounting": "Odoo Invoicing",
+      "odoo_inventory": "Odoo Inventory",
+      "odoo_projects": "Odoo Projects",
+      "odoo": "Odoo"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -11423,6 +11437,54 @@
       "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
       "needs": "Ein in Vault verbundenes Konto mit den erforderlichen Produktberechtigungen.",
       "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_contacts": {
+      "name": "Odoo Contacts",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Contacts über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_crm": {
+      "name": "Odoo CRM",
+      "does": "Liest und ändert Geschäftsdaten in Odoo CRM über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_sales": {
+      "name": "Odoo Sales",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Sales über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_accounting": {
+      "name": "Odoo Invoicing",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Invoicing über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_inventory": {
+      "name": "Odoo Inventory",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Inventory über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "odoo_projects": {
+      "name": "Odoo Projects",
+      "does": "Liest und ändert Geschäftsdaten in Odoo Projects über ein verbundenes Konto.",
+      "example1": "Informationen im ausgewählten Konto suchen",
+      "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
+      "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
+      "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
     }
   },
   "capabilityCategories": {
@@ -12346,6 +12408,138 @@
       }
     },
     "word": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_contacts": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_crm": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_sales": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_accounting": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_inventory": {
+      "account": {
+        "title": "Kontoinhaber",
+        "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."
+      },
+      "account_name": {
+        "title": "Kontoname",
+        "description": "Name oder Bezeichnung des verbundenen Kontos. Nur leer lassen, wenn genau ein Konto verbunden ist."
+      },
+      "connection_id": {
+        "title": "Organisationskonto",
+        "description": "Das Konto, das verwendet wird, wenn die Organisation Kontoinhaber ist."
+      },
+      "channels": {
+        "title": "Unterhaltungen",
+        "description": "Unterhaltungs-IDs für Änderungsfeeds von Slack oder Teams. Teams-Kanäle verwenden channel/team-id/channel-id. Leer lassen, um im Teams-Anwendungsmodus alle Chats des angegebenen Benutzers zu lesen."
+      },
+      "disabled_tools": {
+        "title": "Deaktivierte Werkzeuge",
+        "description": "Stabile Werkzeug-IDs, die diese Capability nicht anbieten darf."
+      }
+    },
+    "odoo_projects": {
       "account": {
         "title": "Kontoinhaber",
         "description": "Verwende das eigene Konto jeder Person oder ein Organisationskonto."

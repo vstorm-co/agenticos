@@ -8,7 +8,6 @@ from zipfile import BadZipFile, ZipFile
 
 from defusedxml import ElementTree
 from defusedxml.common import DefusedXmlException
-from docx import Document
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from app.core.exceptions import BadRequestError, ExternalServiceError
@@ -51,6 +50,8 @@ def upload_bytes(body: dict[str, JsonValue] | None) -> tuple[bytes, str, bytes]:
 
 
 def word_bytes(body: dict[str, JsonValue] | None) -> bytes:
+    from docx import Document
+
     try:
         value = WordBody.model_validate(body)
     except ValidationError:
@@ -79,8 +80,15 @@ def file_text(content: bytes, content_type: str, *, word: bool) -> dict[str, Jso
         except BadZipFile, KeyError, DefusedXmlException, ElementTree.ParseError:
             raise ExternalServiceError(message="The Word document could not be read") from None
         paragraphs = [
-            "".join(node.itertext())
-            for node in root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t")
+            "".join(
+                text.text or ""
+                for text in paragraph.iter(
+                    "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"
+                )
+            )
+            for paragraph in root.iter(
+                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"
+            )
         ]
         text = "\n".join(paragraphs)
     elif "application/pdf" in content_type:

@@ -287,3 +287,46 @@ async def test_setup_route_returns_the_same_scopes_and_callback_as_the_service(o
     assert response.status_code == 200
     assert response.json()["manifest_url"] == setup_for("slack", write=True).manifest_url
     service.integration_setup.assert_called_once_with("slack", write=True)
+
+
+@pytest.mark.parametrize(
+    "prefix,organization", [("/me/connected-accounts", False), ("/connected-accounts", True)]
+)
+async def test_odoo_api_seals_under_the_selected_owner_and_returns_no_api_key(
+    owner, service, prefix, organization
+):
+    row = _account()
+    row.catalog_key, row.auth_type = "odoo", "odoo"
+    service.connect_odoo_account = AsyncMock(return_value=row)
+    async with owner() as client:
+        result = await client.post(
+            _url(prefix + "/odoo"),
+            json={
+                "credential": {
+                    "origin": "https://erp.example.com",
+                    "database": "company",
+                    "api_key": "private-api-key",
+                },
+                "label": "ERP",
+                "write": False,
+            },
+        )
+    assert result.status_code == 201, result.text
+    assert result.json()["provider"] == "odoo"
+    assert "private-api-key" not in result.text and "sealed-refresh-token" not in result.text
+    assert service.connect_odoo_account.await_args.kwargs["for_organization"] is organization
+
+
+async def test_odoo_org_api_requires_connection_management(viewer, service):
+    async with viewer() as client:
+        result = await client.post(
+            _url("/connected-accounts/odoo"),
+            json={
+                "credential": {
+                    "origin": "https://erp.example.com",
+                    "database": "company",
+                    "api_key": "private-api-key",
+                }
+            },
+        )
+    assert result.status_code == 403

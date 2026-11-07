@@ -314,6 +314,7 @@ EventSourceName = Literal[
     "teams",
     "google_sheets",
     "imap_mail",
+    "odoo",
     "github",
     "gmail",
     "google_calendar",
@@ -425,6 +426,17 @@ class SheetsRowTriggerConfig(BaseSchema):
     )
 
 
+class OdooTriggerConfig(BaseSchema):
+    product_id: Literal[
+        "odoo_contacts",
+        "odoo_crm",
+        "odoo_sales",
+        "odoo_accounting",
+        "odoo_inventory",
+        "odoo_projects",
+    ]
+
+
 # Read from a connected account rather than posted to - no webhook, no secret.
 _POLLED_SOURCES = frozenset(
     {
@@ -433,6 +445,7 @@ _POLLED_SOURCES = frozenset(
         EventSource.TEAMS.value,
         EventSource.GOOGLE_SHEETS.value,
         EventSource.IMAP_MAIL.value,
+        EventSource.ODOO.value,
         EventSource.GOOGLE_CALENDAR.value,
         EventSource.GOOGLE_DRIVE.value,
         EventSource.MICROSOFT_FILES.value,
@@ -447,6 +460,7 @@ _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.SLACK.value: IntegrationMessageTriggerConfig,
     EventSource.TEAMS.value: IntegrationMessageTriggerConfig,
     EventSource.IMAP_MAIL.value: IntegrationMessageTriggerConfig,
+    EventSource.ODOO.value: OdooTriggerConfig,
     EventSource.GOOGLE_SHEETS.value: SheetsRowTriggerConfig,
     EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
     EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,

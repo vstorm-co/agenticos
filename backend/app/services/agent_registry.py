@@ -2044,6 +2044,24 @@ class AgentRegistryService:
         except BadRequestError as exc:
             problems.merge(_config_problems(binding.id, exc))
         else:
+            from app.services.integrations import PRODUCTS, AccountSelection, IntegrationService
+
+            if (
+                binding.enabled
+                and binding.id in PRODUCTS
+                and isinstance(config, AccountSelection)
+                and config.account == "organization"
+            ):
+                try:
+                    await IntegrationService(self.db).binding_account(
+                        PRODUCTS[binding.id], config, ctx
+                    )
+                except (AuthorizationError, BadRequestError, NotFoundError) as exc:
+                    problems.merge(
+                        _SpecProblems.at(
+                            f"capabilities.{binding.id}.config.connection_id", exc.message
+                        )
+                    )
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:

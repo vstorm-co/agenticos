@@ -335,11 +335,10 @@ class RoutineSourceService:
             for binding in candidate.capabilities:
                 if binding.enabled and binding.id in PRODUCTS:
                     try:
-                        native_account = await IntegrationService(self.db).account(
+                        native_account = await IntegrationService(self.db).binding_account(
                             PRODUCTS[binding.id],
                             AccountSelection.model_validate(binding.config),
-                            organization_id=ctx.organization_id,
-                            person_id=ctx.subject_id,
+                            ctx,
                         )
                     except AppException:
                         unavailable.add(f"Integration account · {binding.id}")

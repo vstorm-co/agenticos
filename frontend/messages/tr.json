@@ -734,7 +734,14 @@
       "google_slides": "Google Slides",
       "word": "Word",
       "teams": "Teams",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo_contacts": "Odoo Contacts",
+      "odoo_crm": "Odoo CRM",
+      "odoo_sales": "Odoo Sales",
+      "odoo_accounting": "Odoo Invoicing",
+      "odoo_inventory": "Odoo Inventory",
+      "odoo_projects": "Odoo Projects",
+      "odoo": "Odoo"
     },
     "inputFields": {
       "title": "Giriş alanları",
@@ -3590,7 +3597,7 @@
           "redirect": "Redirect URL",
           "copyRedirect": "Copy redirect URL",
           "google": "Create a Cloud project, enable the APIs below, configure an Internal or External consent screen, and create a web OAuth client. External apps in Testing issue refresh tokens lasting seven days. Native integrations use ordinary APIs; no MCP preview or AI-powered client is required.",
-          "microsoft": "Register a web application in Entra. Choose a tenant or common for work and personal accounts, add the redirect URL and delegated permissions below. Add a client secret. Some permissions need tenant administrator consent.",
+          "microsoft": "Register a web application in Entra. Choose a tenant or common for work and personal accounts, add the redirect URL and delegated permissions below. Add a client secret. Some permissions need tenant administrator consent. Outlook posta ve takvim, Microsoft Graph üzerinden Exchange Online ile bağlanır.",
           "slack": "Create an internal app in each workspace, or add these user scopes and redirect URL to your existing channel bot app. Installation may require administrator approval and counts toward the workspace app limit. Native tools do not need the Agents MCP Server toggle; enable it only when using Slack MCP.",
           "openConsole": "Open provider console",
           "saveClient": "Save OAuth app in Vault",
@@ -3601,7 +3608,8 @@
             "google": "Google",
             "microsoft": "Microsoft",
             "slack": "Slack",
-            "imap": "IMAP"
+            "imap": "IMAP",
+            "odoo": "Odoo"
           },
           "tokenPath": "Mevcut Slack kullanıcı veya bot tokenını kullan",
           "accountLabel": "Hesap etiketi",
@@ -3625,7 +3633,12 @@
           "saveCredential": "Kimlik bilgisini Vault içine kaydet",
           "googleMcp": "Google MCP için Workspace MCP Preview programına katılın, ürün ve MCP API’lerini etkinleştirin ve AI-powered agent olarak işaretlenmiş Web OAuth istemcisi oluşturun. External Testing yenileme belirteçleri yedi günde sona erebilir. Yönlendirmeyi tam kopyalayın.",
           "slackMcp": "Slack MCP için Internal veya Marketplace uygulaması kaydedin, bu yönlendirmeyi ve sunucu kapsamlarını ekleyin, sonra Agents → MCP Server seçeneğini açın. Uygulama sınırları ve yönetici onayı geçerlidir.",
-          "microsoftMcp": "Bu yönlendirme ve MCP sunucusunun delegated kapsamlarıyla Entra Web uygulaması kaydedin. Microsoft Work IQ ayrı lisans gereksinimlerine sahiptir."
+          "microsoftMcp": "Bu yönlendirme ve MCP sunucusunun delegated kapsamlarıyla Entra Web uygulaması kaydedin. Microsoft Work IQ ayrı lisans gereksinimlerine sahiptir.",
+          "odoo": "Odoo 19+ JSON-2 kullanın. Yalnızca gerekli iş izinlerine sahip bir kullanıcı için API anahtarı oluşturun. Operatör tam HTTPS sunucusunu ODOO_ALLOWED_HOSTS içinde onaylamalıdır. Odoo Online harici API erişimi için Custom planı gerektirir. Anahtarlar sona erer; yeniledikten sonra hesabı tekrar bağlayın.",
+          "odooOrigin": "Odoo HTTPS adresi",
+          "odooDatabase": "Veritabanı adı",
+          "odooKey": "Odoo API anahtarı",
+          "connectDirect": "Hesabı bağla"
         },
         "connect": "{provider} hesabını bağla",
         "personalDetail": "Aracılar, iş akışları ve kişisel izlemeler için hesap seçin. Her kişi kendi hesaplarını bağlar.",
@@ -5846,6 +5859,138 @@
         "title": "Devre dışı araçlar",
         "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
       }
+    },
+    "odoo_contacts": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "odoo_crm": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "odoo_sales": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "odoo_accounting": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "odoo_inventory": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
+    },
+    "odoo_projects": {
+      "account": {
+        "title": "Hesap sahibi",
+        "description": "Her kişinin kendi hesabını veya bir kuruluş hesabını kullanın."
+      },
+      "account_name": {
+        "title": "Hesap adı",
+        "description": "Bağlı hesabın adı veya etiketi. Yalnızca tek bir hesap bağlıysa boş bırakın."
+      },
+      "connection_id": {
+        "title": "Kuruluş hesabı",
+        "description": "Hesap sahibi kuruluş olduğunda kullanılacak hesap."
+      },
+      "channels": {
+        "title": "Konuşmalar",
+        "description": "Slack veya Teams değişiklik akışlarında okunacak konuşma kimlikleri. Teams kanalları channel/team-id/channel-id biçimini kullanır. Teams uygulama modunda belirtilen kullanıcının tüm sohbetlerini okumak için boş bırakın."
+      },
+      "disabled_tools": {
+        "title": "Devre dışı araçlar",
+        "description": "Bu yeteneğin sunmaması gereken araçların sabit kimlikleri."
+      }
     }
   },
   "capabilityGuide": {
@@ -6239,6 +6384,54 @@
       "example1": "Seçilen hesapta bilgi arayın",
       "example2": "Bir değişiklik hazırlayın ve onay isteyin",
       "needs": "Gerekli ürün izinleriyle Vault üzerinden bağlanmış bir hesap.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "odoo_contacts": {
+      "name": "Odoo Contacts",
+      "does": "Bağlı bir hesap üzerinden Odoo Contacts iş kayıtlarını okur ve günceller.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Vault üzerinden bağlı bir Odoo 19+ hesabı, kurulu iş modülleri ve uygun Odoo erişim izinleri.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "odoo_crm": {
+      "name": "Odoo CRM",
+      "does": "Bağlı bir hesap üzerinden Odoo CRM iş kayıtlarını okur ve günceller.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Vault üzerinden bağlı bir Odoo 19+ hesabı, kurulu iş modülleri ve uygun Odoo erişim izinleri.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "odoo_sales": {
+      "name": "Odoo Sales",
+      "does": "Bağlı bir hesap üzerinden Odoo Sales iş kayıtlarını okur ve günceller.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Vault üzerinden bağlı bir Odoo 19+ hesabı, kurulu iş modülleri ve uygun Odoo erişim izinleri.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "odoo_accounting": {
+      "name": "Odoo Invoicing",
+      "does": "Bağlı bir hesap üzerinden Odoo Invoicing iş kayıtlarını okur ve günceller.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Vault üzerinden bağlı bir Odoo 19+ hesabı, kurulu iş modülleri ve uygun Odoo erişim izinleri.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "odoo_inventory": {
+      "name": "Odoo Inventory",
+      "does": "Bağlı bir hesap üzerinden Odoo Inventory iş kayıtlarını okur ve günceller.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Vault üzerinden bağlı bir Odoo 19+ hesabı, kurulu iş modülleri ve uygun Odoo erişim izinleri.",
+      "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
+    },
+    "odoo_projects": {
+      "name": "Odoo Projects",
+      "does": "Bağlı bir hesap üzerinden Odoo Projects iş kayıtlarını okur ve günceller.",
+      "example1": "Seçilen hesapta bilgi arayın",
+      "example2": "Bir değişiklik hazırlayın ve onay isteyin",
+      "needs": "Vault üzerinden bağlı bir Odoo 19+ hesabı, kurulu iş modülleri ve uygun Odoo erişim izinleri.",
       "never": "Başka bir kişinin hesabını okumaz; yazma işlemleri onay gerektirir."
     }
   },
@@ -10815,7 +11008,8 @@
       "slack": "Slack",
       "teams": "Teams",
       "google_sheets": "Google Sheets",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo": "Odoo"
     },
     "panelTitle": "Routines",
     "panelDescription": "Bu agent’ın kendi kendine çalıştığı zamanlar: schedule’a göre veya bir event geldiğinde.",

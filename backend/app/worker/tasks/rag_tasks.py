@@ -1393,15 +1393,19 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             "gdrive",
             "sharepoint",
             "slack",
+            "odoo",
         }:
             from app.services.integrations import IntegrationService
 
             credential = await IntegrationService(db).source_token(
                 organization_id=organization_id,
                 connection_id=UUID(str(config["connection_id"])),
-                provider={"gdrive": "google", "sharepoint": "microsoft", "slack": "slack"}[
-                    source.connector_type
-                ],
+                provider={
+                    "gdrive": "google",
+                    "sharepoint": "microsoft",
+                    "slack": "slack",
+                    "odoo": "odoo",
+                }[source.connector_type],
             )
         else:
             credential = await _connector_credential(db, source.secret_id, organization_id)

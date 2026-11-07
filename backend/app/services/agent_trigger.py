@@ -652,11 +652,17 @@ class AgentTriggerService:
                 native_personal = await self.connections.list_accounts(
                     ctx, for_organization=False, provider=portal.native_provider
                 )
-                usable = [
-                    account
-                    for account in [*native_personal, *native_org]
-                    if account.is_enabled and account.account_authorized
-                ]
+                usable = []
+                for account in [*native_personal, *native_org]:
+                    if not account.is_enabled or not account.account_authorized:
+                        continue
+                    try:
+                        await self.connections.get_polled_connection(
+                            ctx, account.id, portal_key=portal.key
+                        )
+                    except AuthorizationError, BadRequestError, NotFoundError:
+                        continue
+                    usable.append(account)
                 if connection is None and usable:
                     connection = usable[0]
             items.append(
@@ -882,7 +888,10 @@ class AgentTriggerService:
                     if polled or portal.delivery is DeliveryMode.APP_WEBHOOK:
                         if polled:
                             source_account = await self.connections.get_polled_connection(
-                                ctx, data.connection_id, portal_key=portal.key
+                                ctx,
+                                data.connection_id,
+                                portal_key=portal.key,
+                                channels=tuple(event_config.get("channels") or ()),
                             )
                             if (
                                 event_source == "slack"
@@ -1470,6 +1479,15 @@ class AgentTriggerService:
         override is the same 422 a hand-typed config gives, not a 500 from the raw
         pydantic error nor a filter stored to match nothing.
         """
+        if (
+            event_source == "odoo"
+            and override is not None
+            and override.get("product_id", preset.event_config["product_id"])
+            != preset.event_config["product_id"]
+        ):
+            raise refused_field(
+                "event_config.product_id", "The business area is fixed by the selected Odoo portal"
+            )
         try:
             return (
                 _EVENT_CONFIG_MODELS[event_source]
@@ -1497,6 +1515,10 @@ class AgentTriggerService:
             raise BadRequestError(
                 message="only an event trigger has an event_config to change",
                 details={"trigger_id": str(trigger.id)},
+            )
+        if trigger.event_source == "odoo" and config.get("product_id") != trigger.portal_key:
+            raise refused_field(
+                "event_config.product_id", "The business area is fixed by the selected Odoo portal"
             )
         model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
         try:

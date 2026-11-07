@@ -44,7 +44,7 @@ export interface ConnectedAccount {
   name?: string;
   label?: string | null;
   id: string;
-  provider: "google" | "microsoft" | "slack" | "imap";
+  provider: "google" | "microsoft" | "slack" | "imap" | "odoo";
   email: string;
   scopes: string[];
   owner: "personal" | "organization";

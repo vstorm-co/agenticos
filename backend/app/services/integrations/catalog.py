@@ -7,7 +7,7 @@ an HTTP method; this prevents turning an authenticated account into a proxy.
 from dataclasses import dataclass
 from typing import Literal
 
-type Provider = Literal["google", "microsoft", "slack", "imap"]
+type Provider = Literal["google", "microsoft", "slack", "imap", "odoo"]
 
 
 @dataclass(frozen=True)
@@ -836,3 +836,121 @@ def application_scopes(product_id: str, operation: Operation) -> tuple[str, ...]
             "read_channel": ("ChannelMessage.Read.All",),
         }.get(operation.id, ())
     return ()
+
+
+# Models and methods are code-owned; an agent cannot address users, settings or
+# arbitrary installed models/methods with this database credential.
+ODOO_MODELS: dict[str, tuple[tuple[str, str], ...]] = {
+    "odoo_contacts": (("contacts", "res.partner"),),
+    "odoo_crm": (("leads", "crm.lead"),),
+    "odoo_sales": (("orders", "sale.order"), ("order_lines", "sale.order.line")),
+    "odoo_accounting": (("invoices", "account.move"), ("invoice_lines", "account.move.line")),
+    "odoo_inventory": (
+        ("products", "product.product"),
+        ("transfers", "stock.picking"),
+        ("moves", "stock.move"),
+        ("stock_levels", "stock.quant"),
+    ),
+    "odoo_projects": (("projects", "project.project"), ("tasks", "project.task")),
+}
+ODOO_NAMES = {
+    "odoo_contacts": "Odoo Contacts",
+    "odoo_crm": "Odoo CRM",
+    "odoo_sales": "Odoo Sales",
+    "odoo_accounting": "Odoo Invoicing",
+    "odoo_inventory": "Odoo Inventory",
+    "odoo_projects": "Odoo Projects",
+}
+_ODOO_ACTIONS: dict[str, tuple[tuple[str, str, str, str], ...]] = {
+    "odoo_sales": (
+        (
+            "confirm_orders",
+            "sale.order",
+            "action_confirm",
+            "Confirm prepared quotations using Odoo's business workflow.",
+        ),
+    ),
+    "odoo_accounting": (
+        (
+            "post_invoices",
+            "account.move",
+            "action_post",
+            "Post prepared invoices using Odoo's accounting validation.",
+        ),
+    ),
+    "odoo_inventory": (
+        (
+            "confirm_transfers",
+            "stock.picking",
+            "action_confirm",
+            "Confirm prepared stock transfers.",
+        ),
+        (
+            "reserve_transfers",
+            "stock.picking",
+            "action_assign",
+            "Reserve available stock for prepared transfers.",
+        ),
+        (
+            "validate_transfers",
+            "stock.picking",
+            "button_validate",
+            "Validate prepared transfers; Odoo may require a backorder or other wizard.",
+        ),
+    ),
+}
+for _product_id, _models in ODOO_MODELS.items():
+    _operations: list[Operation] = []
+    for _noun, _model in _models:
+        for _action, _method, _description in (
+            (
+                "search",
+                "search_read",
+                "Search with body {domain, fields, limit (1-100), offset, order}.",
+            ),
+            ("read", "read", "Read body {ids, fields}; at most 100 records."),
+            ("fields", "fields_get", "Inspect available field names and types before writing."),
+            (
+                "create",
+                "create",
+                "Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools.",
+            ),
+            (
+                "update",
+                "write",
+                "Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools.",
+            ),
+        ):
+            if _noun == "stock_levels" and _action in {"create", "update"}:
+                continue
+            _write = _action in {"create", "update"}
+            _operations.append(
+                Operation(
+                    f"{_action}_{_noun}",
+                    f"{_model}: {_description}"
+                    + (
+                        " Set values.move_type to out_invoice/in_invoice or the corresponding out_refund/in_refund/out_receipt/in_receipt kind; a journal entry is not an invoice."
+                        if _model == "account.move" and _action == "create"
+                        else ""
+                    ),
+                    "POST",
+                    f"odoo://{_model}/{_method}",
+                    ("odoo:write" if _write else "odoo:read",),
+                    side_effecting=_write,
+                )
+            )
+    for _id, _model, _method, _description in _ODOO_ACTIONS.get(_product_id, ()):
+        _operations.append(
+            Operation(
+                _id,
+                _description
+                + " Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion.",
+                "POST",
+                f"odoo://{_model}/{_method}",
+                ("odoo:write",),
+                side_effecting=True,
+            )
+        )
+    PRODUCTS[_product_id] = Product(
+        _product_id, ODOO_NAMES[_product_id], "odoo", tuple(_operations)
+    )

@@ -1,5 +1,5 @@
 ---
-source_sha: "1dbac9094a5d"
+source_sha: "e4181c5fdc2a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3532,3 +3532,7 @@ Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`.
 
 
 Integrierte Google-, Microsoft-, Slack- und IMAP-Verbindungen funktionieren auch hier. [Integrierte Integrationen](../integrations.md) beschreibt Einrichtung, Kontowahl, Capabilities, Workflow-Operationen, Wissenssynchronisierung und dauerhafte Änderungscursor.
+
+### Odoo-Geschäftsbereiche { #odoo-business-areas }
+
+`odoo_contacts`, `odoo_crm`, `odoo_sales`, `odoo_accounting`, `odoo_inventory` und `odoo_projects` verwenden die gemeinsamen Kontoeinstellungen der Integrationen. Suche, Lesen und Feldmetadaten sind schreibgeschützt; Erstellen/Ändern erfordert immer eine Genehmigung. Lagerbestände sind schreibgeschützt. JSON-2, benötigte Module, Änderungsgrenzen und ausgewählte Wissensfelder beschreibt [Odoo](../integrations.md#odoo). Ein Organisationskonto darf nur mit Zugriff auf die Verbindung gebunden werden; die Ausführung prüft erneut die aktuellen Rechte des Autors der veröffentlichten Version.

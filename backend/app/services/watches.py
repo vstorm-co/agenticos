@@ -36,6 +36,7 @@ from app.schemas.watch_sources import WatchSources
 from app.services import watch_presets
 from app.services.agent_registry import AgentRegistryService
 from app.services.conversation import ConversationService
+from app.services.mcp_connection import account_source_organization
 from app.services.outcome import OutcomeService
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.watch_sources import approve_sources, constrain_sources
@@ -103,13 +104,13 @@ class WatchService:
 
         person = self._person(ctx)
         connections, _ = await mcp_connection_repo.list_for_user(self.db, user_id=person)
-        for provider in ("google", "microsoft", "slack", "imap"):
+        for provider in ("google", "microsoft", "slack", "imap", "odoo"):
             connections.extend(
                 await McpConnectionService(self.db).list_accounts(
                     ctx, for_organization=False, provider=provider
                 )
             )
-        from app.services.integrations import PRODUCTS
+        from app.services.integrations import PRODUCTS, can_read_feed
 
         reads = []
         for row in connections:
@@ -127,8 +128,14 @@ class WatchService:
                         "teams",
                         "slack",
                         "imap_mail",
+                        "odoo_contacts",
+                        "odoo_crm",
+                        "odoo_sales",
+                        "odoo_accounting",
+                        "odoo_inventory",
+                        "odoo_projects",
                     )
-                    if PRODUCTS[key].provider == row.catalog_key
+                    if PRODUCTS[key].provider == row.catalog_key and can_read_feed(row, key)
                 ]
                 if row.purpose == "account"
                 else []
@@ -225,6 +232,11 @@ class WatchService:
             or connection.scope != "user"
             or connection.purpose not in {"mcp", "account"}
             or connection.user_id != person
+            or (
+                connection.purpose == "account"
+                and organization_id is not None
+                and account_source_organization(connection) != organization_id
+            )
         ):
             raise refused_field("connection_id", "That is not one of your connections")
         return connection

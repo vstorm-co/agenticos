@@ -854,6 +854,14 @@ class TestTheRoutes:
         service.list_mine.assert_not_called()
         service.delete.assert_not_called()
 
+    async def test_connection_choices_are_returned_by_the_personal_source_service(
+        self, client: AsyncClient, service
+    ):
+        service.connections = AsyncMock(return_value=[])
+        response = await client.get("/api/v1/me/watches/connections")
+        assert response.status_code == 200 and response.json() == []
+        service.connections.assert_awaited_once()
+
     async def test_set_up_list_change_and_remove(self, client: AsyncClient, service):
         read = watch_read(_watch(), organization=_organization(), connection=_named(_connection()))
         service.list_mine = AsyncMock(return_value=[read])

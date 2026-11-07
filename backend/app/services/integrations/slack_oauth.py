@@ -91,3 +91,50 @@ async def identify(token: SecretStr) -> tuple[str, list[str]]:
         if scope.strip()
     ]
     return f"{identity.team or identity.team_id} / {identity.user or identity.user_id}", scopes
+
+
+class SlackRefreshResponse(BaseModel):
+    ok: bool
+    error: str | None = None
+    authed_user: SlackToken | None = None
+    token_type: str | None = None
+    access_token: SecretStr | None = None
+    refresh_token: SecretStr | None = None
+    expires_in: int | None = None
+    scope: str = ""
+
+
+async def refresh_user_token(
+    *, client_id: str, client_secret: str, refresh_token: SecretStr
+) -> SlackToken:
+    """Rotate a user grant; a top-level bot token can never replace it."""
+    from app.agents.mcp_oauth import OAuthGrantRevoked
+
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
+            response = await client.post(
+                TOKEN_ENDPOINT,
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token.get_secret_value(),
+                },
+            )
+        parsed = SlackRefreshResponse.model_validate_json(response.content)
+    except httpx.HTTPError, ValidationError:
+        raise OAuthError("Slack could not refresh the user connection") from None
+    if parsed.error in {"invalid_grant", "invalid_refresh_token", "token_revoked"}:
+        raise OAuthGrantRevoked("Slack revoked the user grant")
+    if not response.is_success or not parsed.ok:
+        raise OAuthError("Slack refused to refresh the user connection")
+    if parsed.authed_user is not None:
+        return parsed.authed_user
+    if parsed.token_type != "user" or parsed.access_token is None:
+        raise OAuthError("Slack did not return a refreshed user token")
+    return SlackToken(
+        access_token=parsed.access_token,
+        refresh_token=parsed.refresh_token,
+        expires_in=parsed.expires_in,
+        scope=parsed.scope,
+    )

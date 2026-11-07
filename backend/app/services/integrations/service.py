@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.odoo_credential import OdooCredential
+from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.mcp_connection import McpConnection
 from app.repositories import mcp_connection_repo, member_repo
@@ -24,7 +26,12 @@ class AccountToken(ApiKeySecret):
     """
 
     connection_id: UUID
-    provider: Literal["google", "microsoft", "slack"]
+    provider: Literal["google", "microsoft", "slack", "odoo"]
+
+
+class OdooAccountToken(AccountToken):
+    provider: Literal["odoo"] = "odoo"
+    credential: OdooCredential
 
 
 class AccountSelection(BaseModel):
@@ -132,17 +139,34 @@ class IntegrationService:
             )
         return row
 
+    async def binding_account(
+        self, product: Product, selection: AccountSelection, ctx: AuthContext
+    ) -> McpConnection:
+        from app.services.integrations.authority import authorize
+
+        account = await self.account(
+            product, selection, organization_id=ctx.organization_id, person_id=ctx.user_id
+        )
+        if selection.account == "organization":
+            await authorize(self.db, account, ctx)
+        return account
+
     async def source_token(
         self,
         *,
         organization_id: UUID,
         connection_id: UUID,
-        provider: Literal["google", "microsoft", "slack"],
+        provider: Literal["google", "microsoft", "slack", "odoo"],
     ) -> AccountToken:
         from app.services.mcp_connection import McpConnectionService
 
         product = PRODUCTS[
-            {"google": "google_drive", "microsoft": "microsoft_files", "slack": "slack"}[provider]
+            {
+                "google": "google_drive",
+                "microsoft": "microsoft_files",
+                "slack": "slack",
+                "odoo": "odoo_contacts",
+            }[provider]
         ]
         row = await self.account(
             product,
@@ -150,6 +174,13 @@ class IntegrationService:
             organization_id=organization_id,
             person_id=None,
         )
+        if provider == "odoo":
+            credential = McpConnectionService(self.db).integration_odoo_credential(
+                row, organization_id=organization_id
+            )
+            return OdooAccountToken(
+                api_key=credential.api_key, credential=credential, connection_id=connection_id
+            )
         token = await McpConnectionService(self.db).integration_access_token(
             row, organization_id=organization_id
         )
@@ -170,6 +201,8 @@ class IntegrationService:
         parameters: dict[str, str],
         query: dict[str, str],
         body: dict[str, JsonValue] | None,
+        agent_run_id: UUID | None = None,
+        workflow_run_id: UUID | None = None,
     ) -> dict[str, JsonValue]:
         from app.services.mcp_connection import McpConnectionService
 
@@ -182,6 +215,17 @@ class IntegrationService:
         account = await self.account(
             product, selection, organization_id=organization_id, person_id=person_id
         )
+        if selection.account == "organization":
+            from app.services.integrations.authority import authorize, run_author
+
+            author = await run_author(
+                self.db,
+                organization_id=organization_id,
+                person_id=person_id,
+                agent_run_id=agent_run_id,
+                workflow_run_id=workflow_run_id,
+            )
+            await authorize(self.db, account, author)
         allowed_scopes = (
             application_scopes(product_id, operation)
             if account.auth_type == "application" and product.provider == "microsoft"
@@ -190,6 +234,15 @@ class IntegrationService:
         if not set(allowed_scopes).intersection(account.granted_scopes or ()):
             raise AuthorizationError(
                 message="Reconnect this account with the permissions this operation requires"
+            )
+        if product.provider == "odoo":
+            from app.services.integrations.odoo import execute
+
+            credential = McpConnectionService(self.db).integration_odoo_credential(
+                account, organization_id=organization_id
+            )
+            return await execute(
+                credential, operation, parameters=parameters, query=query, body=body
             )
         if product.provider == "imap":
             from app.services.integrations.imap import execute_mail
@@ -236,3 +289,37 @@ class IntegrationService:
             operation = replace(operation, query=(*operation.query, "query"))
             query = {**query, "query": f"<@{user_id}>"}
         return await client.execute(operation, token, parameters=parameters, query=query, body=body)
+
+
+def can_read_feed(
+    account: McpConnection, portal_key: str, channels: tuple[str, ...] | None = None
+) -> bool:
+    product_id = {"google": "gmail", "microsoft": "outlook_mail", "imap": "imap_mail"}.get(
+        portal_key, portal_key
+    )
+    product = PRODUCTS.get(product_id)
+    if product is None or product.provider != account.catalog_key:
+        return False
+    scopes = set(account.granted_scopes or ())
+    if product_id == "slack":
+        return bool(scopes & {"channels:history", "groups:history", "im:history", "mpim:history"})
+    if product_id == "teams":
+        chat = (
+            {"Chat.Read.All"}
+            if account.auth_type == "application"
+            else {"Chat.Read", "Chat.ReadWrite"}
+        )
+        if channels is None:
+            return bool(scopes & (chat | {"ChannelMessage.Read.All"}))
+        need_channels = any(channel.startswith("channel/") for channel in channels)
+        need_chats = not channels or any(not channel.startswith("channel/") for channel in channels)
+        return (not need_channels or "ChannelMessage.Read.All" in scopes) and (
+            not need_chats or bool(scopes & chat)
+        )
+    operation = next(op for op in product.operations if not op.side_effecting)
+    required_scopes = (
+        application_scopes(product_id, operation)
+        if account.auth_type == "application" and product.provider == "microsoft"
+        else operation.scopes
+    )
+    return bool(scopes.intersection(required_scopes))

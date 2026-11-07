@@ -1,5 +1,5 @@
 ---
-source_sha: "b4ca7a237e75"
+source_sha: "267d8df1cde3"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -42,7 +42,7 @@ Dateiknoten nehmen Base64-Inhalt an, niemals einen lokalen Serverpfad. Word erst
 
 Drive- und SharePoint-Quellen können dieselbe Organisationsverbindung statt separater Zugangsdaten verwenden. OneDrive nutzt den SharePoint-Connector mit gewähltem Laufwerk/Ordner. Slack indexiert nur gewählte Kanäle und Threads. Jede Synchronisierung prüft die Autorisierung erneut; gemeinsame Wissensquellen verwenden keine privaten Mitgliederkonten.
 
-Routine-Trigger verwenden die bestehende transaktionale Warteschlange, Deduplizierung und genehmigte Quellenrichtlinie. Gmail-/Outlook-Filter, Terminvorlauf und Dateiänderungen funktionieren mit nativen Konten. Slack ergänzt Nachrichten, Erwähnungen und DMs; Teams Nachrichten/Erwähnungen; IMAP neue Mail. Sheets verfolgt **angehängte Zeilen** einer gewählten Tabelle und eines Blatts. Die Basis ist die letzte belegte Zeile in Spalte A. Diese Spalte muss gefüllt bleiben; Einfügen/Löschen und Änderungen bestehender Zeilen sind keine Anhänge.
+Routine-Trigger verwenden die bestehende transaktionale Warteschlange, Deduplizierung und genehmigte Quellenrichtlinie. Gmail-/Outlook-Filter, Terminvorlauf und Dateiänderungen funktionieren mit nativen Konten. Slack ergänzt Nachrichten, Erwähnungen und DMs; Teams Nachrichten/Erwähnungen; IMAP neue Mail. Sheets verfolgt **angehängte Zeilen** einer gewählten Tabelle und eines Blatts. Die Basis ist die letzte belegte Zeile im Spaltenbereich A:ZZ; Einfügen/Löschen und Änderungen bestehender Zeilen sind keine Anhänge.
 
 Eine Watch wählt eine persönliche Verbindung und ein Produkt und erhält nur ein festes, lesendes Änderungswerkzeug. Das Produkt zuerst am Agenten aktivieren. Slack-Unterhaltungen und delegierte Teams-Chats werden in der Capability gewählt. Teams-Kanäle heißen `channel/team-id/channel-id`; eine Teams-App-Watch ohne Unterhaltungen liest alle Chats des konfigurierten Benutzers.
 
@@ -51,3 +51,17 @@ Jede Watch hat einen eigenen dauerhaften Cursor, der erst nach erfolgreicher Ver
 Siehe [Capabilities](reference/capabilities.md), [Trigger](triggers.md), [Governance und Watches](governance.md#proactive-work) und [MCP](mcp.md).
 
 Vergeben Sie beim Verbinden ein Label wie Arbeit; verwenden Sie es für das entsprechende Konto jeder Person.
+
+## Odoo { #odoo }
+
+Verbinde Odoo 19+ über JSON-2 mit HTTPS-Ursprung, Datenbankname und API-Schlüssel eines Geschäftsbenutzers. Der Betreiber muss den genauen Host in `ODOO_ALLOWED_HOSTS` freigeben; Pfade, Weiterleitungen und eigene Ports werden abgelehnt. Odoo Online benötigt einen Custom-Tarif für externe APIs. Installiere die benötigten Module und beschränke die Odoo-Zugriffsrechte und Datensatzregeln des Benutzers. Schlüssel laufen ab: nach Rotation erneut verbinden. Schreibzugriff ist optional; jeder Agent-Schreibzugriff braucht eine Genehmigung.
+
+Capabilities decken Kontakte, CRM, Verkauf, Rechnungen, Lager und Projekte ab. Sie bieten Feldmetadaten, begrenzte Suche/Lesezugriffe und getrennte Werkzeuge zum Erstellen/Ändern, soweit unterstützt. Lagerbestände sind schreibgeschützt; Lageroperationen nutzen Transfers und Bewegungen. Werkzeuge und Workflow-Knoten verwenden dasselbe Konto und denselben JSON-2-Adapter. Beliebige Modelle, Methoden und benutzerdefinierter Kontext sind nicht erlaubt.
+
+Watches und Routine-Trigger lesen neue/geänderte Datensätze ihres Geschäftsbereichs. Jedes Modell hat einen eigenen `(write_date, id)`-Cursor; der erste Abruf setzt eine stille Basis. Weitere Abrufe lesen bis zu 100 Datensätze je Modell und behalten den Rückstand. Löschungen sind keine Ereignisse. Odoo-Zeitstempel haben Sekundenauflösung; mehrere Änderungen eines Datensatzes innerhalb einer Sekunde können zusammenfallen. Wissenssynchronisation indexiert nur ausgewählte Felder über ein Organisationskonto; begrenzte Listen löschen keine ungesehenen Dokumente.
+
+Verkaufsbestätigung, Rechnungsbuchung sowie Bestätigung/Reservierung/Validierung von Transfers haben eigene genehmigungspflichtige Werkzeuge. Nutze diese Geschäftsaktionen statt Statusfelder zu schreiben. Aktionen können einen in Odoo abzuschließenden Assistenten zurückgeben; lies den Datensatz vor einer Erfolgsmeldung erneut. Rechnungen erfordern einen expliziten `move_type` (Kunde, Lieferant, Gutschrift oder Beleg). Skalare Felder und Verknüpfen/Ersetzen/Leeren von Beziehungs-IDs werden unterstützt. Erstelle oder ändere zugehörige Datensätze mit deren eigenen Werkzeugen; verschachtelte ORM-Mutationen und JSON-Objektwerte werden abgelehnt.
+
+## Exchange Online { #exchange-online }
+
+Outlook mail und Outlook Calendar verbinden Microsoft Exchange Online über Microsoft Graph. Nutze den Microsoft-Assistenten mit delegiertem OAuth oder ein Entra-Anwendungskonto mit Administratorzustimmung und Zielpostfach. Ein separates IMAP-Passwort oder eine Work-IQ-Lizenz ist nicht erforderlich. Dieser Weg unterstützt Exchange Online, nicht lokales Exchange oder EWS.

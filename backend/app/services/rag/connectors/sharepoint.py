@@ -493,14 +493,14 @@ class _Graph:
                 handle.write(chunk)
 
     async def _bearer(self) -> str:
-        if isinstance(self._credential, AccountToken):
-            return self._credential.api_key.get_secret_value()
         """The app's Graph token, signed in for once and renewed shortly before it expires.
 
         Raises:
             BadRequestError: Entra refused the tenant, the app or its secret.
             ExternalServiceError: Entra stayed unavailable.
         """
+        if isinstance(self._credential, AccountToken):
+            return self._credential.api_key.get_secret_value()
         if self._token is not None and time.monotonic() < self._token_expires_at:
             return self._token
         credential = self._credential

@@ -1002,15 +1002,19 @@ async def test_native_trigger_connection_cannot_cross_owners_or_providers(ctx, n
 
 @pytest.mark.parametrize("scope", ["user", "org", "portal"])
 async def test_native_and_legacy_trigger_accounts_resolve_their_own_authority(
-    ctx, native_repo, scope
+    ctx, native_repo, scope, monkeypatch
 ):
 
     row = _account(
+        granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
         user_id=ctx.user_id,
         scope="user",
         purpose="account",
         is_enabled=True,
         account_source_organization_id=ctx.organization_id,
+    )
+    monkeypatch.setattr(
+        "app.services.integrations.authority.resolve_access", AsyncMock(return_value=True)
     )
     service = McpConnectionService(AsyncMock())
     if scope == "portal":
@@ -1162,3 +1166,109 @@ async def test_revoking_a_personal_application_credentials_grant_stops_future_to
     exchange.reset_mock()
     assert await service.integration_access_token(row, organization_id=ctx.organization_id) is None
     exchange.assert_not_awaited()
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_odoo_accounts_seal_the_key_and_revalidate_the_database(
+    ctx, repo, monkeypatch, for_organization
+):
+    from app.core.odoo_credential import OdooCredential
+    from app.services.integrations import odoo
+
+    identify = AsyncMock()
+    monkeypatch.setattr(odoo, "identify", identify)
+
+    async def create(*args, **kwargs):
+        values = dict(kwargs)
+        values.pop("sealed_token", None)
+        values.pop("auth_token", None)
+        return McpConnection(
+            id=uuid4(), scope="org" if for_organization else "user", is_enabled=True, **values
+        )
+
+    repo.create.side_effect = create
+    repo.create_org_scoped.side_effect = create
+
+    async def update(db, *, db_connection, update_data):
+        for key, value in update_data.items():
+            setattr(db_connection, key, value)
+        return db_connection
+
+    repo.update.side_effect = update
+    secret = OdooCredential(
+        origin="https://erp.example.com", database="company", api_key="private-key"
+    )
+    service = McpConnectionService(MagicMock())
+    account = await service.connect_odoo_account(
+        ctx, credential=secret, label="ERP", write=True, for_organization=for_organization
+    )
+    identify.assert_awaited_once_with(secret)
+    assert account.granted_scopes == ["odoo:read", "odoo:write"]
+    assert "private-key" not in account.oauth_payload
+    assert (
+        service.integration_odoo_credential(account, organization_id=ctx.organization_id) == secret
+    )
+    assert service_module.record_audit.await_count == int(for_organization)
+    with pytest.raises(AuthorizationError):
+        service.integration_odoo_credential(account, organization_id=uuid4())
+    account.oauth_payload = None
+    with pytest.raises(AuthorizationError):
+        service.integration_odoo_credential(account, organization_id=ctx.organization_id)
+
+
+async def test_odoo_connection_requires_live_membership(ctx, monkeypatch):
+    from app.core.odoo_credential import OdooCredential
+    from app.repositories import member_repo
+
+    monkeypatch.setattr(member_repo, "get_active", AsyncMock(return_value=None))
+    with pytest.raises(AuthorizationError):
+        await McpConnectionService(MagicMock()).connect_odoo_account(
+            ctx,
+            credential=OdooCredential(
+                origin="https://erp.example.com", database="company", api_key="key"
+            ),
+            label="ERP",
+            write=False,
+            for_organization=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "provider,products",
+    [("imap", None), ("google", []), ("google", ["word"]), ("google", ["gmail", "unknown"])],
+)
+async def test_account_oauth_refuses_unknown_or_mixed_product_selections(ctx, provider, products):
+    from app.core.exceptions import BadRequestError
+
+    with pytest.raises(BadRequestError):
+        await McpConnectionService(AsyncMock()).account_start(
+            ctx, for_organization=False, browser_nonce=NONCE, provider=provider, products=products
+        )
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [None, {}, {"Authorization": "Basic not-a-bearer"}, {"Authorization": "Bearer user-token"}],
+)
+async def test_delegated_native_token_resolution_preserves_the_authorization_contract(
+    ctx, monkeypatch, headers
+):
+    row = _account(account_source_organization_id=ctx.organization_id)
+    row.oauth_payload = _sealed(row, _payload(account_source_organization_id=ctx.organization_id))
+    service = McpConnectionService(AsyncMock())
+    monkeypatch.setattr(service, "_account_source_current", AsyncMock(return_value=True))
+    monkeypatch.setattr(service_module, "resolve_auth_headers", AsyncMock(return_value=headers))
+    token = await service.integration_access_token(row, organization_id=ctx.organization_id)
+    assert (token.get_secret_value() if token else None) == (
+        "user-token" if headers and headers.get("Authorization", "").startswith("Bearer ") else None
+    )
+
+
+async def test_disconnecting_an_old_account_without_a_source_organization_still_deletes_it(
+    ctx, repo
+):
+    row = _account(user_id=ctx.user_id, account_source_organization_id=None)
+    row.oauth_payload = None
+    repo.get_account = AsyncMock(return_value=row)
+    await McpConnectionService(AsyncMock()).delete_account(ctx, row.id, for_organization=False)
+    repo.delete.assert_awaited_once()

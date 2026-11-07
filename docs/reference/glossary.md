@@ -66,6 +66,12 @@ in [Capabilities](capabilities.md).
 | Web browser | `browser_use` |
 | Word | `word` |
 | IMAP mail | `imap_mail` |
+| Odoo Contacts | `odoo_contacts` |
+| Odoo CRM | `odoo_crm` |
+| Odoo Sales | `odoo_sales` |
+| Odoo Invoicing | `odoo_accounting` |
+| Odoo Inventory | `odoo_inventory` |
+| Odoo Projects | `odoo_projects` |
 | Slack | `slack` |
 | Teams | `teams` |
 | Excel | `excel` |

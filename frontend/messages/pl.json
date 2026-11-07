@@ -2864,7 +2864,7 @@
           "redirect": "Adres przekierowania",
           "copyRedirect": "Kopiuj adres przekierowania",
           "google": "Utwórz projekt Cloud, włącz poniższe API, skonfiguruj ekran zgody Internal lub External i utwórz klienta web OAuth. W trybie External/Testing refresh token wygasa po siedmiu dniach. Integracja używa zwykłych API; nie wymaga programu MCP Preview ani klienta AI-powered.",
-          "microsoft": "Zarejestruj aplikację web w Entra. Wybierz tenant lub common dla kont służbowych i osobistych, dodaj adres przekierowania i poniższe uprawnienia delegowane. Dodaj client secret. Niektóre uprawnienia wymagają zgody administratora.",
+          "microsoft": "Zarejestruj aplikację web w Entra. Wybierz tenant lub common dla kont służbowych i osobistych, dodaj adres przekierowania i poniższe uprawnienia delegowane. Dodaj client secret. Niektóre uprawnienia wymagają zgody administratora. Poczta i kalendarz Outlook łączą się z Exchange Online przez Microsoft Graph.",
           "slack": "Utwórz aplikację internal w każdym workspace albo dodaj poniższe user scopes i adres przekierowania do istniejącej aplikacji bota. Instalacja może wymagać zgody administratora i wlicza się do limitu aplikacji workspace. Natywne narzędzia nie wymagają opcji Agents MCP Server; włącz ją tylko dla Slack MCP.",
           "openConsole": "Otwórz konsolę providera",
           "saveClient": "Zapisz aplikację OAuth w Vault",
@@ -2875,7 +2875,8 @@
             "google": "Google",
             "microsoft": "Microsoft",
             "slack": "Slack",
-            "imap": "IMAP"
+            "imap": "IMAP",
+            "odoo": "Odoo"
           },
           "tokenPath": "Użyj istniejącego tokena użytkownika lub bota Slack",
           "accountLabel": "Etykieta konta",
@@ -2899,7 +2900,12 @@
           "saveCredential": "Zapisz credential w Vault",
           "googleMcp": "Dla hostowanego Google MCP dołącz do Workspace MCP Preview, włącz API produktu i MCP, skonfiguruj zgodę i klienta Web oznaczonego jako AI-powered agent. Tokeny External Testing mogą wygasać po siedmiu dniach. Skopiuj dokładny callback.",
           "slackMcp": "Dla Slack MCP zarejestruj aplikację Internal lub Marketplace, dodaj callback i zakresy serwera, a następnie włącz Agents → MCP Server. Nadal obowiązują limity aplikacji i zgoda administratora.",
-          "microsoftMcp": "Zarejestruj aplikację Web Entra z tym callbackiem i delegowanymi zakresami serwera MCP. Microsoft Work IQ ma osobne wymagania licencyjne."
+          "microsoftMcp": "Zarejestruj aplikację Web Entra z tym callbackiem i delegowanymi zakresami serwera MCP. Microsoft Work IQ ma osobne wymagania licencyjne.",
+          "odoo": "Użyj JSON-2 w Odoo 19+. Utwórz klucz API użytkownika z wymaganymi uprawnieniami biznesowymi. Operator musi zatwierdzić dokładny host HTTPS w ODOO_ALLOWED_HOSTS. Zewnętrzne API Odoo Online wymaga planu Custom. Klucze wygasają; po rotacji połącz konto ponownie.",
+          "odooOrigin": "Adres HTTPS Odoo",
+          "odooDatabase": "Nazwa bazy danych",
+          "odooKey": "Klucz API Odoo",
+          "connectDirect": "Połącz konto"
         },
         "accountOwner": "Właściciel konta",
         "chooseAccount": "Wybierz połączone konto",
@@ -7575,7 +7581,8 @@
       "slack": "Slack",
       "teams": "Teams",
       "google_sheets": "Google Sheets",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo": "Odoo"
     },
     "panelTitle": "Rutyny",
     "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",
@@ -9783,6 +9790,138 @@
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
       }
+    },
+    "odoo_contacts": {
+      "account": {
+        "title": "Właściciel konta",
+        "description": "Użyj własnego konta każdej osoby lub konta organizacji."
+      },
+      "account_name": {
+        "title": "Nazwa konta",
+        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+      },
+      "connection_id": {
+        "title": "Konto organizacji",
+        "description": "Konto używane, gdy właścicielem konta jest organizacja."
+      },
+      "channels": {
+        "title": "Rozmowy",
+        "description": "Identyfikatory rozmów odczytywanych w strumieniach zmian Slack lub Teams. Kanały Teams mają format channel/team-id/channel-id. Pozostaw puste, aby w trybie aplikacyjnym Teams odczytywać wszystkie czaty wskazanego użytkownika."
+      },
+      "disabled_tools": {
+        "title": "Wyłączone narzędzia",
+        "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      }
+    },
+    "odoo_crm": {
+      "account": {
+        "title": "Właściciel konta",
+        "description": "Użyj własnego konta każdej osoby lub konta organizacji."
+      },
+      "account_name": {
+        "title": "Nazwa konta",
+        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+      },
+      "connection_id": {
+        "title": "Konto organizacji",
+        "description": "Konto używane, gdy właścicielem konta jest organizacja."
+      },
+      "channels": {
+        "title": "Rozmowy",
+        "description": "Identyfikatory rozmów odczytywanych w strumieniach zmian Slack lub Teams. Kanały Teams mają format channel/team-id/channel-id. Pozostaw puste, aby w trybie aplikacyjnym Teams odczytywać wszystkie czaty wskazanego użytkownika."
+      },
+      "disabled_tools": {
+        "title": "Wyłączone narzędzia",
+        "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      }
+    },
+    "odoo_sales": {
+      "account": {
+        "title": "Właściciel konta",
+        "description": "Użyj własnego konta każdej osoby lub konta organizacji."
+      },
+      "account_name": {
+        "title": "Nazwa konta",
+        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+      },
+      "connection_id": {
+        "title": "Konto organizacji",
+        "description": "Konto używane, gdy właścicielem konta jest organizacja."
+      },
+      "channels": {
+        "title": "Rozmowy",
+        "description": "Identyfikatory rozmów odczytywanych w strumieniach zmian Slack lub Teams. Kanały Teams mają format channel/team-id/channel-id. Pozostaw puste, aby w trybie aplikacyjnym Teams odczytywać wszystkie czaty wskazanego użytkownika."
+      },
+      "disabled_tools": {
+        "title": "Wyłączone narzędzia",
+        "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      }
+    },
+    "odoo_accounting": {
+      "account": {
+        "title": "Właściciel konta",
+        "description": "Użyj własnego konta każdej osoby lub konta organizacji."
+      },
+      "account_name": {
+        "title": "Nazwa konta",
+        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+      },
+      "connection_id": {
+        "title": "Konto organizacji",
+        "description": "Konto używane, gdy właścicielem konta jest organizacja."
+      },
+      "channels": {
+        "title": "Rozmowy",
+        "description": "Identyfikatory rozmów odczytywanych w strumieniach zmian Slack lub Teams. Kanały Teams mają format channel/team-id/channel-id. Pozostaw puste, aby w trybie aplikacyjnym Teams odczytywać wszystkie czaty wskazanego użytkownika."
+      },
+      "disabled_tools": {
+        "title": "Wyłączone narzędzia",
+        "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      }
+    },
+    "odoo_inventory": {
+      "account": {
+        "title": "Właściciel konta",
+        "description": "Użyj własnego konta każdej osoby lub konta organizacji."
+      },
+      "account_name": {
+        "title": "Nazwa konta",
+        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+      },
+      "connection_id": {
+        "title": "Konto organizacji",
+        "description": "Konto używane, gdy właścicielem konta jest organizacja."
+      },
+      "channels": {
+        "title": "Rozmowy",
+        "description": "Identyfikatory rozmów odczytywanych w strumieniach zmian Slack lub Teams. Kanały Teams mają format channel/team-id/channel-id. Pozostaw puste, aby w trybie aplikacyjnym Teams odczytywać wszystkie czaty wskazanego użytkownika."
+      },
+      "disabled_tools": {
+        "title": "Wyłączone narzędzia",
+        "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      }
+    },
+    "odoo_projects": {
+      "account": {
+        "title": "Właściciel konta",
+        "description": "Użyj własnego konta każdej osoby lub konta organizacji."
+      },
+      "account_name": {
+        "title": "Nazwa konta",
+        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+      },
+      "connection_id": {
+        "title": "Konto organizacji",
+        "description": "Konto używane, gdy właścicielem konta jest organizacja."
+      },
+      "channels": {
+        "title": "Rozmowy",
+        "description": "Identyfikatory rozmów odczytywanych w strumieniach zmian Slack lub Teams. Kanały Teams mają format channel/team-id/channel-id. Pozostaw puste, aby w trybie aplikacyjnym Teams odczytywać wszystkie czaty wskazanego użytkownika."
+      },
+      "disabled_tools": {
+        "title": "Wyłączone narzędzia",
+        "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      }
     }
   },
   "apiReference": {
@@ -10384,7 +10523,14 @@
       "google_slides": "Google Slides",
       "word": "Word",
       "teams": "Teams",
-      "imap_mail": "IMAP"
+      "imap_mail": "IMAP",
+      "odoo_contacts": "Odoo Contacts",
+      "odoo_crm": "Odoo CRM",
+      "odoo_sales": "Odoo Sales",
+      "odoo_accounting": "Odoo Invoicing",
+      "odoo_inventory": "Odoo Inventory",
+      "odoo_projects": "Odoo Projects",
+      "odoo": "Odoo"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",
@@ -12586,6 +12732,54 @@
       "example1": "Wyszukaj informacje na wybranym koncie",
       "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
       "needs": "Konto połączone w Vault z wymaganymi uprawnieniami produktu.",
+      "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "odoo_contacts": {
+      "name": "Odoo Contacts",
+      "does": "Odczytuje i zmienia dane biznesowe Odoo Contacts przez połączone konto.",
+      "example1": "Wyszukaj informacje na wybranym koncie",
+      "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
+      "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
+      "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "odoo_crm": {
+      "name": "Odoo CRM",
+      "does": "Odczytuje i zmienia dane biznesowe Odoo CRM przez połączone konto.",
+      "example1": "Wyszukaj informacje na wybranym koncie",
+      "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
+      "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
+      "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "odoo_sales": {
+      "name": "Odoo Sales",
+      "does": "Odczytuje i zmienia dane biznesowe Odoo Sales przez połączone konto.",
+      "example1": "Wyszukaj informacje na wybranym koncie",
+      "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
+      "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
+      "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "odoo_accounting": {
+      "name": "Odoo Invoicing",
+      "does": "Odczytuje i zmienia dane biznesowe Odoo Invoicing przez połączone konto.",
+      "example1": "Wyszukaj informacje na wybranym koncie",
+      "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
+      "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
+      "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "odoo_inventory": {
+      "name": "Odoo Inventory",
+      "does": "Odczytuje i zmienia dane biznesowe Odoo Inventory przez połączone konto.",
+      "example1": "Wyszukaj informacje na wybranym koncie",
+      "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
+      "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
+      "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "odoo_projects": {
+      "name": "Odoo Projects",
+      "does": "Odczytuje i zmienia dane biznesowe Odoo Projects przez połączone konto.",
+      "example1": "Wyszukaj informacje na wybranym koncie",
+      "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
+      "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
       "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
     }
   },

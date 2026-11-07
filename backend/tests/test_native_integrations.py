@@ -25,7 +25,7 @@ from app.services.integrations.service import AccountSelection, IntegrationServi
 from app.services.integrations.setup import setup_for
 from app.services.mcp_connection import McpConnectionService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def account(**changes: object) -> McpConnection:

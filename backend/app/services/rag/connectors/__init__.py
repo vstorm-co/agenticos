@@ -239,3 +239,7 @@ CONNECTOR_REGISTRY["sharepoint"] = SharePointConnector
 from app.services.rag.connectors.slack import SlackConnector
 
 CONNECTOR_REGISTRY["slack"] = SlackConnector
+
+from app.services.rag.connectors.odoo import OdooConnector
+
+CONNECTOR_REGISTRY["odoo"] = OdooConnector

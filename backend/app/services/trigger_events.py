@@ -273,6 +273,8 @@ def event_matches(
             + str(payload.get("subject") or "")
         )
         return not config.get("contains") or str(config["contains"]).casefold() in text.casefold()
+    if source == EventSource.ODOO.value:
+        return payload.get("product_id") == config.get("product_id")
     if source == EventSource.GOOGLE_SHEETS.value:
         return payload.get("spreadsheet_id") == config.get("spreadsheet_id") and payload.get(
             "sheet_name"

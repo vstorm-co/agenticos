@@ -394,3 +394,13 @@ async def test_graph_cursor_accepts_equivalent_encoded_channel_ids_without_widen
         await delta.read_graph_delta(
             TOKEN, {"link": resume.replace("19:channel@thread.tacv2", "other")}, path=path
         )
+
+
+async def test_sheets_baseline_includes_rows_populated_outside_column_a(monkeypatch):
+    read = AsyncMock(return_value={"values": [["A"], [], ["", "B only"]]})
+    monkeypatch.setattr(sheets_feed.client, "execute", read)
+    baseline = await sheets_feed.rows_since(TOKEN, None, spreadsheet_id="book", sheet_name="Sheet1")
+    assert baseline.events == [] and baseline.cursor == {"last_row": 3}
+    from urllib.parse import unquote
+
+    assert unquote(read.await_args.args[0].url).endswith("'Sheet1'!A:ZZ")

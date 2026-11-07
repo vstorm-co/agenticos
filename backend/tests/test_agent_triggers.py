@@ -102,7 +102,7 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     )
     service.connections.list_accounts = AsyncMock(return_value=[])
 
-    async def polled_connection(ctx, identifier, *, portal_key):
+    async def polled_connection(ctx, identifier, *, portal_key, channels=None):
         grant = await service.connections.get_org_portal_connection(ctx, identifier)
         if grant.portal_key != portal_key:
             raise BadRequestError(
@@ -5172,3 +5172,43 @@ async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
 async def test_invalid_or_null_routine_result_policy_is_refused(mode):
     with pytest.raises(PydanticValidationError):
         TriggerUpdate.model_validate({"result_mode": mode})
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("portal", ["slack", "teams"])
+async def test_native_message_triggers_require_explicit_conversations(portal):
+    agent = _agent()
+    service = _service(agent)
+    service.connections.get_polled_connection = AsyncMock(return_value=MagicMock(auth_type="oauth"))
+    with pytest.raises(BadRequestError, match="Choose the conversations"):
+        await service.create(
+            _ctx(), agent.id, _preset_create(portal_key=portal, preset_key="message", target=None)
+        )
+
+
+@pytest.mark.security
+async def test_an_app_webhook_rejects_another_services_connection():
+    agent = _agent()
+    service = _service(agent)
+    service.connections.get_org_portal_connection = AsyncMock(
+        return_value=MagicMock(portal_key="another-service")
+    )
+    with pytest.raises(BadRequestError, match="another service"):
+        await service.create(_ctx(), agent.id, _preset_create(portal_key="github_app"))
+
+
+@pytest.mark.security
+async def test_odoo_trigger_business_area_cannot_drift_from_its_reader():
+    from app.services import portal_catalog
+
+    service = _service()
+    portal, preset = portal_catalog.get_preset("odoo_contacts", "record_changed")
+    assert service._merged_preset_config("odoo", preset, None) == {"product_id": portal.key}
+    with pytest.raises(BadRequestError, match="business area"):
+        service._merged_preset_config("odoo", preset, {"product_id": "odoo_sales"})
+    trigger = _event_trigger(event_source="odoo", portal_key=portal.key)
+    assert service._validated_event_config(trigger, {"product_id": portal.key}) == {
+        "product_id": portal.key
+    }
+    with pytest.raises(BadRequestError, match="business area"):
+        service._validated_event_config(trigger, {"product_id": "odoo_sales"})
