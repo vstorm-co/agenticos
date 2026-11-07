@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.56.2] - 2026-11-07
+
 ### Fixed
 
 - Keep renamed tools’ chat views, drawings, drafts and run steps through streaming, reloads and shared links; prevent external tools from claiming built-in renderers by name (#2740).
@@ -20584,7 +20586,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.2...HEAD
+[1.56.2]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...v1.56.2
 [1.56.1]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...v1.56.1
 [1.56.0]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...v1.55.0
