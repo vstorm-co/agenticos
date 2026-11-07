@@ -1139,6 +1139,7 @@ class TestATurnThatFinished:
             },
         )
 
+    @pytest.mark.security
     async def test_questions_parked_beside_an_approval_wait_for_that_decision(self) -> None:
         """Approval resumption declines simultaneous questions, so it must not
         offer a card the answer API refuses while the run awaits approval."""

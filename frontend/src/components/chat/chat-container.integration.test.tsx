@@ -299,11 +299,7 @@ beforeEach(() => {
 });
 
 describe("the chat container - answering a durable question", () => {
-  it("keeps the HTTP answer form enabled after the turn and socket end", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({
-      status: "completed",
-      output: "Your answer was received.",
-    });
+  it("keeps the question disabled offline and resumes on the connected socket", async () => {
     mount();
     await screen.findByRole("button", { name: "Voice input" });
     receive("model_request_start", {});
@@ -320,14 +316,36 @@ describe("the chat container - answering a durable question", () => {
       ],
     });
     receive("complete", {});
-    socket.isConnected = false;
-    receive("session_ready", {});
+    act(() => {
+      socket.isConnected = false;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
     const answer = screen.getByRole("button", { name: /Casual/ });
-    expect(answer).toBeEnabled();
-    await userEvent.click(answer);
-    await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith("/runs/r-1/answers", {
-        responses: { "ask-1": [{ answer: "", selected: ["Casual"], skipped: false }] },
+    expect(answer).toBeDisabled();
+    act(() => {
+      socket.isConnected = true;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Casual/ }));
+    const submitted = socket.send.mock.calls
+      .map(([frame]) => frame)
+      .find((frame) => frame.type === "answer_run");
+    expect(submitted).toMatchObject({
+      run_id: "r-1",
+      responses: { "ask-1": [{ answer: "", selected: ["Casual"], skipped: false }] },
+    });
+    await act(async () =>
+      receive("run_answer_result", {
+        request_id: submitted.request_id,
+        result: {
+          run_id: "r-1",
+          status: "completed",
+          output: "Your answer was received.",
+          cost_usd: "0",
+          input_tokens: 1,
+          output_tokens: 1,
+          cost_is_partial: false,
+        },
       }),
     );
     expect(screen.queryByText("How formal?")).not.toBeInTheDocument();

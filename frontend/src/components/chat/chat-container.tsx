@@ -474,7 +474,6 @@ export function ChatContainer({
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
-    questionNeedsConnection,
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
@@ -878,7 +877,6 @@ export function ChatContainer({
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
-        questionNeedsConnection={questionNeedsConnection}
         onAnswerQuestions={sendAskUserResponses}
         pendingConnection={pendingConnection}
         onConnectionResponse={sendConnectionResponse}
@@ -1005,7 +1003,6 @@ interface ChatUIProps {
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
-  questionNeedsConnection?: boolean;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
   /** The service a paused run waits for the person to connect. */
   pendingConnection?: ConnectionRequest | null;
@@ -1074,7 +1071,6 @@ function ChatUI({
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
-  questionNeedsConnection = true,
   onAnswerQuestions,
   pendingConnection,
   onConnectionResponse,
@@ -1589,7 +1585,7 @@ function ChatUI({
               <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <QuestionPrompt
                   questions={pendingQuestions}
-                  disabled={(questionNeedsConnection && !isConnected) || isStopping}
+                  disabled={!isConnected || isStopping}
                   onComplete={onAnswerQuestions}
                 />
               </div>

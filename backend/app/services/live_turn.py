@@ -62,6 +62,7 @@ NOT_KEPT = frozenset(
     {
         "ask_user",
         "user_question_required",
+        "run_answer_result",
         "connect_account",
         "user_prompt",
         "conversation_created",

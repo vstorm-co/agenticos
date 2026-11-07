@@ -28,7 +28,6 @@ const env = vi.hoisted(() => ({
     stopGeneration: vi.fn(),
     pendingApproval: null as PendingApproval | null,
     pendingQuestions: null as AskUserQuestion[] | null,
-    questionNeedsConnection: true,
     sendAskUserResponses: vi.fn(),
     sendResumeDecisions: vi.fn(),
     queuedMessages: [] as QueuedMessage[],
@@ -182,7 +181,6 @@ beforeEach(() => {
   env.chat.isConnected = true;
   env.chat.pendingApproval = null;
   env.chat.pendingQuestions = null;
-  env.chat.questionNeedsConnection = true;
   env.chat.queuedMessages = [];
   env.listeners.clear();
   env.dictation.engine = "server";
@@ -194,22 +192,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("QuickAsk question answers", () => {
-  it.each([true, false])("requires the socket only for a live question (%s)", async (live) => {
+  it("disables question answers while disconnected", async () => {
     env.chat.isConnected = false;
-    env.chat.questionNeedsConnection = live;
     env.chat.pendingQuestions = [
       { question: "How formal?", options: [{ label: "Casual" }], allowCustom: true },
     ];
     render(<QuickAsk initialConversationId="c" />);
-    const choice = await screen.findByRole("button", { name: /Casual/ });
-    if (live) expect(choice).toBeDisabled();
-    else {
-      expect(choice).toBeEnabled();
-      fireEvent.click(choice);
-      expect(env.chat.sendAskUserResponses).toHaveBeenCalledWith([
-        { answer: "", selected: ["Casual"], skipped: false },
-      ]);
-    }
+    expect(await screen.findByRole("button", { name: /Casual/ })).toBeDisabled();
   });
 });
 

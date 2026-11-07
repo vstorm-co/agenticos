@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a70ceb1d29"
+source_sha: "68bad4d15b1b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2973,9 +2973,12 @@ dowiaduje się, że osoba odmówiła.
 W czacie konsoli run zapisuje pytania i wstrzymuje się przed wyświetleniem karty
 — w historii runów jako **Oczekuje na odpowiedź**. Przełączenie czatu, odświeżenie
 strony lub otwarcie rozmowy na innym urządzeniu przywraca kartę bez odpowiedzi.
-Odpowiedź wznawia ten sam run od miejsca, w którym się zatrzymał. Odpowiedzieć
-może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
-`GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
+Konsola wysyła odpowiedź przez aktywne połączenie czatu, dzięki czemu delegat może
+zadawać dalsze pytania podczas kontynuacji. Karta bez połączenia czeka na jego
+przywrócenie.
+
+Odpowiedzieć może tylko osoba, której zadano pytanie. Klienci API mogą używać
+`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
 

@@ -198,7 +198,6 @@ export function QuickAsk({
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,
-    questionNeedsConnection,
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
@@ -745,7 +744,7 @@ export function QuickAsk({
           <QuestionPrompt
             questions={pendingQuestions}
             onComplete={sendAskUserResponses}
-            disabled={(questionNeedsConnection && !isConnected) || isStopping}
+            disabled={!isConnected || isStopping}
           />
         )}
         {active && pendingConnection && (

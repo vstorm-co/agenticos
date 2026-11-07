@@ -8,7 +8,10 @@ from contextlib import AsyncExitStack
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
+import anyio
 from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
+from pydantic import Field, ValidationError
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
@@ -35,12 +38,23 @@ from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.visual_reports import VisualReports
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthenticationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AppException,
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    RunExecutionError,
+)
+from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
+from app.schemas.agent import QuestionAnswers
 from app.schemas.conversation import (
     ChatPerson,
     ConversationMessageFileSource,
@@ -66,11 +80,12 @@ from app.services.agent_chat import (
     requested_testing,
     requested_time_zone,
 )
-from app.services.agent_runner import PersonalServiceGap
+from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PersonalServiceGap
 from app.services.attachments import load_turn_attachments
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
+from app.services.parked_runs import run_result
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
@@ -192,6 +207,13 @@ class _Outcome(NamedTuple):
     error: str | None
 
 
+class _RunAnswerRequest(QuestionAnswers):
+    """A socket answer correlated with the card that sent it."""
+
+    request_id: str = Field(min_length=1, max_length=128)
+    run_id: UUID
+
+
 class AgentSession:
     """One WebSocket session with the AI agent."""
 
@@ -290,6 +312,31 @@ class AgentSession:
         of database reads (found reviewing #1437).
         """
         msg_type = data.get("type")
+
+        if msg_type == "answer_run":
+            request_id = data.get("request_id")
+            if not isinstance(request_id, str) or not request_id or len(request_id) > 128:
+                return
+            if not await self._reauthorize():
+                return
+            if self._turn_task is not None and not self._turn_task.done():
+                await self._answer_failed(
+                    request_id,
+                    AlreadyExistsError(message="This chat session is already running a turn"),
+                )
+                return
+            try:
+                request = _RunAnswerRequest.model_validate(data)
+            except ValidationError:
+                await self._answer_failed(
+                    request_id, BadRequestError(message="Invalid run answer request")
+                )
+                await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
+                return
+            task = asyncio.create_task(self._run_answer(request))
+            self._turn_task = task
+            task.add_done_callback(self._on_turn_done)
+            return
 
         if msg_type == "stop":
             if self._turn_task is None or self._turn_task.done():
@@ -499,6 +546,174 @@ class AgentSession:
     async def _cancel_turn(self) -> None:
         """Cancel the in-flight turn task and wait for it to unwind."""
         await _cancelled(self._turn_task)
+
+    async def _answer_failed(self, request_id: str, error: AppException) -> None:
+        """A safe, correlated refusal; a terminal run status stays in its details."""
+        await self._emit(
+            "run_answer_result",
+            jsonable_encoder(
+                {
+                    "request_id": request_id,
+                    "error": {
+                        "status": error.status_code,
+                        "message": error.message,
+                        "code": error.code,
+                        "details": error.details,
+                    },
+                }
+            ),
+        )
+
+    async def _resume_frame(self, kind: str, payload: dict[str, Any]) -> None:
+        """Send the owner its continuation; the runner publishes the shared trace."""
+        await send_event(self.websocket, kind, payload)
+
+    async def _chat_context(self, db: AsyncSession) -> AuthContext:
+        """The socket's current membership, refreshed before paid work starts."""
+        membership = await member_repo.get(
+            db, organization_id=self.organization_id, user_id=self.user.id
+        )
+        if membership is None:
+            raise AuthorizationError(message="You are no longer a member of this organization")
+        return AuthContext(
+            user_id=self.user.id,
+            organization_id=self.organization_id,
+            role=membership.role,
+        )
+
+    async def _answer_context(
+        self, db: AsyncSession, run_id: UUID
+    ) -> tuple[AuthContext, AgentRun, UUID]:
+        """Authorize an owned waiting web run in the socket's current room."""
+        ctx = await self._chat_context(db)
+        runner = AgentRunnerService(db)
+        run = await runner.get_run(ctx, run_id)
+        if run.surface != RunSurface.WEB.value or run.user_id != self.user.id:
+            raise AuthorizationError(message="Only the person this web run asked may answer it")
+        if run.status != RunStatus.AWAITING_ANSWER.value:
+            raise BadRequestError(
+                message="This run is not waiting for an answer",
+                details={"run_id": str(run.id), "status": run.status},
+            )
+        if run.conversation_id is None or str(run.conversation_id) != self._room:
+            raise BadRequestError(message="Open this run's conversation before answering")
+        await ConversationService(db).get_conversation(
+            run.conversation_id,
+            organization_id=self.organization_id,
+            user_id=self.user.id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        return ctx, run, run.conversation_id
+
+    async def _run_answer(self, request: _RunAnswerRequest) -> None:
+        """Continue an owned web run with this session's live delegate channels.
+
+        The persisted question is answered through the same runner as HTTP.
+        The socket owns the cancellable turn and keeps delegate questions live;
+        main questions still park and return in the correlated result.
+        """
+        self._outcome = None
+        self._turn_runs = []
+        self._turn_agent_id = None
+        authorized: AuthContext | None = None
+        try:
+            async with AsyncExitStack() as admission:
+                self._admission_stack = admission
+                async with get_db_context() as db:
+                    ctx, run, conversation_id = await self._answer_context(db, request.run_id)
+                authorized = ctx
+                from app.services.conversation_turns import claim
+
+                await self._stop_following()
+                self.current_conversation_id = str(conversation_id)
+                self._live = self.current_conversation_id
+                self._question_detached = False
+                self._current_timeline = TurnTimeline()
+                self._turn_agent_id = run.agent_id
+                self._turn_runs = (
+                    [OpenedRun(run.id, run.model_label, run.agent_version_id)]
+                    if run.model_label is not None
+                    else []
+                )
+                await admission.enter_async_context(claim(conversation_id, background=False))
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    runner = AgentRunnerService(db)
+                    segment = await runner.answer(
+                        ctx,
+                        request.run_id,
+                        request.responses,
+                        live_surface=LiveRunSurface(
+                            ask_user=self._ask_one,
+                            ask_questions=self._ask_questions,
+                            emit=self._resume_frame,
+                        ),
+                    )
+                    result = await run_result(runner, ctx, segment)
+                    if segment.run.status not in (
+                        RunStatus.AWAITING_ANSWER.value,
+                        RunStatus.AWAITING_APPROVAL.value,
+                    ):
+                        self._outcome = _Outcome(segment.run.id, segment.run.agent_id, None)
+                await self._emit(
+                    "run_answer_result",
+                    {"request_id": request.request_id, "result": result.model_dump(mode="json")},
+                )
+        except asyncio.CancelledError:
+            status = await self._stop_answered_run(authorized, request.run_id)
+            await self._answer_failed(
+                request.request_id,
+                RunExecutionError(
+                    message="The continuation was interrupted; check its saved status",
+                    details={
+                        "run_id": str(request.run_id),
+                        **({"status": status} if status is not None else {}),
+                    },
+                ),
+            )
+            raise
+        except AppException as error:
+            await self._answer_failed(request.request_id, error)
+        except Exception:
+            logger.exception("Could not answer a run from its chat session")
+            await self._answer_failed(
+                request.request_id, AppException(message="The run could not be continued")
+            )
+        finally:
+            self._admission_stack = None
+            finished, self._live = self._live, None
+            self._current_timeline = None
+            self._turn_task = None
+            if finished is not None and finished == self._room:
+                await self._follow_if_running(finished)
+            await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
+
+    async def _stop_answered_run(self, ctx: AuthContext | None, run_id: UUID) -> str | None:
+        """Stop an authorized run still parked when cancellation reached it.
+
+        A cancellation before the runner starts must close the saved question;
+        a cancellation after its terminal commit must report that actual state.
+        No run is touched until ownership and conversation access were checked.
+        """
+        if ctx is None:
+            return None
+        try:
+            with anyio.CancelScope(shield=True):
+                async with get_db_context() as db:
+                    runner = AgentRunnerService(db)
+                    run = await runner.get_run(ctx, run_id)
+                    if run.status in (
+                        RunStatus.AWAITING_ANSWER.value,
+                        RunStatus.AWAITING_APPROVAL.value,
+                    ):
+                        await runner.cancel_parked(ctx, run_id)
+                    return run.status
+        except Exception:
+            logger.exception("Could not read the interrupted continuation's saved state")
+            return None
 
     async def shutdown(self) -> None:
         """Let the in-flight turn finish without its socket, then stop it.

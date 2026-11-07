@@ -626,3 +626,16 @@ export interface ParkedQuestion {
   tool_call_id: string;
   questions: WireQuestion[];
 }
+
+/** A live chat's correlated acknowledgement for a parked question answer. */
+export type RunAnswerResult =
+  | { request_id: string; result: ResumedRun }
+  | {
+      request_id: string;
+      error: {
+        status: number;
+        message: string;
+        code: string;
+        details: Record<string, unknown> | null;
+      };
+    };
