@@ -1392,9 +1392,15 @@ class TestFiring:
             conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=BadRequestError(message="not runnable"))
-            await service.fire(trigger.id)
+            with patch("app.services.agent_trigger.NotificationService") as notices:
+                notices.return_value.routine_blocked = AsyncMock()
+                await service.fire(trigger.id)
         assert trigger.is_active is False
         assert audit.call_args.kwargs["details"]["reason"] == "agent_not_runnable"
+        # The run preparation flushed is rolled back rather than left `running`, and
+        # the owner reads the refusal itself.
+        service.db.rollback.assert_awaited()
+        assert notices.return_value.routine_blocked.await_args.kwargs["detail"] == "not runnable"
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
         agent = _agent()

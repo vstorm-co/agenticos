@@ -2761,7 +2761,7 @@ class AgentTriggerService:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
-        except BadRequestError:
+        except BadRequestError as refusal:
             # The agent is no longer runnable - unpublished back to a draft,
             # archived, or its version withdrawn - so `get_runnable_spec` refuses
             # inside execute. Left active, every cadence would dispatch another run
@@ -2770,7 +2770,26 @@ class AgentTriggerService:
             # before the blanket `Exception` below, which would otherwise find no run
             # of this fire's to recover and simply return, leaving the schedule to
             # dispatch the same doomed run every cadence.
-            await self._disable(trigger, reason="agent_not_runnable")
+            #
+            # Preparation flushed this fire's run before refusing; rolled back, it
+            # does not linger as `running` until the stale-run sweep calls it a
+            # crash. The owner is told the refusal itself - "this agent works on
+            # your computer" is a different fix from "it was unpublished".
+            await self.db.rollback()
+            current = await agent_trigger_repo.get_by_id(self.db, local_trigger_id, fresh=True)
+            if current is None:
+                return
+            await self._disable(current, reason="agent_not_runnable")
+            await NotificationService(self.db).routine_blocked(
+                organization_id=current.organization_id,
+                owner_user_id=current.created_by_user_id,
+                routine_id=current.id,
+                routine_kind="trigger",
+                reason="run",
+                name=local_trigger_name,
+                detail=refusal.message,
+                observed_at=datetime.now(UTC),
+            )
             return
         except Exception:
             # The run failed on something the runner re-raises instead of recording
