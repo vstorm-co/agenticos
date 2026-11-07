@@ -10,7 +10,7 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES
 from app.agents.deps import AgentDeps
-from app.agents.mcp import NEEDS_APPROVAL, tool_origin
+from app.agents.mcp import NEEDS_APPROVAL, PLATFORM_TOOL, tool_origin
 from app.agents.spec import AgentSpec
 from app.core.tool_identity import GENERIC_TOOL, ToolIdentity
 
@@ -38,6 +38,8 @@ class CaptureToolIdentity(AbstractCapability[AgentDeps]):
         )
 
     def identity(self, tool: ToolDefinition) -> ToolIdentity:
+        if (tool.metadata or {}).get(PLATFORM_TOOL) is True:
+            return ToolIdentity(presentation_kind="platform")
         if tool_origin(tool) is not None or NEEDS_APPROVAL in (tool.metadata or {}):
             return GENERIC_TOOL
         if tool.capability_id is not None:

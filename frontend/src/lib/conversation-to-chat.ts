@@ -18,7 +18,7 @@ export interface RawToolCall {
   tool_call_id: string;
   tool_name: string;
   tool_id?: string | null;
-  presentation_kind?: "draft" | "generic" | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   args: Record<string, unknown>;
   result?: unknown;
   status: string;

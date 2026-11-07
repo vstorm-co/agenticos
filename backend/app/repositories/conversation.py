@@ -79,7 +79,7 @@ async def coding_agents_in_conversations(
         .join(ToolCall, ToolCall.message_id == Message.id)
         .where(
             Message.conversation_id.in_(conversation_ids),
-            ToolCall.tool_name == "run_coding_agent",
+            _tool_named(("run_coding_agent",)),
             harness.in_(("claude_code", "codex")),
             report["outcome"].astext.in_(("completed", "failed", "timed_out")),
         )
@@ -1868,7 +1868,7 @@ async def create_tool_call(
     status: str = "running",
     mcp_connection_id: UUID | None = None,
     tool_id: str | None = None,
-    presentation_kind: Literal["draft", "generic"] | None = None,
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 

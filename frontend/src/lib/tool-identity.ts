@@ -2,7 +2,7 @@
 export interface ToolIdentity {
   name: string;
   tool_id?: string | null;
-  presentation_kind?: "draft" | "generic" | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
 }
 
 export function toolLookupName(call: ToolIdentity): string {

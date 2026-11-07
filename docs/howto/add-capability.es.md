@@ -1,5 +1,5 @@
 ---
-source_sha: "6bd4890f6edc"
+source_sha: "99083acac729"
 ---
 
 # Añade una capability { #add-a-capability }
@@ -162,7 +162,7 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   propio docstring de la herramienta: quien elige qué necesita aprobación y el
   modelo que elige cuándo actuar deberían leer el mismo texto, no dos paráfrasis
   que se separan.
-Las llamadas guardadas conservan este `id` estable como `tool_id`, junto al nombre real usado por el modelo. Las vistas del chat y los dibujos compartidos usan esa identidad, de modo que un cambio de nombre por agente conserva su vista al recargar. Las llamadas antiguas sin id usan el nombre guardado; las nuevas llamadas MCP tienen una presentación genérica explícita y no pueden obtener una vista integrada solo por su nombre.
+Las llamadas guardadas conservan este `id` estable como `tool_id`, junto al nombre real usado por el modelo. Las vistas del chat y los dibujos compartidos usan esa identidad, de modo que un cambio de nombre por agente conserva su vista al recargar. Las llamadas antiguas sin id usan el nombre guardado; las nuevas llamadas MCP externas tienen una presentación genérica explícita y no pueden obtener una vista integrada solo por su nombre.
 
 - **`config_schema`** genera el formulario del Builder y se valida al publicar,
   así que un valor malo falla mientras alguien mira un formulario y no a mitad de

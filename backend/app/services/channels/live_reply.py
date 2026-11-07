@@ -38,6 +38,7 @@ from pydantic_ai.messages import (
 
 from app.agents.browser_events import BrowserEvent
 from app.agents.deps import AgentDeps
+from app.core.tool_identity import ToolIdentity
 from app.services import live_browse
 from app.services.agent_runner import AgentIteration, RunStream
 from app.services.channels.base import AnswerStep, NativeAnswer, StepSource
@@ -380,6 +381,7 @@ def channel_stream(reply: AnswerSink) -> RunStream:
     async def walk(
         agent_run: AgentIteration[Any, Any], followed: anyio.abc.TaskGroup, run_id: str | None
     ) -> None:
+        deps = agent_run.ctx.deps.user_deps
         async for node in agent_run:
             if Agent.is_model_request_node(node):
                 async with node.stream(agent_run.ctx) as request_stream:
@@ -395,8 +397,21 @@ def channel_stream(reply: AnswerSink) -> RunStream:
                     async for event in tool_stream:
                         if isinstance(event, FunctionToolCallEvent):
                             call_id = event.part.tool_call_id
-                            titles[call_id] = doing(event.part.tool_name)
-                            live = _live_view(run_id, event.part.tool_name, call_id)
+                            identity = (
+                                deps.tool_identities.get(
+                                    call_id,
+                                    deps.tool_definitions.get(event.part.tool_name, ToolIdentity()),
+                                )
+                                if isinstance(deps, AgentDeps)
+                                else ToolIdentity()
+                            )
+                            name = (
+                                ""
+                                if identity.presentation_kind == "generic"
+                                else identity.tool_id or event.part.tool_name
+                            )
+                            titles[call_id] = doing(name)
+                            live = _live_view(run_id, name, call_id)
                             await reply.step(
                                 AnswerStep(
                                     call_id,

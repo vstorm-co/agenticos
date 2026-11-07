@@ -911,7 +911,7 @@ class RunStep(BaseSchema):
     )
     tool_name: str
     tool_id: str | None = None
-    presentation_kind: Literal["draft", "generic"] | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     result: str | None = Field(
         default=None,

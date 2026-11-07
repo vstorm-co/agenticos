@@ -91,7 +91,7 @@ class EmailDelivery(Payload):
 
 class ChannelHandbackCall(Payload):
     tool_id: str | None = None
-    presentation_kind: Literal["draft", "generic"] | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     tool_call_id: str
     tool_name: str
     args: dict[str, JsonValue]

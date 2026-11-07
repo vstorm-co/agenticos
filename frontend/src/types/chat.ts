@@ -165,7 +165,7 @@ export interface ChatMessage {
 
 export interface ToolCall {
   tool_id?: string | null;
-  presentation_kind?: "draft" | "generic" | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   id: string;
   name: string;
   args: Record<string, unknown>;

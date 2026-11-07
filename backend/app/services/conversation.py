@@ -1597,7 +1597,7 @@ class ConversationService:
         awaiting_answer: bool = False,
         mcp_connection_id: UUID | None = None,
         tool_id: str | None = None,
-        presentation_kind: Literal["draft", "generic"] | None = None,
+        presentation_kind: Literal["draft", "generic", "platform"] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 

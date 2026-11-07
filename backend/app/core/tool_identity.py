@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-type PresentationKind = Literal["draft", "generic"]
+type PresentationKind = Literal["draft", "generic", "platform"]
 
 
 @dataclass(frozen=True)

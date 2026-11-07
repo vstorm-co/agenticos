@@ -992,7 +992,7 @@ export function useChat(options: UseChatOptions = {}) {
           // drawn now, as `pending`, and `tool_call` fills it in.
           const { index, tool_name, tool_call_id, tool_id, presentation_kind } = wsEvent.data as {
             tool_id?: string | null;
-            presentation_kind?: "draft" | "generic" | null;
+            presentation_kind?: "draft" | "generic" | "platform" | null;
             index: number;
             tool_name?: string;
             tool_call_id?: string;
@@ -1067,7 +1067,7 @@ export function useChat(options: UseChatOptions = {}) {
             const { tool_name, args, tool_call_id, tool_id, presentation_kind } = wsEvent.data as {
               tool_name: string;
               tool_id?: string | null;
-              presentation_kind?: "draft" | "generic" | null;
+              presentation_kind?: "draft" | "generic" | "platform" | null;
               args: Record<string, unknown>;
               tool_call_id: string;
             };

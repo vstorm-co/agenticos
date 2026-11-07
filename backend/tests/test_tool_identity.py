@@ -198,3 +198,15 @@ def test_a_parked_transcript_round_trips_the_original_tool_identity() -> None:
     inherited = ChannelPrompts.inherited_calls(run)
     assert inherited[0].tool_name == "sketch"
     assert inherited[0].tool_id == "draw"
+
+
+@pytest.mark.security
+def test_the_in_process_platform_keeps_its_views_without_claiming_a_registry_id() -> None:
+    from app.agents.mcp import PLATFORM_TOOL
+
+    definition = ToolDefinition(
+        name="agenticos_create_project", metadata={PLATFORM_TOOL: True, NEEDS_APPROVAL: False}
+    )
+    identity = CaptureToolIdentity(registered={}).identity(definition)
+    assert identity == ToolIdentity(presentation_kind="platform")
+    assert identity.wire() == {"presentation_kind": "platform"}

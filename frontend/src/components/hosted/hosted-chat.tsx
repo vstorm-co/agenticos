@@ -107,7 +107,9 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
             name: String(payload.tool_name),
             tool_id: typeof payload.tool_id === "string" ? payload.tool_id : null,
             presentation_kind:
-              payload.presentation_kind === "draft" || payload.presentation_kind === "generic"
+              payload.presentation_kind === "draft" ||
+              payload.presentation_kind === "generic" ||
+              payload.presentation_kind === "platform"
                 ? payload.presentation_kind
                 : null,
             // Absent where the operator does not show what a step returned, and an

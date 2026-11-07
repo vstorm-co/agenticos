@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Keep renamed tools’ chat views, drawings, drafts and run steps through streaming, reloads and shared links; prevent external tools from claiming built-in renderers by name (#2740).
+- Cancel clipboard feedback timers when a copied card closes, including copies that finish after the card unmounts.
 
 ## [1.56.1] - 2026-11-07
 
