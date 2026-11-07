@@ -9,7 +9,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 "?" has no walkthrough to replay. Chat has no header: its tips are under the chat
 settings, the sliders beside the microphone.
 
-Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel. Get started reserves its space while checklist data loads, so Briefing and the cards below stay in place.
+Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel.
 
 Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
@@ -898,3 +898,30 @@ The administration organization directory shows the uploaded organization pictur
 
 
 **Chat controls → Tools & files** shows the coding account an agent needs when its Coding agent runs as **Private cloud task with my account**: only that harness, with its logo and consent status. Connect or manage it without leaving the chat; every account appears under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.
+
+## Your first task
+
+Open **Get started** from the dashboard, the first-use offer or a page's help.
+An accepted organization invitation opens this same start in the organization
+you joined. Registration tries to sign you in immediately; if that session
+fails, the sign-in form keeps the destination and the account already created.
+
+Choose a fictional meeting note, a policy question or an offer comparison.
+Review or edit the text before **Run this task**. Execution uses the selected
+agent's model and normal spending limits, and may incur provider charges. No
+screen, microphone, sandbox or external account is required by these text examples.
+
+Without an available agent, **View example** shows a recorded result. It makes
+no model call, does not process your edits and does not count as a successful
+run. A permitted builder can prepare a shared text assistant on a deliberately
+selected shared chat model. Its monthly agent limit is $5, within the workspace
+budget. Preparation never changes an existing agent's draft; use the Builder to
+change an existing assistant. Members without those rights see the owner's contact.
+
+Your example choice and dismissal are stored per membership and follow you to
+another device. The start also links to your latest completed personal web chat.
+A completed run is evidence of execution, not a rating of its usefulness. Tours
+are optional help; closing one does not create a successful run. Integrations,
+files, agent building, team invitations and routines are optional next steps.
+
+Member managers can check whether an existing teammate and they can run a common published agent. The preview returns only that answer, never private agent names, and makes no model call. It does not certify provider availability. Team invitations from a loopback address are blocked in this start; use a server address reachable by the recipient.

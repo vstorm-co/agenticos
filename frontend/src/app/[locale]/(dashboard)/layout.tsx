@@ -24,6 +24,7 @@ import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
+import { StartOffer } from "@/components/onboarding/start-offer";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 
@@ -102,7 +103,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     menu, because the administrator who has to end it reaches the
                     settings page through them. */}
               <DeploymentGate>
-                <PageTransition>{children}</PageTransition>
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <Suspense fallback={null}>
+                    <StartOffer />
+                  </Suspense>
+                  <PageTransition>{children}</PageTransition>
+                </div>
               </DeploymentGate>
             </MainViewport>
           </div>

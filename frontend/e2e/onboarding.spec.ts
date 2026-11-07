@@ -3,24 +3,13 @@ import { expect, test } from "./fixtures";
 import { AUTH_STATE, DASHBOARD_GREETING, pageHeading } from "./helpers";
 
 /**
- * The walkthrough, which every other spec in this suite spends its life avoiding.
+ * Tours are requested help, independent of first-task activation. This spec
+ * opens one from the shared start and verifies that closing it persists the
+ * historical walkthrough preference on the server. Other journeys remain free
+ * of automatic overlays, including accounts whose preference is still null.
  *
- * `seed.setup.ts` marks the owner's onboarding finished precisely so the first-run
- * tour does not auto-open over every page the rest of the suite loads — its
- * driver.js overlay is `allowClose: false` and swallows clicks behind it, which is
- * how six specs went red the day this feature landed. That leaves the feature with
- * no end-to-end cover at all, and the thing worth covering is exactly the seam the
- * seed papers over: whether the tour opens itself for a user who has not finished,
- * and whether dismissing it is remembered on the server rather than in a browser.
- *
- * So this spec unsets the flag, does the journey, and puts it back. `workers: 1`
- * and `fullyParallel: false` are what make that safe — no other spec is loading a
- * page while the flag is off. A run killed mid-test leaves it off, and the seed
- * sets it again at the head of the next run, so the damage is bounded to nothing.
- *
- * The popover is driver.js's, so it is found by driver's own class names rather
- * than a role: it renders a `div` with no dialog semantics, and the app styles it
- * through the same selectors (`globals.css`).
+ * The popover uses driver.js classes because the library renders a div rather
+ * than a dialog. The seed and teardown preserve the shared owner's preference.
  */
 test.use({ storageState: AUTH_STATE });
 
@@ -39,7 +28,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test.describe("Onboarding", () => {
-  test("greets a user who has not finished, and remembers the dismissal on the server", async ({
+  test("opens a requested tour from the start hub and remembers its dismissal", async ({
     page,
   }) => {
     const reset = await page.request.patch("/api/users/me", {
@@ -47,10 +36,10 @@ test.describe("Onboarding", () => {
     });
     expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
 
-    await page.goto("/dashboard");
+    await page.goto("/onboarding");
+    await page.getByRole("button", { name: "Explore the application", exact: true }).click();
 
-    // Data-borne in the only way this feature can be: the copy is the catalog's,
-    // and it is on screen because the *server* said this user has not finished.
+    // A deliberate request opens the translated tour independently of activation.
     await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
     await expect(page.locator(POPOVER)).toContainText("Step 1 of");
 
@@ -92,7 +81,8 @@ test.describe("Onboarding", () => {
       data: { onboarding_completed_at: null },
     });
     expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
-    await page.goto("/dashboard");
+    await page.goto("/onboarding");
+    await page.getByRole("button", { name: "Explore the application", exact: true }).click();
     await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
 
     await page.evaluate(() => {

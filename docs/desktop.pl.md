@@ -1,5 +1,5 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "e2196c2cc364"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -66,11 +66,16 @@ Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/cre
 
 ## Uruchamianie { #running-it }
 
-Przed wyborem lokalnej instalacji lub połączeniem z serwerem kreator pierwszego
-uruchomienia oferuje opcjonalne uprawnienia Screen Recording, Accessibility i Microphone na macOS.
-Każdy przycisk otwiera odpowiednie ustawienia systemowe; konfiguracja niczego nie
-przechwytuje ani nie steruje komputerem. Można kontynuować bez żadnego z nich. Powrót z
-ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do folderów jest nadal żądany przy użyciu. Mikrofon macOS prosi zwykłym okienkiem; pozostałe dwa otwierają Ustawienia systemowe. Pierwsze okno otwiera się na 80% ekranu, wyśrodkowane, a potem pamięta rozmiar i miejsce.
+Kreator zaczyna od języka oraz wyboru lokalnej przestrzeni albo serwera firmy.
+Nagrywanie ekranu, Accessibility i mikrofon to opcjonalne funkcje dostępne w
+App readiness lub przy użyciu, a nie wymagany krok przed wyborem połączenia.
+
+Natywny start i konsola obsługują angielski, polski, niemiecki i turecki. Wybór
+z instalatora trafia do konsoli; zapisany język istniejącego konta nadal ma
+pierwszeństwo. Konfiguracja lokalna pyta o jedną nazwę przestrzeni; oddzielna
+nazwa organizacji to opcja zaawansowana. Po przeglądzie połączenia **Pierwsze kroki**
+otwierają wspólny start zadania. Lokalna przestrzeń może wysyłać materiał do
+zdalnego dostawcy AI; sama instalacja lokalna nie oznacza AI offline.
 
 Wymagane są Rust z [rustup](https://rustup.rs) i webview platformy - WebKit na
 macOS, WebView2 na Windows, WebKitGTK na Linuksie; listę dla każdej platformy ma
@@ -688,3 +693,5 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
  Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
+
+Przy łączeniu aplikacji desktopowej możesz wkleić oryginalny link zaproszenia zamiast samego adresu serwera. Aplikacja połączy się z serwerem z tego linku i otworzy zaproszenie, zachowując cel podczas logowania. Nie zaakceptuje go automatycznie ani nie zapisze tokenu w ustawieniach natywnych. Opcjonalny przegląd połączenia poczeka na zakończenie zaproszenia.

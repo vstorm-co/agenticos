@@ -1,5 +1,5 @@
 ---
-source_sha: "302bc847e98d"
+source_sha: "a55761046e4e"
 ---
 
 # Konsola { #the-console }
@@ -13,7 +13,7 @@ odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?"
 nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
 ustawieniach czatu, pod suwakami obok mikrofonu.
 
-Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów. Get started rezerwuje miejsce podczas pobierania checklisty, aby Briefing i karty poniżej nie przeskakiwały.
+Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
 Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
@@ -928,3 +928,30 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 
 **Chat controls → Tools & files** pokazuje konto coding, którego agent potrzebuje, gdy jego Coding agent działa jako **Private cloud task with my account**: tylko ten harness, z logotypem i stanem zgody. Możesz je podłączyć lub nim zarządzać bez wychodzenia z chatu; wszystkie konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.
+
+## Pierwsze zadanie { #your-first-task }
+
+Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
+strony. Przyjęte zaproszenie otwiera ten sam start w organizacji, do której
+właśnie dołączasz. Rejestracja próbuje od razu zalogować konto; gdy sesja się nie
+powiedzie, formularz logowania zachowuje cel i już utworzone konto.
+
+Wybierz fikcyjną notatkę, pytanie o politykę albo porównanie ofert. Przejrzyj lub
+zmień tekst przed **Uruchom zadanie**. Wykonanie korzysta z modelu agenta i zwykłych
+limitów wydatków; może wiązać się z opłatą dostawcy. Te przykłady tekstowe nie
+wymagają ekranu, mikrofonu, sandboxu ani zewnętrznego konta.
+
+Bez dostępnego agenta **Zobacz przykład** pokazuje zapisany wynik. Nie wywołuje
+modelu, nie przetwarza zmian i nie liczy się jako udane wykonanie. Uprawniony
+builder może przygotować wspólnego asystenta tekstowego na świadomie wybranym
+wspólnym modelu. Jego miesięczny limit to 5 USD w ramach budżetu przestrzeni.
+Przygotowanie nie zmienia szkicu istniejącego agenta; do jego zmiany służy
+Builder. Osoba bez tych praw widzi kontakt do właściciela.
+
+Wybór przykładu i pominięcie są zapisane na członkostwie, także dla innego
+urządzenia. Start prowadzi też do ostatniej zakończonej własnej rozmowy webowej.
+Zakończony run dowodzi wykonania, nie oceny przydatności. Wycieczki są opcjonalną
+pomocą; ich zamknięcie nie tworzy udanego wykonania. Integracje, pliki, budowanie
+agentów, zaproszenia i rutyny są opcjonalnymi kolejnymi krokami.
+
+Osoby zarządzające członkami mogą sprawdzić, czy wraz z wybranym członkiem mogą uruchomić wspólnego opublikowanego agenta. Podgląd zwraca tylko tę informację, bez nazw prywatnych agentów i bez wywołania modelu. Nie potwierdza dostępności dostawcy. Centrum startu blokuje zaproszenia z adresu lokalnego komputera; potrzebny jest adres serwera osiągalny dla odbiorcy.

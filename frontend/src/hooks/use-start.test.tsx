@@ -1,0 +1,120 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { useStart, useMemberStartPreview } from "./use-start";
+import {
+  readOnboarding,
+  saveOnboarding,
+  prepareStarter,
+  previewMemberStart,
+} from "@/lib/onboarding-api";
+import type { Onboarding } from "@/lib/onboarding-api";
+import { qk } from "@/lib/query-keys";
+const sample: Onboarding = {
+  organization_id: "org",
+  organization_name: "Demo",
+  goal: null,
+  dismissed: false,
+  can_prepare: true,
+  can_configure_model: true,
+  support_email: null,
+  agents: [],
+  latest_conversation_id: null,
+  latest_completed_at: null,
+  has_result: false,
+};
+const scope = vi.hoisted(() => ({ user: "user" as string | null, org: "org" as string | null }));
+vi.mock("@/stores", () => ({
+  useAuthStore: (pick: (state: { user: { id: string } | null }) => unknown) =>
+    pick({ user: scope.user ? { id: scope.user } : null }),
+  useOrgStore: (pick: (state: { activeOrgId: string | null }) => unknown) =>
+    pick({ activeOrgId: scope.org }),
+}));
+vi.mock("@/lib/onboarding-api", () => ({
+  readOnboarding: vi.fn(),
+  saveOnboarding: vi.fn(),
+  prepareStarter: vi.fn(),
+  previewMemberStart: vi.fn(),
+}));
+function mount() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { client, ...renderHook(() => useStart(), { wrapper }) };
+}
+beforeEach(() => {
+  vi.clearAllMocks();
+  scope.user = "user";
+  scope.org = "org";
+});
+it("does not fetch personal state without both identity and organization", () => {
+  scope.user = null;
+  scope.org = null;
+  const { result } = mount();
+  expect(result.current.waitingForScope).toBe(true);
+  expect(readOnboarding).not.toHaveBeenCalled();
+});
+it("reads state under both identities and updates only that scoped cache", async () => {
+  vi.mocked(readOnboarding).mockResolvedValue(sample);
+  const saved: Onboarding = { ...sample, goal: "meeting" };
+  vi.mocked(saveOnboarding).mockResolvedValue(saved);
+  const { result, client, rerender } = mount();
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  await act(async () => {
+    await result.current.save.mutateAsync({ goal: "meeting" });
+  });
+  expect(client.getQueryData(qk.onboarding.state("user", "org"))).toEqual(saved);
+  expect(client.getQueryData(qk.onboarding.state("user", "other"))).toBeUndefined();
+  scope.org = "other";
+  rerender();
+  await waitFor(() => expect(readOnboarding).toHaveBeenCalledTimes(2));
+});
+it("refreshes agents and readiness after explicit preparation", async () => {
+  vi.mocked(readOnboarding).mockResolvedValue(sample);
+  vi.mocked(prepareStarter).mockResolvedValue({ id: "agent", name: "Starter" });
+  const { result, client } = mount();
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  await act(async () => {
+    await result.current.prepare.mutateAsync("model");
+  });
+  expect(prepareStarter).toHaveBeenCalledWith("model", expect.anything());
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.onboarding.state("user", "org") });
+});
+
+it("isolates the read-only member preview across organization switches", async () => {
+  vi.mocked(previewMemberStart).mockResolvedValue({ has_common_agent: false });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result, rerender } = renderHook(({ person }) => useMemberStartPreview(person), {
+    wrapper,
+    initialProps: { person: "" },
+  });
+  expect(previewMemberStart).not.toHaveBeenCalled();
+  rerender({ person: "teammate" });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(client.getQueryData(qk.onboarding.preview("org", "teammate"))).toEqual({
+    has_common_agent: false,
+  });
+  scope.org = "another";
+  rerender({ person: "teammate" });
+  await waitFor(() => expect(previewMemberStart).toHaveBeenCalledTimes(2));
+});
+
+it("does not request a teammate preview without an active organization", () => {
+  scope.org = null;
+  const client = new QueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useMemberStartPreview("teammate"), { wrapper });
+  expect(result.current.fetchStatus).toBe("idle");
+  expect(previewMemberStart).not.toHaveBeenCalled();
+});

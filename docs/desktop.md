@@ -61,11 +61,17 @@ When the release workflow has a stable self-signed certificate (`scripts/create_
 
 ## Running it
 
-Before choosing a local installation or connecting to a server, the first-run wizard
-offers optional Screen Recording, Accessibility and Microphone permissions on macOS. Each button
-opens the relevant system settings; setup never captures the screen or controls the
-computer. Continue works without either permission. Returning from System Settings
-refreshes their status; macOS may require an app restart. Folder access remains requested when it is used. The Microphone prompt is a normal macOS one; the other two open System Settings. The first window opens at 80% of the screen, centred, and afterwards remembers its size and place.
+The first-run wizard starts with a language choice and whether to create a local
+workspace or connect to your organization's server. Screen Recording,
+Accessibility and Microphone are optional features offered through App readiness
+or when used, rather than a required step before choosing a connection.
+
+The native start and console support English, Polish, German and Turkish. Your
+native choice is carried to the console; an existing account's saved language
+still takes precedence. Local setup asks for one workspace name; a separate
+organization name is an advanced option. After connection review, **Get started**
+opens the common first-task flow. A local workspace can still send material to
+a remote AI provider; local installation alone does not mean offline AI.
 
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
@@ -677,3 +683,5 @@ Local access choices belong to the selected agent, not to a global default inher
 While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
 
  Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.
+
+When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.

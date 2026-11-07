@@ -1,5 +1,5 @@
 ---
-source_sha: "302bc847e98d"
+source_sha: "a55761046e4e"
 ---
 
 # Die Konsole { #the-console }
@@ -14,7 +14,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Cha
 hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
 neben dem Mikrofon.
 
-Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an. Get started reserviert beim Laden der Checkliste seinen Platz, damit Briefing und die Karten darunter nicht springen.
+Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
 Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
@@ -1001,3 +1001,32 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 
 **Chat controls → Tools & files** zeigt das Coding-Konto, das ein Agent braucht, wenn sein Coding agent als **Private cloud task with my account** läuft: nur diesen Harness, mit Logo und Zustimmungsstatus. Verbinde oder verwalte es direkt im Chat; alle Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.
+
+## Ihre erste Aufgabe { #your-first-task }
+
+Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
+Seitenhilfe. Eine angenommene Einladung öffnet denselben Start in der beigetretenen
+Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
+fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
+
+Wählen Sie eine fiktive Besprechungsnotiz, eine Richtlinienfrage oder einen
+Angebotsvergleich. Prüfen oder bearbeiten Sie den Text vor **Aufgabe starten**.
+Die Ausführung verwendet das Modell und die Ausgabenlimits des gewählten Agenten
+und kann Anbieterkosten verursachen. Diese Textbeispiele benötigen weder Bildschirm,
+Mikrofon, Sandbox noch ein externes Konto.
+
+Ohne verfügbaren Agenten zeigt **Beispiel ansehen** ein aufgezeichnetes Ergebnis.
+Es ruft kein Modell auf, verarbeitet keine Änderungen und zählt nicht als
+erfolgreicher Lauf. Berechtigte Builder können einen gemeinsamen Textassistenten
+auf einem bewusst gewählten gemeinsamen Chatmodell vorbereiten. Sein monatliches
+Limit beträgt 5 USD innerhalb des Arbeitsbereichsbudgets. Bestehende Entwürfe werden
+nicht geändert; nutzen Sie dafür den Builder. Andere Mitglieder sehen den Kontakt
+des Eigentümers.
+
+Beispielwahl und Ausblenden werden pro Mitgliedschaft auch für andere Geräte
+gespeichert. Der Start verlinkt den letzten abgeschlossenen eigenen Webchat.
+Ein abgeschlossener Lauf belegt die Ausführung, nicht die Nützlichkeit. Touren
+sind optionale Hilfe; ihr Schließen erzeugt keinen erfolgreichen Lauf.
+Integrationen, Dateien, Agentenbau, Einladungen und Routinen sind optionale Folgeschritte.
+
+Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen gemeinsamen veröffentlichten Agenten ausführen können. Die Vorschau liefert nur diese Antwort, keine privaten Agentennamen, und ruft kein Modell auf. Sie bestätigt nicht die Erreichbarkeit des Anbieters. Einladungen von einer Loopback-Adresse sind in diesem Start gesperrt; verwenden Sie eine für den Empfänger erreichbare Serveradresse.

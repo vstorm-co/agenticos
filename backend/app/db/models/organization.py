@@ -279,6 +279,12 @@ class OrganizationMember(Base):
         default=MembershipSource.MANUAL.value,
         server_default=MembershipSource.MANUAL.value,
     )
+    onboarding_goal: Mapped[Literal["meeting", "document", "compare"] | None] = mapped_column(
+        String(16), nullable=True
+    )
+    onboarding_dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # The first messages an empty chat with the starter agent offers this person
     # here, written in the background from what they did in this organization -
     # so on the membership, never the account, which every organization reads.
@@ -292,6 +298,10 @@ class OrganizationMember(Base):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
+        CheckConstraint(
+            "onboarding_goal IS NULL OR onboarding_goal IN ('meeting', 'document', 'compare')",
+            name="ck_org_member_onboarding_goal",
+        ),
         Index("ix_org_member_org_role", "organization_id", "role"),
         CheckConstraint(
             "source IN ('manual', 'directory', 'discord')", name="ck_org_member_source"

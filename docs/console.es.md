@@ -1,5 +1,5 @@
 ---
-source_sha: "302bc847e98d"
+source_sha: "a55761046e4e"
 ---
 
 # La consola { #the-console }
@@ -14,7 +14,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir. El chat no
 tiene cabecera: sus consejos están en los ajustes del chat, los deslizadores junto
 al micrófono.
 
-Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte. Get started reserva su espacio mientras carga la lista para que Briefing y las tarjetas inferiores no salten.
+Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
 El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en el cuadro de mensaje al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
@@ -954,3 +954,30 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 
 
 **Chat controls → Tools & files** muestra la cuenta de coding que necesita un agente cuando su Coding agent se ejecuta como **Private cloud task with my account**: solo ese harness, con su logotipo y el estado del consentimiento. Conéctala o gestiónala sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.
+
+## Tu primera tarea { #your-first-task }
+
+Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una página.
+Aceptar una invitación abre este mismo inicio en la organización correspondiente.
+El registro intenta iniciar sesión directamente; si falla, el formulario de acceso
+conserva el destino y la cuenta ya creada.
+
+Elige una nota de reunión ficticia, una pregunta sobre una política o una comparación
+de ofertas. Revisa o edita el texto antes de **Run this task**. La ejecución usa
+el modelo y los límites de gasto del agente seleccionado y puede generar cargos
+del proveedor. Estos ejemplos no necesitan pantalla, micrófono, sandbox ni cuenta externa.
+
+Sin agente disponible, **View example** muestra un resultado grabado. No llama
+al modelo, no procesa las modificaciones y no cuenta como ejecución correcta.
+Un builder autorizado puede preparar un asistente de texto compartido con un modelo
+de chat compartido elegido explícitamente. Tiene un límite mensual de 5 USD dentro
+del presupuesto del espacio. La preparación no modifica borradores existentes;
+usa el Builder para cambiarlos. Los demás miembros ven el contacto del propietario.
+
+La elección del ejemplo y su descarte se guardan por pertenencia y se conservan
+en otros dispositivos. El inicio enlaza al último chat web propio completado.
+Una ejecución completada confirma que se ejecutó, no su utilidad. Las visitas
+guiadas son ayuda opcional; cerrarlas no crea una ejecución correcta. Integraciones,
+archivos, agentes, invitaciones y rutinas son pasos siguientes opcionales.
+
+Quienes gestionan miembros pueden comprobar si ellos y otro miembro pueden ejecutar un mismo agente publicado. La vista previa devuelve solo esa respuesta, sin nombres de agentes privados ni llamadas al modelo. No confirma la disponibilidad del proveedor. Este inicio bloquea las invitaciones desde una dirección de bucle local; use una dirección del servidor accesible para el destinatario.

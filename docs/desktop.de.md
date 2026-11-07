@@ -1,5 +1,5 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "e2196c2cc364"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -66,12 +66,17 @@ Hat der Release-Workflow ein stabiles selbstsigniertes Zertifikat (`scripts/crea
 
 ## Starten { #running-it }
 
-Vor der lokalen Installation oder Serververbindung bietet der Einrichtungsassistent
-unter macOS optional Bildschirmaufnahme, Bedienungshilfen und Mikrofon an. Jede Schaltfläche
-öffnet die zugehörigen Systemeinstellungen; die Einrichtung nimmt weder den Bildschirm
-auf noch steuert sie den Computer. Alle lassen sich überspringen. Nach
-Rückkehr aus den Systemeinstellungen wird der Status aktualisiert; macOS kann einen App-
-Neustart verlangen. Ordnerzugriff wird weiterhin erst bei Nutzung angefragt. Das Mikrofon fragt macOS mit der üblichen Abfrage; die beiden anderen öffnen die Systemeinstellungen. Das erste Fenster öffnet sich mit 80 % des Bildschirms, zentriert, und merkt sich danach Größe und Position.
+Der Assistent beginnt mit der Sprache und der Wahl zwischen lokalem
+Arbeitsbereich und Organisationsserver. Bildschirmaufnahme, Bedienungshilfen
+und Mikrofon sind optionale Funktionen in App readiness oder bei ihrer Nutzung;
+sie sind keine Voraussetzung für die Wahl einer Verbindung.
+
+Nativer Start und Konsole unterstützen Englisch, Polnisch, Deutsch und Türkisch.
+Die Auswahl wird an die Konsole übergeben; die gespeicherte Kontosprache hat
+weiterhin Vorrang. Lokal wird ein Arbeitsbereichsname abgefragt; ein separater
+Organisationsname ist eine erweiterte Option. Nach der Verbindungsprüfung öffnet
+**Erste Schritte** den gemeinsamen Aufgabenstart. Ein lokaler Arbeitsbereich kann
+Material an einen entfernten KI-Anbieter senden; lokal installiert bedeutet nicht Offline-KI.
 
 Voraussetzungen sind Rust über [rustup](https://rustup.rs) und die Webview der
 Plattform - WebKit auf macOS, WebView2 auf Windows, WebKitGTK auf Linux; Tauris
@@ -724,3 +729,5 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+Beim Verbinden der Desktop-App können Sie statt der Serveradresse den ursprünglichen Einladungslink einfügen. Die App verbindet sich mit dessen Server und öffnet die Einladung; das Ziel bleibt beim Anmelden erhalten. Die Einladung wird nicht automatisch angenommen und ihr Token nicht in den nativen Einstellungen gespeichert. Die optionale Verbindungsprüfung wartet, bis die Einladung abgeschlossen ist.

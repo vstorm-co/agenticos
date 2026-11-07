@@ -10,6 +10,11 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  onboarding: {
+    preview: (org: string, user: string) => ["onboarding", "preview", org, user] as const,
+    all: () => ["onboarding"] as const,
+    state: (user: string, org: string) => ["onboarding", user, org] as const,
+  },
   codingAccounts: {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
