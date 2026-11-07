@@ -1,5 +1,5 @@
 ---
-source_sha: "9226bb4c1c56"
+source_sha: "ba8ea4e650e2"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -711,6 +711,8 @@ Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conse
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
 
 ## Rutinas locales { #local-routines }
+
+El JSON de permisos de rutinas se verifica con su huella SHA-256 actual en el llavero del sistema operativo. Editarlo o restaurar una copia anterior a una revocación no concede acceso. Un llavero no disponible o una discrepancia bloquea las rutinas. **Actualización:** los permisos antiguos no tienen huella y necesitan nueva aprobación: desconecta explícitamente el equipo, vuelve a vincularlo y revisa sus rutinas. El mismo reinicio recupera una escritura interrumpida; la app nunca confía automáticamente en un archivo sin verificar.
 
 Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada. La primera vez, la aplicación de escritorio pregunta una vez, de forma nativa, si **todas tus rutinas** de esta organización pueden trabajar en esa carpeta y sus subcarpetas con esas operaciones; elige tu carpeta personal para todo el ordenador.
 

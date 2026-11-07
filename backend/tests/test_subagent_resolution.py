@@ -227,12 +227,14 @@ class _Prepared:
         get_version: AsyncMock,
         list_profiles: AsyncMock,
         resolved: AsyncMock,
+        opened: AsyncMock,
     ) -> None:
         self.prepared = prepared
         self.build = build
         self.get_version = get_version
         self.list_profiles = list_profiles
         self.resolved = resolved
+        self.opened = opened
 
     @property
     def resources(self) -> dict[str, Any]:
@@ -294,6 +296,7 @@ async def _prepare(
     agents: dict[uuid.UUID, MagicMock] | None = None,
     collections: dict[uuid.UUID, MagicMock] | None = None,
     workspace: object | None = None,
+    local: LocalTarget | None = None,
     agent_id: uuid.UUID | None = None,
     profiles: list[MagicMock] | None = None,
     voice: VoiceRun | None = None,
@@ -378,7 +381,7 @@ async def _prepare(
             new=AsyncMock(
                 return_value=None if workspace is None else MagicMock(workspace=workspace)
             ),
-        ),
+        ) as opened,
         patch(f"{RUNNER}.workspace_snapshot", new=AsyncMock(return_value=set())),
         patch(
             f"{RUNNER}.knowledge_base_repo.get_by_ids", new=AsyncMock(side_effect=get_collections)
@@ -397,9 +400,10 @@ async def _prepare(
             surface=surface,
             acts_for_sender=acts_for_sender,
             request_computer_access=request_computer_access,
+            local=local,
         )
 
-    return _Prepared(prepared, build, fetch_version, list_profiles, resolved)
+    return _Prepared(prepared, build, fetch_version, list_profiles, resolved, opened)
 
 
 class TestAnAgentThatDoesNotDelegate:
@@ -2562,3 +2566,29 @@ async def test_a_coding_delegate_can_upgrade_an_existing_restricted_folder(mode)
         ComputerAccessRequest(reason="Run the coding delegate", coding=True)
     )
     assert prepared.runtime.subagents[0].workspace is device
+
+
+async def test_a_delegate_consent_target_enables_the_sandboxless_root_before_workspace_opening():
+    from app.services.sandbox_workspace import sandbox_config
+
+    child_id = uuid.uuid4()
+    version = _version(
+        child_id,
+        AgentSpec(
+            name="Local child",
+            capabilities=[CapabilityBindingSpec(id="sandbox", config={"backend": "local"})],
+        ),
+    )
+    root = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)])
+    assert sandbox_config(root) is None
+    device = MagicMock(spec=Workspace)
+    device.backend = DeviceWorkspace(uuid.uuid4(), uuid.uuid4(), LocalTarget(folder="/approved"))
+    prepared = await _prepare(
+        root,
+        versions={version.id: version},
+        workspace=device,
+        local=LocalTarget(folder="/approved"),
+    )
+    assert sandbox_config(prepared.opened.call_args.args[0]) is not None
+    assert prepared.built("local-child")["resources"][WORKSPACE_RESOURCE] is device
+    assert sandbox_config(root) is None

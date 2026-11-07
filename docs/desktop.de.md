@@ -1,5 +1,5 @@
 ---
-source_sha: "9226bb4c1c56"
+source_sha: "ba8ea4e650e2"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -723,6 +723,8 @@ Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält 
 Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrückthalten des Kurzbefehls. Sprachgespräche verwenden dieselben Steuerelemente wie der Chat, mit dem konfigurierten Transport des ausgewählten Agenten, Untertiteln, Freigaben und Fragen. Gesprochene Beiträge werden in der Unterhaltung gespeichert. Textversand und Diktat warten während eines Anrufs. Ein Tab- oder Agentenwechsel beendet den Anruf und gibt das Mikrofon frei.
 
 ## Lokale Routinen { #local-routines }
+
+Die JSON-Datei der Routinefreigaben wird gegen ihren aktuellen SHA-256-Fingerabdruck im Betriebssystem-Schlüsselbund geprüft. Änderungen oder das Wiederherstellen einer Kopie vor dem Widerruf gewähren keinen Zugriff. Ein nicht verfügbarer Schlüsselbund oder eine Abweichung blockiert Routinen. **Upgrade:** ältere Freigaben haben keinen Fingerabdruck und benötigen neue Zustimmung: Computer explizit trennen, erneut koppeln und Routinen prüfen. Derselbe Reset behebt einen unterbrochenen Schreibvorgang; die App vertraut ungeprüften Dateien niemals automatisch.
 
 Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Beim ersten Mal fragt die Desktop-App einmal nativ, ob **alle deine Routinen** in dieser Organisation in diesem Ordner und seinen Unterordnern mit diesen Vorgängen arbeiten dürfen; wähle deinen Benutzerordner für den ganzen Computer.
 

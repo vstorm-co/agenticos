@@ -1,5 +1,5 @@
 ---
-source_sha: "9226bb4c1c56"
+source_sha: "ba8ea4e650e2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -685,6 +685,8 @@ Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje
 Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok istniejącego skrótu przytrzymywanego. Połączenia głosowe korzystają z tych samych kontrolek co chat: konfiguracji wybranego agenta, napisów, zatwierdzeń i pytań. Wypowiedziane tury zapisują się w rozmowie. Wysyłanie tekstu i dyktowanie czekają podczas połączenia. Przejście do innej zakładki lub zmiana agenta kończy połączenie i zwalnia mikrofon.
 
 ## Rutyny lokalne { #local-routines }
+
+JSON zgód procedur jest weryfikowany względem aktualnego skrótu SHA-256 w systemowym keychainie. Edycja pliku ani przywrócenie kopii sprzed cofnięcia zgody nie nadaje dostępu. Niedostępny keychain lub niezgodność blokuje procedury. **Aktualizacja:** starsze zgody nie mają skrótu i wymagają ponownego zatwierdzenia: jawnie odłącz komputer, powiąż go ponownie i przejrzyj procedury. Ten sam reset naprawia przerwany zapis zgód; aplikacja nigdy automatycznie nie ufa niezweryfikowanemu plikowi.
 
 Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę. Za pierwszym razem aplikacja komputerowa pyta raz, w natywnym oknie, czy **wszystkie twoje rutyny** w tej organizacji mogą pracować w tym folderze i jego podfolderach, z tymi operacjami; wybierz folder domowy, aby objąć cały komputer.
 
