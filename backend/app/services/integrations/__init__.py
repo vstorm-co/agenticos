@@ -9,7 +9,7 @@ from app.agents.watch_sources import WatchReadReceipt
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.watch_sources import WatchSources
 from app.services.integrations import slack_oauth
-from app.services.integrations.app_auth import google_token, microsoft_token
+from app.services.integrations.app_auth import ApplicationGrant, google_token, microsoft_token
 from app.services.integrations.catalog import (
     ODOO_MODELS,
     PRODUCTS,
@@ -35,6 +35,7 @@ __all__ = [
     "PRODUCTS",
     "AccountSelection",
     "AccountToken",
+    "ApplicationGrant",
     "Change",
     "Changes",
     "IntegrationService",

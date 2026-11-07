@@ -20,6 +20,10 @@ Google supports a Vault `gcp_service_account`, with a subject for Workspace doma
 
 Microsoft supports a Vault `entra_app` client secret and application permissions with administrator consent. Configure the mailbox subject for mail/calendar; Teams requires the subject's directory object ID so mentions can be matched without directory-wide read permission. Excel workbook APIs require delegated OAuth. Graph application permissions do not support normal Teams posting; use delegated OAuth for that operation. Application scopes differ from delegated scopes and the wizard displays the appropriate list.
 
+Microsoft application accounts record only Graph roles returned by the tenant, limited to the selected products. Selecting read-only also blocks writes locally even if Entra granted a broader role. Each renewal checks that the recorded roles remain granted; reconnect after changing consent.
+
+This setup requires a readable Graph role claim in the token returned by the fixed Microsoft token endpoint. Opaque or encrypted application tokens are refused with a delegated OAuth alternative; AgenticOS does not request directory-wide permissions to inspect consent. This claim is configuration metadata, not authentication of a platform user; Microsoft Graph validates the bearer token.
+
 Slack accepts existing `xoxp-` user tokens or `xoxb-` bot tokens. A bot can post as the app, but it cannot use user-only search APIs. Actual granted scopes are checked before each operation. Tokens and service-account keys are sealed in the Vault, never stored in an agent spec.
 
 **IMAP** is a separate read-only mail connection using a host, verified TLS port, username, app password and fixed folder. The operator must allow the exact host in `MIRAGE_ALLOWED_HOSTS`. It reuses the installed Mirage mail client. Microsoft 365 basic-auth IMAP is not an alternative to Microsoft OAuth here.

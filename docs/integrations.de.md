@@ -1,5 +1,5 @@
 ---
-source_sha: "d6d150584052"
+source_sha: "3e8d1a15aa54"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -23,6 +23,10 @@ Die Wahl der Anwendungsidentität erfordert Bearbeitungszugriff auf ihren Vault-
 Google unterstützt `gcp_service_account` aus dem Vault und ein Subject für die domänenweite Workspace-Delegierung. Der Workspace-Administrator muss die angezeigten Scopes freigeben. Ein normales Dienstkonto erreicht nur freigegebene Ressourcen und wird nicht zu einem persönlichen Gmail-Konto.
 
 Microsoft unterstützt ein `entra_app`-Client-Geheimnis und Anwendungsrechte mit Administratorzustimmung. Für Mail/Kalender das Postfach angeben, für Teams die Verzeichnisobjekt-ID des Benutzers, damit Erwähnungen ohne umfassenden Verzeichniszugriff erkannt werden. Excel-Arbeitsmappen erfordern delegiertes OAuth. Normale Teams-Nachrichten können nicht mit Anwendungsrechten gesendet werden; dafür delegiertes OAuth verwenden. Der Assistent zeigt die passenden delegierten oder Anwendungsrechte.
+
+Microsoft-Anwendungskonten speichern nur die vom Tenant zurückgegebenen Graph-Rollen für die ausgewählten Produkte. Der schreibgeschützte Modus blockiert Schreibvorgänge zusätzlich lokal, auch wenn Entra eine umfassendere Rolle erteilt hat. Jede Erneuerung prüft die gespeicherten Rollen erneut; nach geänderter Zustimmung das Konto neu verbinden.
+
+Diese Einrichtung benötigt einen lesbaren Graph-Rollen-Claim im Token des festen Microsoft-Token-Endpunkts. Opake oder verschlüsselte Anwendungstoken werden mit einem Hinweis auf delegiertes OAuth abgelehnt; AgenticOS fordert keine verzeichnisweiten Rechte zur Prüfung der Zustimmung an. Der Claim ist Konfigurationsmetadatum und authentifiziert keinen Plattformbenutzer; Microsoft Graph validiert das Bearer-Token.
 
 Slack akzeptiert vorhandene Benutzertokens `xoxp-` und Bottokens `xoxb-`. Ein Bot schreibt als App, kann aber keine benutzerexklusive Suche verwenden. Tatsächliche Scopes werden vor jeder Operation geprüft. Tokens und Schlüssel bleiben verschlüsselt im Vault, niemals in der Agentenspezifikation.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "d6d150584052"
+source_sha: "3e8d1a15aa54"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -23,6 +23,10 @@ Wybór tożsamości konta aplikacyjnego wymaga prawa edycji jego credentiala w V
 Google obsługuje `gcp_service_account` z Vault i subject dla delegacji domenowej Workspace. Administrator Workspace musi autoryzować wyświetlone zakresy. Samo konto serwisowe czyta tylko udostępnione mu zasoby; nie staje się osobistym kontem Gmail.
 
 Microsoft obsługuje sekret klienta `entra_app` i uprawnienia aplikacyjne zatwierdzone przez administratora. Dla poczty/kalendarza podaj skrzynkę, a dla Teams identyfikator obiektu użytkownika w katalogu: pozwala to dopasować wzmianki bez dostępu do całego katalogu. Excel wymaga delegated OAuth. Uprawnienia aplikacyjne nie pozwalają na zwykłe publikowanie wiadomości Teams; użyj delegated OAuth. Kreator pokazuje właściwą listę uprawnień dla wybranego trybu.
+
+Konta aplikacyjne Microsoft zapisują tylko role Graph zwrócone przez tenant i dotyczące wybranych produktów. Tryb tylko do odczytu blokuje zapisy także wtedy, gdy Entra przyznała szerszą rolę. Każde odnowienie sprawdza, czy zapisane role nadal są przyznane; po zmianie zgody połącz konto ponownie.
+
+Konfiguracja wymaga czytelnego pola ról Graph w tokenie zwróconym przez stały endpoint Microsoft. Tokeny aplikacyjne o nieprzezroczystym lub zaszyfrowanym formacie są odrzucane ze wskazaniem delegowanego OAuth; AgenticOS nie żąda dostępu do całego katalogu, aby sprawdzać zgody. Pole jest metadanymi konfiguracji, a nie uwierzytelnieniem użytkownika platformy; token weryfikuje Microsoft Graph.
 
 Slack przyjmuje istniejące tokeny użytkownika `xoxp-` i bota `xoxb-`. Bot publikuje jako aplikacja, ale nie używa wyszukiwania dostępnego tylko użytkownikom. Przed operacją sprawdzane są rzeczywiście przyznane zakresy. Tokeny i klucze są szyfrowane przez Vault, nigdy zapisywane w specyfikacji agenta.
 

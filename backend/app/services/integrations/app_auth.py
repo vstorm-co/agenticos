@@ -1,12 +1,16 @@
 """Service-account and application grants reach only their provider's token endpoint."""
 
+import base64
+import binascii
 import time
+from dataclasses import dataclass
+from typing import Annotated, Literal
 
 import httpx
 import jwt
-from pydantic import BaseModel, SecretStr, ValidationError
+from pydantic import BaseModel, Field, SecretStr, ValidationError
 
-from app.core.exceptions import ExternalServiceError
+from app.core.exceptions import AuthorizationError, ExternalServiceError
 from app.core.secret_kinds import EntraAppSecret, GcpServiceAccountSecret
 
 
@@ -18,6 +22,23 @@ class GoogleKey(BaseModel):
 
 class AccessToken(BaseModel):
     access_token: SecretStr
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationGrant:
+    access_token: SecretStr
+    granted_scopes: frozenset[str]
+
+
+class _MicrosoftRoles(BaseModel):
+    aud: Literal[
+        "https://graph.microsoft.com",
+        "https://graph.microsoft.com/",
+        "00000003-0000-0000-c000-000000000000",
+    ]
+    roles: frozenset[Annotated[str, Field(strict=True, min_length=1, max_length=255)]] = Field(
+        default_factory=frozenset, max_length=256
+    )
 
 
 async def _exchange(endpoint: str, form: dict[str, str]) -> SecretStr:
@@ -71,8 +92,8 @@ async def google_token(
     )
 
 
-async def microsoft_token(app: EntraAppSecret) -> SecretStr:
-    return await _exchange(
+async def microsoft_token(app: EntraAppSecret) -> ApplicationGrant:
+    token = await _exchange(
         f"https://login.microsoftonline.com/{app.tenant_id}/oauth2/v2.0/token",
         {
             "grant_type": "client_credentials",
@@ -81,3 +102,26 @@ async def microsoft_token(app: EntraAppSecret) -> SecretStr:
             "scope": "https://graph.microsoft.com/.default",
         },
     )
+
+    parts = token.get_secret_value().split(".")
+    if len(parts) != 3:
+        raise ExternalServiceError(
+            message="Microsoft did not expose readable Graph application roles; use delegated OAuth for opaque or encrypted tokens"
+        )
+    try:
+        # Configuration metadata from the fixed HTTPS exchange, never caller
+        # authentication. Graph still validates the bearer token at its API.
+        encoded = parts[1].encode("ascii")
+        claims = base64.b64decode(
+            encoded + b"=" * (-len(encoded) % 4), altchars=b"-_", validate=True
+        )
+        roles = _MicrosoftRoles.model_validate_json(claims).roles
+    except binascii.Error, UnicodeError, ValidationError:
+        raise ExternalServiceError(
+            message="Microsoft did not expose readable Graph application roles; use delegated OAuth for opaque or encrypted tokens"
+        ) from None
+    if not roles:
+        raise AuthorizationError(
+            message="Microsoft granted no application roles; grant Graph permissions and administrator consent in Entra"
+        )
+    return ApplicationGrant(access_token=token, granted_scopes=roles)

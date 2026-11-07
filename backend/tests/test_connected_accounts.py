@@ -817,6 +817,27 @@ async def test_application_accounts_revalidate_the_source_credential_before_mint
     )
     token = AsyncMock(return_value=SecretStr("provider-access-token"))
     monkeypatch.setattr(service_module.OrganizationSecretService, "integration_token", token)
+    from app.services.integrations import ApplicationGrant
+
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService,
+        "integration_grant",
+        AsyncMock(
+            return_value=ApplicationGrant(
+                access_token=SecretStr("provider-access-token"),
+                granted_scopes=frozenset(
+                    {
+                        "Mail.Read",
+                        "Mail.ReadWrite",
+                        "Mail.Send",
+                        "Chat.ReadBasic.All",
+                        "Chat.Read.All",
+                        "ChannelMessage.Read.All",
+                    }
+                ),
+            )
+        ),
+    )
     service = McpConnectionService(MagicMock())
     row = await service.connect_application_account(
         ctx,
@@ -1416,3 +1437,107 @@ async def test_a_native_trigger_account_requires_current_credentials_and_product
         await McpConnectionService(AsyncMock()).get_polled_connection(
             ctx, row.id, portal_key="google"
         )
+
+
+@pytest.mark.parametrize("write", [False, True])
+@pytest.mark.parametrize("role", ["Files.ReadWrite.All", "Sites.Selected"])
+async def test_entra_actual_roles_do_not_override_the_local_read_only_choice(
+    ctx, native_repo, monkeypatch, write, role
+):
+    from pydantic import SecretStr
+
+    from app.services.integrations import ApplicationGrant
+    from app.services.integrations.catalog import PRODUCTS
+    from app.services.integrations.service import IntegrationService
+
+    source = MagicMock(
+        id=SOURCE_SECRET, name="Automation", authorization_generation=SOURCE_GENERATION
+    )
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService, "get_usable", AsyncMock(return_value=source)
+    )
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService,
+        "integration_grant",
+        AsyncMock(
+            return_value=ApplicationGrant(
+                access_token=SecretStr("private-token"),
+                granted_scopes=frozenset({role, "Mail.Send"}),
+            )
+        ),
+    )
+    row = await McpConnectionService(MagicMock()).connect_application_account(
+        ctx,
+        provider="microsoft",
+        secret_id=SOURCE_SECRET,
+        subject=None,
+        products=["microsoft_files"],
+        write=write,
+        label="Files",
+        for_organization=False,
+    )
+    assert row.granted_scopes == [role]
+    product = PRODUCTS["microsoft_files"]
+    read = next(op for op in product.operations if not op.side_effecting)
+    change = next(op for op in product.operations if op.side_effecting)
+    IntegrationService.check_operation_scopes(row, product, read)
+    if write:
+        IntegrationService.check_operation_scopes(row, product, change)
+    else:
+        with pytest.raises(AuthorizationError, match="Writes were not enabled"):
+            IntegrationService.check_operation_scopes(row, product, change)
+
+
+@pytest.mark.parametrize("roles", [{"Mail.Read"}, {"Files.ReadWrite.All"}])
+async def test_entra_account_records_only_roles_actually_granted_for_the_selected_products(
+    ctx, native_repo, monkeypatch, roles
+):
+    from pydantic import SecretStr
+
+    from app.services.integrations import ApplicationGrant
+
+    source = MagicMock(
+        id=SOURCE_SECRET, name="Automation", authorization_generation=SOURCE_GENERATION
+    )
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService, "get_usable", AsyncMock(return_value=source)
+    )
+    monkeypatch.setattr(
+        service_module.OrganizationSecretService,
+        "integration_grant",
+        AsyncMock(
+            return_value=ApplicationGrant(
+                access_token=SecretStr("private-token"), granted_scopes=frozenset(roles)
+            )
+        ),
+    )
+    kwargs = {
+        "provider": "microsoft",
+        "secret_id": SOURCE_SECRET,
+        "subject": "mailbox@example.com",
+        "products": ["outlook_mail"],
+        "write": True,
+        "label": "Mail",
+        "for_organization": False,
+    }
+    service = McpConnectionService(MagicMock())
+    if "Mail.Read" in roles:
+        row = await service.connect_application_account(ctx, **kwargs)
+        assert row.granted_scopes == ["Mail.Read"]
+    else:
+        with pytest.raises(AuthorizationError, match="granted none"):
+            await service.connect_application_account(ctx, **kwargs)
+        native_repo.create.assert_not_awaited()
+
+
+@pytest.mark.parametrize("payload", [None, "invalid", "legacy", "read-only"])
+async def test_application_write_setting_is_sealed_and_legacy_grants_remain_readable(payload):
+    account = _account(auth_type="application")
+    if payload in {"legacy", "read-only"}:
+        data = _payload(integration_write_enabled=payload == "legacy").model_dump(mode="json")
+        if payload == "legacy":
+            data.pop("integration_write_enabled")
+        account.oauth_payload = _sealed(account, McpOAuthPayload.model_validate(data))
+    else:
+        account.oauth_payload = payload
+    assert McpConnectionService.application_writes_enabled(account) == (payload == "legacy")

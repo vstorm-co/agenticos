@@ -25,7 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import secret_purposes
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -54,6 +59,7 @@ from app.services.notifications import NotificationService
 
 if TYPE_CHECKING:
     from app.services.email.service import EmailService
+    from app.services.integrations.app_auth import ApplicationGrant
 
 # The credentials a connect flow spends: separate kinds even where the fields are
 # identical, because a kind names what a credential is for.
@@ -652,13 +658,36 @@ class OrganizationSecretService:
         subject: str | None,
         scopes: list[str],
     ) -> SecretStr:
+        """Renew a grant without silently retaining revoked application permissions."""
+        grant = await self.integration_grant(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=provider,
+            subject=subject,
+            scopes=scopes,
+        )
+        if provider == "microsoft" and not set(scopes) <= grant.granted_scopes:
+            raise AuthorizationError(
+                message="Microsoft application permissions changed; reconnect this account after checking administrator consent"
+            )
+        return grant.access_token
+
+    async def integration_grant(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        provider: str,
+        subject: str | None,
+        scopes: list[str],
+    ) -> ApplicationGrant:
         """Hand a previously authorized native account's credential directly to its token transport.
 
-        This narrow plaintext reader returns only the provider token. The account
-        service checks the source secret's generation before calling it.
+        This narrow plaintext reader returns the token and provider permission metadata.
+        The account service checks the source generation and narrows permissions.
         """
         from app.core.secret_kinds import EntraAppSecret, GcpServiceAccountSecret
-        from app.services.integrations import google_token, microsoft_token
+        from app.services.integrations import ApplicationGrant, google_token, microsoft_token
 
         row = await organization_secret_repo.get(
             self.db, secret_id, organization_id=organization_id
@@ -673,7 +702,8 @@ class OrganizationSecretService:
             key_version=row.key_version,
         )
         if provider == "google" and isinstance(value, GcpServiceAccountSecret):
-            return await google_token(value, subject=subject, scopes=scopes)
+            token = await google_token(value, subject=subject, scopes=scopes)
+            return ApplicationGrant(access_token=token, granted_scopes=frozenset(scopes))
         if provider == "microsoft" and isinstance(value, EntraAppSecret):
             return await microsoft_token(value)
         raise NotFoundError(message="The integration credential belongs to another provider")

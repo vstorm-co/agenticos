@@ -163,6 +163,8 @@ class IntegrationService:
     def check_operation_scopes(
         account: McpConnection, product: Product, operation: Operation
     ) -> None:
+        from app.services.mcp_connection import McpConnectionService
+
         allowed_scopes = (
             application_scopes(product.id, operation)
             if account.auth_type == "application" and product.provider == "microsoft"
@@ -171,6 +173,15 @@ class IntegrationService:
         if not set(allowed_scopes).intersection(account.granted_scopes or ()):
             raise AuthorizationError(
                 message="Reconnect this account with the permissions this operation requires"
+            )
+
+        if (
+            account.auth_type == "application"
+            and operation.side_effecting
+            and not McpConnectionService.application_writes_enabled(account)
+        ):
+            raise AuthorizationError(
+                message="Writes were not enabled when connecting this application account"
             )
 
     async def source_token(

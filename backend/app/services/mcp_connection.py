@@ -2176,13 +2176,35 @@ class McpConnectionService:
                 )
             }
         )
-        await OrganizationSecretService(self.db).integration_token(
-            organization_id=ctx.organization_id,
-            secret_id=row.id,
-            provider=provider,
-            subject=subject,
-            scopes=scopes,
-        )
+        secrets_service = OrganizationSecretService(self.db)
+        if provider == "microsoft":
+            grant = await secrets_service.integration_grant(
+                organization_id=ctx.organization_id,
+                secret_id=row.id,
+                provider=provider,
+                subject=subject,
+                scopes=scopes,
+            )
+            allowed = {
+                role
+                for p in selected
+                for op in p.operations
+                if write or not op.side_effecting
+                for role in application_scopes(p.id, op)
+            }
+            scopes = sorted(grant.granted_scopes & allowed)
+            if not scopes:
+                raise AuthorizationError(
+                    message="Microsoft granted none of the selected products' application permissions"
+                )
+        else:
+            await secrets_service.integration_token(
+                organization_id=ctx.organization_id,
+                secret_id=row.id,
+                provider=provider,
+                subject=subject,
+                scopes=scopes,
+            )
         source = "google_service_account" if provider == "google" else "microsoft_app"
         server_url = _GOOGLE_APIS if provider == "google" else "https://graph.microsoft.com"
         payload = McpOAuthPayload(
@@ -2196,6 +2218,7 @@ class McpConnectionService:
             redirect_uri="",
             provider=source,
             integration_subject=subject,
+            integration_write_enabled=write,
             account_source_organization_id=ctx.organization_id,
             account_source_secret_id=row.id,
             account_source_generation=row.authorization_generation,
@@ -2702,6 +2725,11 @@ class McpConnectionService:
             )
             == payload.account_source_generation
         )
+
+    @staticmethod
+    def application_writes_enabled(account: McpConnection) -> bool:
+        payload = _decode_payload(account, account.oauth_payload)
+        return payload is not None and payload.integration_write_enabled
 
     async def account_needs_reconnect(
         self, account: McpConnection, *, organization_id: UUID

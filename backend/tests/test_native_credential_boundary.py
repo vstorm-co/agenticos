@@ -11,6 +11,7 @@ from app.core.exceptions import NotFoundError
 from app.core.secret_kinds import ApiKeySecret, EntraAppSecret, GcpServiceAccountSecret, SecretKind
 from app.db.models.organization_secret import OrganizationSecret
 from app.services import organization_secret as secrets
+from app.services.integrations import ApplicationGrant
 from app.services.organization_secret import OrganizationSecretService
 
 pytestmark = pytest.mark.anyio
@@ -55,7 +56,13 @@ async def test_application_credential_is_opened_only_for_its_organization_and_pr
         return value
 
     monkeypatch.setattr(secrets, "unseal_secret", unseal)
-    exchange = AsyncMock(return_value=SecretStr("access-token"))
+    exchange = AsyncMock(
+        return_value=SecretStr("access-token")
+        if provider == "google"
+        else ApplicationGrant(
+            access_token=SecretStr("access-token"), granted_scopes=frozenset({"read"})
+        )
+    )
     monkeypatch.setattr(f"app.services.integrations.{provider}_token", exchange)
     result = await OrganizationSecretService(AsyncMock()).integration_token(
         organization_id=org,
@@ -103,3 +110,38 @@ async def test_missing_or_wrong_credentials_cannot_reach_an_application_token_en
             scopes=[],
         )
     exchange.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "provider,roles,refused",
+    [
+        ("microsoft", {"Mail.Read"}, False),
+        ("microsoft", set(), True),
+        ("microsoft", {"Files.Read.All"}, True),
+        ("google", set(), False),
+    ],
+)
+async def test_renewal_cannot_silently_keep_revoked_application_permissions(
+    monkeypatch, provider, roles, refused
+):
+    from app.core.exceptions import AuthorizationError
+
+    grant = AsyncMock(
+        return_value=ApplicationGrant(
+            access_token=SecretStr("private-bearer"), granted_scopes=frozenset(roles)
+        )
+    )
+    monkeypatch.setattr(OrganizationSecretService, "integration_grant", grant)
+    service = OrganizationSecretService(AsyncMock())
+    kwargs = {
+        "organization_id": uuid4(),
+        "secret_id": uuid4(),
+        "provider": provider,
+        "subject": None,
+        "scopes": ["Mail.Read"],
+    }
+    if refused:
+        with pytest.raises(AuthorizationError, match="permissions changed"):
+            await service.integration_token(**kwargs)
+    else:
+        assert await service.integration_token(**kwargs) == SecretStr("private-bearer")

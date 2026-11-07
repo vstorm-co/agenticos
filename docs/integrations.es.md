@@ -1,5 +1,5 @@
 ---
-source_sha: "d6d150584052"
+source_sha: "3e8d1a15aa54"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -23,6 +23,10 @@ Elegir la identidad de una cuenta de aplicación requiere permiso de edición de
 Google admite `gcp_service_account` de Vault con un subject para delegación de dominio Workspace. El administrador Workspace debe autorizar los scopes mostrados. Una cuenta de servicio normal solo accede a recursos compartidos con ella; no se convierte en una cuenta Gmail personal.
 
 Microsoft admite un secreto de cliente `entra_app` y permisos de aplicación con consentimiento administrativo. Configure el buzón para correo/calendario y el ID de objeto de directorio del usuario para Teams: permite reconocer menciones sin acceso a todo el directorio. Excel exige OAuth delegado. Los permisos de aplicación no permiten publicar mensajes normales de Teams; use OAuth delegado. El asistente muestra los permisos correspondientes al método.
+
+Las cuentas de aplicación Microsoft guardan solo los roles Graph devueltos por el tenant para los productos seleccionados. El modo de solo lectura también bloquea escrituras localmente aunque Entra haya concedido un rol más amplio. Cada renovación comprueba que los roles guardados sigan concedidos; vuelva a conectar tras cambiar el consentimiento.
+
+Esta configuración necesita un claim de roles Graph legible en el token devuelto por el endpoint fijo de Microsoft. Los tokens de aplicación opacos o cifrados se rechazan indicando OAuth delegado como alternativa; AgenticOS no solicita permisos de todo el directorio para inspeccionar el consentimiento. El claim es metadato de configuración, no autenticación de un usuario de la plataforma; Microsoft Graph valida el token bearer.
 
 Slack acepta tokens existentes de usuario `xoxp-` o de bot `xoxb-`. Un bot publica como app, pero no puede usar búsqueda exclusiva de usuarios. Se comprueban los scopes realmente concedidos antes de cada operación. Tokens y claves quedan cifrados en Vault, nunca en la especificación del agente.
 

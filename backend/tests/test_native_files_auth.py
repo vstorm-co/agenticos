@@ -4,6 +4,7 @@ import base64
 import io
 import json
 from unittest.mock import AsyncMock
+from uuid import uuid4
 from zipfile import ZipFile
 
 import httpx
@@ -307,14 +308,22 @@ async def test_invalid_google_keys_do_not_leak_validation_inputs(monkeypatch):
 
 
 async def test_entra_app_uses_its_tenant_and_default_application_roles(monkeypatch):
-    exchange = AsyncMock(return_value=TOKEN)
+    token = SecretStr(
+        jwt.encode(
+            {"aud": "00000003-0000-0000-c000-000000000000", "roles": ["Files.Read.All"]},
+            "test-configuration-metadata-key-only",
+            algorithm="HS256",
+        )
+    )
+    exchange = AsyncMock(return_value=token)
     monkeypatch.setattr(app_auth, "_exchange", exchange)
     app = EntraAppSecret(
         tenant_id="00000000-0000-0000-0000-000000000001",
         client_id="00000000-0000-0000-0000-000000000002",
         client_secret="secret-value",
     )
-    await app_auth.microsoft_token(app)
+    grant = await app_auth.microsoft_token(app)
+    assert grant.access_token == token and grant.granted_scopes == frozenset({"Files.Read.All"})
     assert (
         exchange.await_args.args[0]
         == "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000001/oauth2/v2.0/token"
@@ -534,8 +543,6 @@ def test_word_reading_keeps_formatted_runs_inside_their_original_paragraph():
 
 
 async def test_sharepoint_connected_account_never_uses_an_application_secret(transport):
-    from uuid import uuid4
-
     from app.services.integrations import AccountToken
     from app.services.rag.connectors.sharepoint import _Graph
 
@@ -553,3 +560,53 @@ async def test_application_file_feed_baselines_without_reading_me(transport):
         access_token="application-token", cursor=None
     )
     assert read.events == () and read.cursor["account"] == "mailbox@example.com"
+
+
+@pytest.mark.parametrize("roles", [None, []])
+async def test_entra_roleless_tokens_cannot_claim_requested_permissions(monkeypatch, roles):
+    from app.core.exceptions import AuthorizationError
+
+    claims = {"aud": "https://graph.microsoft.com"}
+    if roles is not None:
+        claims["roles"] = roles
+    token = jwt.encode(claims, "test-configuration-metadata-key-only", algorithm="HS256")
+    monkeypatch.setattr(app_auth, "_exchange", AsyncMock(return_value=SecretStr(token)))
+    with pytest.raises(AuthorizationError, match="granted no application roles"):
+        await app_auth.microsoft_token(
+            EntraAppSecret(
+                tenant_id=str(uuid4()),
+                client_id=str(uuid4()),
+                client_secret="private-secret",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "opaque-provider-token",
+        "encrypted.provider.token.has.parts",
+        "header.%%%.signature",
+        "header.ą.signature",
+        "header." + base64.urlsafe_b64encode(b"not json").decode() + ".signature",
+        *[
+            jwt.encode(claims, "test-configuration-metadata-key-only", algorithm="HS256")
+            for claims in [
+                {"aud": "other-api", "roles": ["Mail.Read"]},
+                {"aud": "https://graph.microsoft.com", "roles": "Mail.Read"},
+                {"aud": "https://graph.microsoft.com", "roles": [123]},
+            ]
+        ],
+    ],
+)
+async def test_entra_unreadable_permission_metadata_has_an_explicit_safe_failure(
+    monkeypatch, token
+):
+    monkeypatch.setattr(app_auth, "_exchange", AsyncMock(return_value=SecretStr(token)))
+    with pytest.raises(ExternalServiceError, match="readable Graph application roles") as exc:
+        await app_auth.microsoft_token(
+            EntraAppSecret(
+                tenant_id=str(uuid4()), client_id=str(uuid4()), client_secret="private-secret"
+            )
+        )
+    assert token not in str(exc.value) and "private" not in str(exc.value)

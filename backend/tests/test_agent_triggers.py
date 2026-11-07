@@ -2610,10 +2610,11 @@ class TestEditingTheEventConfig:
     fire is a filter edit, not a delete-and-recreate. The source and secret stay
     immutable; a schedule has no filter, so one sent for it is refused (DEENUU #537)."""
 
-    async def test_editing_a_github_filter_persists_the_normalized_config(self):
+    @pytest.mark.parametrize("portal_key", [None, "github", "retired-provider"])
+    async def test_editing_a_github_filter_persists_the_normalized_config(self, portal_key):
         agent = _agent()
         service = _service(agent)
-        trigger = _event_trigger(agent_id=agent.id)
+        trigger = _event_trigger(agent_id=agent.id, portal_key=portal_key)
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
