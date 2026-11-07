@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.56.0] - 2026-11-07
+
 ### Added
 
 - Local routines ask once: the desktop app lets all your routines in an organization work in a folder (or your home folder, for the whole computer), and every later routine there is saved without another dialog. The permission survives app updates and signing in again; a routine follows your current desktop session. Approving another folder or stronger operations keeps earlier grants. On Windows, routine folders must use local drives rather than UNC or device paths.
@@ -20567,7 +20569,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...HEAD
+[1.56.0]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...v1.55.0
 [1.54.1]: https://github.com/vstorm-co/agenticos/compare/v1.54.0...v1.54.1
 [1.54.0]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...v1.54.0
