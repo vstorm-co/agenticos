@@ -117,6 +117,7 @@ class TestWakeAfterApprovalDecision:
             MagicMock(status="awaiting_answer", paused_state={"question_results": {}}),
         ],
     )
+    @pytest.mark.security
     async def test_a_stale_wake_cannot_resume_a_later_unanswered_question(
         self, repo, worker_db, approvals_repo, child
     ):

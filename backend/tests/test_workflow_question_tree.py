@@ -30,6 +30,7 @@ def _person() -> AuthContext:
 
 
 @pytest.mark.parametrize("condition", ["anonymous", "key", "other_user", "public", "terminal"])
+@pytest.mark.security
 async def test_a_question_tree_is_only_read_for_the_original_person(condition: str) -> None:
     ctx = _person()
     run = _run(ctx)
@@ -54,6 +55,7 @@ async def test_a_question_tree_is_only_read_for_the_original_person(condition: s
     load.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_hidden_or_differently_owned_children_are_skipped_and_cycles_are_bounded() -> None:
     ctx = _person()
     root, child, hidden, public, other, deeper = (_run(ctx) for _ in range(6))
@@ -107,6 +109,7 @@ async def test_a_child_read_failure_is_not_mistaken_for_hidden_access() -> None:
         )
 
 
+@pytest.mark.security
 async def test_each_visible_workflow_needs_its_own_current_run_permission() -> None:
     ctx = _person()
     root, child = _run(ctx), _run(ctx)

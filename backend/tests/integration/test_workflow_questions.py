@@ -197,6 +197,7 @@ async def test_duplicate_answers_queue_once_and_stale_answers_cannot_answer_a_la
     assert planner.calls == 2
 
 
+@pytest.mark.security
 async def test_an_editor_cannot_answer_as_another_person_and_a_cross_tenant_run_is_hidden(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -218,6 +219,7 @@ async def test_an_editor_cannot_answer_as_another_person_and_a_cross_tenant_run_
             await service.questions(alien, seeded.run.id)
 
 
+@pytest.mark.security
 async def test_question_controls_follow_current_run_grants_without_a_role_gate(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -533,6 +535,7 @@ async def test_accounting_for_one_child_excludes_a_different_child_on_the_same_s
 
 
 @pytest.mark.parametrize("expired", [False, True])
+@pytest.mark.security
 async def test_a_question_answer_cannot_bypass_the_workflow_budget_or_deadline(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, expired: bool
 ) -> None:
