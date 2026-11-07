@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { memo } from "react";
 import { ChevronRight, Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -101,7 +103,14 @@ export function TurnParts({
   const tTools = useTranslations("chat.tools");
   const latest = parts.at(-1);
   const activity = latest?.toolCall
-    ? toolStep(latest.toolCall.name, latest.toolCall.args, false, tTools, mcpServers).label
+    ? toolStep(
+        latest.toolCall.name,
+        latest.toolCall.args,
+        false,
+        tTools,
+        mcpServers,
+        latest.toolCall,
+      ).label
     : latest?.type === "thinking"
       ? tChat("thinking")
       : undefined;
@@ -121,7 +130,7 @@ export function TurnParts({
                 agents={agents}
                 // Rich outputs may open on arrival; routine action details stay opt-in.
                 startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-                autoExpand={toolEntry(part.toolCall!.name)?.opensOnSight === true}
+                autoExpand={toolEntry(toolLookupName(part.toolCall!))?.opensOnSight === true}
               />
             ))}
           </AgentSteps>
@@ -437,7 +446,7 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
   for (const part of parts) {
     if (part.type === "tool" && part.toolCall) {
       // Drawn under the answer instead - buttons, a card - by `TurnExtras`.
-      if (drawnUnderTheAnswer(part.toolCall.name)) continue;
+      if (drawnUnderTheAnswer(toolLookupName(part.toolCall))) continue;
       const open = runs.at(-1);
       if (open?.kind === "tools") open.parts.push(part);
       else runs.push({ kind: "tools", parts: [part], isLast: false });
@@ -487,7 +496,7 @@ export function visualCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
     run.kind === "tools"
       ? run.parts.flatMap((part) =>
-          part.toolCall && isVisualTool(part.toolCall.name) ? [part.toolCall] : [],
+          part.toolCall && isVisualTool(toolLookupName(part.toolCall)) ? [part.toolCall] : [],
         )
       : [],
   );

@@ -16,6 +16,7 @@ from fastapi import WebSocketDisconnect
 from pydantic import SecretStr
 from pydantic_ai.usage import RunUsage
 
+from app.agents.deps import AgentDeps
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent_run import RunStatus
@@ -115,9 +116,10 @@ def _started(
         ),
         realtime=MagicMock(return_value=MagicMock()),
         built=SimpleNamespace(
+            deps=AgentDeps(),
             budget=SimpleNamespace(
                 can_afford_next_request=AsyncMock(return_value=True), refresh_baselines=MagicMock()
-            )
+            ),
         ),
         hand_off=None,
     )

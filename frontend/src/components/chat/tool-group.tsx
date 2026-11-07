@@ -23,7 +23,9 @@ export function ToolGroup({
   const runText = useTranslations("pages.runs");
   if (calls.length < 2) return children;
   const finished = calls.every((call) => call.status === "completed");
-  const steps = calls.map((call) => toolStep(call.name, call.args, finished, tTools, mcpServers));
+  const steps = calls.map((call) =>
+    toolStep(call.name, call.args, finished, tTools, mcpServers, call),
+  );
   const labels = [...new Set(steps.map((step) => step.label))];
   const Icon = toolIcon(calls[0]!.name, steps[0]!.kind);
   const running = calls.some((call) => call.status === "running" || call.status === "pending");

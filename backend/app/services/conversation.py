@@ -1596,7 +1596,8 @@ class ConversationService:
         parked: bool = False,
         awaiting_answer: bool = False,
         mcp_connection_id: UUID | None = None,
-        presentation_kind: Literal["draft"] | None = None,
+        tool_id: str | None = None,
+        presentation_kind: Literal["draft", "generic"] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -1619,6 +1620,7 @@ class ConversationService:
             if parked
             else "running",
             mcp_connection_id=mcp_connection_id,
+            tool_id=tool_id,
             presentation_kind=presentation_kind,
         )
 

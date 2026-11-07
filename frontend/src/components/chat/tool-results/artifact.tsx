@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -54,7 +56,7 @@ export function parsePublishedArtifact(result: string): PublishedArtifactPayload
 export function publishedApps(toolCalls: ToolCall[]): PublishedArtifactPayload[] {
   const apps = new Map<string, PublishedArtifactPayload>();
   for (const call of toolCalls) {
-    if (call.name !== "publish_artifact" || typeof call.result !== "string") continue;
+    if (toolLookupName(call) !== "publish_artifact" || typeof call.result !== "string") continue;
     const app = parsePublishedArtifact(call.result);
     if (app) {
       apps.delete(app.artifactId);

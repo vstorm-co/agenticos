@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import type { Mentionable } from "@/types/mention";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
@@ -988,17 +990,22 @@ export function useChat(options: UseChatOptions = {}) {
           // a `write_file` carrying a whole report can take minutes to write them -
           // time the chat used to spend showing nothing but a cursor. So the step is
           // drawn now, as `pending`, and `tool_call` fills it in.
-          const { index, tool_name, tool_call_id } = wsEvent.data as {
+          const { index, tool_name, tool_call_id, tool_id, presentation_kind } = wsEvent.data as {
+            tool_id?: string | null;
+            presentation_kind?: "draft" | "generic" | null;
             index: number;
             tool_name?: string;
             tool_call_id?: string;
           };
           if (currentMessageIdRef.current && tool_name && tool_call_id) {
             streamingCallsRef.current.set(index, tool_call_id);
-            if (isVisualTool(tool_name)) visualCallsRef.current.add(tool_call_id);
+            if (isVisualTool(toolLookupName({ name: tool_name, tool_id, presentation_kind })))
+              visualCallsRef.current.add(tool_call_id);
             addToolCallPart(currentMessageIdRef.current, {
               id: tool_call_id,
               name: tool_name,
+              tool_id,
+              presentation_kind,
               args: {},
               status: "pending",
             });
@@ -1057,15 +1064,17 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "tool_call": {
           if (currentMessageIdRef.current) {
-            const { tool_name, args, tool_call_id, presentation_kind } = wsEvent.data as {
+            const { tool_name, args, tool_call_id, tool_id, presentation_kind } = wsEvent.data as {
               tool_name: string;
-              presentation_kind?: "draft";
+              tool_id?: string | null;
+              presentation_kind?: "draft" | "generic" | null;
               args: Record<string, unknown>;
               tool_call_id: string;
             };
             const toolCall: ToolCall = {
               id: tool_call_id,
               name: tool_name,
+              tool_id,
               presentation_kind,
               args,
               status: "running",
@@ -2301,6 +2310,8 @@ export function useChat(options: UseChatOptions = {}) {
         .map((step) => ({
           id: step.tool_call_id,
           name: step.tool_name,
+          tool_id: step.tool_id,
+          presentation_kind: step.presentation_kind,
           args: step.args,
           result: step.result ?? undefined,
           // A call with a pending approval against it has not run and never

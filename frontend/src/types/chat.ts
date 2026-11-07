@@ -164,7 +164,8 @@ export interface ChatMessage {
 }
 
 export interface ToolCall {
-  presentation_kind?: "draft" | null;
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | null;
   id: string;
   name: string;
   args: Record<string, unknown>;

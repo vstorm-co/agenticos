@@ -246,6 +246,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
+from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
@@ -924,6 +925,7 @@ class PausedRunState(BaseModel):
     tool_call_ids: dict[str, str] = Field(
         description="Approval id -> the tool call it parked, so a decision can be replayed"
     )
+    tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
@@ -7544,7 +7546,11 @@ class AgentRunnerService:
                     dump_messages(result.all_messages()),
                 )
             new_messages = result.new_messages()
-            called = tool_calls_in(new_messages)
+            called = tool_calls_in(
+                new_messages,
+                identities=prepared.built.deps.tool_identities,
+                definitions=prepared.built.deps.tool_definitions,
+            )
             # And what the *inherited* calls returned. On a resume the approved
             # call was made by the previous execution, so only its return is new -
             # `tool_calls_in` has nothing to hang it on and drops it, which left
@@ -7555,6 +7561,10 @@ class AgentRunnerService:
                 result, parked=prepared.approvals.parked
             )
             if paused is not None:
+                paused.tool_identities = {
+                    call.tool_call_id: ToolIdentity(call.tool_id, call.presentation_kind)
+                    for call in called
+                }
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
