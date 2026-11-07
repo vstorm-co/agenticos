@@ -330,11 +330,13 @@ Use the intended entry's contract and pass its `entry_node_id` when starting.
 
 The optional [JSON Schema input contract](reference/workflow-nodes.md#json-schema-input-contracts)
 is checked before admission. A mismatch answers `422 WORKFLOW_RUN_INPUT_INVALID`
-with field paths and messages in `error.details.problems`; no run is created.
-Each problem has `field`, `message` and `type`; nested paths include array indices,
-for example `items.0.sku`. The contract comes from the current published version,
-or from the draft for `"mode": "test"`. It applies equally over WebSocket and MCP
-and when another workflow calls it.
+with field paths and messages in `error.details.fields`; no run is created.
+Each entry has `field` and `message`; nested request paths include array indices,
+for example `input.items.0.sku`. For existing callers, `error.details.problems`
+also retains `field`, `message` and `type` with paths relative to the input object.
+The contract comes from the current published version, or from the draft for
+`"mode": "test"`. It applies equally over WebSocket and MCP and when another
+workflow calls it.
 
 `deadline_seconds` (up to thirty days) sets
 a deadline that is checked each time a node is about to be dispatched: the

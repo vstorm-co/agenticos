@@ -122,6 +122,10 @@ def test_errors_identify_nested_fields_without_echoing_values(
     [
         ({"type": "unknown-type"}, "Invalid Draft"),
         ({"minLength": -1}, "Invalid Draft"),
+        ({"$id": 12}, "Invalid Draft"),
+        ({"$defs": {"child": {"$id": []}}}, "Invalid Draft"),
+        ({"properties": {"value": {"pattern": "["}}}, "Invalid Draft"),
+        ({"patternProperties": {"[": {"type": "string"}}}, "Invalid Draft"),
         ({"$schema": "http://json-schema.org/draft-07/schema#"}, "Draft 2020-12"),
         ({"$schema": {}}, "Draft 2020-12"),
         ({"$ref": "https://example.com/schema.json"}, "within the supplied document"),
@@ -180,6 +184,108 @@ def test_recursive_objects_arrays_anchors_and_escaped_pointers_are_supported() -
     assert input_problems(config, {"next": {"children": [{"label": "leaf"}]}}) == []
     problems = input_problems(config, {"children": [{"label": False}]})
     assert problems[0]["field"] == "children.0.label"
+
+
+def test_local_references_respect_nested_resource_scopes() -> None:
+    schema: dict[str, JsonValue] = {
+        "$id": "https://example.com/contract",
+        "$defs": {"value": {"type": "integer"}},
+        "properties": {
+            "nested": {
+                "$id": "nested",
+                "$defs": {"value": {"type": "string"}},
+                "properties": {"value": {"$ref": "#/$defs/value"}},
+            },
+            "value": {"$ref": "#/$defs/value"},
+        },
+    }
+    config = TriggerInputConfig(input_schema=schema)
+    assert input_problems(config, {"nested": {"value": "local"}, "value": 2}) == []
+    problems = input_problems(config, {"nested": {"value": 2}, "value": "local"})
+    assert [(problem["field"], problem["message"]) for problem in problems] == [
+        ("nested.value", "Must be of type string"),
+        ("value", "Must be of type integer"),
+    ]
+
+
+def test_local_references_cannot_escape_a_nested_resource_to_outer_definitions() -> None:
+    schema: dict[str, JsonValue] = {
+        "$defs": {"outer": {"type": "string"}},
+        "properties": {
+            "nested": {"$id": "nested", "properties": {"value": {"$ref": "#/$defs/outer"}}}
+        },
+    }
+    with pytest.raises(ValidationError, match="unresolved local reference"):
+        TriggerInputConfig(input_schema=schema)
+
+
+@pytest.mark.parametrize("keyword", ["anyOf", "oneOf"])
+def test_nullable_object_unions_report_nested_errors_in_the_applicable_branch(
+    keyword: str,
+) -> None:
+    schema: dict[str, JsonValue] = {
+        "properties": {
+            "customer": {
+                keyword: [
+                    {
+                        "type": "object",
+                        "properties": {"name": {"type": "string", "minLength": 2}},
+                        "required": ["name"],
+                    },
+                    {"type": "null"},
+                ]
+            }
+        }
+    }
+    config = TriggerInputConfig(input_schema=schema)
+    assert input_problems(config, {"customer": None}) == []
+    assert input_problems(config, {"customer": {}}) == [
+        {"field": "customer.name", "message": "Field required", "type": "required"}
+    ]
+    assert input_problems(config, {"customer": {"name": "a"}}) == [
+        {
+            "field": "customer.name",
+            "message": "Must contain at least 2 characters",
+            "type": "minLength",
+        }
+    ]
+    assert input_problems(config, {"customer": []})[0]["type"] == keyword
+
+
+def test_nested_union_errors_keep_array_indices_and_do_not_guess_between_object_variants() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "properties": {
+                "customers": {
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "anyOf": [
+                                    {"type": "object", "required": ["name"]},
+                                    {"type": "null"},
+                                ]
+                            },
+                        },
+                        {"type": "null"},
+                    ]
+                },
+                "choice": {
+                    "anyOf": [
+                        {"type": "object", "required": ["person"]},
+                        {"type": "object", "required": ["company"]},
+                    ]
+                },
+                "overlap": {"oneOf": [{"type": "integer"}, {"type": "number"}]},
+            }
+        }
+    )
+    problems = input_problems(config, {"customers": [{}], "choice": {}, "overlap": 2})
+    assert [(problem["field"], problem["type"]) for problem in problems] == [
+        ("customers.0.name", "required"),
+        ("choice", "anyOf"),
+        ("overlap", "oneOf"),
+    ]
 
 
 def test_schema_looking_values_inside_instance_annotations_are_not_references() -> None:
@@ -261,6 +367,17 @@ def test_other_draft_constraints_have_safe_explanations(
     assert "private-value" not in str(problems)
 
 
+def test_object_errors_and_a_property_named_dollar_have_distinct_paths() -> None:
+    config = TriggerInputConfig(
+        input_schema={"minProperties": 2, "properties": {"$": {"type": "string"}}}
+    )
+    problems = input_problems(config, {"$": 1})
+    assert [(problem["field"], problem["type"]) for problem in problems] == [
+        ("", "minProperties"),
+        ("$", "type"),
+    ]
+
+
 def test_pattern_properties_and_boolean_subschemas_follow_draft_semantics() -> None:
     config = TriggerInputConfig(
         input_schema={
@@ -290,7 +407,7 @@ def test_excessive_document_and_input_nesting_are_clear_refusals() -> None:
     with pytest.raises(ValueError, match="maximum nesting depth"):
         check_input_schema(_deep_object())
     assert schema_input_problems({}, _deep_object()) == [
-        {"field": "$", "message": "Input exceeds the maximum nesting depth", "type": "max_depth"}
+        {"field": "", "message": "Input exceeds the maximum nesting depth", "type": "max_depth"}
     ]
 
 
@@ -303,7 +420,7 @@ def test_a_long_reference_chain_cannot_crash_run_admission() -> None:
     check_input_schema(schema)
     assert schema_input_problems(schema, {}) == [
         {
-            "field": "$",
+            "field": "",
             "message": "Input exceeds the schema validation nesting limit",
             "type": "max_depth",
         }

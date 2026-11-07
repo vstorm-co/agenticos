@@ -25,11 +25,42 @@ interface InputContractFormProps {
 
 const EMPTY_SCHEMA = { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" };
 
+function contractKey(config: Record<string, unknown>): string {
+  return JSON.stringify([config["fields"] ?? [], config["input_schema"] ?? null]);
+}
+
+/** Keep each format's saved edits while this trigger is open; only one is persisted. */
+function useContractDrafts({ node, updateNodeConfig }: InputContractFormProps) {
+  const fromNode = () => ({
+    nodeId: node.id,
+    current: contractKey(node.config),
+    fields: node.config["fields"] ?? [],
+    schema: inputSchemaOf(node.config) ?? EMPTY_SCHEMA,
+  });
+  const [drafts, setDrafts] = useState(fromNode);
+  if (drafts.nodeId !== node.id || drafts.current !== contractKey(node.config)) {
+    // An external undo or restore defines a new starting point for both formats.
+    setDrafts(fromNode());
+  }
+  const write = (id: Uuid, config: Record<string, unknown>) => {
+    const schema = inputSchemaOf(config);
+    setDrafts({
+      nodeId: id,
+      current: contractKey(config),
+      fields: schema === null ? (config["fields"] ?? []) : drafts.fields,
+      schema: schema ?? drafts.schema,
+    });
+    updateNodeConfig(id, config);
+  };
+  return { ...drafts, write };
+}
+
 /** A portable input contract, or the existing simple-field editor. Forms keep their fields. */
 export function InputContractForm(props: InputContractFormProps) {
-  const { node, disabled, updateNodeConfig } = props;
+  const { node, disabled } = props;
   const t = useTranslations("workflows.inputFields");
   const schema = inputSchemaOf(node.config);
+  const drafts = useContractDrafts(props);
   if (node.definition_id === "trigger.form") return <InputFieldsForm {...props} />;
   return (
     <div className="space-y-3">
@@ -40,8 +71,9 @@ export function InputContractForm(props: InputContractFormProps) {
           disabled={disabled}
           onValueChange={(value) => {
             if (value === "schema")
-              updateNodeConfig(node.id, { ...node.config, fields: [], input_schema: EMPTY_SCHEMA });
-            else updateNodeConfig(node.id, { ...node.config, input_schema: null });
+              drafts.write(node.id, { ...node.config, fields: [], input_schema: drafts.schema });
+            else
+              drafts.write(node.id, { ...node.config, fields: drafts.fields, input_schema: null });
           }}
         >
           <SelectTrigger id="input-contract-format">
@@ -55,9 +87,9 @@ export function InputContractForm(props: InputContractFormProps) {
         <p className="text-muted-foreground text-xs">{t("formatHint")}</p>
       </div>
       {schema === null ? (
-        <InputFieldsForm {...props} />
+        <InputFieldsForm {...props} updateNodeConfig={drafts.write} />
       ) : (
-        <InputSchemaEditor key={node.id} {...props} />
+        <InputSchemaEditor key={node.id} {...props} updateNodeConfig={drafts.write} />
       )}
     </div>
   );

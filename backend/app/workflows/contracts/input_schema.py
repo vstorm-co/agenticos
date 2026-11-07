@@ -68,6 +68,23 @@ def _subschemas(
                 yield cast("dict[str, JsonValue] | bool", child), keyword != "prefixItems"
 
 
+def _checked_schema(contents: Schema) -> Mapping[str, JsonValue] | None:
+    if isinstance(contents, bool):
+        return None
+    if not isinstance(contents, Mapping):
+        # Pydantic turns ValueError into a config refusal; TypeError would escape as a server error.
+        raise ValueError("Input schema reference must point to a schema object or boolean")  # noqa: TRY004
+    dialect = contents.get("$schema", DRAFT_2020_12)
+    if not isinstance(dialect, str) or dialect not in {DRAFT_2020_12, DRAFT_2020_12 + "#"}:
+        raise ValueError("Input schema must use JSON Schema Draft 2020-12")
+    try:
+        Draft202012Validator.check_schema(contents)
+    except SchemaError as exc:
+        path = "/".join(str(part) for part in exc.absolute_path)
+        raise ValueError(f"Invalid Draft 2020-12 input schema at /{path}") from None
+    return contents
+
+
 def check_input_schema(schema: InputSchema) -> None:
     """Refuse invalid dialects, unresolved/external references and endless ref loops.
 
@@ -77,6 +94,8 @@ def check_input_schema(schema: InputSchema) -> None:
     """
     if _too_deep(schema):
         raise ValueError("Input schema exceeds the maximum nesting depth")
+    # Registry construction reads $id immediately, before reference traversal.
+    _checked_schema(schema)
     visited: set[int] = set()
     connections: dict[int, set[int]] = {}
     resource = DRAFT202012.create_resource(schema)
@@ -90,19 +109,9 @@ def check_input_schema(schema: InputSchema) -> None:
             continue
         visited.add(key)
         connections[key] = set()
-        if isinstance(contents, bool):
+        contents = _checked_schema(contents)
+        if contents is None:
             continue
-        if not isinstance(contents, Mapping):
-            # Pydantic turns ValueError into a config refusal; TypeError would escape as a server error.
-            raise ValueError("Input schema reference must point to a schema object or boolean")  # noqa: TRY004
-        dialect = contents.get("$schema", DRAFT_2020_12)
-        if not isinstance(dialect, str) or dialect not in {DRAFT_2020_12, DRAFT_2020_12 + "#"}:
-            raise ValueError("Input schema must use JSON Schema Draft 2020-12")
-        try:
-            Draft202012Validator.check_schema(contents)
-        except SchemaError as exc:
-            path = "/".join(str(part) for part in exc.absolute_path)
-            raise ValueError(f"Invalid Draft 2020-12 input schema at /{path}") from None
         for keyword in ("$ref", "$dynamicRef"):
             reference = contents.get(keyword)
             if not isinstance(reference, str):
@@ -176,6 +185,26 @@ def _error_paths(error: ValidationError) -> Iterator[tuple[str | int, ...]]:
         yield path
 
 
+def _specific_errors(error: ValidationError) -> Iterator[ValidationError]:
+    """Expose a union branch's field errors when its input type is unambiguous."""
+    if error.validator not in {"anyOf", "oneOf"} or not error.context:
+        yield error
+        return
+    branches: dict[str | int, list[ValidationError]] = {}
+    wrong_type: set[str | int] = set()
+    for child in error.context:
+        branch = child.schema_path[0]
+        branches.setdefault(branch, []).append(child)
+        if child.validator == "type" and not child.path:
+            wrong_type.add(branch)
+    candidates = [errors for branch, errors in branches.items() if branch not in wrong_type]
+    if len(candidates) != 1:
+        yield error
+        return
+    for child in candidates[0]:
+        yield from _specific_errors(child)
+
+
 def schema_input_problems(
     schema: InputSchema, run_input: dict[str, JsonValue]
 ) -> list[dict[str, str]]:
@@ -187,7 +216,7 @@ def schema_input_problems(
     if _too_deep(run_input):
         return [
             {
-                "field": "$",
+                "field": "",
                 "message": "Input exceeds the maximum nesting depth",
                 "type": "max_depth",
             }
@@ -195,18 +224,19 @@ def schema_input_problems(
     problems: list[dict[str, str]] = []
     try:
         for error in Draft202012Validator(schema, registry=Registry()).iter_errors(run_input):
-            for path in _error_paths(error):
-                problem = {
-                    "field": ".".join(str(part) for part in path) or "$",
-                    "message": _message(error),
-                    "type": str(error.validator or "schema"),
-                }
-                if problem not in problems:
-                    problems.append(problem)
+            for specific in _specific_errors(error):
+                for path in _error_paths(specific):
+                    problem = {
+                        "field": ".".join(str(part) for part in path),
+                        "message": _message(specific),
+                        "type": str(specific.validator or "schema"),
+                    }
+                    if problem not in problems:
+                        problems.append(problem)
     except RecursionError:
         return [
             {
-                "field": "$",
+                "field": "",
                 "message": "Input exceeds the schema validation nesting limit",
                 "type": "max_depth",
             }

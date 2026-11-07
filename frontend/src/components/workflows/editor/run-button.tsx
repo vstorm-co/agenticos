@@ -48,8 +48,8 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
-  const { start } = useWorkflowRuns(workflowId);
   const [asking, setAsking] = useState(false);
+  const { start } = useWorkflowRuns(workflowId, asking);
 
   const problems = useMemo(
     () =>
@@ -153,6 +153,8 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
           canRunLive={false}
           canTest
           busy={start.isPending}
+          error={start.error}
+          onInputChange={start.reset}
           testFields={fields}
           testInputSchema={inputSchema}
           sampleInput={sampleRunInput(graph)}

@@ -21,6 +21,9 @@ import {
 } from "@/components/ui";
 import { CodeArea } from "@/components/ui/code-area";
 import { JsonView } from "@/components/ui/json-view";
+import { fieldProblems } from "@/lib/api-error";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import { type FormValue, type InputField, runInputFrom } from "@/lib/workflows/input-fields";
 import type { JsonSchema } from "@/lib/workflows/types";
 
@@ -44,6 +47,9 @@ interface StartRunDialogProps {
   /** Whether this caller may test the draft (`workflows:edit`). */
   canTest: boolean;
   busy?: boolean;
+  /** Structured admission refusals stay beside the input until it is edited. */
+  error?: unknown;
+  onInputChange?: () => void;
   /** What the input starts as - the draft's trigger's shape, for a test run. */
   sampleInput?: Record<string, unknown>;
   /** The fields the draft's "Manual or API" trigger declares, asked for by name in a test run. */
@@ -87,6 +93,8 @@ export function StartRunDialog({
   canRunLive,
   canTest,
   busy,
+  error,
+  onInputChange,
   sampleInput = {},
   testFields = [],
   liveFields = [],
@@ -96,9 +104,10 @@ export function StartRunDialog({
 }: StartRunDialogProps) {
   const t = useTranslations("pages.workflows");
   const [mode, setMode] = useState<"real" | "test">(canTest ? "test" : "real");
-  const [text, setText] = useState(() =>
-    Object.keys(sampleInput).length > 0 ? JSON.stringify(sampleInput, null, 2) : "{\n  \n}",
-  );
+  const [text, setText] = useState(() => {
+    const sample = (canTest ? testEntries : liveEntries)[0]?.sample ?? (canTest ? sampleInput : {});
+    return JSON.stringify(sample, null, 2);
+  });
   const [values, setValues] = useState<Record<string, FormValue>>({});
   const [tried, setTried] = useState(false);
   const entries = mode === "test" ? testEntries : liveEntries;
@@ -116,6 +125,14 @@ export function StartRunDialog({
   const invalid = !typed && typeof parsed === "string";
   const fromForm = runInputFrom(fields, values);
   const problems = tried && "problems" in fromForm ? fromForm.problems : {};
+  const refused = fieldProblems(error).filter(
+    ({ field }) => field === "input" || field.startsWith("input."),
+  );
+  const changeOpen = (next: boolean) => {
+    if (busy) return;
+    if (!next) onInputChange?.();
+    onOpenChange(next);
+  };
 
   const submit = () => {
     if (typed) {
@@ -128,18 +145,19 @@ export function StartRunDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         <DialogHeader>
           <DialogTitle>{t("startRunTitle")}</DialogTitle>
           <DialogDescription>{t("startRunDescription")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <fieldset className="space-y-4" disabled={busy}>
           <div className="space-y-1.5">
             <Label htmlFor="run-mode">{t("startRunMode")}</Label>
             <Select
               value={mode}
               onValueChange={(value) => {
+                onInputChange?.();
                 const nextMode = value === "real" ? "real" : "test";
                 const first = (nextMode === "test" ? testEntries : liveEntries)[0];
                 setMode(nextMode);
@@ -170,6 +188,7 @@ export function StartRunDialog({
               <Select
                 value={entry?.id}
                 onValueChange={(id) => {
+                  onInputChange?.();
                   setEntryId(id);
                   setValues({});
                   setTried(false);
@@ -203,7 +222,10 @@ export function StartRunDialog({
                   field={field}
                   value={values[field.name]}
                   problem={problems[field.name]}
-                  onChange={(value) => setValues({ ...values, [field.name]: value })}
+                  onChange={(value) => {
+                    onInputChange?.();
+                    setValues({ ...values, [field.name]: value });
+                  }}
                 />
               ))}
             </div>
@@ -219,7 +241,12 @@ export function StartRunDialog({
                 name="input.json"
                 aria-label={t("startRunInput")}
                 value={text}
-                onChange={setText}
+                onChange={(next) => {
+                  onInputChange?.();
+                  setText(next);
+                }}
+                invalid={invalid || refused.length > 0}
+                describedBy={refused.length > 0 ? "run-input-errors" : undefined}
                 className="min-h-40"
               />
               {typeof parsed === "string" && (
@@ -227,9 +254,20 @@ export function StartRunDialog({
               )}
             </div>
           )}
-        </div>
+          {refused.length > 0 && (
+            <ul id="run-input-errors" role="alert" className="text-destructive space-y-1 text-xs">
+              {refused.map((problem, index) => (
+                <li key={index} className="break-words">
+                  <code>{problem.field}</code>
+                  {": "}
+                  {problem.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={busy} onClick={() => changeOpen(false)}>
             {t("cancel")}
           </Button>
           <Button disabled={invalid || busy || (mode === "real" && !canRunLive)} onClick={submit}>

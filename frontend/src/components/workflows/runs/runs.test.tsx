@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { InputField } from "@/lib/workflows/input-fields";
+import { ApiError } from "@/lib/api-error";
 
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "./run-status";
 import { parseRunInput, StartRunDialog } from "./start-run-dialog";
@@ -38,6 +39,142 @@ function mount(props: Partial<Parameters<typeof StartRunDialog>[0]> = {}) {
 }
 
 describe("StartRunDialog", () => {
+  it("prefills the selected published entry rather than a different draft trigger", async () => {
+    const onStart = mount({
+      canTest: false,
+      sampleInput: { body: { draft: true }, delivery_id: "draft" },
+      liveEntries: [{ id: "live", name: "Published", fields: [], sample: { published: true } }],
+    });
+    expect(screen.getByLabelText("Input (JSON)")).toHaveValue(
+      JSON.stringify({ published: true }, null, 2),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(onStart).toHaveBeenCalledWith({
+      mode: "real",
+      input: { published: true },
+      entry_node_id: "live",
+    });
+  });
+
+  it("starts a published entry without a draft sample when no live sample is supplied", async () => {
+    const onStart = mount({ canTest: false, sampleInput: { draftOnly: true } });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(onStart).toHaveBeenCalledWith({ mode: "real", input: {} });
+  });
+
+  it("shows admission field paths beside JSON without echoing unrelated error data", () => {
+    const onInputChange = vi.fn();
+    mount({
+      error: new ApiError(422, "Input rejected", {
+        error: {
+          code: "WORKFLOW_RUN_INPUT_INVALID",
+          message: "Input rejected",
+          details: {
+            fields: [
+              { field: "input.items.0.sku", message: "Field required" },
+              { field: "nodes.start.config.input_schema", message: "Invalid trigger schema" },
+            ],
+            submitted: "private-request-value",
+          },
+        },
+      }),
+      onInputChange,
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("input.items.0.sku: Field required");
+    expect(screen.queryByText("private-request-value")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invalid trigger schema")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Input (JSON)")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Input (JSON)")).toHaveAccessibleDescription(
+      "input.items.0.sku: Field required",
+    );
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), {
+      target: { value: '{"items":[{"sku":"a"}]}' },
+    });
+    expect(onInputChange).toHaveBeenCalledOnce();
+  });
+
+  it("leaves graph configuration refusals outside the run input's errors", () => {
+    mount({
+      error: new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: {
+            fields: [
+              {
+                field: "nodes.start.config.input_schema",
+                message: "Invalid trigger schema",
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Input (JSON)")).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("clears admission errors when a version, entry or simple-field answer changes", async () => {
+    const onInputChange = vi.fn();
+    mount({
+      onInputChange,
+      entries: [
+        { id: "one", name: "One", fields: [], sample: {} },
+        { id: "two", name: "Two", fields: [], sample: {} },
+      ],
+      liveFields: [
+        { name: "name", label: null, description: null, type: "text", required: true, options: [] },
+      ],
+    });
+    await userEvent.click(screen.getByRole("combobox", { name: "Start from" }));
+    await userEvent.click(screen.getByRole("option", { name: "Two" }));
+    expect(onInputChange).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("combobox", { name: "Run" }));
+    await userEvent.click(screen.getByRole("option", { name: "Published version" }));
+    expect(onInputChange).toHaveBeenCalledTimes(2);
+    fireEvent.change(screen.getByLabelText("name"), { target: { value: "Ada" } });
+    expect(onInputChange).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps an admission request's input stable until it settles", async () => {
+    const onOpenChange = vi.fn();
+    const onInputChange = vi.fn();
+    const props = {
+      open: true,
+      canRunLive: true,
+      canTest: true,
+      onStart: vi.fn(),
+      onOpenChange,
+      onInputChange,
+    };
+    const { rerender } = render(<StartRunDialog {...props} busy />);
+    expect(screen.getByLabelText("Input (JSON)")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Run" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(onInputChange).not.toHaveBeenCalled();
+    rerender(
+      <StartRunDialog
+        {...props}
+        busy={false}
+        error={
+          new ApiError(422, "Input rejected", {
+            error: {
+              code: "WORKFLOW_RUN_INPUT_INVALID",
+              message: "Input rejected",
+              details: { fields: [{ field: "input.items", message: "Field required" }] },
+            },
+          })
+        }
+      />,
+    );
+    expect(screen.getByLabelText("Input (JSON)")).toBeEnabled();
+    expect(screen.getByRole("combobox", { name: "Run" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: '{"items":[]}' } });
+    expect(onInputChange).toHaveBeenCalledOnce();
+  });
   it("shows the contract of the selected version and preserves nested JSON input", async () => {
     const onStart = mount({
       testInputSchema: { type: "object", title: "Draft contact request" },

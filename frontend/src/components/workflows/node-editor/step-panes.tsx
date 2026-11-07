@@ -253,9 +253,9 @@ export function OutputPane({
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
-  const { start } = useWorkflowRuns(workflowId);
   const [confirming, setConfirming] = useState(false);
   const [asking, setAsking] = useState(false);
+  const { start } = useWorkflowRuns(workflowId, asking);
   const [draft, setDraft] = useState<string | null>(null);
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
 
@@ -475,6 +475,8 @@ export function OutputPane({
           canRunLive={false}
           canTest
           busy={start.isPending}
+          error={start.error}
+          onInputChange={start.reset}
           testFields={declaredFields(graph)}
           testInputSchema={declaredInputSchema(graph)}
           onStart={({ input }) => test(input)}

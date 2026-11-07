@@ -1,5 +1,5 @@
 ---
-source_sha: "aa298268b36a"
+source_sha: "cf0013f1be78"
 ---
 
 # API HTTP { #the-http-api }
@@ -337,11 +337,13 @@ Użyj kontraktu wybranego wejścia i przekaż jego `entry_node_id` przy uruchami
 
 Opcjonalny [kontrakt wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
 jest sprawdzany przed przyjęciem runu. Niezgodność zwraca
-`422 WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami w `error.details.problems`;
-run nie powstaje. Każdy problem ma `field`, `message` i `type`; zagnieżdżone
-ścieżki zawierają indeksy tablic, na przykład `items.0.sku`. Kontrakt pochodzi z
-bieżącej opublikowanej wersji albo ze szkicu dla `"mode": "test"`. Obowiązuje tak
-samo przez WebSocket i MCP oraz gdy wywołuje inny workflow.
+`422 WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami w `error.details.fields`;
+run nie powstaje. Każdy wpis ma `field` i `message`; zagnieżdżone ścieżki żądania
+zawierają indeksy tablic, na przykład `input.items.0.sku`. Dla dotychczasowych
+wywołujących `error.details.problems` zachowuje też `field`, `message` i `type`
+ze ścieżkami względem obiektu wejścia. Kontrakt pochodzi z bieżącej opublikowanej
+wersji albo ze szkicu dla `"mode": "test"`. Obowiązuje tak samo przez WebSocket
+i MCP oraz gdy wywołuje inny workflow.
 
 `deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy

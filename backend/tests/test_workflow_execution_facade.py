@@ -1405,6 +1405,30 @@ def test_input_accepts_literal_escape_text_and_multilingual_strings():
     assert _checked_input(payload) == payload
 
 
+@pytest.mark.parametrize(
+    ("path", "kind", "expected"),
+    [
+        ("items.0.name", "minLength", "items.0.name"),
+        ("", "type", ""),
+        ("input", "required", "input"),
+        ("$", "type", "$"),
+        ("input", "json_invalid", ""),
+    ],
+)
+@pytest.mark.parametrize("root", ["input", "values"])
+def test_input_errors_expose_shared_field_paths_and_preserve_legacy_problems(
+    path: str, kind: str, expected: str, root: str
+) -> None:
+    problems = [{"field": path, "message": "Use the declared type", "type": kind}]
+    refusal = WorkflowRunInputInvalidError(problems=problems, root=root)
+    assert refusal.details == {
+        "fields": [
+            {"field": ".".join(filter(None, (root, expected))), "message": "Use the declared type"}
+        ],
+        "problems": problems,
+    }
+
+
 async def test_a_child_workflow_rejects_nested_input_before_admitting_a_run() -> None:
     entry = NodeInstance(
         id=uuid.uuid4(),

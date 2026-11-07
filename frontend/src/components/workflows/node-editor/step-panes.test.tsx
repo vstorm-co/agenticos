@@ -3,13 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { edge, makeDefinition, node, port } from "@/components/workflows/validation/fixtures";
+import { ApiError } from "@/lib/api-error";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { InputPane, OutputPane } from "./step-panes";
 
 const mutate = vi.fn();
-const start = { mutate, isPending: false };
+const start = { mutate, isPending: false, error: null as unknown, reset: vi.fn() };
 const useWorkflowTable = vi.fn((_id: string | null) => ({ table: null as unknown }));
 // The step test's own run, as Stop and the did-not-run warning read it.
 const testRun = vi.hoisted(() => ({
@@ -83,6 +84,8 @@ const KNOWN = { output: { echoed: "hi" }, error: null, runId: "r" };
 
 beforeEach(() => {
   mutate.mockReset();
+  start.error = null;
+  start.reset.mockReset();
   mutate.mockImplementation((_body, options) => options?.onSuccess?.({ id: "run-2" }));
 });
 afterEach(() => store.getState().teardown());
@@ -461,6 +464,26 @@ describe("OutputPane", () => {
       expect.objectContaining({ input: { contacts: [{ email: "ada@example.com" }] } }),
       expect.anything(),
     );
+  });
+
+  it("shows a step test's admission error in its open input dialog", async () => {
+    seed(
+      line({}, { ...node("t", "trigger.manual"), config: { input_schema: { type: "object" } } }),
+    );
+    start.error = new ApiError(422, "Input rejected", {
+      error: {
+        code: "WORKFLOW_RUN_INPUT_INVALID",
+        message: "Input rejected",
+        details: {
+          fields: [{ field: "input.items.0.sku", message: "Field required" }],
+        },
+      },
+    });
+    renderOutput(STEP, [MANUAL, STEP]);
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("input.items.0.sku: Field required");
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: '{"items":[]}' } });
+    expect(start.reset).toHaveBeenCalledOnce();
   });
 
   it("opens setup problems from a disabled step test without starting a run", async () => {

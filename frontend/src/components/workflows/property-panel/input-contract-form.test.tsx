@@ -56,8 +56,60 @@ describe("InputContractForm", () => {
     );
     await userEvent.click(screen.getByRole("combobox", { name: "Input contract" }));
     await userEvent.click(screen.getByRole("option", { name: "Simple fields" }));
-    expect(update).toHaveBeenLastCalledWith("start", { fields: [], input_schema: null });
+    expect(update).toHaveBeenLastCalledWith("start", {
+      fields: [{ name: "email", type: "text" }],
+      input_schema: null,
+    });
+    expect(screen.getByLabelText("Name")).toHaveValue("email");
     expect(screen.getByRole("button", { name: "Add field" })).toBeVisible();
+    await userEvent.click(screen.getByRole("combobox", { name: "Input contract" }));
+    await userEvent.click(screen.getByRole("option", { name: "JSON Schema" }));
+    expect(update).toHaveBeenLastCalledWith("start", { fields: [], input_schema: SCHEMA });
+    expect(screen.getByRole("textbox", { name: "JSON Schema" })).toHaveValue(
+      JSON.stringify(SCHEMA, null, 2),
+    );
+  });
+
+  it("keeps changes to simple fields across format switches and sends one active contract", async () => {
+    const update = vi.fn();
+    render(<Live onUpdate={update} />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "contact" } });
+    const fields = update.mock.lastCall?.[1].fields;
+    await userEvent.click(screen.getByRole("combobox", { name: "Input contract" }));
+    await userEvent.click(screen.getByRole("option", { name: "JSON Schema" }));
+    expect(update.mock.lastCall?.[1].fields).toEqual([]);
+    await userEvent.click(screen.getByRole("combobox", { name: "Input contract" }));
+    await userEvent.click(screen.getByRole("option", { name: "Simple fields" }));
+    expect(update).toHaveBeenLastCalledWith("start", { fields, input_schema: null });
+    expect(screen.getByLabelText("Name")).toHaveValue("contact");
+  });
+
+  it("discards an inactive format draft when an external restore changes the contract", async () => {
+    const restored = { type: "object", properties: { restored: { type: "number" } } };
+    function Restorable() {
+      const [config, setConfig] = useState<Record<string, unknown>>({
+        fields: [{ name: "email", type: "text" }],
+      });
+      return (
+        <>
+          <button onClick={() => setConfig({ fields: [], input_schema: restored })}>Restore</button>
+          <InputContractForm
+            node={node(config)}
+            updateNodeConfig={(_id, next) => setConfig(next)}
+          />
+        </>
+      );
+    }
+    render(<Restorable />);
+    await userEvent.click(screen.getByRole("combobox", { name: "Input contract" }));
+    await userEvent.click(screen.getByRole("option", { name: "JSON Schema" }));
+    await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(screen.getByRole("textbox", { name: "JSON Schema" })).toHaveValue(
+      JSON.stringify(restored, null, 2),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Input contract" }));
+    await userEvent.click(screen.getByRole("option", { name: "Simple fields" }));
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
   it("preserves the last saved contract while malformed JSON is being edited", () => {

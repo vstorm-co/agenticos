@@ -10102,7 +10102,7 @@
       "contractFormat": "Kontrakt wejścia",
       "simpleFields": "Proste pola",
       "jsonSchema": "JSON Schema",
-      "formatHint": "Wybierz proste pola lub kontrakt JSON Schema. Zmiana formatu zastępuje obecny kontrakt.",
+      "formatHint": "Wybierz proste pola lub kontrakt JSON Schema. Oba zapisane formaty są zachowane, dopóki ten wyzwalacz pozostaje otwarty; tylko wybrany format jest zapisywany w workflow.",
       "schemaHint": "Użyj JSON Schema Draft 2020-12 dla zagnieżdżonych obiektów, tablic i referencji. Dane są sprawdzane przed rozpoczęciem runu.",
       "schemaInvalid": "Wpisz obiekt JSON. Ta zmiana nie została zapisana."
     },

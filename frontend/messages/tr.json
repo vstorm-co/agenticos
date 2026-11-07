@@ -762,7 +762,7 @@
       "contractFormat": "Giriş sözleşmesi",
       "simpleFields": "Basit alanlar",
       "jsonSchema": "JSON Schema",
-      "formatHint": "Basit alanları veya JSON Schema sözleşmesini seçin. Biçimi değiştirmek mevcut sözleşmeyi değiştirir.",
+      "formatHint": "Basit alanları veya JSON Schema sözleşmesini seçin. Bu tetikleyici açıkken her kayıtlı biçim korunur; workflow’a yalnızca seçilen biçim kaydedilir.",
       "schemaHint": "İç içe nesneler, diziler ve referanslar için JSON Schema Draft 2020-12 kullanın. Girdiler run başlamadan önce doğrulanır.",
       "schemaInvalid": "Bir JSON nesnesi girin. Bu değişiklik kaydedilmedi."
     },

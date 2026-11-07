@@ -9246,7 +9246,7 @@
       "contractFormat": "Eingabevertrag",
       "simpleFields": "Einfache Felder",
       "jsonSchema": "JSON Schema",
-      "formatHint": "Wähle einfache Felder oder einen JSON-Schema-Vertrag. Ein Formatwechsel ersetzt den aktuellen Vertrag.",
+      "formatHint": "Wähle einfache Felder oder einen JSON-Schema-Vertrag. Beide gespeicherten Formate bleiben erhalten, solange dieser Trigger geöffnet ist; nur das ausgewählte Format wird im Workflow gespeichert.",
       "schemaHint": "Verwende JSON Schema Draft 2020-12 für verschachtelte Objekte, Arrays und Referenzen. Eingaben werden vor dem Start eines Runs geprüft.",
       "schemaInvalid": "Gib ein JSON-Objekt ein. Diese Änderung wurde nicht gespeichert."
     },

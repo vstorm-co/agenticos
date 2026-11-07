@@ -1,5 +1,5 @@
 ---
-source_sha: "aa298268b36a"
+source_sha: "cf0013f1be78"
 ---
 
 # La API HTTP { #the-http-api }
@@ -353,11 +353,13 @@ simples se representan como JSON Schema y las entradas sin tipado devuelven
 
 El [contrato de entrada JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
 opcional se comprueba antes de admitir el run. Una discrepancia responde
-`422 WORKFLOW_RUN_INPUT_INVALID` con rutas de campos y mensajes en `error.details.problems`;
-no se crea ningún run. Cada problema tiene `field`, `message` y `type`; las rutas
-anidadas incluyen índices de arrays, por ejemplo `items.0.sku`. El contrato procede
-de la versión publicada actual o del borrador para `"mode": "test"`. Se
-aplica igual por WebSocket y MCP y cuando llama otro workflow.
+`422 WORKFLOW_RUN_INPUT_INVALID` con rutas de campos y mensajes en `error.details.fields`;
+no se crea ningún run. Cada entrada tiene `field` y `message`; las rutas anidadas
+de la petición incluyen índices de arrays, por ejemplo `input.items.0.sku`.
+Para quienes ya usan la API, `error.details.problems` conserva también `field`,
+`message` y `type` con rutas relativas al objeto de entrada. El contrato procede
+de la versión publicada actual o del borrador para `"mode": "test"`. Se aplica
+igual por WebSocket y MCP y cuando llama otro workflow.
 
 `deadline_seconds` (hasta
 treinta días) fija un plazo que se comprueba cada vez que un nodo va a

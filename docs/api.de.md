@@ -1,5 +1,5 @@
 ---
-source_sha: "aa298268b36a"
+source_sha: "cf0013f1be78"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -366,12 +366,14 @@ gewünschten Eingangs und übergib beim Start dessen `entry_node_id`.
 
 Der optionale [JSON-Schema-Eingabevertrag](reference/workflow-nodes.md#json-schema-input-contracts)
 wird vor dem Annehmen des Runs geprüft. Eine Abweichung liefert
-`422 WORKFLOW_RUN_INPUT_INVALID` mit Feldpfaden und Meldungen in `error.details.problems`;
-es wird kein Run angelegt. Jedes Problem enthält `field`, `message` und `type`;
-verschachtelte Pfade enthalten Array-Indizes, etwa `items.0.sku`. Der Vertrag
-stammt aus der aktuellen veröffentlichten Version oder bei `"mode": "test"` aus
-dem Draft. Er gilt ebenso über WebSocket und MCP sowie beim Aufruf durch einen
-anderen Workflow.
+`422 WORKFLOW_RUN_INPUT_INVALID` mit Feldpfaden und Meldungen in `error.details.fields`;
+es wird kein Run angelegt. Jeder Eintrag enthält `field` und `message`;
+verschachtelte Anfragepfade enthalten Array-Indizes, etwa `input.items.0.sku`.
+Für bestehende Aufrufer behält `error.details.problems` außerdem `field`, `message`
+und `type` mit Pfaden relativ zum Eingabeobjekt. Der Vertrag stammt aus der
+aktuellen veröffentlichten Version oder bei `"mode": "test"` aus dem Draft.
+Er gilt ebenso über WebSocket und MCP sowie beim Aufruf durch einen anderen
+Workflow.
 
 `deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
 geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
