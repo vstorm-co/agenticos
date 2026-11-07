@@ -1,5 +1,5 @@
 ---
-source_sha: "af48402946ea"
+source_sha: "b0a70ceb1d29"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2970,10 +2970,10 @@ domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może
 wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
 dowiaduje się, że osoba odmówiła.
 
-Pytanie bez odpowiedzi nie przerywa pracy agenta na dobre. Jeśli osoba odejdzie z
-otwartą kartą, run parkuje się na niej — w historii runów jako **Oczekuje na
-odpowiedź** — a karta wraca, gdy ta osoba ponownie otworzy rozmowę, na dowolnym
-urządzeniu. Odpowiedź wznawia run od miejsca, w którym się zatrzymał. Odpowiedzieć
+W czacie konsoli run zapisuje pytania i wstrzymuje się przed wyświetleniem karty
+— w historii runów jako **Oczekuje na odpowiedź**. Przełączenie czatu, odświeżenie
+strony lub otwarcie rozmowy na innym urządzeniu przywraca kartę bez odpowiedzi.
+Odpowiedź wznawia ten sam run od miejsca, w którym się zatrzymał. Odpowiedzieć
 może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że

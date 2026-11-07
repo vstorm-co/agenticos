@@ -155,12 +155,21 @@ const readiness = vi.hoisted(() => ({
 }));
 
 const { socket } = vi.hoisted(() => ({
-  socket: { onMessage: null as ((event: MessageEvent) => void) | null, send: vi.fn() },
+  socket: {
+    onMessage: null as ((event: MessageEvent) => void) | null,
+    send: vi.fn(),
+    isConnected: true,
+  },
 }));
 vi.mock("@/hooks/use-websocket", () => ({
   useWebSocket: (options: { onMessage?: (event: MessageEvent) => void }) => {
     socket.onMessage = options.onMessage ?? null;
-    return { isConnected: true, connect: vi.fn(), disconnect: vi.fn(), sendMessage: socket.send };
+    return {
+      isConnected: socket.isConnected,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      sendMessage: socket.send,
+    };
   },
 }));
 
@@ -229,6 +238,7 @@ const SETTLE = { timeout: 5000 };
 beforeAll(() => configure({ asyncUtilTimeout: SETTLE.timeout }));
 
 beforeEach(() => {
+  socket.isConnected = true;
   vi.clearAllMocks();
   // jsdom keeps the address between the tests of a file, and the container opens
   // whatever `?id=` names: a test that created a conversation left `?id=c-new`,
@@ -286,6 +296,43 @@ beforeEach(() => {
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
   voiceCall.call = initialCall;
+});
+
+describe("the chat container - answering a durable question", () => {
+  it("keeps the HTTP answer form enabled after the turn and socket end", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      status: "completed",
+      output: "Your answer was received.",
+    });
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
+    receive("user_question_required", {
+      run_id: "r-1",
+      questions: [
+        {
+          tool_call_id: "ask-1",
+          questions: [
+            { question: "How formal?", options: [{ label: "Casual" }], allow_custom: true },
+          ],
+        },
+      ],
+    });
+    receive("complete", {});
+    socket.isConnected = false;
+    receive("session_ready", {});
+    const answer = screen.getByRole("button", { name: /Casual/ });
+    expect(answer).toBeEnabled();
+    await userEvent.click(answer);
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/runs/r-1/answers", {
+        responses: { "ask-1": [{ answer: "", selected: ["Casual"], skipped: false }] },
+      }),
+    );
+    expect(screen.queryByText("How formal?")).not.toBeInTheDocument();
+    expect(await screen.findByText("Your answer was received.")).toBeInTheDocument();
+  });
 });
 
 describe("the chat container - Stop without a restored decision card", () => {

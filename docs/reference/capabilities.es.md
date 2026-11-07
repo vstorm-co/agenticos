@@ -1,5 +1,5 @@
 ---
-source_sha: "af48402946ea"
+source_sha: "b0a70ceb1d29"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3045,11 +3045,11 @@ por defecto en cada agent nuevo y en cada plantilla, y el autor puede desactivar
 Donde todavía nadie puede responder — una programación, un webhook, la API — el
 agent recibe que la persona no quiso responder.
 
-Una pregunta sin respuesta no detiene para siempre el trabajo del agent. Si la
-persona se va con la tarjeta abierta, el run se aparca en ella — **Waiting for an
-answer** en el historial de runs — y la tarjeta vuelve cuando reabre la
-conversación, en cualquier dispositivo. Responder continúa el run desde donde se
-detuvo. Solo la persona a quien se preguntó puede responder, mediante
+En el chat de la consola, el run guarda sus preguntas y se pausa antes de mostrar
+la tarjeta — **Waiting for an answer** en el historial de runs. Cambiar de chat,
+recargar la página o abrir la conversación en otro dispositivo restaura la
+tarjeta sin responder. La respuesta continúa el mismo run desde donde se detuvo.
+Solo la persona a quien se preguntó puede responder, mediante
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.

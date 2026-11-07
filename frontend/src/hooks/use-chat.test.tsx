@@ -4079,6 +4079,391 @@ const ASKED = [
   },
 ];
 
+describe("useChat - durable questions offered on the socket", () => {
+  function offer(toolName = "ask_user_question") {
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: toolName, tool_call_id: "ask-1", args: {} });
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+  }
+
+  it.each(["ask_user_question", "clarify"])(
+    "keeps the %s card after the turn completes and answers its run over HTTP",
+    async (toolName) => {
+      post.mockResolvedValue({
+        status: "completed",
+        output: "Done",
+        settled: [{ tool_call_id: "ask-1", result: "Casual" }],
+      });
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const { result } = renderHook(() => useChat(), { wrapper });
+      offer(toolName);
+      receive("message_saved", {
+        message_id: "saved",
+        run_id: "r-1",
+        run_status: "awaiting_answer",
+      });
+      receive("complete", {});
+      expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?");
+      expect(result.current.questionNeedsConnection).toBe(false);
+      expect(streaming()).toMatchObject({
+        runId: "r-1",
+        isStreaming: false,
+        runWaitingFor: "answer",
+      });
+      expect(streaming()?.toolCalls?.[0]?.status).toBe("awaiting_answer");
+      const answer = { answer: "", selected: ["Casual"], skipped: false };
+      await act(async () => result.current.sendAskUserResponses([answer]));
+      expect(post).toHaveBeenCalledWith("/runs/r-1/answers", { responses: { "ask-1": [answer] } });
+      expect(sent.mock.calls.some(([frame]) => frame.type === "ask_user_response")).toBe(false);
+      expect(result.current.pendingQuestions).toBeNull();
+      expect(streaming()?.runWaitingFor).toBeUndefined();
+      expect(useChatStore.getState().messages.at(-1)?.content).toBe("Done");
+    },
+  );
+
+  it("keeps a durable question answerable after the websocket drops", async () => {
+    post.mockResolvedValue({ status: "completed", output: "Done" });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("help"));
+    offer();
+    socket.isConnected = false;
+    rerender();
+    expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?");
+    expect(result.current.questionNeedsConnection).toBe(false);
+    await act(async () =>
+      result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]),
+    );
+    expect(post).toHaveBeenCalledWith("/runs/r-1/answers", expect.anything());
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("groups multiple calls and sends each call its own answers", async () => {
+    post.mockResolvedValue({ status: "completed", output: "Done" });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    for (const id of ["ask-1", "ask-2"])
+      receive("tool_call", { tool_name: "ask_user_question", tool_call_id: id, args: {} });
+    receive("user_question_required", {
+      run_id: "r-1",
+      questions: [
+        ...ASKED,
+        { tool_call_id: "ask-2", questions: [{ question: "When?", allow_custom: true }] },
+      ],
+    });
+    receive("complete", {});
+    expect(result.current.pendingQuestions).toHaveLength(2);
+    expect(streaming()?.toolCalls?.map((call) => call.status)).toEqual([
+      "awaiting_answer",
+      "awaiting_answer",
+    ]);
+    const casual = { answer: "Casual", skipped: false };
+    const tomorrow = { answer: "Tomorrow", skipped: false };
+    await act(async () => result.current.sendAskUserResponses([casual, tomorrow]));
+    expect(post).toHaveBeenCalledWith("/runs/r-1/answers", {
+      responses: { "ask-1": [casual], "ask-2": [tomorrow] },
+    });
+  });
+
+  it("restores the persisted question after leaving and reopening its conversation", async () => {
+    get.mockResolvedValue(ASKED);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    expect(result.current.pendingQuestions).toBeNull();
+    act(() => {
+      useChatStore.getState().clearMessages();
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore.getState().addMessage(askedTurn());
+    });
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions");
+  });
+
+  it("ignores a late event for a terminal run and an empty question batch", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
+    receive("user_question_required", { run_id: "r-1", questions: [] });
+    expect(result.current.pendingQuestions).toBeNull();
+    receive("message_saved", { message_id: "saved", run_id: "r-1", run_status: "failed" });
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("ignores a question for the conversation that was left", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it.each([
+    ["success", "conversation"],
+    ["failure", "conversation"],
+    ["success", "account"],
+    ["failure", "account"],
+    ["success", "organization"],
+    ["failure", "organization"],
+  ])("ignores a late answer %s after its %s changed", async (outcome, context) => {
+    let finish!: (value: unknown) => void;
+    let refuse!: (reason: Error) => void;
+    post.mockReturnValue(
+      new Promise((resolve, reject) => {
+        finish = resolve;
+        refuse = reject;
+      }),
+    );
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+    act(() => {
+      if (context === "conversation")
+        useConversationStore.getState().setCurrentConversationId("c-2");
+      else if (context === "account")
+        useAuthStore.setState({ user: { id: "new-account" } as never });
+      else useOrgStore.setState({ activeOrgId: "new-org" });
+    });
+    await act(async () => {
+      if (outcome === "success") finish({ status: "completed", output: "Old continuation" });
+      else refuse(new Error("offline"));
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(
+      useChatStore.getState().messages.some((message) => message.content === "Old continuation"),
+    ).toBe(false);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it.each(["success", "failure"])(
+    "ignores an answer %s after the chat unmounts",
+    async (outcome) => {
+      let finish!: (value: unknown) => void;
+      let refuse!: (reason: Error) => void;
+      post.mockReturnValue(
+        new Promise((resolve, reject) => {
+          finish = resolve;
+          refuse = reject;
+        }),
+      );
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const { result, unmount } = renderHook(() => useChat(), { wrapper });
+      offer();
+      receive("complete", {});
+      act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+      unmount();
+      await act(async () => {
+        if (outcome === "success") finish({ status: "completed", output: "Old continuation" });
+        else refuse(new Error("offline"));
+      });
+      expect(
+        useChatStore.getState().messages.some((message) => message.content === "Old continuation"),
+      ).toBe(false);
+      expect(toast.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not reopen a question after stopping a followed answer continuation", async () => {
+    let finish!: (value: unknown) => void;
+    post.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+    receive("turn_attached", { conversation_id: "c-1" });
+    act(() => result.current.stopGeneration());
+    await act(async () => finish({ status: "awaiting_answer", output: "", questions: ASKED }));
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(sent).toHaveBeenCalledWith({ type: "unfollow" });
+  });
+
+  it("ignores question events delivered after Stop or for a different run", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
+    receive("user_question_required", {
+      run_id: "other",
+      questions: [{ tool_call_id: "unrelated", questions: ASKED[0]!.questions }],
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+    act(() => result.current.stopGeneration());
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("holds queued follow-ups until the durable question and its continuation finish", async () => {
+    let finish!: (value: unknown) => void;
+    post.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => {
+      result.current.sendMessage("First task");
+      result.current.sendMessage("Queued follow-up");
+    });
+    offer();
+    receive("complete", {});
+    receive("session_ready", {});
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
+    expect(result.current.queuedMessages).toHaveLength(1);
+    const answer = [{ answer: "Casual", skipped: false }];
+    act(() => {
+      result.current.sendAskUserResponses(answer);
+      result.current.sendAskUserResponses(answer);
+      result.current.sendMessage("Another follow-up");
+    });
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.queuedMessages).toHaveLength(2);
+    await act(async () => finish({ status: "completed", output: "First task done" }));
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(1));
+    expect(
+      sent.mock.calls
+        .filter(([frame]) => typeof frame.message === "string")
+        .map(([frame]) => frame.message),
+    ).toEqual(["First task", "Queued follow-up"]);
+  });
+
+  it("releases queued follow-ups when the durable question is cancelled", async () => {
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("First task"));
+    offer();
+    receive("complete", {});
+    receive("session_ready", {});
+    act(() => result.current.sendMessage("Queued follow-up"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    expect(sent.mock.calls.some(([frame]) => frame.message === "Queued follow-up")).toBe(true);
+  });
+
+  it("does not offer late questions whose calls already completed, or whose run has no message", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("user_question_required", { run_id: "missing", questions: ASKED });
+    expect(result.current.pendingQuestions).toBeNull();
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
+    receive("tool_result", { tool_call_id: "ask-1", result: "Casual" });
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("dismisses only the question whose run a terminal marker names", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    receive("message_saved", {
+      message_id: "other-message",
+      run_id: "other-run",
+      run_status: "failed",
+    });
+    expect(result.current.pendingQuestions).not.toBeNull();
+    receive("message_saved", { message_id: "saved", run_id: "r-1", run_status: "completed" });
+    expect(result.current.pendingQuestions).toBeNull();
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("dismisses the question when another tab starts its answer continuation", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("background_task_turn", {
+      conversation_id: "c-1",
+      agent_id: "agent",
+      resumed_run_id: "r-1",
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("does not restore an in-flight answer after another tab finished its run", async () => {
+    let refuse!: (reason: Error) => void;
+    post.mockReturnValue(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+    receive("message_saved", { message_id: "saved", run_id: "r-1", run_status: "completed" });
+    await act(async () => refuse(new Error("Already answered")));
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("keeps the newer question when an old call's event arrives for the same run", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    act(() => {
+      useChatStore.getState().clearMessages();
+      useChatStore.getState().addMessage({
+        ...askedTurn(),
+        id: "next-segment",
+        toolCalls: [{ id: "ask-2", name: "ask_user_question", args: {}, status: "running" }],
+      });
+    });
+    const next = [
+      { tool_call_id: "ask-2", questions: [{ question: "When?", allow_custom: true }] },
+    ];
+    receive("user_question_required", { run_id: "r-1", questions: next });
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions?.[0]?.question).toBe("When?");
+  });
+
+  it("offers a persisted run's question even when its message has no tool calls", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({ ...askedTurn(), toolCalls: undefined });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("user_question_required", { run_id: "r-1", questions: ASKED });
+    expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?");
+    expect(result.current.questionNeedsConnection).toBe(false);
+  });
+
+  it.each(["message_save_failed", "unrelated_error"])(
+    "preserves committed questions after the unscoped %s error",
+    (code) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const { result } = renderHook(() => useChat(), { wrapper });
+      offer();
+      receive("error", { code, message: "Save failed" });
+      receive("complete", {});
+      expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?");
+      expect(result.current.questionNeedsConnection).toBe(false);
+    },
+  );
+});
+
 describe("useChat - a question its person came back to", () => {
   it("puts the card back when a reloaded conversation is waiting on an answer", async () => {
     get.mockResolvedValue(ASKED);

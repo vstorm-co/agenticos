@@ -3609,6 +3609,29 @@ class TestParking:
         assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
 
     @pytest.mark.anyio
+    async def test_a_renamed_parked_question_reaches_the_transcript_with_its_identity(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        call = ToolCallPart("clarify", _QUESTIONS, tool_call_id="ask-1")
+        messages = [ModelResponse(parts=[call])]
+        result = MagicMock(
+            output=DeferredToolRequests(calls=[call], metadata={"ask-1": {"kind": "ask_user"}})
+        )
+        result.all_messages = MagicMock(return_value=messages)
+        result.new_messages = MagicMock(return_value=messages)
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "choose a tone")
+
+        assert record.await_args.kwargs["question_tool_call_ids"] == ["ask-1"]
+        assert record.await_args.kwargs["tool_calls"][0].tool_name == "clarify"
+
+    @pytest.mark.anyio
     @pytest.mark.parametrize(
         ("status", "kept"),
         [
@@ -6697,11 +6720,13 @@ _QUESTIONS = {
 }
 
 
-def _asked_state(*, questions: list[str] | None = None) -> dict[str, Any]:
+def _asked_state(
+    *, questions: list[str] | None = None, tool_name: str = "ask_user_question"
+) -> dict[str, Any]:
     """A run parked on one `ask_user_question` call, as `_classify_output` stores it."""
     messages = [
         ModelRequest(parts=[UserPromptPart("draft the reply")]),
-        ModelResponse(parts=[ToolCallPart("ask_user_question", _QUESTIONS, tool_call_id="ask-1")]),
+        ModelResponse(parts=[ToolCallPart(tool_name, _QUESTIONS, tool_call_id="ask-1")]),
     ]
     return {
         "messages": ModelMessagesTypeAdapter.dump_python(messages, mode="json"),
@@ -6778,6 +6803,22 @@ class TestParkedQuestions:
     async def test_an_answer_continues_the_run_with_what_was_picked(self):
         resume = await self._answer({"ask-1": [{"selected": ["Casual"]}]})
 
+        assert resume.call_args.kwargs["answers"] == {"ask-1": {"Tone": ["Casual"]}}
+
+    @pytest.mark.anyio
+    async def test_a_renamed_question_can_be_read_and_answered_after_reload(self):
+        state = _asked_state(tool_name="clarify")
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=state,
+            user_id=_THE_ASKER,
+        )
+
+        [card] = await AgentRunnerService(_db()).parked_questions(self._asker(), run)
+        resume = await self._answer({"ask-1": [{"selected": ["Casual"]}]}, paused_state=state)
+
+        assert card.tool_call_id == "ask-1"
+        assert card.questions[0].question == "How formal should the reply be?"
         assert resume.call_args.kwargs["answers"] == {"ask-1": {"Tone": ["Casual"]}}
 
     @pytest.mark.anyio

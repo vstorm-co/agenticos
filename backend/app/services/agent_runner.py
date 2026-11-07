@@ -87,7 +87,7 @@ from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApp
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 from pydantic_ai.workspaces import Workspace
-from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
+from pydantic_ai_harness.ask_user import DECLINED, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.guardrails import GuardrailResult
 from sqlalchemy.exc import SQLAlchemyError
@@ -96,9 +96,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import prompt_variables
 from app.agents.a2a_delegate import a2a_delegate
 from app.agents.ask_user import (
+    QUESTION_DEFERRED_KIND,
     QuestionItem,
     answers_to_response,
     park_the_question,
+    question_request,
     wire_questions,
 )
 from app.agents.audience import (
@@ -1806,7 +1808,11 @@ def _classify_output(
     """
     if isinstance(result.output, DeferredToolRequests):
         questions = [
-            call.tool_call_id for call in result.output.calls if call.tool_name == ASK_USER_TOOL
+            call.tool_call_id
+            for call in result.output.calls
+            if call.tool_name == ASK_USER_TOOL
+            or result.output.metadata.get(call.tool_call_id, {}).get("kind")
+            == QUESTION_DEFERRED_KIND
         ]
         paused = PausedRunState(
             messages=dump_messages(result.all_messages()),
@@ -7035,7 +7041,7 @@ class AgentRunnerService:
                 details={"tool_call_ids": unknown},
             )
         asked = {
-            tool_call_id: AskUserRequest.from_tool_call(call)
+            tool_call_id: question_request(call)
             for tool_call_id, call in _question_calls(state).items()
         }
         results: dict[str, object] = {
@@ -7068,7 +7074,7 @@ class AgentRunnerService:
                 tool_call_id=tool_call_id,
                 questions=[
                     QuestionItem.model_validate(item)
-                    for item in wire_questions(AskUserRequest.from_tool_call(call))
+                    for item in wire_questions(question_request(call))
                 ],
             )
             for tool_call_id, call in _question_calls(state).items()
@@ -7431,6 +7437,7 @@ class AgentRunnerService:
                     # So the step the run stopped on reads "awaiting approval" when
                     # the conversation is read back, not as a call that ran (#601).
                     parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
+                    question_tool_call_ids=paused.questions if paused else (),
                     model_label=prepared.built.model_label,
                     mcp_origins=prepared.mcp_origins,
                     draft_tools=draft_tool_names(prepared.spec),

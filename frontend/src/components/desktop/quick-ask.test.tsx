@@ -7,7 +7,7 @@ import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
 import { QuickAsk } from "./quick-ask";
 import type { Mentionable } from "@/types/mention";
-import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
+import type { ToolCall, PendingApproval, Decision, QueuedMessage, AskUserQuestion } from "@/types";
 
 const env = vi.hoisted(() => ({
   visualControls: false,
@@ -27,6 +27,9 @@ const env = vi.hoisted(() => ({
     isStopping: false,
     stopGeneration: vi.fn(),
     pendingApproval: null as PendingApproval | null,
+    pendingQuestions: null as AskUserQuestion[] | null,
+    questionNeedsConnection: true,
+    sendAskUserResponses: vi.fn(),
     sendResumeDecisions: vi.fn(),
     queuedMessages: [] as QueuedMessage[],
     cancelQueued: vi.fn(),
@@ -178,6 +181,8 @@ beforeEach(() => {
   env.chat.isProcessing = false;
   env.chat.isConnected = true;
   env.chat.pendingApproval = null;
+  env.chat.pendingQuestions = null;
+  env.chat.questionNeedsConnection = true;
   env.chat.queuedMessages = [];
   env.listeners.clear();
   env.dictation.engine = "server";
@@ -187,6 +192,26 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("QuickAsk question answers", () => {
+  it.each([true, false])("requires the socket only for a live question (%s)", async (live) => {
+    env.chat.isConnected = false;
+    env.chat.questionNeedsConnection = live;
+    env.chat.pendingQuestions = [
+      { question: "How formal?", options: [{ label: "Casual" }], allowCustom: true },
+    ];
+    render(<QuickAsk initialConversationId="c" />);
+    const choice = await screen.findByRole("button", { name: /Casual/ });
+    if (live) expect(choice).toBeDisabled();
+    else {
+      expect(choice).toBeEnabled();
+      fireEvent.click(choice);
+      expect(env.chat.sendAskUserResponses).toHaveBeenCalledWith([
+        { answer: "", selected: ["Casual"], skipped: false },
+      ]);
+    }
+  });
+});
 
 describe("QuickAsk", () => {
   it("asks on Enter, and keeps Shift+Enter for a new line", async () => {

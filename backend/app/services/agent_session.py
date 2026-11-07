@@ -9,8 +9,8 @@ from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,8 @@ from app.agents.ask_user import (
     QuestionItem,
     answers_to_response,
     asking_delegate,
+    park_the_question,
+    question_request,
     render_answer,
     wire_questions,
 )
@@ -190,10 +192,6 @@ class _Outcome(NamedTuple):
     error: str | None
 
 
-class _LeftUnanswered(Exception):
-    """The socket went away while the run's own question card was open."""
-
-
 class AgentSession:
     """One WebSocket session with the AI agent."""
 
@@ -226,17 +224,13 @@ class AgentSession:
         # The questions awaiting answers, so the frame handler can record each
         # answered pair the moment they arrive - before a `stop` frame behind them
         # can cancel the turn and lose them (#502). One round at a time, under
-        # `_ask_lock`: a delegate's single question, or an `ask_user` card.
+        # `_ask_lock`: a delegate's single question or multiple-choice card.
         self._pending_questions: list[str] | None = None
         # Which delegate that question came from, read where the question is put
         # rather than where its answer lands: the delegation's state is bound for
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
-        # Whether the open round is the run's own `ask_user` card, which outlives
-        # the socket: left unanswered, it parks the run rather than being read as
-        # declined (#2064). A delegate's question has no such afterlife.
-        self._round_parks = False
         self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
@@ -529,18 +523,12 @@ class AgentSession:
         await self._leave_room()
         if task is None:
             return
-        # Released before the wait. A run paused on `ask_user` is waiting for an
-        # answer from somebody who is no longer there and cannot reach its own
-        # end while it waits, so the grace would be spent doing nothing and the
-        # turn cancelled anyway. Answered as nothing, which `_ask_one` already
-        # renders and which its docstring already names as one of the ways the
-        # wait ends.
+        # Released before the wait: a delegate's live question cannot be
+        # answered after its socket closes. Returning no answer lets the
+        # delegate continue rather than spend the whole grace waiting.
         fut = self._ask_user_future
         if fut is not None and not fut.done():
-            if self._round_parks:
-                fut.set_exception(_LeftUnanswered())
-            else:
-                fut.set_result([])
+            fut.set_result([])
         # The same for a run waiting on a connection: nobody is there to make it.
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
@@ -850,6 +838,7 @@ class AgentSession:
                     # below carries the same calls to whoever is watching live.
                     parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
                     | set(turn.questions),
+                    question_tool_call_ids=turn.questions,
                     mcp_origins=turn.mcp_origins,
                     draft_tools=turn.draft_tools,
                 )
@@ -905,6 +894,33 @@ class AgentSession:
                         "review_configs": [
                             {"tool_name": parked.tool_name, "allow_edit": False}
                             for parked in turn.parked
+                        ],
+                    },
+                )
+
+            if turn.questions and not turn.parked and turn.run_id is not None:
+                # The run and its waiting steps are committed before this card
+                # is offered. Answering through the run's API then works after
+                # a reload or from another tab, independently of this socket.
+                calls = {call["tool_call_id"]: call for call in collected_tool_calls}
+                await self._emit(
+                    "user_question_required",
+                    {
+                        "run_id": str(turn.run_id),
+                        "questions": [
+                            {
+                                "tool_call_id": call_id,
+                                "questions": wire_questions(
+                                    question_request(
+                                        ToolCallPart(
+                                            calls[call_id]["tool_name"],
+                                            calls[call_id]["args"],
+                                            tool_call_id=call_id,
+                                        )
+                                    )
+                                ),
+                            }
+                            for call_id in turn.questions
                         ],
                     },
                 )
@@ -1101,27 +1117,23 @@ class AgentSession:
         return render_answer(answers[0] if answers else None)
 
     async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
-        """Put an `ask_user` card to the client and return the picks (#2064).
+        """Park the run's own questions; answer a delegate's card live.
 
-        The same frame and the same lock as a delegate's question, so a card and a
-        delegate asking at once queue rather than draw over each other, and the
-        answered pairs land on the turn's timeline the moment they arrive.
+        A main-agent question belongs to the persisted run, so losing this
+        socket cannot strand it. A delegate cannot park on its own question and
+        continues to use the live channel shared with `ask_parent`.
         """
+        asked_by = asking_delegate()
+        if asked_by is None:
+            return await park_the_question(request)
         async with self._ask_lock:
             self._pending_questions = [question.question for question in request.questions]
-            self._pending_asked_by = asking_delegate()
-            self._round_parks = self._pending_asked_by is None
+            self._pending_asked_by = asked_by
             try:
                 answers = await self._send_and_wait(wire_questions(request))
-            except _LeftUnanswered:
-                # The person went away with the card open: the run parks on the
-                # call, and answering it later - here or on another device -
-                # continues it.
-                raise CallDeferred from None
             finally:
                 self._pending_questions = None
                 self._pending_asked_by = None
-                self._round_parks = False
         return answers_to_response(request, answers)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1145,14 +1157,13 @@ class AgentSession:
         serialized with the round it names, and a nested acquire would deadlock.
         """
         if self._closed or self._question_detached:
-            if self._round_parks:
-                raise _LeftUnanswered
             return []
         loop = asyncio.get_running_loop()
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            await self._emit("ask_user", {"questions": questions})
+            if not await self._emit("ask_user", {"questions": questions}):
+                return []
             return await fut
         finally:
             self._ask_user_future = None
@@ -1379,7 +1390,7 @@ class AgentSession:
         await self._stop_following()
         conversation_id = _conversation_id(raw)
         if conversation_id is None:
-            self._park_question_when_leaving(conversation_id)
+            self._detach_questions_when_leaving(conversation_id)
             await self._leave_room()
             return
         async with get_db_context() as db:
@@ -1393,21 +1404,16 @@ class AgentSession:
             except NotFoundError:
                 await self._leave_room()
                 return
-        self._park_question_when_leaving(conversation_id)
+        self._detach_questions_when_leaving(conversation_id)
         await self._enter_room(conversation_id)
         await self._follow_if_running(conversation_id)
 
-    def _park_question_when_leaving(self, conversation_id: str | None) -> None:
-        """A chat switch leaves the socket open; its own unanswered call must still park."""
+    def _detach_questions_when_leaving(self, conversation_id: str | None) -> None:
+        """A chat switch leaves the socket open, but its delegate's card is no longer shown."""
         self._question_detached = conversation_id != self._live
         pending = self._ask_user_future
-        if (
-            self._question_detached
-            and self._round_parks
-            and pending is not None
-            and not pending.done()
-        ):
-            pending.set_exception(_LeftUnanswered())
+        if self._question_detached and pending is not None and not pending.done():
+            pending.set_result([])
 
     async def _follow_if_running(self, conversation_id: str) -> None:
         """Follow the turn being written in the conversation, unless this socket writes it.
