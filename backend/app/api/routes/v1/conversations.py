@@ -170,7 +170,7 @@ async def list_conversations(
     "",
     response_model=ConversationRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_RUN))],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
 )
 async def create_conversation(
     conversation_service: ConversationSvc,
@@ -301,7 +301,7 @@ async def get_visual_image(
 @router.patch(
     "/{conversation_id}",
     response_model=ConversationRead,
-    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_RUN))],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
 )
 async def update_conversation(
     conversation_id: UUID,
