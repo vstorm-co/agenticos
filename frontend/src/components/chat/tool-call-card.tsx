@@ -254,7 +254,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       }
       detail={delegate !== null ? null : step.detail}
       kind={step.kind}
-      icon={toolIcon(toolCall.name, step.kind)}
+      icon={toolIcon(step.kind === "mcp" ? toolCall.name : toolLookupName(toolCall), step.kind)}
       logoDomain={step.logoDomain}
       mark={
         delegate === null ? undefined : (

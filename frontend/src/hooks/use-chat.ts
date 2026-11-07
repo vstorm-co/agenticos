@@ -1441,7 +1441,11 @@ export function useChat(options: UseChatOptions = {}) {
           const messageId = currentMessageIdRef.current;
           const message = chatApi.getState().messages.find((message) => message.id === messageId);
           for (const call of message?.toolCalls ?? []) {
-            if (call.name === "ask_user_question" && call.status === "running" && messageId) {
+            if (
+              toolLookupName(call) === "ask_user_question" &&
+              call.status === "running" &&
+              messageId
+            ) {
               updateToolCallPart(messageId, call.id, { status: "awaiting_answer" });
             }
           }

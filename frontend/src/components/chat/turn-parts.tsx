@@ -479,7 +479,8 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
     run.kind === "tools"
       ? run.parts.flatMap((part) =>
           part.toolCall &&
-          (BROWSER_TOOLS.has(part.toolCall.name) || DESKTOP_TOOLS.has(part.toolCall.name))
+          (BROWSER_TOOLS.has(toolLookupName(part.toolCall)) ||
+            DESKTOP_TOOLS.has(toolLookupName(part.toolCall)))
             ? [part.toolCall]
             : [],
         )
