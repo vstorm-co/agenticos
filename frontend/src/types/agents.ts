@@ -805,7 +805,7 @@ export interface ToolParameterSchema {
 
 /** The subset of JSON Schema the generated forms understand. */
 export interface JsonSchema {
-  "x-integration-provider"?: "google" | "microsoft" | "slack" | "imap";
+  "x-integration-provider"?: "google" | "microsoft" | "slack" | "imap" | "odoo";
   type?: string;
   title?: string;
   description?: string;

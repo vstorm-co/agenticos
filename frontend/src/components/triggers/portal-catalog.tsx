@@ -10,6 +10,7 @@ import Link from "next/link";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { IntegrationSetupDialog } from "@/components/vault/integration-setup-dialog";
+import { OdooSetupDialog } from "@/components/vault/odoo-setup-dialog";
 import { ImapSetupDialog } from "@/components/vault/imap-setup-dialog";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import { MailboxInterval } from "@/components/triggers/mailbox-interval";
@@ -447,6 +448,8 @@ export function PortalCatalog({
 
       {nativeSetup === "imap" ? (
         <ImapSetupDialog owner="personal" onClose={() => setNativeSetup(null)} />
+      ) : nativeSetup === "odoo" ? (
+        <OdooSetupDialog owner="personal" onClose={() => setNativeSetup(null)} />
       ) : nativeSetup ? (
         <IntegrationSetupDialog
           provider={nativeSetup}

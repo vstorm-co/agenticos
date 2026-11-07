@@ -32,7 +32,7 @@ export interface PortalPreset {
 /** One connectable service and the events it fires an agent on. */
 export interface PortalCatalogEntry {
   connection_choices?: ConnectedAccount[];
-  native_provider?: "google" | "microsoft" | "slack" | "imap" | null;
+  native_provider?: "google" | "microsoft" | "slack" | "imap" | "odoo" | null;
   key: string;
   name: string;
   description: string;
