@@ -148,6 +148,8 @@ async def get_workflow_questions(run_id: UUID, service: WorkflowExecutionSvc, ct
     view reads the same saved questions without starting another execution.
     Questions from active, synchronously called workflows are included when
     the caller may view them. Answer using each entry's owning workflow run id.
+    Cards are offered only while the caller may still run that workflow,
+    including access granted by a per-workflow use grant.
     """
     return await service.questions(ctx, run_id)
 

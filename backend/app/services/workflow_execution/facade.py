@@ -925,11 +925,16 @@ class WorkflowExecutionService:
         from app.services.workflow_execution import question_tree
 
         run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+
+        async def can_answer(current: WorkflowRun) -> bool:
+            return await self._reachable(ctx, current.workflow_id, Perm.WORKFLOWS_RUN) is not None
+
         return await question_tree.read(
             self.db,
             ctx,
             run,
             load=lambda child_id: self._load(ctx, child_id, Perm.WORKFLOWS_VIEW),
+            can_answer=can_answer,
         )
 
     async def answer_questions(

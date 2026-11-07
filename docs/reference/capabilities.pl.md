@@ -1,5 +1,5 @@
 ---
-source_sha: "3d21c2ff7127"
+source_sha: "53e57d1f61b1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3004,6 +3004,8 @@ Odpowiedzieć może tylko osoba, której zadano pytanie. Klienci API mogą używ
 osoba nie odpowiedziała na czas.
 
 W kroku agenta workflow to samo narzędzie zapisuje rozmowę i wstrzymuje workflow ze stanem **Oczekiwanie na użytkownika**. Odpowiedz w widoku runa workflow lub czacie źródłowym. Odpowiedź zostaje zapisana, a worker workflow wznawia ten sam run agenta, zachowując jego budżet i wcześniejsze wyniki narzędzi. Klienci workflow odczytują `GET /workflow-runs/{run_id}/questions` i wysyłają `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` ze zwykłym obiektem `responses`. Każdy wpis wskazuje `workflow_run_id` właściciela; użyj tego identyfikatora, odpowiadając na pytanie z workflow wywołanego synchronicznie.
+
+Karty pytań są widoczne tylko wtedy, gdy nadal masz uprawnienie do uruchamiania workflow, do którego należą. Grant **use** na konkretny workflow również pozwala odpowiedzieć; inna osoba z dostępem do podglądu nie może odpowiadać w Twoim imieniu.
 
 ## Wersje robocze { #drafts }
 

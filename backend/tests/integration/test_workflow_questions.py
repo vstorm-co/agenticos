@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.resource_grant import ResourceGrant
 from app.db.models.workflow_run import (
     DispatchOutbox,
     NodeAttempt,
@@ -215,6 +216,43 @@ async def test_an_editor_cannot_answer_as_another_person_and_a_cross_tenant_run_
         alien = AuthContext(user_id=seeded.principal.id, organization_id=uuid.uuid4(), role="owner")
         with pytest.raises(WorkflowRunNotFoundError):
             await service.questions(alien, seeded.run.id)
+
+
+async def test_question_controls_follow_current_run_grants_without_a_role_gate(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.workflow_execution.exceptions import WorkflowRunNotFoundError
+
+    seeded, planner = await _seed(engine, monkeypatch, rounds=1)
+    await drive(seeded)
+    viewer = AuthContext(user_id=seeded.principal.id, organization_id=seeded.org.id, role="viewer")
+    async with seeded.factory() as db:
+        service = WorkflowExecutionService(db)
+        [original] = await service.questions(seeded.ctx, seeded.run.id)
+        grant = ResourceGrant(
+            organization_id=seeded.org.id,
+            subject_user_id=seeded.principal.id,
+            resource_type="workflow",
+            resource_id=seeded.run.workflow_id,
+            level="read",
+        )
+        db.add(grant)
+        await db.flush()
+        assert await service.questions(viewer, seeded.run.id) == []
+        with pytest.raises(WorkflowRunNotFoundError):
+            await service.answer_questions(
+                viewer, seeded.run.id, original.node_run_id, {"question-1": _ANSWER}
+            )
+
+        grant.level = "use"
+        await db.flush()
+        [restored] = await service.questions(viewer, seeded.run.id)
+        assert restored.agent_run_id == original.agent_run_id
+        await service.answer_questions(
+            viewer, seeded.run.id, restored.node_run_id, {"question-1": _ANSWER}
+        )
+        await db.commit()
+    assert planner.calls == 1
 
 
 async def test_expiry_wakes_the_parent_without_running_the_model_again(

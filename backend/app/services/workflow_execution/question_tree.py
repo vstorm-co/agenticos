@@ -21,11 +21,13 @@ async def read(
     run: WorkflowRun,
     *,
     load: Callable[[UUID], Awaitable[WorkflowRun]],
+    can_answer: Callable[[WorkflowRun], Awaitable[bool]],
 ) -> list[WorkflowQuestionRead]:
     """Collect visible questions without changing the child runs' reply destinations.
 
-    Each child requires its own workflow view permission. Only synchronous calls
-    for the same person are followed; detached work keeps its own run surface.
+    Each child requires its own workflow view permission, and only runs the
+    person may still execute offer answer controls. Only synchronous calls for
+    the same person are followed; detached work keeps its own run surface.
     """
     if (
         ctx.user_id is None
@@ -43,7 +45,8 @@ async def read(
         if current.id in visited:
             continue
         visited.add(current.id)
-        result.extend(await questions.read(db, ctx, current))
+        if await can_answer(current):
+            result.extend(await questions.read(db, ctx, current))
         if depth >= MAX_CALL_DEPTH:
             continue
         for child in await workflow_run_repo.list_waited_child_runs(

@@ -1,5 +1,5 @@
 ---
-source_sha: "3d21c2ff7127"
+source_sha: "53e57d1f61b1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3081,6 +3081,8 @@ a leer la tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina c
 cancelado y el paso registra que la persona no respondió a tiempo.
 
 Dentro de un paso de agent de un workflow, la misma herramienta guarda la conversación y pausa el workflow con **Esperando al usuario**. Responde en la vista del run del workflow o en el chat de origen. La respuesta se guarda y el worker del workflow reanuda el mismo run del agent, conservando su presupuesto y los resultados anteriores de las herramientas. Los clientes de workflow leen `GET /workflow-runs/{run_id}/questions` y envían `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` con el objeto habitual `responses`. Cada entrada indica el `workflow_run_id` propietario; usa ese identificador al responder a una pregunta de un workflow llamado de forma síncrona.
+
+Las tarjetas de preguntas aparecen solo mientras conservas permiso para ejecutar el workflow propietario. Un permiso **use** sobre ese workflow también permite responder; otra persona con acceso de lectura no puede responder en tu nombre.
 
 ## Borradores { #drafts }
 

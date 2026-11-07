@@ -11,7 +11,12 @@ import {
   getWorkflowRun,
   listWorkflowRunQuestions,
 } from "@/lib/workflows/runs-api";
-import { isRunTerminal, type WorkflowQuestionResponses } from "@/lib/workflows/types";
+import {
+  isRunTerminal,
+  type WorkflowQuestionRead,
+  type WorkflowQuestionResponses,
+  type WorkflowRunRead,
+} from "@/lib/workflows/types";
 
 const LIVE_POLL_MS = 2000;
 
@@ -39,7 +44,10 @@ export function useWorkflowRunQuestions(runId: string) {
     retry: false,
   });
   const questions = query.data ?? [];
-  const refresh = () => client.invalidateQueries({ queryKey: qk.workflows.run(runId) });
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: qk.workflows.run(runId) });
+    void client.invalidateQueries({ queryKey: qk.workflows.runQuestions(runId) });
+  };
   const answer = useMutation({
     mutationFn: ({
       workflowRunId,
@@ -50,23 +58,31 @@ export function useWorkflowRunQuestions(runId: string) {
       nodeRunId: string;
       responses: WorkflowQuestionResponses;
     }) => answerWorkflowRunQuestions(workflowRunId, nodeRunId, responses),
-    onSuccess: (run, { nodeRunId }) => {
-      // Hide the accepted question immediately, including when another parallel
-      // branch keeps the workflow waiting on a different question.
-      client.setQueryData(
-        qk.workflows.runQuestions(runId),
-        questions.filter((entry) => entry.node_run_id !== nodeRunId),
+    onSuccess: (run, { nodeRunId, responses }) => {
+      // Polling can discover a later question before this response arrives.
+      // Remove only the answered batch from the current cache.
+      client.setQueryData<WorkflowQuestionRead[]>(qk.workflows.runQuestions(runId), (current) =>
+        current?.filter(
+          (entry) =>
+            entry.node_run_id !== nodeRunId ||
+            entry.questions.some((call) => !Object.hasOwn(responses, call.tool_call_id)),
+        ),
       );
       // A nested workflow answers with its own run; never replace the displayed
       // parent with that child's status and identity.
-      client.setQueryData(qk.workflows.run(run.id), run);
-      void refresh();
+      client.setQueryData<WorkflowRunRead>(qk.workflows.run(run.id), (current) =>
+        current !== undefined && isRunTerminal(current.status) ? current : run,
+      );
+      refresh();
       void client.invalidateQueries({ queryKey: qk.workflows.runs(run.workflow_id) });
     },
-    onError: (error) => {
+    onError: (error, { workflowRunId }) => {
       toast.error(getErrorMessage(error, tErrors));
       // A duplicate answer, expiry or cancellation can have moved the run on.
-      void refresh();
+      refresh();
+      if (workflowRunId !== runId) {
+        void client.invalidateQueries({ queryKey: qk.workflows.run(workflowRunId) });
+      }
     },
   });
   return { questions, error: query.error, refetch: query.refetch, answer };

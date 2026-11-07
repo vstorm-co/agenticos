@@ -2883,6 +2883,8 @@ the person did not answer in time.
 
 Inside a workflow agent step, the same tool saves the conversation and pauses the workflow with **Waiting for user**. Answer in the workflow run view or the originating chat. The answer is saved and the workflow worker resumes the same agent run, with its budget and earlier tool results intact. Workflow clients read `GET /workflow-runs/{run_id}/questions` and submit `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` with the usual `responses` object. Each entry names the owning `workflow_run_id`; use that id when answering a question from a synchronously called workflow.
 
+Question cards appear only while you retain permission to run the owning workflow. A per-workflow **use** grant also allows you to answer; another viewer cannot answer on your behalf.
+
 ## Drafts
 
 `write_draft` — *Show a draft the person will send or paste somewhere else, as a card

@@ -33,6 +33,37 @@ const question: WorkflowQuestionRead = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("a reloaded workflow chat card", () => {
+  it("shows the saved failure reason when polling discovers the run has ended", async () => {
+    vi.mocked(apiClient.get).mockImplementation((url) =>
+      Promise.resolve(
+        url.endsWith("/questions")
+          ? []
+          : {
+              id: "run",
+              workflow_id: "wf",
+              status: "failed",
+              error: { message: "The question expired before it was answered" },
+            },
+      ),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <WorkflowRunCard
+          run={{
+            runId: "run",
+            workflowId: "wf",
+            workflowName: "Planner",
+            status: "running",
+            error: null,
+          }}
+        />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("The question expired before it was answered")).toBeInTheDocument();
+  });
+
   it("restores the waiting question and sends the answer to the same workflow step", async () => {
     let answered = false;
     vi.mocked(apiClient.get).mockImplementation((url) =>

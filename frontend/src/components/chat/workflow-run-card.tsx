@@ -33,8 +33,9 @@ export function WorkflowRunCard({ run }: { run: WorkflowRunPart }) {
 function LiveWorkflowRunCard({ run, runId }: { run: WorkflowRunPart; runId: string }) {
   const { data } = useWorkflowChatRun(runId);
   const status = data?.status ?? run.status;
+  const error = data?.error?.message ?? run.error;
   return (
-    <WorkflowRunCardView run={{ ...run, status }}>
+    <WorkflowRunCardView run={{ ...run, status, error }}>
       {!isRunTerminal(status as WorkflowRunStatus) && <WorkflowRunQuestions runId={runId} />}
     </WorkflowRunCardView>
   );

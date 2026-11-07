@@ -1,5 +1,5 @@
 ---
-source_sha: "3d21c2ff7127"
+source_sha: "53e57d1f61b1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3230,6 +3230,8 @@ abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
 
 In einem Workflow-Agent-Schritt speichert dasselbe Tool die Unterhaltung und pausiert den Workflow mit **Wartet auf Benutzer**. Antworte in der Workflow-Run-Ansicht oder im ursprünglichen Chat. Die Antwort wird gespeichert, und der Workflow-Worker setzt denselben Agent-Run mit seinem Budget und den bisherigen Tool-Ergebnissen fort. Workflow-Clients lesen `GET /workflow-runs/{run_id}/questions` und senden `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` mit dem üblichen Objekt `responses`. Jeder Eintrag nennt die zugehörige `workflow_run_id`; verwende diese beim Beantworten einer Frage aus einem synchron aufgerufenen Workflow.
+
+Fragekarten erscheinen nur, solange du den zugehörigen Workflow ausführen darfst. Eine **use**-Freigabe für diesen Workflow erlaubt ebenfalls das Antworten; andere Personen mit Lesezugriff können nicht für dich antworten.
 
 ## Entwürfe { #drafts }
 

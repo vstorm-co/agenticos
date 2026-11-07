@@ -45,7 +45,12 @@ async def test_a_question_tree_is_only_read_for_the_original_person(condition: s
         run.status = "cancelled"
 
     load = AsyncMock()
-    assert await question_tree.read(MagicMock(), ctx, run, load=load) == []
+    assert (
+        await question_tree.read(
+            MagicMock(), ctx, run, load=load, can_answer=AsyncMock(return_value=True)
+        )
+        == []
+    )
     load.assert_not_awaited()
 
 
@@ -76,7 +81,9 @@ async def test_hidden_or_differently_owned_children_are_skipped_and_cycles_are_b
         patch.object(question_tree.questions, "read", new=AsyncMock(side_effect=[[], [card]])),
         patch.object(question_tree, "MAX_CALL_DEPTH", 1),
     ):
-        assert await question_tree.read(MagicMock(), ctx, root, load=load) == [card]
+        assert await question_tree.read(
+            MagicMock(), ctx, root, load=load, can_answer=AsyncMock(return_value=True)
+        ) == [card]
 
 
 async def test_a_child_read_failure_is_not_mistaken_for_hidden_access() -> None:
@@ -92,5 +99,35 @@ async def test_a_child_read_failure_is_not_mistaken_for_hidden_access() -> None:
         pytest.raises(RuntimeError, match="database failed"),
     ):
         await question_tree.read(
-            MagicMock(), ctx, root, load=AsyncMock(side_effect=RuntimeError("database failed"))
+            MagicMock(),
+            ctx,
+            root,
+            load=AsyncMock(side_effect=RuntimeError("database failed")),
+            can_answer=AsyncMock(return_value=True),
         )
+
+
+async def test_each_visible_workflow_needs_its_own_current_run_permission() -> None:
+    ctx = _person()
+    root, child = _run(ctx), _run(ctx)
+    card = WorkflowQuestionRead(
+        workflow_run_id=child.id, node_run_id=uuid.uuid4(), agent_run_id=uuid.uuid4(), questions=[]
+    )
+    with (
+        patch.object(
+            question_tree.workflow_run_repo,
+            "list_waited_child_runs",
+            AsyncMock(side_effect=[[child], []]),
+        ),
+        patch.object(question_tree.questions, "read", AsyncMock(return_value=[card])) as read,
+    ):
+        result = await question_tree.read(
+            MagicMock(),
+            ctx,
+            root,
+            load=AsyncMock(return_value=child),
+            can_answer=AsyncMock(side_effect=[False, True]),
+        )
+    assert result == [card]
+    assert read.await_args is not None and read.await_args.args[2].id == child.id
+    assert read.await_count == 1
