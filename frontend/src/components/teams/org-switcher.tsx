@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Building2, Check, Plus } from "lucide-react";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
@@ -17,9 +18,13 @@ import { useTranslations } from "next-intl";
  */
 export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void }) {
   const t = useTranslations("teams");
-  const { orgs, activeOrg, switchOrg } = useOrganizations();
+  const { orgs, activeOrg, fetchOrgs, switchOrg } = useOrganizations();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    void fetchOrgs();
+  }, [fetchOrgs]);
 
   /**
    * Switch, and take an organization-scoped route with it.
@@ -64,7 +69,7 @@ export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void 
             <EntityAvatar
               seed={org.id}
               name={org.name}
-              imageSrc={`/api/orgs/${org.id}/avatar`}
+              imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
               hasImage={!!org.avatar_url}
               colorSlot={org.avatar_color}
               className="h-5 w-5 text-[11px]"

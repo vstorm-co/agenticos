@@ -47,7 +47,7 @@ export function OrganizationSwitcher({
             <EntityAvatar
               seed={activeOrg.id}
               name={activeOrg.name}
-              imageSrc={`/api/orgs/${activeOrg.id}/avatar`}
+              imageSrc={`/api/orgs/${activeOrg.id}/avatar?v=${activeOrg.updated_at ?? ""}`}
               hasImage={!!activeOrg.avatar_url}
               colorSlot={activeOrg.avatar_color}
               size="sm"

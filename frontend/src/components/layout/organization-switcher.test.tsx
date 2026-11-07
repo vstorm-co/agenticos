@@ -8,7 +8,8 @@ const ACME = {
   id: "acme",
   name: "Acme",
   is_personal: false,
-  avatar_url: null,
+  avatar_url: null as string | null,
+  updated_at: "2026-11-07T12:00:00Z",
   avatar_color: null,
 };
 const PERSONAL = { ...ACME, id: "personal", name: "Ada's organization", is_personal: true };
@@ -19,6 +20,16 @@ const organization = {
   switchOrg: vi.fn(),
 };
 const push = vi.fn();
+const avatarSources = vi.hoisted(() => vi.fn());
+
+// jsdom never loads avatar images; observe the image loader's requested URL.
+vi.mock("@/components/ui/avatar", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/avatar")>()),
+  AvatarImage: ({ src }: { src?: string }) => {
+    avatarSources(src);
+    return null;
+  },
+}));
 
 vi.mock("@/hooks", () => ({ useOrganizations: () => organization }));
 vi.mock("@/lib/locale-navigation", () => ({
@@ -33,6 +44,38 @@ beforeEach(() => {
 });
 
 describe("OrganizationSwitcher", () => {
+  it("refreshes organizations each time its menu opens", async () => {
+    const user = userEvent.setup();
+    render(<OrganizationSwitcher />);
+    const trigger = screen.getByRole("button", { name: "Switch organization, current: Acme" });
+    expect(organization.fetchOrgs).not.toHaveBeenCalled();
+
+    await user.click(trigger);
+    expect(organization.fetchOrgs).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Escape}");
+    await user.click(trigger);
+    expect(organization.fetchOrgs).toHaveBeenCalledTimes(2);
+  });
+
+  it("requests the replacement avatar without remounting the sidebar", async () => {
+    organization.activeOrg = { ...ACME, avatar_url: "/uploaded/avatar" };
+    const { rerender } = render(<OrganizationSwitcher />);
+    expect(avatarSources).toHaveBeenCalledWith("/api/orgs/acme/avatar?v=2026-11-07T12:00:00Z");
+
+    organization.activeOrg = {
+      ...organization.activeOrg,
+      updated_at: "2026-11-07T13:00:00Z",
+    };
+    rerender(<OrganizationSwitcher />);
+    expect(avatarSources).toHaveBeenLastCalledWith("/api/orgs/acme/avatar?v=2026-11-07T13:00:00Z");
+    organization.orgs = [organization.activeOrg, PERSONAL];
+    avatarSources.mockClear();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Switch organization, current: Acme" }),
+    );
+    expect(avatarSources).toHaveBeenCalledWith("/api/orgs/acme/avatar?v=2026-11-07T13:00:00Z");
+  });
+
   it("shows the current organization before opening its menu", () => {
     render(<OrganizationSwitcher />);
 
