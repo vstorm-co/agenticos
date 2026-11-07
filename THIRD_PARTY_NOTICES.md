@@ -23,8 +23,8 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 99 | 253 |
-| Apache-2.0 | 70 | 24 |
+| MIT | 100 | 253 |
+| Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 22 | 4 |
 | ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
@@ -37,6 +37,7 @@ names no author is in the evidence column below.
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
 | Apache-2.0 OR BSD-2-Clause | 1 | 0 |
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
+| Apache-2.0 OR GPL-2.0-or-later | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
 | CC0-1.0 | 0 | 1 |
@@ -46,11 +47,12 @@ names no author is in the evidence column below.
 | MIT AND PSF-2.0 | 1 | 0 |
 | MIT-0 | 1 | 0 |
 | MIT-CMU | 1 | 0 |
+| MPL-2.0 AND (Apache-2.0 OR MIT) | 1 | 0 |
 | Unlicense | 1 | 0 |
 
 ## Backend image (Python)
 
-223 distributions.
+227 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -103,6 +105,7 @@ names no author is in the evidence column below.
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
 | dnspython | 2.9.0 | ISC | https://github.com/rthalley/dnspython.git | License-Expression; no licence file, attributed to Bob Halley |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
+| dulwich | 1.2.20 | Apache-2.0 OR GPL-2.0-or-later | https://www.dulwich.io/code/ | License-Expression |
 | e2b | 2.59.0 | MIT | https://github.com/e2b-dev/e2b/tree/main/packages/python-sdk | License-Expression; no licence file, attributed to e2b |
 | e2b-dockerfile-utils | 0.1.1 | Apache-2.0 | https://github.com/e2b-dev/e2b/tree/main/packages/dockerfile-utils-python | License-Expression |
 | email-validator | 2.3.0 | Unlicense | https://github.com/JoshData/python-email-validator | License field |
@@ -150,6 +153,7 @@ names no author is in the evidence column below.
 | jsonschema-path | 0.5.0 | Apache-2.0 | https://github.com/p1c2u/jsonschema-path | License field |
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
+| limits | 5.8.0 | MIT | https://github.com/alisaifee/limits | License-Expression |
 | liteparse | 2.17.0 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.19.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
 | logfire | 5.4.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
@@ -164,6 +168,7 @@ names no author is in the evidence column below.
 | mcp | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mcp-types | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
+| mirage-ai | 0.0.8 | Apache-2.0 | https://github.com/strukto-ai/mirage | License-Expression |
 | mistralai | 3.5.0 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | multidict | 7.2.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License-Expression |
 | numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
@@ -189,6 +194,7 @@ names no author is in the evidence column below.
 | opentelemetry-sdk | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-semantic-conventions | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-util-http | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
+| orjson | 3.13.0 | MPL-2.0 AND (Apache-2.0 OR MIT) | https://github.com/ijl/orjson | License-Expression; review accepted |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | https://github.com/pypa/packaging | License-Expression |
 | pathable | 0.6.0 | Apache-2.0 | https://github.com/p1c2u/pathable | License field |
 | phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
