@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Bell, BellOff, Camera, History, MessageSquarePlus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -9,9 +9,11 @@ import { toast } from "sonner";
 import { ChatContainer, type ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useConversations } from "@/hooks/use-conversations";
+import { recallConversation, rememberConversation } from "@/lib/architect-conversation";
 import { consoleLink, type ConsoleLink } from "@/lib/assistant-highlight";
 import { captureThisTab } from "@/lib/assistant-screenshot";
 import { cn } from "@/lib/utils";
+import { useAuthStore, useOrgStore } from "@/stores";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantHistory } from "./assistant-history";
@@ -51,7 +53,27 @@ export function AssistantWindow({
   onConsoleLink,
 }: AssistantWindowProps) {
   const t = useTranslations("assistantWidget");
-  const { startNewChat } = useConversations({ agentId });
+  const { startNewChat, selectConversation, currentConversationId } = useConversations({
+    agentId,
+  });
+  const userId = useAuthStore((state) => state.user?.id);
+  const organizationId = useOrgStore((state) => state.activeOrgId);
+  const restored = useRef(false);
+  // A page load goes back to the conversation last open here; only New conversation starts one.
+  useEffect(() => {
+    if (restored.current || !userId || !organizationId) return;
+    restored.current = true;
+    const last = recallConversation(userId, organizationId);
+    if (last && !currentConversationId) void selectConversation(last);
+  }, [userId, organizationId, currentConversationId, selectConversation]);
+  useEffect(() => {
+    if (userId && organizationId && currentConversationId)
+      rememberConversation(userId, organizationId, currentConversationId);
+  }, [userId, organizationId, currentConversationId]);
+  const startAfresh = () => {
+    if (userId && organizationId) rememberConversation(userId, organizationId, null);
+    void startNewChat();
+  };
   const [showHistory, setShowHistory] = useState(false);
   const [incoming, setIncoming] = useState<IncomingFiles | null>(null);
   const name = architectName(assistant, t("defaultName"));
@@ -110,7 +132,7 @@ export function AssistantWindow({
           label={t("newConversation")}
           onClick={() => {
             setShowHistory(false);
-            void startNewChat();
+            startAfresh();
           }}
         >
           <MessageSquarePlus className="h-4 w-4" />
@@ -133,7 +155,7 @@ export function AssistantWindow({
             onClose={() => setShowHistory(false)}
             onNew={() => {
               setShowHistory(false);
-              void startNewChat();
+              startAfresh();
             }}
           />
         )}

@@ -41,6 +41,7 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",
     "tests/integration/test_artifact_log_bindings.py::TestReading::test_the_lines_are_cut_to_the_pages_byte_budget": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_artifact_log_bindings.py::TestBesideATable::test_the_byte_budget_is_shared_fairly_between_a_table_and_a_log": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_workflow_approval_metrics_migration.py::test_an_existing_request_reads_unmeasured": "'approval' names the approval step's stored column the migration adds, not an authorization refusal",

@@ -29,9 +29,15 @@ import * as channels from "./channels/[[...path]]/route";
 import * as codingAccounts from "./coding-accounts/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
+import * as datasets from "./datasets/[[...path]]/route";
+import * as authoring from "./authoring/[[...path]]/route";
+import * as evalRuns from "./eval-runs/[[...path]]/route";
+import * as evalSuites from "./eval-suites/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
+import * as improvements from "./improvements/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
+import * as knowledgeGaps from "./knowledge-gaps/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
@@ -82,6 +88,7 @@ import * as secrets from "./secrets/[[...path]]/route";
 import * as push from "./push/[[...path]]/route";
 import * as sessions from "./sessions/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
+import * as contextChanges from "./context-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
@@ -132,9 +139,15 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["channels", channels],
   ["context", context],
   ["conversations", conversations],
+  ["datasets", datasets],
+  ["eval-runs", evalRuns],
+  ["eval-suites", evalSuites],
+  ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],
+  ["improvements", improvements],
   ["kb", kb],
+  ["knowledge-gaps", knowledgeGaps],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
@@ -180,6 +193,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["push", push],
   ["sessions", sessions],
   ["skill-changes", skillChanges],
+  ["context-changes", contextChanges],
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],

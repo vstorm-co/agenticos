@@ -9,6 +9,7 @@ import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type {
   Organization,
   OrganizationList,
@@ -281,9 +282,10 @@ export function useOrganizations() {
     [writeCache, setActiveOrgId, t],
   );
 
+  // A change not yet saved belongs to the organization being left, so it is asked about first.
   const switchOrg = useCallback(
     (id: string) => {
-      setActiveOrgId(id);
+      useUnsavedChangesStore.getState().leave(() => setActiveOrgId(id));
     },
     [setActiveOrgId],
   );

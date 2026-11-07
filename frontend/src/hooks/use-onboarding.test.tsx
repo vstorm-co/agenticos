@@ -62,7 +62,7 @@ describe("useOnboardingTour", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     nav.pathname = "/dashboard";
-    useOnboardingStore.setState({ isOpen: false, index: 0 });
+    useOnboardingStore.setState({ isOpen: false, index: 0, systemAgentPage: false });
     useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: false });
     servePermissions();
   });
@@ -213,6 +213,22 @@ describe("useOnboardingTour", () => {
     nav.pathname = "/agents/some-id";
     rerender();
     expect(result.current.steps.map((s) => s.id)).toEqual(opened);
+  });
+
+  it("walks a system agent's builder by its own stops, not an ordinary agent's", async () => {
+    useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
+    nav.pathname = "/agents/judge-id";
+    useOnboardingStore.setState({ systemAgentPage: true });
+    const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+
+    act(() => useOnboardingStore.getState().openPage());
+    await waitFor(() =>
+      expect(result.current.steps.map((s) => s.id)).toContain("agent-system-toolbox"),
+    );
+    const ids = result.current.steps.map((s) => s.id);
+    expect(ids).not.toContain("agent-toolbox");
+    expect(ids).not.toContain("agent-mcp");
+    expect(ids).not.toContain("agent-voice");
   });
 
   it("dismissing a page-mode replay records nothing — help is not the first run", async () => {

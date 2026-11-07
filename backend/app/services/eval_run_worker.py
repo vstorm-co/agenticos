@@ -1,0 +1,1035 @@
+"""Executing an eval run: every case answered, scored and kept, then the flips confirmed.
+
+One worker per eval run, in a background job of its own, so a run survives the
+API process that started it. Inside, a few drainers claim attempts one at a time:
+each claim counts the organization's running cases under a lock first, so an
+organization never has more cases running than its limit however many runs and
+workers it has, and a cancelled run hands out nothing more.
+
+Every attempt is an ordinary agent run on its own session - the run path commits
+before it calls the model and again when it ends - isolated so that no writing
+tool runs without a test connection, and attributed to no version when it runs
+a draft. What it answered and called is copied onto the attempt, because a run
+without a conversation keeps no transcript.
+
+After the first answer of every case, the cases whose outcome flipped against
+the baseline are rerun, and the run ends.
+"""
+
+import asyncio
+import logging
+from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, suppress
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import JsonValue, TypeAdapter
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai_harness.guardrails.detectors import redact_secrets
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.capabilities.context import ContextBody
+from app.agents.capabilities.skills import SkillBody
+from app.agents.failures import run_failure_summary
+from app.agents.isolation import RunIsolation, ToolRecording, recorded_args
+from app.agents.spec import AgentSpec
+from app.core.config import settings
+from app.core.exceptions import (
+    AppException,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    NothingToScoreError,
+)
+from app.core.permissions import AuthContext, Perm
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.case_score import CaseScore
+from app.db.models.dataset import DatasetCase
+from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
+    AttemptFault,
+    CaseAttemptStatus,
+    EvalRun,
+    EvalRunArm,
+    EvalRunCase,
+    EvalRunPurpose,
+    EvalRunStatus,
+)
+from app.db.models.intercepted_tool_call import InterceptedToolCall, InterceptionOutcome
+from app.db.session import get_worker_db_context
+from app.repositories import (
+    agent_repo,
+    dataset_repo,
+    eval_run_repo,
+    intercepted_tool_call_repo,
+    personal_data_repo,
+)
+from app.schemas.eval_run import ProposalCheckRecord
+from app.schemas.scoring import DatasetScoring
+from app.services.access import AGENT, DATASET, resolve_access
+from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
+from app.services.agent_runner import AgentRunnerService
+from app.services.api_key import job_context
+from app.services.eval_comparison import Flip, classify
+from app.services.eval_run import EvalRunService, drifts
+from app.services.message_history import HistoryMessage, build_message_history
+from app.services.notifications import NotificationService
+from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
+from app.services.scorers import ScoredAnswer, ScoredCall
+from app.services.scoring import ScoringService
+from app.services.transcript import RecordedToolCall
+
+logger = logging.getLogger(__name__)
+
+#: How long a drainer waits when the organization has no free slot.
+_FULL_BACKOFF_SECONDS = 2.0
+_STARTER_GONE = "Whoever started this eval is no longer a member."
+_NO_LONGER_RUNS = "Whoever started this eval may no longer run its agent or its dataset."
+
+
+_JSON = TypeAdapter(JsonValue)
+
+
+def _redact_evidence(value: JsonValue) -> JsonValue:
+    """Redact every string in persisted evidence, retaining its JSON structure."""
+    if isinstance(value, str):
+        verdict = redact_secrets(value)
+        if verdict.action == "replace" and isinstance(verdict.replacement, str):
+            return verdict.replacement
+        return value
+    if isinstance(value, list):
+        return [_redact_evidence(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_evidence(item) for key, item in value.items()}
+    return value
+
+
+@dataclass(frozen=True)
+class _Asked:
+    """What an attempt asked the agent, kept before a refresh of its revision can change it."""
+
+    revision_id: UUID
+    input: str
+    history: list[dict[str, Any]]
+
+
+_ANONYMISED_MEANWHILE = (
+    "The case was anonymised while it was being answered, so its answer was not kept."
+)
+
+
+type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+
+
+def _candidate(arm: EvalRunArm) -> Candidate:
+    bodies = {
+        UUID(skill_id): SkillBody(
+            description=body["description"],
+            content=body["content"],
+            name=TypeAdapter(str | None).validate_python(body.get("name")),
+        )
+        for skill_id, body in (arm.skill_bodies or {}).items()
+    }
+    contexts = {
+        UUID(context_id): ContextBody(
+            description=body["description"],
+            content=body["content"],
+            name=TypeAdapter(str | None).validate_python(body.get("name")),
+        )
+        for context_id, body in (arm.context_bodies or {}).items()
+    }
+    if arm.source == ArmSource.VERSION.value and arm.agent_version_id is not None:
+        return PublishedCandidate(
+            arm.agent_version_id, skill_bodies=bodies, context_bodies=contexts
+        )
+    return UnpublishedCandidate(
+        AgentSpec.model_validate(arm.spec), skill_bodies=bodies, context_bodies=contexts
+    )
+
+
+#: Provider answers worth waiting out rather than holding against the agent.
+_TRANSIENT_STATUSES = frozenset({408, 429})
+
+
+def _leaves(exc: BaseException) -> list[BaseException]:
+    if isinstance(exc, BaseExceptionGroup):
+        return [leaf for inner in exc.exceptions for leaf in _leaves(inner)]
+    return [exc]
+
+
+def _provider_failed(exc: BaseException) -> bool:
+    """Whether the provider, not the agent, failed: no answer at all - a timeout or a
+    dropped connection - or one it may give differently later."""
+    if isinstance(exc, ModelHTTPError):
+        return exc.status_code >= 500 or exc.status_code in _TRANSIENT_STATUSES
+    return isinstance(exc, ModelAPIError)
+
+
+def run_failure(exc: BaseException) -> tuple[str, AttemptFault]:
+    """What an attempt whose run raised keeps as its error, and whose failure it was.
+
+    A provider that failed after its retries leaves the case incomplete: a
+    fallback chain's failure is the provider's only when every model in it
+    failed that way. Anything else - a tool that raised, the step limit, a
+    request the provider refused - is the agent's, and fails the case. A refused
+    credential is said plainly, since every case fails with it at once and the
+    run would otherwise read as an agent that broke everywhere.
+    """
+    leaves = _leaves(exc)
+    if all(_provider_failed(leaf) for leaf in leaves):
+        return run_failure_summary(exc), AttemptFault.INFRASTRUCTURE
+    rejected = next(
+        (
+            leaf.status_code
+            for leaf in leaves
+            if isinstance(leaf, ModelHTTPError) and leaf.status_code in (401, 403)
+        ),
+        None,
+    )
+    if rejected is not None:
+        return (
+            f"The model provider rejected the credentials (HTTP {rejected}). Check the "
+            "provider API keys the agent's models use.",
+            AttemptFault.AGENT,
+        )
+    return run_failure_summary(exc), AttemptFault.AGENT
+
+
+def _latency_ms(run: AgentRun) -> int | None:
+    if run.started_at is None or run.ended_at is None:
+        return None
+    return int((run.ended_at - run.started_at).total_seconds() * 1000)
+
+
+def trajectory(
+    calls: list[RecordedToolCall], intercepted: list[InterceptedToolCall]
+) -> list[dict[str, Any]]:
+    """An attempt's calls in order, each saying whether it really ran.
+
+    A call isolation answered without executing it - held back because it
+    writes, answered from a recording, or matching nothing recorded - carries
+    that outcome and why; everything else ran.
+    """
+    held = {call.tool_call_id: call for call in intercepted}
+    rows = []
+    for call in calls:
+        caught = held.get(call.tool_call_id)
+        rows.append(
+            {
+                "tool": call.tool_name,
+                "args": recorded_args(
+                    ToolCallPart(call.tool_name, call.args, tool_call_id=call.tool_call_id)
+                ),
+                "outcome": caught.outcome if caught is not None else "executed",
+                "reason": caught.reason if caught is not None else None,
+            }
+        )
+    return rows
+
+
+_ERRORED = "This eval stopped on an error before it finished. Run it again."
+_STOPPED = (
+    "This eval was stopped before it finished: it ran out of time, or its worker shut down. "
+    "Run it again."
+)
+
+
+class EvalRunWorker:
+    """Runs one eval run to its end."""
+
+    def __init__(
+        self,
+        eval_run_id: UUID,
+        organization_id: UUID,
+        *,
+        sessions: Sessions = get_worker_db_context,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        heartbeat: float | None = None,
+    ) -> None:
+        self.eval_run_id = eval_run_id
+        self.organization_id = organization_id
+        self.sessions = sessions
+        self.sleep = sleep
+        self.heartbeat = settings.EVAL_HEARTBEAT_SECONDS if heartbeat is None else heartbeat
+
+    async def run(self) -> None:
+        """Answer every case, confirm the flips, and close the run.
+
+        A run the worker cannot finish ends `failed` here, as an agent run's
+        does, rather than live until the sweep finds it silent. So does one
+        cancelled under it - its job timed out, or the worker is shutting down -
+        whose job has no attempt left to finish it.
+        """
+        try:
+            await self._work()
+        except asyncio.CancelledError:
+            await asyncio.shield(self._give_up(_STOPPED))
+            raise
+        except Exception:
+            await self._give_up(_ERRORED)
+            raise
+
+    async def _work(self) -> None:
+        ctx = await self._begin()
+        if ctx is None:
+            return
+        beating = asyncio.create_task(self._beat())
+        try:
+            await self._wave(ctx)
+            if await self._queue_reruns(ctx):
+                await self._wave(ctx)
+            await self._route_to_review(ctx)
+            await self._close(EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING)
+        finally:
+            beating.cancel()
+            with suppress(asyncio.CancelledError):
+                await beating
+
+    async def _give_up(self, error: str) -> None:
+        """Fail the run and what it had not finished, if it is still live."""
+        try:
+            async with self.sessions() as db:
+                closed = await eval_run_repo.fail_live(
+                    db,
+                    self.eval_run_id,
+                    organization_id=self.organization_id,
+                    now=datetime.now(UTC),
+                    error=error,
+                )
+                if closed:
+                    run = await eval_run_repo.get(
+                        db, self.eval_run_id, organization_id=self.organization_id
+                    )
+                    if run is not None:  # pragma: no branch - fail_live holds its row locked
+                        await NotificationService(db).eval_run_finished(run)
+        except Exception:
+            # The database that failed the run may refuse this as well; the
+            # abandoned-eval sweep is the ceiling for that run.
+            logger.exception("eval_run_not_closed", extra={"eval_run_id": str(self.eval_run_id)})
+
+    async def _beat(self) -> None:
+        """Say the run is alive every `heartbeat` seconds, for as long as it works.
+
+        A case can outlast the sweep's window, and a full organization can hold
+        every attempt back; neither moves an attempt, and only this tells them
+        from a worker that died. A beat that fails is not the last: a worker
+        that went silent over one dropped connection would be reaped mid-run.
+        """
+        while True:
+            await asyncio.sleep(self.heartbeat)
+            try:
+                async with self.sessions() as db:
+                    await eval_run_repo.heartbeat(
+                        db,
+                        self.eval_run_id,
+                        organization_id=self.organization_id,
+                        now=datetime.now(UTC),
+                    )
+            except Exception:
+                logger.warning(
+                    "eval_heartbeat_failed",
+                    extra={"eval_run_id": str(self.eval_run_id)},
+                    exc_info=True,
+                )
+
+    async def _begin(self) -> AuthContext | None:
+        """Mark the run running and rebuild who it runs as - or end it if it cannot run."""
+        async with self.sessions() as db:
+            run = await eval_run_repo.lock(
+                db, self.eval_run_id, organization_id=self.organization_id
+            )
+            if run is None or EvalRunStatus(run.status).terminal:
+                return None
+            try:
+                ctx = await job_context(
+                    db,
+                    organization_id=run.organization_id,
+                    user_id=run.created_by_user_id,
+                    api_key_id=run.created_by_api_key_id,
+                )
+                lost = None if ctx is not None else _STARTER_GONE
+            except AuthenticationError as refused:
+                ctx, lost = None, refused.message
+            if ctx is not None and not await self._may_still_run(db, ctx, run):
+                ctx, lost = None, _NO_LONGER_RUNS
+            if ctx is None:
+                await eval_run_repo.update_run(
+                    db,
+                    run=run,
+                    values={
+                        "status": EvalRunStatus.FAILED.value,
+                        "error": lost,
+                        "ended_at": datetime.now(UTC),
+                    },
+                )
+                await eval_run_repo.skip_pending(db, run.id, organization_id=self.organization_id)
+                await NotificationService(db).eval_run_finished(run)
+                return None
+            await eval_run_repo.update_run(
+                db,
+                run=run,
+                values={"status": EvalRunStatus.RUNNING.value, "started_at": datetime.now(UTC)},
+            )
+            return ctx
+
+    @staticmethod
+    async def _may_still_run(db: AsyncSession, ctx: AuthContext, run: EvalRun) -> bool:
+        """Whether the authority rebuilt for the run still runs its agent and its dataset.
+
+        Checked when the run starts rather than only when it was asked for: a role
+        lost, or a key narrowed, in between must not leave the run spending on
+        what its starter could no longer start.
+        """
+        if run.proposal_check is not None:
+            record = ProposalCheckRecord.model_validate(run.proposal_check)
+            if record.knowledge is not None:
+                if record.knowledge.invalidated:
+                    return False
+                from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
+
+                try:
+                    gaps = KnowledgeGapService(db)
+                    topic = await gaps._topic(ctx, record.knowledge.topic_id, edit=True)
+                    await gaps._row(ctx, topic)
+                    kb = await gaps._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+                    if (
+                        record.knowledge.mode == "retrieval"
+                        and record.knowledge.collection_name != kb.collection_name
+                    ):
+                        return False
+                    if (
+                        not topic.draft_content
+                        or draft_fingerprint(topic) != record.knowledge.draft_hash
+                    ):
+                        return False
+                except AppException:
+                    return False
+            parent_id = record.improvement_run_id
+            if parent_id is not None:
+                from app.services.improvement_pipeline import ImprovementPipelineService
+
+                try:
+                    await ImprovementPipelineService(db).ensure_current(
+                        ctx, parent_id, allow_finished=True
+                    )
+                except AppException:
+                    return False
+        org = run.organization_id
+        agent = await agent_repo.get(db, run.agent_id, organization_id=org)
+        dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
+        return (
+            ctx.has(Perm.RUNS_VIEW)
+            and agent is not None
+            and dataset is not None
+            and await resolve_access(db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+            and await resolve_access(db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET)
+        )
+
+    async def _wave(self, ctx: AuthContext) -> None:
+        drainers = [
+            asyncio.create_task(self._drain(ctx))
+            for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))
+        ]
+        try:
+            await asyncio.gather(*drainers)
+        finally:
+            # gather leaves the others running when one raises; they must stop
+            # before the run is failed, or they write answers to failed attempts.
+            for drainer in drainers:
+                drainer.cancel()
+            await asyncio.gather(*drainers, return_exceptions=True)
+
+    async def _drain(self, ctx: AuthContext) -> None:
+        """Claim and answer attempts until none is left, or the run stops."""
+        while True:
+            async with self.sessions() as db:
+                claimed = await eval_run_repo.claim_next(
+                    db,
+                    self.eval_run_id,
+                    organization_id=self.organization_id,
+                    org_limit=settings.EVAL_ORG_CONCURRENCY,
+                    now=datetime.now(UTC),
+                )
+                attempt_id = claimed.id if claimed is not None else None
+                waiting = 0
+                if claimed is None:
+                    run = await eval_run_repo.get(
+                        db, self.eval_run_id, organization_id=self.organization_id
+                    )
+                    counts = await eval_run_repo.count_by_status(
+                        db, self.eval_run_id, organization_id=self.organization_id
+                    )
+                    live = run is not None and not EvalRunStatus(run.status).terminal
+                    waiting = counts.get(CaseAttemptStatus.PENDING.value, 0) if live else 0
+            if attempt_id is None:
+                if not waiting:
+                    return
+                await self.sleep(_FULL_BACKOFF_SECONDS)
+                continue
+            if await self._answer(ctx, attempt_id):
+                return
+
+    async def _answer(self, ctx: AuthContext, attempt_id: UUID) -> bool:
+        """Run, record and score one attempt. True when the budget stopped the run."""
+        org = self.organization_id
+        async with self.sessions() as db:
+            attempt = await eval_run_repo.get_case(db, attempt_id, organization_id=org)
+            run = await eval_run_repo.get(db, self.eval_run_id, organization_id=org)
+            if attempt is None or run is None:
+                # Its agent or dataset was deleted meanwhile, and the run with it.
+                return True
+            arm = await eval_run_repo.get_arm(db, attempt.arm_id, organization_id=org)
+            revision = (
+                await eval_run_repo.revisions(db, [attempt.case_revision_id], organization_id=org)
+            ).get(attempt.case_revision_id)
+            dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
+            # Each cascades to the attempt, so the attempt existing means they do.
+            assert arm is not None and revision is not None and dataset is not None
+            if run.proposal_check is not None:
+                try:
+                    fresh = await job_context(
+                        db,
+                        organization_id=org,
+                        user_id=run.created_by_user_id,
+                        api_key_id=run.created_by_api_key_id,
+                    )
+                except AuthenticationError:
+                    fresh = None
+                if fresh is None or not await self._may_still_run(db, fresh, run):
+                    closed = await eval_run_repo.fail_live(
+                        db,
+                        run.id,
+                        organization_id=org,
+                        now=datetime.now(UTC),
+                        error=_NO_LONGER_RUNS,
+                    )
+                    if closed:
+                        await NotificationService(db).eval_run_finished(run)
+                    return True
+                ctx = fresh
+            calls: list[RecordedToolCall] = []
+            asked = _Asked(revision.id, revision.input, list(revision.history or []))
+
+            answering: set[UUID] = set()
+
+            async def linked(agent_run: AgentRun) -> None:
+                if await eval_run_repo.link_run(db, case=attempt, agent_run_id=agent_run.id):
+                    answering.add(agent_run.id)
+
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            isolation = RunIsolation(
+                recording=await self._recording(db, ctx, run, revision),
+                live_reads=run.live_reads,
+                improvement_run_id=None if record is None else record.improvement_run_id,
+            )
+            if (
+                record is not None
+                and record.knowledge is not None
+                and record.knowledge.mode == "retrieval"
+                and arm.role == ArmRole.CANDIDATE.value
+            ):
+                knowledge = record.knowledge
+                body = _candidate(arm).context_bodies.get(knowledge.topic_id)
+                if (
+                    body is None
+                    or knowledge.collection_name is None
+                    or knowledge.embedding_model is None
+                    or knowledge.embedding_dim is None
+                ):
+                    raise BadRequestError(
+                        message="The stored knowledge retrieval check is incomplete"
+                    )
+                isolation.knowledge_overlay = KnowledgeOverlay(
+                    (
+                        OverlayDocument(
+                            topic_id=knowledge.topic_id,
+                            organization_id=org,
+                            collection_name=knowledge.collection_name,
+                            title=body.description or "Knowledge draft",
+                            content=body.content,
+                            embedding_model=knowledge.embedding_model,
+                            embedding_dim=knowledge.embedding_dim,
+                        ),
+                    )
+                )
+            try:
+                output, agent_run = await AgentRunnerService(db).execute(
+                    ctx,
+                    run.agent_id,
+                    revision.input,
+                    surface=RunSurface.EVAL,
+                    environment_id=run.environment_id,
+                    message_history=build_message_history(
+                        [
+                            HistoryMessage(role=turn["role"], content=turn["content"])
+                            for turn in revision.history or []
+                        ]
+                    ),
+                    isolation=isolation,
+                    candidate=_candidate(arm),
+                    model_profile_id=arm.model_profile_id,
+                    tool_calls=calls,
+                    started=linked,
+                )
+            except Exception as exc:
+                logger.exception("Eval case %s failed to run", attempt_id)
+                if answering:
+                    await self._erased_meanwhile(db, asked, answering)
+                error, fault = run_failure(exc)
+                await self._fail(db, attempt, error, fault=fault)
+                return False
+            if isolation.knowledge_overlay is not None:
+                await eval_run_repo.record_overlay_hits(
+                    db, attempt, sorted(isolation.knowledge_overlay.returned_topic_ids)
+                )
+                if isolation.knowledge_overlay.failed:
+                    await self._fail(
+                        db,
+                        attempt,
+                        "Knowledge draft retrieval failed",
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
+                    return False
+            if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
+                await self._erased_meanwhile(db, asked, {agent_run.id})
+                await self._fail(
+                    db,
+                    attempt,
+                    agent_run.error or "Budget exceeded",
+                    agent_run,
+                    fault=AttemptFault.INFRASTRUCTURE,
+                )
+                await self._stop_for_budget(db)
+                return True
+            if agent_run.status not in (
+                RunStatus.COMPLETED.value,
+                RunStatus.GUARDRAIL_BLOCKED.value,
+            ):
+                await self._erased_meanwhile(db, asked, {agent_run.id})
+                await self._fail(
+                    db,
+                    attempt,
+                    agent_run.error or f"The run ended {agent_run.status}",
+                    agent_run,
+                    fault=(
+                        AttemptFault.AGENT
+                        if agent_run.status
+                        in (RunStatus.FAILED.value, RunStatus.LOOP_STOPPED.value)
+                        else AttemptFault.INFRASTRUCTURE
+                    ),
+                )
+                return False
+            if agent_run.status == RunStatus.GUARDRAIL_BLOCKED.value:
+                # Grade the refusal, never content an output guardrail withheld.
+                output = "The request was blocked by a guardrail. " + (
+                    agent_run.error or "No guardrail detail was recorded."
+                )
+            intercepted = await intercepted_tool_call_repo.list_for_run(
+                db, run_id=agent_run.id, organization_id=org
+            )
+            rows = trajectory(calls, intercepted)
+            answer = ScoredAnswer(
+                text=output,
+                calls=tuple(
+                    ScoredCall(
+                        tool=call.tool_name,
+                        args=call.args,
+                        blocked=row["outcome"] == InterceptionOutcome.BLOCKED.value,
+                    )
+                    for call, row in zip(calls, rows, strict=True)
+                ),
+                cost_usd=agent_run.cost_usd,
+                latency_ms=_latency_ms(agent_run),
+                run_id=agent_run.id,
+                agent_id=agent_run.agent_id,
+            )
+            try:
+                score = await ScoringService(db).score_case(
+                    ctx,
+                    dataset=dataset,
+                    case=revision,
+                    answer=answer,
+                    scoring=DatasetScoring.model_validate(run.scoring),
+                    eval_run_id=run.id,
+                    judge_version_id=run.judge_version_id,
+                    judge_pinned=run.judge_pinned,
+                    improvement_run_id=(
+                        None
+                        if run.proposal_check is None
+                        else ProposalCheckRecord.model_validate(
+                            run.proposal_check
+                        ).improvement_run_id
+                    ),
+                    # What deserves a person is sent once the reruns are in.
+                    enqueue_review=False,
+                )
+            except NothingToScoreError as exc:
+                if await self._erased_meanwhile(db, asked, {agent_run.id}):
+                    await self._fail(
+                        db,
+                        attempt,
+                        _ANONYMISED_MEANWHILE,
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
+                    return False
+                # Nothing the scorers check applies to this case: it was answered
+                # and stays undecided, which is not a malfunction.
+                await self._finish(
+                    db,
+                    attempt,
+                    values={
+                        **self._spend(agent_run),
+                        "status": CaseAttemptStatus.DONE.value,
+                        "answer": output,
+                        "calls": rows,
+                        "error": exc.message,
+                        "ended_at": datetime.now(UTC),
+                    },
+                )
+                return False
+            except Exception as exc:
+                logger.exception("Eval case %s failed to score", attempt_id)
+                if await self._erased_meanwhile(db, asked, {agent_run.id}):
+                    await self._fail(
+                        db,
+                        attempt,
+                        _ANONYMISED_MEANWHILE,
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
+                    return False
+                await self._fail(
+                    db,
+                    attempt,
+                    run_failure_summary(exc),
+                    agent_run,
+                    fault=AttemptFault.INFRASTRUCTURE,
+                    answer=output,
+                    calls=rows,
+                )
+                return False
+            if await self._erased_meanwhile(db, asked, {agent_run.id}, score):
+                await self._fail(
+                    db, attempt, _ANONYMISED_MEANWHILE, agent_run, fault=AttemptFault.INFRASTRUCTURE
+                )
+                return False
+            await self._finish(
+                db,
+                attempt,
+                values={
+                    **self._spend(agent_run),
+                    "status": CaseAttemptStatus.DONE.value,
+                    "answer": output,
+                    "calls": rows,
+                    "case_score_id": score.id,
+                    "ended_at": datetime.now(UTC),
+                },
+            )
+            return False
+
+    async def _erased_meanwhile(
+        self,
+        db: AsyncSession,
+        asked: _Asked,
+        runs: set[UUID],
+        score: CaseScore | None = None,
+    ) -> bool:
+        """Whether an erasure changed the case while it was answered, forgetting what was kept if so.
+
+        Checked just before the attempt is written: the judge's run commits, so a
+        lock taken earlier is gone by then. The revision is held in share mode
+        from here to the commit - another attempt at it shares it, and an
+        erasure's update of it waits for this write and then clears it, while
+        one that committed first shows as a question or history unlike the one
+        the agent was asked.
+        """
+        held = await dataset_repo.lock_revision(
+            db, asked.revision_id, organization_id=self.organization_id
+        )
+        if (
+            held is not None
+            and held.anonymised_at is None
+            and (held.input, held.history) == (asked.input, asked.history)
+        ):
+            return False
+        if score is not None:
+            runs = runs | personal_data_repo.judge_runs_of(score)
+            personal_data_repo.forget_answer(score)
+        await personal_data_repo.forget_runs(db, runs)
+        return True
+
+    async def _finish(
+        self, db: AsyncSession, attempt: EvalRunCase, *, values: dict[str, Any]
+    ) -> None:
+        # Grade the original answer in memory; only its persisted copy is redacted,
+        # with the same detector Review uses. Failed and ungraded attempts pass here too.
+        kept = dict(values)
+        run = await eval_run_repo.get(db, self.eval_run_id, organization_id=self.organization_id)
+        if run is not None:
+            await db.refresh(run)
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            if record is not None and record.knowledge is not None:
+                try:
+                    ctx = await job_context(
+                        db,
+                        organization_id=run.organization_id,
+                        user_id=run.created_by_user_id,
+                        api_key_id=run.created_by_api_key_id,
+                    )
+                except AuthenticationError:
+                    ctx = None
+                if ctx is None or not await self._may_still_run(db, ctx, run):
+                    paid = {
+                        key
+                        for key in [attempt.agent_run_id, kept.get("agent_run_id")]
+                        if isinstance(key, UUID)
+                    }
+                    score_id = kept.get("case_score_id")
+                    if isinstance(score_id, UUID):
+                        score = (
+                            await eval_run_repo.scores(
+                                db, [score_id], organization_id=self.organization_id
+                            )
+                        ).get(score_id)
+                        if score is not None:
+                            paid |= personal_data_repo.judge_runs_of(score)
+                            personal_data_repo.forget_answer(score)
+                    await personal_data_repo.forget_knowledge_runs(db, paid)
+                    kept.update(
+                        answer=None,
+                        calls=[],
+                        error="The knowledge draft is no longer available",
+                        fault=AttemptFault.INFRASTRUCTURE.value,
+                        status=CaseAttemptStatus.FAILED.value,
+                    )
+        for field in ("answer", "calls", "error"):
+            if field in kept:
+                kept[field] = _redact_evidence(_JSON.validate_python(kept[field]))
+        if not await eval_run_repo.finish_case(db, case=attempt, values=kept):
+            logger.warning(
+                "eval_case_closed_meanwhile",
+                extra={"eval_run_id": str(self.eval_run_id), "case_id": str(attempt.id)},
+            )
+
+    @staticmethod
+    def _spend(agent_run: AgentRun) -> dict[str, Any]:
+        return {
+            "agent_run_id": agent_run.id,
+            "cost_usd": agent_run.cost_usd,
+            "cost_is_partial": agent_run.cost_is_partial,
+            "input_tokens": agent_run.input_tokens,
+            "output_tokens": agent_run.output_tokens,
+            "latency_ms": _latency_ms(agent_run),
+        }
+
+    async def _fail(
+        self,
+        db: AsyncSession,
+        attempt: EvalRunCase,
+        error: str,
+        agent_run: AgentRun | None = None,
+        *,
+        fault: AttemptFault,
+        answer: str | None = None,
+        calls: list[dict[str, Any]] | None = None,
+    ) -> None:
+        await self._finish(
+            db,
+            attempt,
+            values={
+                **(self._spend(agent_run) if agent_run is not None else {}),
+                "status": CaseAttemptStatus.FAILED.value,
+                "fault": fault.value,
+                "answer": answer,
+                "calls": calls or [],
+                "error": error,
+                "ended_at": datetime.now(UTC),
+            },
+        )
+
+    async def _recording(
+        self, db: AsyncSession, ctx: AuthContext, run: EvalRun, revision: DatasetCase
+    ) -> ToolRecording | None:
+        """The calls of the run this case was taken from, when the run asks for them.
+
+        A case with no source run, or whose run kept no usable recording, runs
+        isolated without one: its writes are held all the same.
+        """
+        if not run.from_recordings or revision.source_run_id is None:
+            return None
+        try:
+            return await AgentRunnerService(db).tool_recording(ctx, revision.source_run_id)
+        except BadRequestError, NotFoundError:
+            logger.info("No usable recording for eval case %s", revision.case_id)
+            return None
+
+    async def _stop_for_budget(self, db: AsyncSession) -> None:
+        run = await eval_run_repo.lock(db, self.eval_run_id, organization_id=self.organization_id)
+        if run is None or EvalRunStatus(run.status).terminal:
+            return
+        await eval_run_repo.update_run(
+            db,
+            run=run,
+            values={
+                "status": EvalRunStatus.BUDGET_EXCEEDED.value,
+                "error": "A case ran into the agent's or the organization's budget.",
+                "ended_at": datetime.now(UTC),
+            },
+        )
+        await eval_run_repo.skip_pending(db, run.id, organization_id=self.organization_id)
+        await NotificationService(db).eval_run_finished(run)
+
+    async def _queue_reruns(self, ctx: AuthContext) -> bool:
+        """Queue the confirmation reruns of every flipped case. True if any were queued.
+
+        A stability run compares nothing: every first answer is asked again.
+
+        A case is rerun on each candidate arm it flipped on, and on this run's
+        own baseline arm - one that ran here, or one standing in for an earlier
+        run's answers, which is asked the flipped cases again here. A case whose
+        content changed since the baseline answered it is not compared, so not
+        rerun.
+
+        The run is locked while they are queued, as a cancel locks it: a cancel
+        landing between the status check and the insert would skip the pending
+        attempts it found and leave these pending in a cancelled run for good.
+        """
+        org = self.organization_id
+        async with self.sessions() as db:
+            run = await eval_run_repo.lock(db, self.eval_run_id, organization_id=org)
+            if run is None or run.status != EvalRunStatus.RUNNING.value or run.reruns == 0:
+                return False
+            service = EvalRunService(db)
+            attempts = await eval_run_repo.list_cases(db, run.id, organization_id=org)
+            firsts = {(a.arm_id, a.case_id): a for a in attempts if a.attempt == 0}
+            arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
+            # Each rerun with the first attempt it repeats: a reused baseline has
+            # none of its own here, so it repeats the candidate's case revision.
+            queued: dict[tuple[UUID, UUID], EvalRunCase] = {}
+            if run.purpose == EvalRunPurpose.STABILITY.value:
+                queued = {(a.arm_id, a.case_id): a for a in firsts.values()}
+            else:
+                for arm in arms:
+                    if arm.role != "candidate":
+                        continue
+                    baseline = await service.baseline_for(ctx, run, arm)
+                    if baseline is None:
+                        continue
+                    mine = await service.outcomes(ctx, arm, attempts)
+                    theirs = await service.outcomes(
+                        ctx,
+                        baseline.here or baseline.arm,
+                        attempts
+                        if baseline.here is not None or baseline.run.id == run.id
+                        else await eval_run_repo.list_cases(
+                            db, baseline.run.id, organization_id=org
+                        ),
+                    )
+                    rerun_on = (
+                        None
+                        if drifts(run, arm, baseline)
+                        else baseline.here
+                        if baseline.here is not None
+                        else baseline.arm
+                        if baseline.paired
+                        else None
+                    )
+                    same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
+                    for case_id, (outcome, _, _) in mine.items():
+                        first = firsts.get((arm.id, case_id))
+                        if case_id not in same or first is None:
+                            continue
+                        if classify(theirs[case_id][0], outcome) not in (
+                            Flip.REGRESSION,
+                            Flip.FIXED,
+                        ):
+                            continue
+                        queued[(arm.id, case_id)] = first
+                        if rerun_on is not None:
+                            queued[(rerun_on.id, case_id)] = first
+            new = [
+                EvalRunCase(
+                    eval_run_id=run.id,
+                    arm_id=arm_id,
+                    case_id=case_id,
+                    case_revision_id=first.case_revision_id,
+                    position=first.position,
+                    attempt=attempt,
+                )
+                for (arm_id, case_id), first in sorted(
+                    queued.items(), key=lambda item: str(item[0])
+                )
+                for attempt in range(1, run.reruns + 1)
+            ]
+            await eval_run_repo.add_cases(db, organization_id=org, cases=new)
+            return bool(new)
+
+    async def _route_to_review(self, ctx: AuthContext) -> None:
+        """Send what deserves a person to the dataset's review queue, once the reruns are in.
+
+        Only what the run itself can stand behind: the regressions it confirmed
+        and the answers the judge failed to grade. The rest of its failures go
+        when a person sends them. A check of the authoring assistant's proposal
+        sends nothing: it measures a change nobody accepted.
+
+        The answers and their scores are kept by then, so a refusal here leaves
+        the run to complete: what was refused is kept on it as `routing_error`,
+        for a person to send the answers by hand.
+        """
+        async with self.sessions() as db:
+            run = await eval_run_repo.get(
+                db, self.eval_run_id, organization_id=self.organization_id
+            )
+            if (
+                run is None
+                or run.status != EvalRunStatus.RUNNING.value
+                or run.proposal_check is not None
+            ):
+                return
+            try:
+                async with db.begin_nested():
+                    worthy = await EvalRunService(db).review_worthy(ctx, run)
+                    routed = await ScoringService(db).route_to_review(
+                        ctx, dataset_id=run.dataset_id, score_ids=worthy
+                    )
+            except AppException as exc:
+                logger.warning(
+                    "Eval run %s could not send its scores to review: %s", run.id, exc.message
+                )
+                await eval_run_repo.update_run(
+                    db,
+                    run=run,
+                    values={"routing_error": {"code": exc.code, "message": exc.message}},
+                )
+                return
+            await eval_run_repo.update_run(
+                db,
+                run=run,
+                values={"routed_to_review": routed.queued, "routed_replacing": routed.replaced},
+            )
+
+    async def _close(self, status: EvalRunStatus, *, only_from: EvalRunStatus) -> None:
+        async with self.sessions() as db:
+            run = await eval_run_repo.lock(
+                db, self.eval_run_id, organization_id=self.organization_id
+            )
+            if run is None or run.status != only_from.value:
+                return
+            await eval_run_repo.update_run(
+                db, run=run, values={"status": status.value, "ended_at": datetime.now(UTC)}
+            )
+            await NotificationService(db).eval_run_finished(run)

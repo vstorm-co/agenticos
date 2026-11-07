@@ -70,7 +70,7 @@ const DialogContent = React.forwardRef<
           // Dialogs use the form surface; popover gray is reserved for short-lived menus.
           // Rises a few pixels as it scales in, and settles with a spring - the
           // motion of something placed in front of the page, not faded onto it.
-          "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 data-[state=open]:slide-in-from-bottom-1 border-foreground/6 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
+          "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 data-[state=open]:slide-in-from-bottom-1 border-foreground/6 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg min-w-0 translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
           className,
         )}
         {...props}
@@ -91,7 +91,10 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
     <div
       // Clear of the close button in the corner, which a long title ran under.
       // One unprefixed class, so a caller's own padding replaces it whole.
-      className={cn("flex flex-col space-y-1 pr-10 text-left sm:space-y-1.5", className)}
+      className={cn(
+        "flex min-w-0 shrink-0 flex-col space-y-1 pr-10 text-left sm:space-y-1.5",
+        className,
+      )}
       {...props}
     />
   );
@@ -101,7 +104,7 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   return (
     <div
       className={cn(
-        "mt-2 flex flex-row flex-wrap items-center justify-end gap-2 pt-3 sm:pt-4 max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
+        "mt-2 flex min-w-0 shrink-0 flex-row flex-wrap items-center justify-end gap-2 pt-3 sm:pt-4 max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
         className,
       )}
       {...props}
@@ -115,7 +118,10 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-base leading-tight font-semibold tracking-tight sm:text-xl", className)}
+    className={cn(
+      "min-w-0 text-base leading-tight font-semibold tracking-tight break-words sm:text-xl",
+      className,
+    )}
     {...props}
   />
 ));

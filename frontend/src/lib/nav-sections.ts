@@ -1,5 +1,6 @@
 import { BackgroundIcon } from "@/components/icons/product-icons";
 import {
+  FlaskConical,
   MessagesSquare,
   Activity,
   Boxes,
@@ -117,6 +118,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.ROUTINES,
         icon: TimerReset,
         permission: Perm.agentsView,
+      },
+      {
+        labelKey: "datasets",
+        href: ROUTES.DATASETS,
+        icon: FlaskConical,
+        permission: Perm.datasetsView,
       },
       {
         labelKey: "artifacts",

@@ -1702,6 +1702,50 @@ class TestConversationServiceAddMessage:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["conversation", "local"])
+    async def test_a_runner_file_origin_survives_jsonb_serialization(
+        self, service: ConversationService, kind: str
+    ) -> None:
+        import json
+
+        from app.schemas.conversation import MessageCreate, MessagePart
+
+        conv_id, source_id = uuid4(), uuid4()
+        data = MessageCreate(
+            role="assistant",
+            content="Answer with a file link.",
+            parts=[
+                MessagePart.model_validate(
+                    {
+                        "type": "text",
+                        "text": "Answer with a file link. ",
+                        "file_source": {"kind": kind, "id": str(source_id)},
+                    }
+                )
+            ],
+        )
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.follow_ups.queue_next_steps"),
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            repo.create_message = AsyncMock(return_value=MockMessage())
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=uuid4())
+
+        # The same JSON encoder used by the JSONB column must accept the payload.
+        stored = json.loads(json.dumps(repo.create_message.await_args.kwargs["parts"]))
+        assert stored == [
+            {
+                "type": "text",
+                "text": "Answer with a file link. ",
+                "file_source": {"kind": kind, "id": str(source_id)},
+            }
+        ]
+        parsed = MessagePart.model_validate(stored[0])
+        assert parsed.file_source is not None
+        assert parsed.file_source.id == source_id
+
+    @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(
         self, service: ConversationService
     ):

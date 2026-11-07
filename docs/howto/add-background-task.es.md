@@ -1,5 +1,5 @@
 ---
-source_sha: "7253eb24cea2"
+source_sha: "3af0fc95407e"
 ---
 
 # Añade una tarea en segundo plano { #add-a-background-task }
@@ -13,8 +13,9 @@ proceso.
 
 Un job es duradero donde una tarea en el bucle de la API no lo es. Sobrevive a
 un reinicio, se reintenta con esperas crecientes, y un job que mata a su worker
+
 - también por falta de memoria - ya ha gastado su intento, así que no puede
-entrar en bucle. Lo que hizo aparece en la página Background jobs.
+  entrar en bucle. Lo que hizo aparece en la página Background jobs.
 
 ## Paso a paso { #step-by-step }
 
@@ -47,12 +48,13 @@ cambiado y quien lo pidió puede haber perdido el acceso.
 
 Elige el pool según lo que gasta el job:
 
-| Pool | Para qué | Cómo se ejecuta |
-|---|---|---|
-| `agent` | Runs de agents y disparos de triggers: largos, esperan a los modelos | En el bucle del worker, `WORKER_AGENT_CONCURRENCY` a la vez |
+| Pool       | Para qué                                                                       | Cómo se ejecuta                                                |
+| ---------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `agent`    | Runs de agents y disparos de triggers: largos, esperan a los modelos           | En el bucle del worker, `WORKER_AGENT_CONCURRENCY` a la vez    |
 | `workflow` | Nodos de workflow: pasos HTTP, de archivo y de sandbox, casi siempre esperando | En el bucle del worker, `WORKER_WORKFLOW_CONCURRENCY` a la vez |
-| `ingest` | Parseo y embeddings: mucha CPU y memoria | Un job por proceso hijo, bajo `WORKER_INGEST_MEMORY_MB` |
-| `system` | Barridos, limpiezas, informes: cortos | En el bucle del worker, `WORKER_SYSTEM_CONCURRENCY` a la vez |
+| `eval`     | Eval runs: horas sobre un dataset, cada uno ocupa su slot todo el tiempo       | En el bucle del worker, `WORKER_EVAL_CONCURRENCY` a la vez     |
+| `ingest`   | Parseo y embeddings: mucha CPU y memoria                                       | Un job por proceso hijo, bajo `WORKER_INGEST_MEMORY_MB`        |
+| `system`   | Barridos, limpiezas, informes: cortos                                          | En el bucle del worker, `WORKER_SYSTEM_CONCURRENCY` a la vez   |
 
 ### 2. Escribe el handler y enlázalo { #2-write-the-handler-and-bind-it }
 

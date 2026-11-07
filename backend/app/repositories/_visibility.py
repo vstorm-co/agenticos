@@ -11,9 +11,10 @@ other (#545).
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, false, or_
+from sqlalchemy import ColumnElement, and_, false, or_, true
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.core.permissions import Scope
 from app.db.models.resource_grant import Visibility
 
 
@@ -70,3 +71,32 @@ def shared_with_caller(
         _org_visible_or_shared(visibility_col, id_col, shared_ids=shared_ids),
         owner_col.is_distinct_from(user_id),
     )
+
+
+def reached_by_scope(
+    owner_col: InstrumentedAttribute[UUID | None],
+    visibility_col: InstrumentedAttribute[str],
+    id_col: InstrumentedAttribute[UUID],
+    *,
+    scope: Scope,
+    user_id: UUID,
+    granted_ids: Sequence[UUID],
+) -> ColumnElement[bool]:
+    """Rows a role scope reaches, or an explicit grant does - `resolve_access` as SQL.
+
+    The scope arms mirror `_scope_allows` in `app/services/access.py`, every one
+    of them; the grant arm is the ids granted at the level the permission needs.
+    """
+    if scope is Scope.ALL:
+        return true()
+    granted = id_col.in_(granted_ids) if granted_ids else false()
+    owned = and_(owner_col.is_not(None), owner_col == user_id)
+    if scope is Scope.TEAM:
+        reached = or_(owned, visibility_col.in_([Visibility.TEAM.value, Visibility.ORG.value]))
+    elif scope is Scope.SHARED:
+        reached = or_(owned, visibility_col == Visibility.ORG.value)
+    elif scope is Scope.OWN:
+        reached = owned
+    else:
+        reached = false()
+    return or_(reached, granted)

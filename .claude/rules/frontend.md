@@ -136,8 +136,8 @@ There is no `(marketing)` route group.
   component translates at the point of use; a pure helper either answers with a key
   or takes `t`.
 - **The product's own nouns stay English in every locale**, and this is the list:
-  **agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
-  vault, workspace, sandbox, MCP**. They name things a client also meets in
+  **agent, spec, capability, skill, dataset, embed, budget, run, prompt, provider,
+  token, vault, workspace, sandbox, MCP**. They name things a client also meets in
   `docs/`, in the API and in the YAML a spec exports into their own repository, so
   translating them in the UI and nowhere else makes two vocabularies for one
   product - a Polish reader looking up *zdolność* finds nothing. Inflect them

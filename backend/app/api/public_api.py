@@ -12,6 +12,7 @@ the route is declared - so the route object a request matched answers the
 question itself, wherever and however its router was included.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends
@@ -29,17 +30,45 @@ INTERNAL: dict[str, Any] = {"x-agenticos-internal": True}
 """`openapi_extra` for a route in a public router that is not part of the contract."""
 
 
-def is_public_route(route: BaseRoute | None) -> bool:
-    """Whether an organization key may call this route."""
+def platform_tools_api() -> None:
+    """Marks a route the platform's own tools call. Does nothing at runtime."""
+
+
+ASSISTANT = Depends(platform_tools_api)
+"""Put in a route's `dependencies` so the platform's tools reach it, and no other key.
+
+The Architect and an MCP client operate the platform through its tools, each call
+made with the key that caller was given - a run's internal key, or an OAuth
+grant's. A route the tools need that is not yet a contract an integrator may
+build on is marked this way instead of public: those two may call it, an
+organization key is refused it exactly as it is refused a console-only route,
+and it stays out of the public API's document.
+"""
+
+ASSISTANT_SURFACES = frozenset({"assistant", "mcp"})
+"""Which keys an `ASSISTANT` route admits, by the surface a key is held on."""
+
+
+def _marked(route: BaseRoute | None, marker: object) -> bool:
     if route is None:
         return False
     extra = getattr(route, "openapi_extra", None) or {}
     if extra.get("x-agenticos-internal", False):
         return False
     return any(
-        getattr(dependency, "dependency", None) is public_api
+        getattr(dependency, "dependency", None) is marker
         for dependency in getattr(route, "dependencies", None) or []
     )
+
+
+def is_assistant_route(route: BaseRoute | None) -> bool:
+    """Whether the platform's tools may call this route though it is not public."""
+    return _marked(route, platform_tools_api)
+
+
+def is_public_route(route: BaseRoute | None) -> bool:
+    """Whether an organization key may call this route."""
+    return _marked(route, public_api)
 
 
 PUBLIC_OPENAPI_PATH = "/public/openapi.json"
@@ -111,9 +140,19 @@ def _references(node: object, found: set[str]) -> None:
 
 
 def public_operations(routes: list[BaseRoute]) -> set[tuple[str, str]]:
-    """`(method, full path)` for every public operation the app serves.
+    """`(method, full path)` for every public operation the app serves."""
+    return _operations(routes, is_public_route)
 
-    Walks included routers through their effective contexts: since FastAPI 0.141
+
+def assistant_operations(routes: list[BaseRoute]) -> set[tuple[str, str]]:
+    """`(method, full path)` for every operation only the platform's tools may call."""
+    return _operations(routes, is_assistant_route)
+
+
+def _operations(
+    routes: list[BaseRoute], marked: Callable[[BaseRoute | None], bool]
+) -> set[tuple[str, str]]:
+    """Walks included routers through their effective contexts: since FastAPI 0.141
     `app.routes` holds one wrapper per `include_router` rather than the routes.
     """
     found: set[tuple[str, str]] = set()
@@ -125,7 +164,7 @@ def public_operations(routes: list[BaseRoute]) -> set[tuple[str, str]]:
             else [(entry, getattr(entry, "path_format", None))]
         )
         for route, path in pairs:
-            if path is None or not is_public_route(route):
+            if path is None or not marked(route):
                 continue
             for method in getattr(route, "methods", None) or ():
                 found.add((method.lower(), path))

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { CircleAlert } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 
@@ -22,6 +22,7 @@ import { ROUTES } from "@/lib/constants";
  */
 export function WorkflowsWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.workflows");
+  const locale = useLocale();
   const { summary, isLoading, error, refetch } = useWorkflowsSummary(period.from, period.to);
 
   return (
@@ -54,7 +55,7 @@ export function WorkflowsWidget({ title, hint, period, seeAll, options }: Dashbo
               caption={t("succeeded", { count: summary.succeeded })}
             />
             <Figure label={t("failed")} value={summary.failed.toLocaleString()} />
-            <Figure label={t("cost")} value={formatUsd(summary.cost_usd)} />
+            <Figure label={t("cost")} value={formatUsd(summary.cost_usd, locale)} />
           </div>
           <ul className="divide-border divide-y">
             {summary.workflows.map((workflow) => (

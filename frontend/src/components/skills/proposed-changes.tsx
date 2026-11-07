@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Check, ChevronDown, GitPullRequest, X } from "lucide-react";
 
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
+
 import {
   Badge,
   Button,
@@ -12,6 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui";
+import { EvidenceList, RationaleText } from "@/components/authoring/evidence-list";
+import { GoesLive } from "@/components/authoring/goes-live";
+import { SkillCheckButton } from "@/components/authoring/skill-check-button";
 import { useSkillChanges } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
@@ -38,10 +44,11 @@ interface ProposedChangesProps {
  * decision cannot be made from a title.
  */
 export function ProposedChanges({ canEdit }: ProposedChangesProps) {
+  const canReadRuns = usePermissions().can(Perm.runsView);
   const t = useTranslations("skills");
   const { changes, error, apply, discard, isDeciding } = useSkillChanges("pending");
 
-  if (!canEdit) return null;
+  if (!canEdit || !canReadRuns) return null;
   // An empty list and a failed request are the same pixels, so a failure is said
   // out loud even though nothing is rendered for an empty one.
   if (error !== null) return <p className="text-destructive text-sm">{error}</p>;
@@ -66,8 +73,8 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
             key={change.id}
             change={change}
             disabled={isDeciding}
-            onApply={() => void apply(change.id)}
-            onDiscard={() => void discard(change.id)}
+            onApply={() => void apply(change)}
+            onDiscard={() => void discard(change)}
           />
         ))}
       </CardContent>
@@ -108,6 +115,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <p className="text-muted-foreground text-xs">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
+          <GoesLive reaches={change.reaches} hidden={change.reaches_hidden} />
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"
@@ -118,6 +126,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {change.skill_id !== null && change.authoring_request_id != null && (
+            <SkillCheckButton skillId={change.skill_id} proposalId={change.id} />
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -139,6 +150,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             {t("discard")}
           </Button>
           <Button
+            variant="outline"
             size="sm"
             disabled={disabled}
             onClick={onApply}
@@ -152,6 +164,17 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
 
       {open && (
         <div className="space-y-3">
+          {change.rationale && (
+            <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
+          )}
+          {change.expected_effect && (
+            <p className="text-sm">
+              <span className="font-medium">{t("expectedEffect")}</span> {change.expected_effect}
+            </p>
+          )}
+          {change.authoring_request_id != null && (
+            <EvidenceList items={change.evidence ?? []} dropped={change.evidence_dropped ?? 0} />
+          )}
           <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
             {change.content}
           </pre>

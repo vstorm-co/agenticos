@@ -60,6 +60,8 @@ export interface McpConnectionRecord {
    * has asked yet, which is not the same as "offers none".
    */
   last_tools: McpToolInfo[] | null;
+  /** Whether an eval may call a tool this server marks `readOnlyHint` live. */
+  trust_read_only_hints: boolean;
   /**
    * The agents binding an organization server that the reader may see (#2072).
    * Absent on a personal connection, and null where the listing did not ask.

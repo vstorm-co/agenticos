@@ -22,6 +22,7 @@ import {
 const narrowed: RunFilters = {
   status: "failed",
   surface: "mattermost",
+  source: "system",
   rated: "down",
   userId: "user-1",
   versionId: "ver-2",
@@ -35,6 +36,12 @@ describe("run filters in the URL", () => {
     const params = new URLSearchParams(runFilterParams(narrowed));
 
     expect(parseRunFilters(params)).toEqual(narrowed);
+  });
+
+  it("reads the old evals-included surface and an unknown source as no filter", () => {
+    const filters = parseRunFilters(new URLSearchParams("surface=every&source=judges"));
+
+    expect(filters).toMatchObject({ surface: "all", source: "all" });
   });
 
   it("writes nothing for a filter that is not set", () => {

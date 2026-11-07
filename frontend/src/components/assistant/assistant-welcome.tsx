@@ -9,7 +9,6 @@ import { useAuthStore } from "@/stores";
 
 export interface PageContext {
   path: string;
-  title: string;
 }
 
 interface Tile {
@@ -43,7 +42,7 @@ export function AssistantWelcome({ greeting, name, mark, page, onPick }: Assista
 
   const prompt = (tile: Tile["key"]) =>
     tile === "lookAround" && page
-      ? t("tiles.lookAround.askOnPage", { title: page.title, path: page.path })
+      ? t("tiles.lookAround.askOnPage", { path: page.path })
       : t(`tiles.${tile}.ask`);
 
   return (

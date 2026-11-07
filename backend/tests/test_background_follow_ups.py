@@ -501,7 +501,8 @@ async def test_structured_steps_redact_personal_data_before_persistence(monkeypa
     assert runner.finish.await_args.kwargs["status"] == RunStatus.COMPLETED
 
 
-async def test_unsupported_public_clients_never_start_a_paid_suggestion_model(scenario):
-    scenario.parent.surface = "embed"
+@pytest.mark.parametrize("surface", ["embed", "eval"])
+async def test_public_clients_and_eval_runs_never_start_a_paid_suggestion_model(scenario, surface):
+    scenario.parent.surface = surface
     assert await scenario.service.write(scenario.row.id, scenario.org) == []
     scenario.runner.prepare.assert_not_awaited()

@@ -22,6 +22,7 @@ import {
   useUrlState,
   useWorkflowApprovals,
 } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
@@ -33,7 +34,7 @@ import {
 } from "@/lib/runs/filter-params";
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 /**
  * Pinned beside the other column, from `lg`, to the window less 8px a side.
@@ -81,6 +82,7 @@ function TabCount({ children }: { children: React.ReactNode }) {
 
 export default function RunsPage() {
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
   // summary question and links here for the detail, and arriving at the whole
   // organization's history after clicking through from one agent would make the
@@ -93,7 +95,8 @@ export default function RunsPage() {
   // reach one is to name it, and `FocusedRun` is what answers. A row in the
   // table opens the same view, which is why this too is state and not only a
   // parameter somebody arrives with.
-  const [focusedRunId, focusRun] = useUrlState("run");
+  const [focusedRunId, runView] = useUrlOverlay("run");
+  const focusRun = (id: string | null) => (id === null ? runView.close() : runView.open(id));
   // The dashboard's p95 figure links here sorted by duration over the same
   // window - the number and the runs behind it, one click apart. The sort
   // arrives as `?sort=`, the window as `?period=` below.
@@ -205,7 +208,7 @@ export default function RunsPage() {
               // it *replaced* the list - so the strip was live while every
               // tab's content stayed hidden and switching appeared to do
               // nothing at all (#934).
-              focusRun(null);
+              runView.replace(null);
             }}
           >
             <TabsList className="shrink-0" data-tour="activity-overview">
@@ -215,7 +218,7 @@ export default function RunsPage() {
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
                 <Activity className="size-4 shrink-0" aria-hidden />
                 {t("runs2")}
-                {runCount > 0 && <TabCount>{runCount.toLocaleString()}</TabCount>}
+                {runCount > 0 && <TabCount>{runCount.toLocaleString(locale)}</TabCount>}
               </TabsTrigger>
               {canDecide && (
                 <TabsTrigger value="approvals" data-tour="activity-tab-approvals">

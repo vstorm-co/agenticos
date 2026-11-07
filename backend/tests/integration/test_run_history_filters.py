@@ -265,6 +265,19 @@ class TestNarrowingByWhereItCameFrom:
 
         assert (rows, total) == ([str(slack.id)], 1)
 
+    async def test_leaving_one_surface_out(self, db) -> None:
+        """How run history hides the eval traffic, which outnumbers people."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        web = await _run(db, org, agent, surface=RunSurface.WEB.value)
+        await _run(db, org, agent, surface=RunSurface.EVAL.value)
+
+        rows, total = await _listed(
+            db, org, user, filters=RunFilters(exclude_surface=RunSurface.EVAL.value)
+        )
+
+        assert (rows, total) == ([str(web.id)], 1)
+
     async def test_who_the_run_ran_as(self, db) -> None:
         """Not always who asked: a widget's runs carry the widget owner's id,
         because the visitor is anonymous and has no row anywhere."""

@@ -181,8 +181,8 @@ export function SharingPanel({
           {sharing.grants.map((grant) => (
             <GrantRow
               key={grant.id}
-              grant={grant}
               resourceType={resourceType}
+              grant={grant}
               mayGrantEditData={mayGrantEditData}
               fullName={
                 members.find((member) => member.user_id === grant.subject_user_id)?.full_name

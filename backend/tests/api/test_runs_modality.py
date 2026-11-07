@@ -57,6 +57,9 @@ def no_ratings(monkeypatch):
     monkeypatch.setattr(
         "app.services.agent_runner.agent_run_repo.down_rated_run_ids", AsyncMock(return_value=set())
     )
+    monkeypatch.setattr(
+        "app.services.agent_runner.conversation_repo.first_user_turns", AsyncMock(return_value={})
+    )
 
 
 @pytest.mark.usefixtures("no_ratings")

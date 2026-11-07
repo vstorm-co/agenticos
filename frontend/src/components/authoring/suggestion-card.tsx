@@ -1,0 +1,200 @@
+"use client";
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+
+import { Badge, Button, Card, CardContent, Textarea } from "@/components/ui";
+import type { Hunk, HunkDecision } from "@/types/authoring";
+import { EvidenceList, RationaleText } from "./evidence-list";
+import { FieldDiff, editable, fieldLabel, parsed } from "./field-change";
+import { NewSkillPreview } from "./new-skill-preview";
+import { DiffView } from "./diff-view";
+import { InstructionsEditor, editedPassage } from "./instructions-editor";
+import { locatePassage } from "@/lib/diff";
+
+/**
+ * One suggestion: what it changes, why, and the decision on it.
+ *
+ * Pending, it offers Accept, Edit and Dismiss - Edit accepts the person's own
+ * wording or value instead. Decided, it offers Undo while that still fits the
+ * draft. A suggestion whose passage was edited away says so and offers only
+ * Dismiss; a change of model that has not paid off yet says why it waits.
+ */
+export function SuggestionCard({
+  hunk,
+  canEdit,
+  busy,
+  onDecide,
+  instructions,
+  folded = false,
+}: {
+  hunk: Hunk;
+  canEdit: boolean;
+  busy: boolean;
+  onDecide: (decision: HunkDecision) => void;
+  /** The stored draft's instructions, so Edit can show the suggestion in all of them. */
+  instructions?: string;
+  /** Opened from a folded line that already names its kind and decision. */
+  folded?: boolean;
+}) {
+  const t = useTranslations("authoring.suggestion");
+  const tField = useTranslations("authoring.field");
+  const [editing, setEditing] = useState<string | null>(null);
+  const tSkill = useTranslations("authoring.newSkill");
+  const newSkill = hunk.kind === "create_skill";
+  const tool = hunk.kind === "tool_override";
+  const field = hunk.kind === "spec_field";
+  const pending = hunk.status === "pending";
+  const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
+  const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
+  const placed =
+    hunk.kind === "instructions" && instructions !== undefined
+      ? locatePassage(instructions, hunk)
+      : null;
+  const whole =
+    placed === null || instructions === undefined
+      ? null
+      : {
+          before: instructions.slice(0, placed),
+          after: instructions.slice(placed + hunk.old_text.length),
+        };
+  const passage =
+    whole && editing !== null ? editedPassage(editing, whole.before, whole.after) : editing;
+  const accepting = (): HunkDecision =>
+    editing === null
+      ? { action: "accept" }
+      : field
+        ? { action: "accept", value: parsed(hunk.path, editing) }
+        : { action: "accept", text: passage ?? "" };
+
+  return (
+    <Card data-testid="suggestion">
+      <CardContent className="space-y-3 pt-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {!folded && (
+            <Badge variant="secondary">
+              {newSkill
+                ? tSkill("title")
+                : field
+                  ? fieldLabel(hunk, tField)
+                  : tool
+                    ? t("tool", { tool: hunk.tool_id ?? "" })
+                    : t("instructions")}
+            </Badge>
+          )}
+          {hunk.origin === "verify" && <Badge variant="outline">{t("fromVerify")}</Badge>}
+          {hunk.status !== "pending" && !folded && (
+            <Badge variant="outline">{t(`status.${hunk.status}`)}</Badge>
+          )}
+          {!hunk.applies && hunk.status !== "dismissed" && (
+            <Badge variant="warning">{t("stale")}</Badge>
+          )}
+        </div>
+        {newSkill ? (
+          <NewSkillPreview hunk={hunk} />
+        ) : field ? (
+          <FieldDiff hunk={hunk} editing={editing} onEdit={setEditing} />
+        ) : tool ? (
+          <div className="space-y-2">
+            {hunk.new_name !== null && (
+              <DiffView before={hunk.base_name ?? hunk.tool_id ?? ""} after={hunk.new_name} />
+            )}
+            {hunk.new_description !== null && (
+              <DiffView before={hunk.base_description ?? ""} after={hunk.new_description} />
+            )}
+          </div>
+        ) : editing !== null && whole !== null && instructions !== undefined ? (
+          <InstructionsEditor
+            current={instructions}
+            value={editing}
+            outside={passage === null}
+            onChange={setEditing}
+          />
+        ) : editing !== null ? (
+          <Textarea
+            aria-label={t("editLabel")}
+            value={editing}
+            onChange={(event) => setEditing(event.target.value)}
+            rows={4}
+          />
+        ) : (
+          <DiffView
+            context={hunk.context_before}
+            before={hunk.old_text}
+            after={
+              hunk.status === "accepted" ? (hunk.accepted_text ?? hunk.new_text) : hunk.new_text
+            }
+            trailing={hunk.context_after}
+          />
+        )}
+        <RationaleText text={hunk.rationale} evidence={hunk.evidence} />
+        <EvidenceList items={hunk.evidence} dropped={hunk.evidence_dropped} />
+        {canEdit && (
+          <div className="flex flex-wrap gap-2">
+            {pending && editing !== null && (
+              <>
+                <Button
+                  size="sm"
+                  disabled={
+                    busy ||
+                    Boolean(hunk.blocked) ||
+                    passage === null ||
+                    (editableAs === "number" && editing.trim() === "")
+                  }
+                  onClick={() => onDecide(accepting())}
+                >
+                  {t("saveAndAccept")}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+                  {t("cancel")}
+                </Button>
+              </>
+            )}
+            {pending && editing === null && (
+              <>
+                {hunk.applies && (
+                  <Button
+                    size="sm"
+                    disabled={busy || Boolean(hunk.blocked)}
+                    onClick={() => onDecide(accepting())}
+                  >
+                    {t("accept")}
+                  </Button>
+                )}
+                {hunk.applies && !tool && editableAs !== null && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setEditing(whole ? whole.before + proposed + whole.after : proposed)
+                    }
+                  >
+                    {t("edit")}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => onDecide({ action: "dismiss" })}
+                >
+                  {t("dismiss")}
+                </Button>
+              </>
+            )}
+            {!pending && (hunk.applies || hunk.status === "dismissed") && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => onDecide({ action: "undo" })}
+              >
+                {t("undo")}
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

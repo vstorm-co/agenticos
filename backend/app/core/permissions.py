@@ -77,6 +77,11 @@ class Perm(StrEnum):
     # wrote it. `edit` covers managing it: sharing, the public link, deletion.
     ARTIFACTS_VIEW = "artifacts:view"
     ARTIFACTS_EDIT = "artifacts:edit"
+    # Cases are often copied from real conversations, so reading them, changing them
+    # and spending model budget running evals over them are three separate answers.
+    DATASETS_VIEW = "datasets:view"
+    DATASETS_EDIT = "datasets:edit"
+    DATASETS_RUN = "datasets:run"
     # A project: shared files in one container, standing instructions, and the
     # chats people have in it. Three levels because they are three acts - seeing
     # a project and reading its files, working in it (chatting, adding files), and
@@ -86,6 +91,9 @@ class Perm(StrEnum):
     PROJECTS_EDIT = "projects:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
+    # Promoting past an environment's eval suites, with a reason the audit log keeps.
+    # Apart from `agents:publish`, so whoever promotes is not who waves the evals aside.
+    PROMOTIONS_OVERRIDE = "promotions:override"
     # Watching a host and managing one are separate authorities. Reading a
     # connection's session list, its activity log and the ceilings its service
     # enforces answers "why did that agent get a 429", which is the question an
@@ -144,6 +152,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SECRETS_EDIT,
         Perm.ARTIFACTS_VIEW,
         Perm.ARTIFACTS_EDIT,
+        Perm.DATASETS_VIEW,
+        Perm.DATASETS_EDIT,
+        Perm.DATASETS_RUN,
         Perm.PROJECTS_VIEW,
         Perm.PROJECTS_USE,
         Perm.PROJECTS_EDIT,
@@ -257,6 +268,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
@@ -284,6 +298,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
@@ -311,6 +328,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.SHARED,
+        Perm.DATASETS_RUN: Scope.ALL,
         # A project holds people's own files, so unlike agents a builder does not
         # see every one of them - only what is theirs or shared with them.
         Perm.PROJECTS_VIEW: Scope.SHARED,
@@ -347,6 +367,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.ALL,
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.PROJECTS_USE: Scope.SHARED,
         Perm.PROJECTS_EDIT: Scope.OWN,
@@ -379,6 +401,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_EDIT: Scope.OWN,
+        Perm.DATASETS_VIEW: Scope.SHARED,
+        Perm.DATASETS_EDIT: Scope.OWN,
+        Perm.DATASETS_RUN: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.PROJECTS_USE: Scope.SHARED,
         Perm.PROJECTS_EDIT: Scope.OWN,
@@ -396,6 +421,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.SHARED,
         Perm.TABLES_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },

@@ -27,6 +27,7 @@ function job(overrides: Partial<BackgroundJob>): BackgroundJob {
     priority: 0,
     attempts: 0,
     max_attempts: 2,
+    retry_refusal: null,
     organization_id: null,
     schedule_name: null,
     worker_id: null,
@@ -126,6 +127,13 @@ describe("the paused kinds", () => {
 });
 
 describe("the jobs table", () => {
+  it("explains why a settled eval needs a new run and offers no queue retry", () => {
+    const refusal = "Start a new eval run from Evals";
+    jobsState.data = { pages: [{ items: [job({ status: "dead", retry_refusal: refusal })] }] };
+    render(<JobsTable status={undefined} pool={undefined} onPool={vi.fn()} />);
+    expect(screen.getByText(refusal)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
   it("offers retry on a dead job and cancel on a queued one, and shows why a job died", () => {
     const dead = job({ id: "d", status: "dead", attempts: 2, last_error: "killed by SIGKILL" });
     const queued = job({ id: "q", status: "queued", kind: "sync-source" });

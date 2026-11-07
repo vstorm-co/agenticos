@@ -105,4 +105,9 @@ export interface ToolPickerState {
    * both screens look identical (#1341).
    */
   appliesTo: "connection" | "agent";
+  /**
+   * Whether evals believe this server's `readOnlyHint`. Only an organization
+   * connection carries the choice; absent, the dialog does not offer it.
+   */
+  trustReadOnlyHints?: boolean;
 }

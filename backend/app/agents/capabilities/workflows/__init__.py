@@ -25,6 +25,7 @@ __all__ = ["WORKFLOW_IDS_RESOURCE", "Workflows", "WorkflowsConfig", "workflow_id
             id="list_workflows",
             description="List the workflows this agent may start, with what each needs as input.",
             side_effecting=False,
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="run_workflow",
@@ -35,6 +36,7 @@ __all__ = ["WORKFLOW_IDS_RESOURCE", "Workflows", "WorkflowsConfig", "workflow_id
             id="get_workflow_run",
             description="Read how a workflow run this agent started stands now.",
             side_effecting=False,
+            read_only=True,
         ),
     ),
     config_schema=WorkflowsConfig,

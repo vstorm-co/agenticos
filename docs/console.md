@@ -85,7 +85,7 @@ The compact source button below an answer opens Sources beside the conversation,
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Forty-nine cards exist. You will not see all of them: **a card is gated on the
+Fifty-seven cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -94,12 +94,23 @@ than sitting there empty.
 A switch at the top says whose dashboard it is, and offers only the views you
 may open. Everybody opens on **Me**:
 
-| View             | Answers                                                                                                                                                                                                                                                                      |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Me**           | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you                                                               |
-| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                   |
-| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
-| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                            |
+| View             | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, the agents that need attention, the improvements waiting for you, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
+| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards                                                                                                                                                                                                                                                                                   |
+| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+
+On **Me**, **Agents that need attention** lists the agents you may see with
+answers rated down, failed runs or a failing eval suite in the period - counts
+only, never what was said - with **Improve** on those you may edit. The Agents
+gallery marks the same agents over the last thirty days with a **Needs
+attention** badge that says why on hover. Answers and runs count only on the
+version each agent serves now in its default environment: publishing a fix
+clears the signal until the new version earns its own. Both need `runs:view`.
+
+Below it, **Improvements waiting for you** lists the [Improve](authoring.md#the-improve-wizard)
+sessions stopped for your next step or decision, each opening at its stop.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -372,6 +383,15 @@ Runs are announced too, as they start, park on an approval or a question, and
 finish: a run a schedule fires appears on an open Activity page and changes
 status there, with no request from you behind it.
 
+So are datasets: a case added or removed, a change to grading, a score or a
+review decision, and drafts the [case generator](datasets.md#generating-cases)
+finishes in the background, which appear in an open dataset's Generated tab
+without a reload.
+
+Knowledge gaps are announced the same way: a topic dismissed or drafted in one
+tab, and the questions a grouping pass places every 15 minutes, appear on an
+open Knowledge gaps tab without a reload.
+
 The Builder is the exception, because it saves your draft as you type. When the
 agent you are editing changes elsewhere it stops saving and fetches the new
 version. With nothing unsaved it simply takes it; with unsaved edits it tells you
@@ -379,10 +399,11 @@ who changed it and through what, and waits for you to choose **Reload** (their
 version) or **Keep my changes** (yours, saved over theirs).
 
 You only hear about what you could read: a change to an agent, skill, knowledge
-base, context file, page, key or MCP server you cannot see never reaches your
+base, context file, page, key, MCP server or dataset you cannot see never reaches your
 console, and a deletion reaches only roles that see every row of its kind. Runs
-reach the roles that read run history or decide approvals, channel bots the roles
-that manage them, and your notifications only you. When the connection
+reach the roles that read run history or decide approvals, knowledge gaps the
+roles that read every run, channel bots the roles that manage them, and your
+notifications only you. When the connection
 drops the console works as before and reconnects on its own.
 
 ## Chat
@@ -777,6 +798,24 @@ This is explicit delegation, separate from memory, watches and routines. The exi
 
 An agent with **Past conversations** offers your thirty most recent accessible conversations in the `@` menu. Pick one and ask a specific question about it. The mention identifies the topic; it does not copy its transcript or change the answering agent. The agent reads the relevant part through its existing conversation tool, with the same access and audience checks. Group-chat restrictions still apply. For an older topic, paste its link or id and ask the agent to read it.
 
+## Activity { #activity }
+
+**Activity** lists every run in the organization to a holder of `runs:view`:
+conversations, the organization's agents answering eval cases, and the
+platform's own agents at work. Who may read a run and its transcript does not
+change with the kind of run.
+
+A platform agent's run shows its name in the Agent column and a label beside
+its surface: **Improve** for the assistant, **Grader** for the judge,
+**Knowledge gaps** for the classifier and the drafter, and **Test questions**
+for the case generator. An agent answering an eval case is labelled **Eval**.
+Beside the label is a link to where that work is read: the Improve session, the
+eval run, the knowledge-gap topic or the dataset.
+
+The **Source** filter narrows the list to **Conversations**, **Improve and
+evals** or **System agents**. It starts on every source, so a link from a draft
+or a session to its run lands on a row the list shows.
+
 ## What each area is for
 
 **Overview** (Dashboard), **Chat** and **Inbox** lead the sidebar. **Build & manage**
@@ -790,32 +829,39 @@ and Documents. Its manually chosen open or closed state is remembered.
 **Organization** (Organizations, Groups) remain collapsible and remember your
 choice. A group containing the current page always opens to keep that page visible.
 
-| Area | It holds | Read |
-|---|---|---|
-| **Agents** | The catalog, the Builder, versions, sharing, testing, activity | [Your first agent](first-agent.md) |
-| **Chat** | Talking to a published agent | [Surfaces](channels.md) |
-| **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
-| **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
-| **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
-| **Tables** | Typed records and their columns, seen as a table, a kanban board or a list | [Virtual Tables](virtual-tables.md) |
-| **Workflows** | Multi-step automations your agents run, built on a canvas | [Workflows](workflows.md) |
-| **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
-| **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
-| **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
-| **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
-| **Channels** | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
-| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
-| **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
-| **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
-| **Admin** | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md) |
+| Area              | It holds                                                                            | Read                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Agents**        | The catalog, the Builder, versions, sharing, testing, activity                      | [Your first agent](first-agent.md)                                           |
+| **Chat**          | Talking to a published agent                                                        | [Surfaces](channels.md)                                                      |
+| **Knowledge**     | Collections, documents, sync sources, ingestion settings                            | [File processing](file-processing.md)                                        |
+| **Skills**        | Written procedures an agent loads on demand                                         | [Skills](skills.md)                                                          |
+| **Context**       | Standing knowledge bound to many agents                                             | [Context files](context.md)                                                  |
+| **Datasets**      | Versioned test cases, imported, exported or added from a rated answer               | [Datasets](datasets.md)                                                      |
+| **Tables**        | Typed records and their columns, seen as a table, a kanban board or a list          | [Virtual Tables](virtual-tables.md)                                          |
+| **Workflows**     | Multi-step automations your agents run, built on a canvas                           | [Workflows](workflows.md)                                                    |
+| **Routines**      | Schedules and event triggers                                                        | [Triggers](triggers.md)                                                      |
+| **Runs**          | What ran, what it cost, what it touched, whether it failed                          | [Governance](governance.md#audit)                                            |
+| **Documents**     | Every file agents are keeping for you, what you attached and what they wrote        | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Where agents run code: hosts, live sessions, policy                                 | [The sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Connections to external tools, personal and organization-wide                       | [MCP](mcp.md)                                                                |
+| **Channels**      | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages                   | [Surfaces](channels.md)                                                      |
+| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to  | [Capabilities](reference/capabilities.md#remote-agents)                      |
+| **Vault**         | Credentials, sealed per organization                                                | [Secrets](secrets.md)                                                        |
+| **Organizations** | Members, roles, invitations                                                         | [Permissions](permissions.md)                                                |
+| **Settings**      | Providers, ingestion defaults, notifications, your own profile                      | [Configuration](configuration.md)                                            |
+| **Admin**         | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md)                                              |
 
 The **Agents** catalog can be filtered by **category** and **tag** — the editable,
 organization-local labels shown on each agent's card. Each filter is a menu of the
 labels on the agents you can see; tick several to widen it. You maintain an agent's
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
+
+An agent's **History** tab holds its published versions and named environments
+and, for whoever may read its runs, its **Improvement history**: each Improve
+session, what it measured, what was decided and what it cost. A finished session
+opens its wizard to be read, with what was decided on its last step; see
+[Improvement history](authoring.md#improvement-history).
 
 Organization details use five tabs: **Members** for people and invitations; **Workspace** for the organization profile and default voice settings; **Budget and approvals** for spending and access policies; **Proactivity** for suggestions, monitoring and delivery; and **AI & services** for the Architect and system services. Controls retain their own permission gates. AI & services is available to budget managers even when Architect configuration is unavailable. The selected tab is stored in the URL, switching tabs preserves drafts, and old `?tab=voice` links open Workspace.
 
@@ -859,7 +905,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **forty-nine widgets** you arrange yourself, saved per
+- The dashboard is **fifty-seven widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs
@@ -877,7 +923,6 @@ quiet one.
 
 The sidebar footer shows the console build version beside search and notifications, including in the collapsed rail and mobile menu. It comes from the frontend package version embedded in that build, so checking it needs no network request. The tooltip identifies it as the console version; an API process upgraded separately can run another version.
 
-
 A newer stable AgenticOS release highlights that version with a green dot. Click it to see the running and available versions and open the official release. A background check runs when the console opens, every 30 minutes while active, and when stale data is revisited after focus or connectivity returns. The server shares public release checks for five minutes and sends no account, organization or deployment data to GitHub. Network failures leave the running version visible without claiming it is current. The notice never reloads the page or installs an update automatically.
 
 After sign-in, **What’s new** shows the installed version’s public GitHub release notes once per account on this device. It waits for onboarding dialogs to close. Dismissing it marks that version as read; missing notes or a failed request do not interrupt the session. Features in a newer, uninstalled release appear only behind the update notice.
@@ -889,6 +934,5 @@ Muting notifications has a bell icon; the composer no longer repeats the local f
 List footers stay at the bottom of their panel, with a solid background and consistent spacing. Paged administration tables scroll their rows independently while keeping column headers and pagination visible. Empty and failed reads stay inside the same scroll area.
 
 The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.
-
 
 **Chat controls → Tools & files** shows the coding account an agent needs when its Coding agent runs as **Private cloud task with my account**: only that harness, with its logo and consent status. Connect or manage it without leaving the chat; every account appears under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.

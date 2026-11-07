@@ -6,7 +6,7 @@ import {
   audiencePayload,
   type Audience,
 } from "@/components/sharing/audience-picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ChipsInput } from "@/components/agents/chips-input";
@@ -31,6 +31,7 @@ import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
+import { DescribeWithArchitect } from "@/components/authoring/describe-with-architect";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -67,6 +68,9 @@ interface CreateAgentDialogProps {
 /**
  * New agent: a name, a description, and the handle the name will produce.
  *
+ * Or a system agent of the organization's own - picked where it runs - made from its
+ * kind's definition, which asks only for a name.
+ *
  * The handle is on screen while the name is being typed because it is the part
  * that cannot be changed afterwards and the part a duplicate is refused on. A
  * reader who has seen `@support` under the field can act on "that handle is
@@ -77,12 +81,19 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
   const { create, categoryOptions, tagOptions } = useAgents();
-  // A new agent starts with what the starter agent has - the AgenticOS
+  // A new agent starts with what the starter agent has - the Claude Code like
   // template - so it can ask, plan, search, work in a sandbox and delegate from
-  // its first run; its author switches off what it should not do. With
-  // `from_starter` the server fills in the rest of the starter - its
-  // instructions, skills, the platform's own tools and its budget.
-  const { capabilities: catalog, isLoading: catalogLoading } = useCapabilityCatalog();
+  // its first run; its author switches off what it should not do.
+  const {
+    capabilities: catalog,
+    isFetching: catalogFetching,
+    refetch: refetchCatalog,
+  } = useCapabilityCatalog();
+  // Asked again on every open: whether the organization can run a container
+  // workspace changes while the page stays open, and the dialog stays mounted.
+  useEffect(() => {
+    if (open) void refetchCatalog({ cancelRefetch: false });
+  }, [open, refetchCatalog]);
   const starter = catalog.flatMap((entry) =>
     entry.recommended ? [{ ...entry.recommended, enabled: true }] : [],
   );
@@ -107,25 +118,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
 
   async function handleCreate() {
     try {
-      const agent = await create.mutateAsync({
-        spec: {
-          name,
-          description: description || null,
-          instructions: "",
-          model_profile_id: null,
-          model_settings: {},
-          capabilities: starter,
-          collection_ids: [],
-          skill_ids: [],
-          context_ids: [],
-          mcp_servers: [],
-          budget: null,
-        },
-        ...audiencePayload(audience),
-        categories,
-        tags,
-        from_starter: true,
-      });
+      const agent = await createAgent();
       setName("");
       setDescription("");
       setAudience(EVERYONE);
@@ -150,6 +143,28 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
     }
   }
 
+  function createAgent() {
+    return create.mutateAsync({
+      spec: {
+        name,
+        description: description || null,
+        instructions: "",
+        model_profile_id: null,
+        model_settings: {},
+        capabilities: starter,
+        collection_ids: [],
+        skill_ids: [],
+        context_ids: [],
+        mcp_servers: [],
+        budget: null,
+      },
+      ...audiencePayload(audience),
+      categories,
+      tags,
+      from_starter: true,
+    });
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* A shape as well as a width. The form grew a visibility, two chip
@@ -166,6 +181,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             inside it. The side padding keeps a focus ring off the scroller's
             edge, where it would be sliced. */}
         <div className={cn(DIALOG_BODY, "space-y-4")}>
+          <DescribeWithArchitect onAsked={() => onOpenChange(false)} />
           <FormField
             label={t("name4")}
             htmlFor="agent-name"
@@ -251,7 +267,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           <Button
             onClick={handleCreate}
             loading={create.isPending}
-            disabled={!name.trim() || catalogLoading}
+            disabled={!name.trim() || catalogFetching}
           >
             {t("create")}
           </Button>

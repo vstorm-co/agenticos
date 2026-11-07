@@ -30,10 +30,11 @@ describe("the skill changes client", () => {
   it("accepts and refuses through separate endpoints", async () => {
     // Two verbs rather than a PATCH of `status`: a decision is terminal and the
     // server refuses a second one, which reads better as an action than a field.
-    await api.applySkillChange("p-1");
-    expect(apiClient.post).toHaveBeenCalledWith("/skill-changes/p-1/apply");
+    // Each names the revision the reviewer read, so a rewritten proposal is refused.
+    await api.applySkillChange({ id: "p-1", revision: 2 });
+    expect(apiClient.post).toHaveBeenCalledWith("/skill-changes/p-1/apply", { revision: 2 });
 
-    await api.discardSkillChange("p-1");
-    expect(apiClient.post).toHaveBeenCalledWith("/skill-changes/p-1/discard");
+    await api.discardSkillChange({ id: "p-1", revision: 2 });
+    expect(apiClient.post).toHaveBeenCalledWith("/skill-changes/p-1/discard", { revision: 2 });
   });
 });

@@ -10,6 +10,10 @@ const useUsageStatsMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useUsageStats: (...args: unknown[]) => useUsageStatsMock(...args),
 }));
+const others = vi.hoisted(() => ({
+  value: { review: 0, suites: 0, suggestions: 0, settled: true },
+}));
+vi.mock("@/hooks/use-waiting-on-me", () => ({ useWaitingOnMe: () => others.value }));
 let user: { full_name?: string | null; email: string } | null = null;
 vi.mock("@/stores", () => ({
   useAuthStore: (select: (state: { user: typeof user }) => unknown) => select({ user }),
@@ -28,6 +32,7 @@ function mount(canRun = true) {
 
 beforeEach(() => {
   useUsageStatsMock.mockReset();
+  others.value = { review: 0, suites: 0, suggestions: 0, settled: true };
   user = { full_name: "Kacper Włodarczyk", email: "kacper@example.com" };
 });
 
@@ -54,7 +59,7 @@ describe("the Me view's header", () => {
       /Good (morning|afternoon|evening), Kacper/,
     );
     expect(screen.getByText(/73 times/)).toBeVisible();
-    expect(screen.getByText(/One call/)).toBeVisible();
+    expect(screen.getByText("1 call")).toBeVisible();
     expect(useUsageStatsMock).toHaveBeenCalledWith(
       { from: PERIOD.from, to: PERIOD.to },
       { scope: "own", enabled: true },
@@ -79,5 +84,25 @@ describe("the Me view's header", () => {
     mount();
 
     expect(screen.getByText(/Nothing is waiting on you/)).toBeVisible();
+  });
+
+  it("claims nothing waits only once every list it reads has answered", () => {
+    useUsageStatsMock.mockReturnValue({ usage: { total_runs: 4, pending_approvals: 0 } });
+    others.value = { review: 0, suites: 0, suggestions: 0, settled: false };
+    mount();
+
+    expect(screen.getByText(/4 times/)).toBeVisible();
+    expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
+  });
+
+  it("counts answers to review, failing suites and suggestions as waiting too", () => {
+    useUsageStatsMock.mockReturnValue({ usage: { total_runs: 16, pending_approvals: 0 } });
+    others.value = { review: 9, suites: 1, suggestions: 1, settled: true };
+    mount();
+
+    expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
+    expect(
+      screen.getByText("9 answers to review, 1 failing suite, and 1 suggestion"),
+    ).toBeVisible();
   });
 });

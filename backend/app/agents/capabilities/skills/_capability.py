@@ -11,8 +11,10 @@ in. So the two tools this capability used to publish for that, `list_skills` and
 `load_skill`, are gone, and `read_skill_resource` is the one that remains.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Annotated, Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import ModelRetry
@@ -37,9 +39,31 @@ from app.db.models.skill import Skill
 SAFE_SKILL_TOOLS = ("read_skill_resource",)
 
 
-def to_toolkit_skill(skill: Skill) -> ToolkitSkill:
+SKILL_BODIES_RESOURCE = "skill_bodies"
+"""Bodies that stand in for stored skills on this run, keyed by skill id.
+
+Set only by an eval that checks a proposed skill change: the candidate body is
+served where the stored one would be, and nothing is written to the skill.
+"""
+
+
+@dataclass(frozen=True)
+class SkillBody:
+    """A skill's description and instructions, as a proposal would leave them."""
+
+    description: str
+    content: str
+    name: str | None = None
+    """A name marks a new skill projected for this run only, with no stored row."""
+
+
+def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkill:
     """Convert a stored skill into what the capability consumes."""
-    converted = ToolkitSkill(name=skill.name, description=skill.description, content=skill.content)
+    converted = ToolkitSkill(
+        name=skill.name,
+        description=skill.description if body is None else body.description,
+        content=skill.content if body is None else body.content,
+    )
     for resource in skill.resources:
         content = _resource_content(resource.content)
         if isinstance(content, str):
@@ -126,7 +150,7 @@ class Skills(SkillsCapability[AgentDepsT]):
     cleanup, a race between concurrent runs, and a path traversal surface.
     """
 
-    def __init__(self, skills: list[Skill]) -> None:
+    def __init__(self, skills: list[Skill], bodies: Mapping[UUID, SkillBody] | None = None) -> None:
         """Build the deferred catalog, and re-describe the tool it carries.
 
         A set of skills that ships no files carries no toolset at all - there is
@@ -137,9 +161,14 @@ class Skills(SkillsCapability[AgentDepsT]):
             skills: The stored skills resolved for this run. Must not be empty;
                 an agent with no skills gets no capability at all, which is what
                 keeps an unusable tool out of the list the model reads each turn.
+            bodies: Candidate bodies to serve instead of the stored ones, by id.
         """
+        candidates = bodies or {}
         super().__init__(
-            skills=[to_toolkit_skill(skill) for skill in skills],
+            skills=[
+                to_toolkit_skill(skill, candidates.get(skill.id) if candidates else None)
+                for skill in skills
+            ],
             # No second way to run things. See `SAFE_SKILL_TOOLS`.
             scripts=False,
         )
