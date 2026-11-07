@@ -23,6 +23,14 @@ async def changes(
         from app.services.integrations.delta import graph_delta
 
         read = await graph_delta(token, cursor, subject=subject, teams=True)
+        for event in read.events:
+            chat = event.payload.get("chatId")
+            if not isinstance(chat, str) or not chat:
+                raise ExternalServiceError(
+                    message="Teams returned a message without its chat identity"
+                )
+            event.id = f"teams:{chat}:{event.id}"
+            event.payload["channel"] = chat
         return await _annotate(token, read, subject=subject)
     if not channels or len(channels) > 20:
         raise BadRequestError(message="Choose between one and twenty Teams chats or channels")
@@ -42,7 +50,10 @@ async def changes(
             read = await _channel_delta(token, old.get(target), path)
             positions[target] = read.cursor
             found.extend(
-                Change(id=event.id, payload={**event.payload, "channel": target})
+                Change(
+                    id=f"teams:{target}:{event.payload.get('replyToId') or ''}:{event.id}",
+                    payload={**event.payload, "channel": target},
+                )
                 for event in read.events
             )
             continue

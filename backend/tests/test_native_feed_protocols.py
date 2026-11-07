@@ -271,7 +271,11 @@ async def test_app_teams_mentions_compare_the_approved_directory_id(monkeypatch)
                 cursor={},
                 events=[
                     feeds.Change(
-                        id="one", payload={"mentions": [{"mentioned": {"user": {"id": user}}}]}
+                        id="one",
+                        payload={
+                            "chatId": "chat",
+                            "mentions": [{"mentioned": {"user": {"id": user}}}],
+                        },
                     )
                 ],
             )
@@ -435,3 +439,73 @@ async def test_channel_delta_events_keep_the_selected_target_for_trigger_filteri
         headers={},
         payload=read.events[0].payload,
     )
+
+
+@pytest.mark.parametrize("application", [False, True])
+async def test_message_ids_from_different_teams_conversations_do_not_collide(
+    monkeypatch, application
+):
+    payload = {"id": "same", "lastModifiedDateTime": "2026-11-07T12:00:00Z"}
+    if application:
+        monkeypatch.setattr(
+            delta,
+            "graph_delta",
+            AsyncMock(
+                return_value=feeds.Changes(
+                    cursor={},
+                    events=[
+                        feeds.Change(
+                            id="graph:same:stamp", payload={**payload, "chatId": "chat-one"}
+                        ),
+                        feeds.Change(
+                            id="graph:same:stamp", payload={**payload, "chatId": "chat-two"}
+                        ),
+                    ],
+                )
+            ),
+        )
+        read = await teams_feed.changes(TOKEN, {}, channels=(), application=True, subject="user")
+    else:
+        monkeypatch.setattr(
+            teams_feed,
+            "_channel_delta",
+            AsyncMock(
+                side_effect=[
+                    feeds.Changes(
+                        cursor={}, events=[feeds.Change(id="graph:same:stamp", payload=payload)]
+                    ),
+                    feeds.Changes(
+                        cursor={},
+                        events=[
+                            feeds.Change(id="graph:same:stamp", payload=payload),
+                            feeds.Change(
+                                id="graph:same:stamp", payload={**payload, "replyToId": "parent"}
+                            ),
+                        ],
+                    ),
+                ]
+            ),
+        )
+        read = await teams_feed.changes(
+            TOKEN, {}, channels=("channel/team/one", "channel/team/two"), subject="user"
+        )
+    assert len({event.id for event in read.events}) == len(read.events)
+    assert len({event.payload["channel"] for event in read.events}) == 2
+
+
+@pytest.mark.parametrize("chat", [None, "", 123])
+async def test_app_delta_messages_without_a_conversation_cannot_advance_the_cursor(
+    monkeypatch, chat
+):
+    monkeypatch.setattr(
+        delta,
+        "graph_delta",
+        AsyncMock(
+            return_value=feeds.Changes(
+                cursor={"link": "next"},
+                events=[feeds.Change(id="graph:id:stamp", payload={"chatId": chat})],
+            )
+        ),
+    )
+    with pytest.raises(ExternalServiceError, match="chat identity"):
+        await teams_feed.changes(TOKEN, {}, channels=(), application=True, subject="user")
