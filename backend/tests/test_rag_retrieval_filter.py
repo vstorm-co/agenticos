@@ -162,7 +162,9 @@ class TestResolvingScopePerCollection:
         `None`; the scope must read the untagged rows, not one that matches
         nothing."""
         store = MagicMock()
-        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
+        store.resolve_scope = AsyncMock(
+            return_value=VectorScope(tenant=None, operator_unfiled_only=True)
+        )
 
         scope = await _retrieval_over(store).resolve_scope("handbook", uuid.uuid4())
 
