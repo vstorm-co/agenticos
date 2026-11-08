@@ -18,14 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
-  PAGE_SIZE,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useSkillVersions, useSkillVersionWrites } from "@/hooks/use-skill-versions";
+import { useSkillVersions, useSkillVersionWrites, versionPage } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -124,8 +123,7 @@ export function ChangeVersionDialog({
   const pinnable = Array.from({ length: mainLatest }, (_, index) => mainLatest - index);
   const firstPin = current.state === "pinned" ? current.version : pinnable[0];
   // Main's versions run newest first, so the page holding a picked one is known from its number.
-  const pickedPage =
-    target.state === "pinned" ? Math.floor((mainLatest - target.version) / PAGE_SIZE) : 0;
+  const pickedPage = target.state === "pinned" ? versionPage(mainLatest, target.version) : 0;
   const newest = useSkillVersions(skillId, null, 0);
   const around = useSkillVersions(skillId, null, pickedPage);
   const known = new Map(

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast, type Action } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -100,6 +100,17 @@ describe("ChangeVersionDialog", () => {
 
     await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
+
+  it("reads the first page when the agent is pinned past the main version the page knows", async () => {
+    renderDialog({
+      ...HR,
+      binding: { ...HR.binding, version: { id: "m13", number: 13, fork_id: null } },
+    });
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    const asked = vi.mocked(apiClient.get).mock.calls.map(([url]) => String(url));
+    expect(asked.some((url) => url.includes("skip=-"))).toBe(false);
   });
 
   it("moves the agent and says which environments now serve it", async () => {

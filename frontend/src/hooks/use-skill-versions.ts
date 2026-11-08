@@ -22,8 +22,17 @@ import {
 } from "@/lib/skill-versions-api";
 
 /** One page of a line's versions, newest first; `forkId` null is main. */
+/**
+ * The page of a line's list holding version `number`, when the line's newest is
+ * `newest`: versions run newest first, so the page follows from the gap. Never below
+ * the first page - a newest read before a version saved since would point above it.
+ */
+export function versionPage(newest: number, number: number): number {
+  return Math.max(0, Math.floor((newest - number) / PAGE_SIZE));
+}
+
 export function useSkillVersions(skillId: string, forkId: string | null, page: number) {
-  const skip = page * PAGE_SIZE;
+  const skip = Math.max(0, page) * PAGE_SIZE;
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.versions(skillId, forkId, skip),
     queryFn: () => listSkillVersions(skillId, { forkId, skip, limit: PAGE_SIZE }),

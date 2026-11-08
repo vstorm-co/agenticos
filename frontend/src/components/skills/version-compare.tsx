@@ -5,8 +5,8 @@ import { Crosshair, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DiffView } from "@/components/authoring/diff-view";
-import { Badge, Button, Checkbox, Label, ListCard, PAGE_SIZE, Skeleton } from "@/components/ui";
-import { useSkillVersion, useSkillVersions } from "@/hooks/use-skill-versions";
+import { Badge, Button, Checkbox, Label, ListCard, Skeleton } from "@/components/ui";
+import { useSkillVersion, useSkillVersions, versionPage } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { SkillVersionRead } from "@/types/skill-versions";
@@ -109,7 +109,7 @@ function useComparedVersion(skillId: string, item: Compared) {
   // another line's newest number would point at the wrong page, or below the first.
   const [moved, setMoved] = useState<{ key: string; newest: number } | null>(null);
   const newest = moved?.key === item.key ? moved.newest : item.newest;
-  const page = Math.max(0, Math.floor((newest - item.number) / PAGE_SIZE));
+  const page = versionPage(newest, item.number);
   const listed = useSkillVersions(skillId, item.fork, page);
   const id = listed.versions.find((version) => version.number === item.number)?.id ?? null;
   const read = useSkillVersion(skillId, id);
