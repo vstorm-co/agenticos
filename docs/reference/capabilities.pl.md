@@ -1,5 +1,5 @@
 ---
-source_sha: "afbac3a909fb"
+source_sha: "d2c11cec8ef2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2867,6 +2867,8 @@ Aktualizacja jednorazowo odbudowuje istniejące podsumowania; oryginalne wiadomo
 pozostają.
 
 Każdy run sprawdza aktualność historii przed każdym żądaniem do modelu, również po wykonaniu narzędzi. Kroki agenta, modelu i decyzji w workflow sprawdzają też wspólne źródło czatu przed startem; zakolejkowany krok nie może użyć źródła odrzuconego ani usuniętego. Podsumowania voice i nowe sesje realtime korzystają z tej samej kontroli wersji.
+
+Harnessy kodujące sprawdzają ten sam kontekst przed uruchomieniem i przed każdym promptem ACP, również po korekcie zadania.
 
 Jeśli wcześniejsza tura zostanie odrzucona, gdy run czeka na akceptację lub
 odpowiedź, run zatrzyma się przed ponownym wykonaniem narzędzi lub wywołaniem

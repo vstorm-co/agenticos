@@ -2753,6 +2753,8 @@ Upgrading rebuilds existing cached summaries once; the original messages remain.
 
 Every run revalidates its history snapshot before each model request, including after tool calls. Workflow agent, model and decision steps also check their shared chat source before starting; queued sibling steps cannot reuse a refused or deleted source. Voice summaries and new realtime sessions use the same revision check.
 
+Coding harnesses check the same context before launch and before each ACP prompt, including prompts after a task correction.
+
 If an earlier turn is refused while a run waits for approval or an answer, that
 run stops before replaying tools or calling a model. Start a new turn to continue
 with the current, filtered history.

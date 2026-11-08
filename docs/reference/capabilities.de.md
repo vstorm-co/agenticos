@@ -1,5 +1,5 @@
 ---
-source_sha: "afbac3a909fb"
+source_sha: "d2c11cec8ef2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3083,6 +3083,8 @@ wieder im Cache speichern. Beim Upgrade werden vorhandene Zusammenfassungen
 einmal neu aufgebaut; die ursprünglichen Nachrichten bleiben erhalten.
 
 Jeder Run prüft seinen Verlaufsstand vor jeder Modellanfrage, auch nach Tool-Aufrufen. Agenten-, Modell- und Entscheidungsschritte eines Workflows prüfen außerdem ihre gemeinsame Chatquelle vor dem Start; wartende Schritte dürfen eine abgelehnte oder gelöschte Quelle nicht wiederverwenden. Voice-Zusammenfassungen und neue Realtime-Sitzungen verwenden dieselbe Revisionsprüfung.
+
+Coding-Harnesses prüfen denselben Kontext vor dem Start und vor jedem ACP-Prompt, auch nach einer Korrektur der Aufgabe.
 
 Wird ein früherer Zug abgelehnt, während ein Run auf Freigabe oder eine Antwort
 wartet, stoppt der Run vor der Wiederholung von Tools oder einem Modellaufruf.

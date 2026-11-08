@@ -1388,3 +1388,50 @@ async def test_parallel_local_tools_use_independent_targeted_steering(
         group.start_soon(task, "web")
     assert sorted(corrections) == [["Change the API"], ["Change the web app"]]
     assert len(inbox.unapplied()) == 2
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("steering", [False, True])
+async def test_every_acp_prompt_rechecks_the_source_before_sending_it(steering):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+    from app.agents.steering import SteeringInbox
+
+    refused = False
+
+    async def check():
+        if refused:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    agent = ScriptedAgent()
+    pipe = ScriptedPipe(agent)
+    conversation = acp.Conversation(pipe, access="edit", collector=acp._Collector(), shown=_nothing)
+    with checking_model_context(check):
+        await conversation.prompt("s-1", "first", None)
+        refused = True
+        with pytest.raises(GuardrailBlocked):
+            await conversation.prompt("s-1", "second", SteeringInbox() if steering else None)
+    assert (
+        len([message for message in agent.seen if message.get("method") == "session/prompt"]) == 1
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_refused_source_never_opens_the_local_coding_adapter(monkeypatch, late):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+
+    checks = 0
+
+    async def check():
+        nonlocal checks
+        checks += 1
+        if not late or checks > 1:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    computer = Computer(ScriptedAgent())
+    with checking_model_context(check), pytest.raises(GuardrailBlocked):
+        await _local_task(monkeypatch, computer, _local_workspace())
+    assert "agent.open" not in computer.ops
+    assert checks == (2 if late else 1)

@@ -1,5 +1,5 @@
 ---
-source_sha: "afbac3a909fb"
+source_sha: "d2c11cec8ef2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2941,6 +2941,8 @@ después. La actualización reconstruye una vez los resúmenes guardados; los
 mensajes originales se conservan.
 
 Cada ejecución comprueba su historial antes de cada petición al modelo, también después de llamadas a herramientas. Los pasos de agente, modelo y decisión de un workflow también comprueban la fuente de chat compartida antes de empezar; los pasos en cola no pueden reutilizar una fuente rechazada o eliminada. Los resúmenes de voz y las nuevas sesiones realtime usan la misma comprobación de revisión.
+
+Los harnesses de código comprueban el mismo contexto antes de iniciarse y antes de cada prompt ACP, también después de una corrección de la tarea.
 
 Si se rechaza un turno anterior mientras un run espera aprobación o una respuesta,
 el run se detiene antes de volver a ejecutar herramientas o llamar a un modelo.
