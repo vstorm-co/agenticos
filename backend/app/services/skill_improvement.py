@@ -1275,7 +1275,8 @@ class SkillImprovementService:
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         if not self._may_discard(ctx, run):
             raise AuthorizationError(
-                message="Only whoever started the session, or an organization admin, stops it"
+                message="Only whoever started the session, or an organization admin, stops it",
+                details={"permission": Perm.ORG_SETTINGS.value},
             )
         stage = None if run.stage is None else Stage(run.stage)
         await self._move(
@@ -1297,7 +1298,8 @@ class SkillImprovementService:
             )
         if not self._may_discard(ctx, run):
             raise AuthorizationError(
-                message="Only whoever started the session, or an organization admin, discards it"
+                message="Only whoever started the session, or an organization admin, discards it",
+                details={"permission": Perm.ORG_SETTINGS.value},
             )
         stage = None if run.stage is None else Stage(run.stage)
         await self._discard_checks(ctx, run)

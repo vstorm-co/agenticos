@@ -838,10 +838,11 @@ class TestEnding:
 
         read = await SkillImprovementService(db).read(builder, skill.id, run.id)
         assert not read.can_discard
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(AuthorizationError) as refused:
             await SkillImprovementService(db).discard(
                 builder, skill.id, run.id, ImprovementDiscard(confirmed=True)
             )
+        assert refused.value.details == {"permission": "org:settings"}
 
     @pytest.mark.security
     async def test_only_the_creator_or_an_admin_stops_it(self, db, evidence):
@@ -851,8 +852,9 @@ class TestEnding:
         run = await _at_understand(db, ctx, skill)
         builder = await _member(db, ctx, OrgRoleName.BUILDER)
 
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(AuthorizationError) as refused:
             await SkillImprovementService(db).cancel(builder, skill.id, run.id)
+        assert refused.value.details == {"permission": "org:settings"}
         stopped = await SkillImprovementService(db).cancel(ctx, skill.id, run.id)
 
         assert stopped.status == "cancelled"
