@@ -1,5 +1,5 @@
 ---
-source_sha: "df3692303c1d"
+source_sha: "8165780dbb47"
 ---
 
 # Skills { #skills }
@@ -734,7 +734,8 @@ tantas versiones como quieras, de main y de forks, para ver lado a lado sus
 descripciones, instrucciones y archivos. El diagrama se arrastra y se acerca con la
 rueda o los botones, como el mapa de un agent.
 
-La primera versión elegida es la **Referencia**. Cada otra columna marca lo que dice
+La primera versión elegida es la **Referencia**, siempre la primera, tras una línea
+divisoria. Cada otra columna marca lo que dice
 distinto de ella, palabra por palabra como los diffs del historial, y sus archivos
 como añadidos, eliminados o cambiados. **Fijar como referencia** hace referencia a otra
 columna, y **Solo las diferencias** pliega las partes que dicen lo mismo.

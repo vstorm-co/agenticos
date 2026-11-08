@@ -1,5 +1,5 @@
 ---
-source_sha: "df3692303c1d"
+source_sha: "8165780dbb47"
 ---
 
 # Skills { #skills }
@@ -774,7 +774,8 @@ Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen. D
 Diagramm lässt sich ziehen und mit dem Mausrad oder den Schaltflächen zoomen, wie die
 Karte eines Agents.
 
-Die zuerst gewählte Version ist die **Referenz**. Jede andere Spalte markiert, was
+Die zuerst gewählte Version ist die **Referenz** und steht immer zuerst, hinter einer
+Trennlinie. Jede andere Spalte markiert, was
 sie anders sagt als diese, Wort für Wort wie die Diffs im Verlauf, und ihre Dateien
 als hinzugefügt, entfernt oder geändert. **Als Referenz setzen** macht eine andere
 Spalte zur Referenz, und **Nur Unterschiede** klappt die Teile zu, die dasselbe sagen.

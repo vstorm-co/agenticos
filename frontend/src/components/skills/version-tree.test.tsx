@@ -214,6 +214,37 @@ describe("VersionTree", () => {
     expect(within(reference).getByText("new.md").tagName).toBe("DEL");
   });
 
+  it("draws the reference first, behind a divider, the others in the order picked", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) =>
+      url.includes("/versions?")
+        ? {
+            items: [3, 2, 1].map((number) => ({ id: `m${number}`, number })),
+            total: 3,
+          }
+        : { description: "Same", content: "Same.", resources: [] },
+    );
+    render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
+    for (const number of [3, 1, 2]) {
+      await userEvent.click(screen.getByRole("button", { name: `Compare v${number}` }));
+    }
+    const order = () =>
+      screen.getAllByRole("region").map((column) => column.getAttribute("aria-label"));
+    expect(order()).toEqual(["v3", "v1", "v2"]);
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+
+    const second = screen.getByRole("region", { name: "v2" });
+    await userEvent.click(within(second).getByRole("button", { name: "Set as reference" }));
+    expect(order()).toEqual(["v2", "v3", "v1"]);
+    expect(within(screen.getByRole("region", { name: "v2" })).getByText("Reference")).toBeVisible();
+
+    await userEvent.click(
+      within(screen.getByRole("region", { name: "v1" })).getByRole("button", {
+        name: "Set as reference",
+      }),
+    );
+    expect(order()).toEqual(["v1", "v3", "v2"]);
+  });
+
   it("says when a compared version cannot be read, and clears the comparison", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Versions are down"));
     render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
