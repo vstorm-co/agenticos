@@ -1,6 +1,8 @@
 """Portable trigger input contracts, checked without retrieving external schemas."""
 
+import json
 import re
+from collections import Counter
 from collections.abc import Iterator, Mapping
 from graphlib import CycleError, TopologicalSorter
 from typing import TYPE_CHECKING, Any, cast
@@ -198,6 +200,7 @@ def _object_possible(
     possible: Mapping[int, bool],
     reference: int | None,
     unrestricted: Mapping[int, bool],
+    identities: Mapping[int, str],
 ) -> bool:
     """Conservative object compatibility from already classified dependencies.
 
@@ -234,6 +237,17 @@ def _object_possible(
                 keyword == "oneOf" and sum(unrestricted[id(child)] for child in alternatives) > 1
             ):
                 return False
+            elif keyword == "oneOf":
+                # Repeated branches can never be the sole match. Keep a
+                # restrictive singleton as a possible witness instead of
+                # rejecting every schema that happens to contain duplicates.
+                fingerprints = [identities[id(child)] for child in alternatives]
+                counts = Counter(fingerprints)
+                if not any(
+                    possible[id(child)] and counts[fingerprint] == 1
+                    for child, fingerprint in zip(alternatives, fingerprints, strict=True)
+                ):
+                    return False
     return True
 
 
@@ -242,6 +256,7 @@ def _every_object_matches(
     possible: Mapping[int, bool],
     unrestricted: Mapping[int, bool],
     reference: int | None,
+    identities: Mapping[int, str],
 ) -> bool:
     """Prove universal object acceptance only for known non-restricting keywords.
 
@@ -253,7 +268,7 @@ def _every_object_matches(
         return schema
     if schema.keys() - _OBJECT_UNRESTRICTED_KEYS:
         return False
-    if not _object_possible(schema, possible, reference, unrestricted):
+    if not _object_possible(schema, possible, reference, unrestricted, identities):
         return False
     if reference is not None and not unrestricted[reference]:
         return False
@@ -335,13 +350,23 @@ def check_input_schema(schema: InputSchema) -> None:
             pending.append((child_resource, current_resolver.in_subresource(child_resource)))
     possible: dict[int, bool] = {}
     unrestricted: dict[int, bool] = {}
+    identities: dict[int, str] = {}
     try:
         for key in TopologicalSorter(connections).static_order():
+            contents = checked[key]
+            reference = references.get(key)
+            # A static reference with no siblings has exactly its target's
+            # meaning. Reuse its identity without expanding reference paths.
+            identities[key] = (
+                identities[reference]
+                if isinstance(contents, Mapping) and len(contents) == 1 and reference is not None
+                else json.dumps(contents, sort_keys=True)
+            )
             possible[key] = _object_possible(
-                checked[key], possible, references.get(key), unrestricted
+                contents, possible, reference, unrestricted, identities
             )
             unrestricted[key] = _every_object_matches(
-                checked[key], possible, unrestricted, references.get(key)
+                contents, possible, unrestricted, reference, identities
             )
     except CycleError:
         raise ValueError(

@@ -24,6 +24,8 @@ MAX_TEXT = 1000
 class FormTriggerConfig(TriggerInputConfig):
     """The page a form shows, and the fields it asks for."""
 
+    input_schema: None = None
+
     title: str = Field(
         default="Form", min_length=1, max_length=MAX_TITLE, description="The page's heading"
     )
@@ -46,8 +48,6 @@ class FormTriggerConfig(TriggerInputConfig):
 
     @model_validator(mode="after")
     def _asks_for_something(self) -> FormTriggerConfig:
-        if self.input_schema is not None:
-            raise ValueError("A public form uses simple fields rather than input_schema")
         if not self.fields:
             raise ValueError("A form asks for at least one field")
         return self

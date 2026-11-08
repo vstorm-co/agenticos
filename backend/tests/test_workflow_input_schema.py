@@ -428,7 +428,7 @@ def test_simple_fields_and_raw_schema_cannot_silently_override_each_other() -> N
     with pytest.raises(ValidationError, match="either simple fields or input_schema"):
         TriggerInputConfig.model_validate({"fields": [{"name": "name"}], "input_schema": {}})
     assert input_problems(TriggerInputConfig(input_schema={}), {"anything": [1]}) == []
-    with pytest.raises(ValidationError, match="public form uses simple fields"):
+    with pytest.raises(ValidationError, match="Input should be None"):
         FormTriggerConfig(input_schema={})
 
 
@@ -1012,3 +1012,50 @@ def test_discovery_marks_legacy_integer_token_validation_without_relaxing_admiss
     assert input_problems(config, {"count": 1}) == []
     assert input_problems(config, {"count": None}) == []
     assert input_problems(config, {}) == []
+
+
+@pytest.mark.parametrize("referenced", [False, True])
+def test_restrictive_duplicate_oneof_branches_cannot_publish(referenced: bool) -> None:
+    branch: dict[str, JsonValue] = {"required": ["x"], "properties": {"x": {"type": "string"}}}
+    other_order: dict[str, JsonValue] = {"properties": {"x": {"type": "string"}}, "required": ["x"]}
+    schema: dict[str, JsonValue] = {"oneOf": [branch, other_order, {"type": "array"}]}
+    if referenced:
+        schema = {
+            "$defs": {"branch": branch},
+            "oneOf": [{"$ref": "#/$defs/branch"}, {"$ref": "#/$defs/branch"}],
+        }
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema=schema)
+
+
+def test_oneof_duplicates_preserve_an_independent_restrictive_branch() -> None:
+    duplicated: dict[str, JsonValue] = {"required": ["x"]}
+    config = TriggerInputConfig(
+        input_schema={"oneOf": [duplicated, duplicated, {"required": ["y"]}]}
+    )
+    assert input_problems(config, {"y": True}) == []
+    assert input_problems(config, {"x": True})
+    assert input_problems(config, {"x": True, "y": True})
+
+
+def test_form_catalog_schema_advertises_only_supported_input_contracts() -> None:
+    schema = FormTriggerConfig.model_json_schema()
+    assert schema["properties"]["input_schema"]["type"] == "null"
+    validator = Draft202012Validator(schema)
+    supported = {"fields": [{"name": "answer"}], "input_schema": None}
+    assert validator.is_valid(supported)
+    assert FormTriggerConfig.model_validate(supported).input_schema is None
+    assert not validator.is_valid({**supported, "input_schema": {"type": "object"}})
+    with pytest.raises(ValidationError, match="Input should be None"):
+        FormTriggerConfig.model_validate({**supported, "input_schema": {"type": "object"}})
+
+
+@pytest.mark.parametrize("inline", [False, True])
+def test_duplicate_restrictive_oneof_resolves_static_aliases(inline: bool) -> None:
+    branch: dict[str, JsonValue] = {"required": ["x"]}
+    schema: dict[str, JsonValue] = {
+        "$defs": {"left": branch, "right": {"$ref": "#/$defs/left"}},
+        "oneOf": [branch if inline else {"$ref": "#/$defs/left"}, {"$ref": "#/$defs/right"}],
+    }
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema=schema)
