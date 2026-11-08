@@ -761,3 +761,23 @@ describe("what a task call came to", () => {
     expect(taskOutcome(start(), [failed])).toEqual({ status: "failed", answer: "timed out" });
   });
 });
+
+it("uses the stable identity when matching a renamed check of a background task", () => {
+  const start: ToolCall = {
+    id: "start",
+    name: "consult",
+    tool_id: "task",
+    args: {},
+    status: "completed",
+    result: "Task started in background.\nTask ID: t1\nSubagent: legal\n",
+  };
+  const check: ToolCall = {
+    id: "check",
+    name: "progress",
+    tool_id: "check_task",
+    args: { task_id: "t1" },
+    status: "completed",
+    result: "Task: t1\nStatus: completed\nResult: PONG",
+  };
+  expect(taskOutcome(start, [start, check])).toEqual({ status: "completed", answer: "PONG" });
+});

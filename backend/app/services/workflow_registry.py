@@ -52,6 +52,8 @@ from app.schemas.workflow import (
     WorkflowDetail,
     WorkflowDraftCheck,
     WorkflowDraftUpdate,
+    WorkflowEntryInputSchema,
+    WorkflowInputSchema,
     WorkflowLastRun,
     WorkflowList,
     WorkflowPreparationCreate,
@@ -92,7 +94,14 @@ from app.workflows.graph.model import (
     jsonb_value_fits,
 )
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
-from app.workflows.triggers import UNATTENDED, WORKFLOW_FAILED, entry_nodes
+from app.workflows.nodes.core_input._handler import TriggerInputConfig, effective_input_schema
+from app.workflows.triggers import (
+    DECLARES_FIELDS,
+    UNATTENDED,
+    WORKFLOW_CALL,
+    WORKFLOW_FAILED,
+    entry_nodes,
+)
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -1293,6 +1302,56 @@ class WorkflowRegistryService:
                     created_at=version.created_at,
                 )
                 for version in versions[:limit]
+            ],
+        )
+
+    async def input_schema(
+        self, ctx: AuthContext, workflow_id: UUID, *, version_id: UUID | None = None
+    ) -> WorkflowInputSchema:
+        """Discover the current or selected published version's input contracts.
+
+        Reads the frozen version rather than the mutable draft, using the same
+        trigger config as run admission. Authorization and version ownership
+        match version discovery; inaccessible or unpublished workflows return 404.
+        Only the first Call entry is discoverable, matching child-run admission's
+        default-first ordering; workflow-call steps cannot select another entry.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        selected = version_id if version_id is not None else workflow.current_version_id
+        if selected is None:
+            raise NotFoundError(message="This workflow has no published version")
+        version = await workflow_repo.get_version(
+            self.db, selected, organization_id=ctx.organization_id
+        )
+        if version is None or version.workflow_id != workflow.id:
+            raise NotFoundError(
+                message="Workflow version not found", details={"version_id": selected}
+            )
+        graph = WorkflowGraph.model_validate(version.graph)
+        entries = entry_nodes(graph)
+        call_entry = next(
+            (entry.id for entry in entries if entry.definition_id == WORKFLOW_CALL), None
+        )
+        return WorkflowInputSchema(
+            workflow_id=workflow.id,
+            version_id=version.id,
+            entries=[
+                WorkflowEntryInputSchema(
+                    entry_node_id=entry.id,
+                    trigger=entry.definition_id,
+                    input_schema=effective_input_schema(
+                        TriggerInputConfig.model_validate(
+                            {
+                                key: entry.config[key]
+                                for key in ("fields", "input_schema")
+                                if key in entry.config
+                            }
+                        )
+                    ),
+                )
+                for entry in entries
+                if entry.definition_id in DECLARES_FIELDS
+                and (entry.definition_id != WORKFLOW_CALL or entry.id == call_entry)
             ],
         )
 

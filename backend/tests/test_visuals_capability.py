@@ -919,3 +919,38 @@ class TestReports:
         report = await reports.wait("c", 1)
         assert report is not None
         assert len(report.errors[0]) == 500
+
+
+async def test_a_renamed_drawing_can_be_read_and_revised_before_the_run_is_persisted() -> None:
+    from app.core.tool_identity import ToolIdentity
+
+    tools = VisualsToolset()
+    tools.drawn.add("base")
+    messages = [
+        ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "sketch", {"title": "Flow", "kind": "svg", "content": SVG}, tool_call_id="base"
+                )
+            ]
+        )
+    ]
+    deps = _deps(tool_identities={"base": ToolIdentity("draw")})
+    read = await tools.read_visual(_ctx(deps, messages=messages), visual_id="base")
+    assert SVG in read
+    revised = await tools.revise_visual(
+        _ctx(deps, messages=messages, call_id="revision"),
+        visual_id="base",
+        edits=[ArtifactEdit(old="<rect", new="<g")],
+    )
+    assert "Revised" in revised
+
+
+@pytest.mark.security
+def test_an_external_call_in_the_run_cannot_claim_a_visual_by_name() -> None:
+    from app.core.tool_identity import GENERIC_TOOL
+
+    tools = VisualsToolset()
+    messages = [_drawn_in_run(tools, "external", title="Flow", kind="svg", content=SVG)]
+    deps = _deps(tool_identities={"external": GENERIC_TOOL})
+    assert tools._calls_in_run(_ctx(deps, messages=messages)) == {}

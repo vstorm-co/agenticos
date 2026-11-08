@@ -351,6 +351,113 @@ class TestStartRoute:
         assert response.json()["error"]["code"] == "WORKFLOW_NOT_RUNNABLE"
 
 
+async def test_schema_input_errors_name_nested_request_fields_without_creating_a_run(
+    owner_client: OpenClient,
+) -> None:
+    workflow = _workflow()
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="core.input",
+        definition_version=1,
+        config={
+            "input_schema": {
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}},
+                        },
+                    }
+                },
+            }
+        },
+        layout=NodePosition(x=0, y=0),
+    )
+    version = MagicMock(
+        id=workflow.current_version_id,
+        budget_limit=None,
+        graph=WorkflowGraph(entry_node_id=entry.id, nodes=(entry,)).model_dump(mode="json"),
+    )
+    with (
+        patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+        patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(),
+                json={
+                    "workflow_id": str(workflow.id),
+                    "input": {"items": [{"name": {"secret": "private-input-value"}}]},
+                },
+            )
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "WORKFLOW_RUN_INPUT_INVALID"
+    assert error["details"]["fields"] == [
+        {"field": "input.items.0.name", "message": "Must be of type string"}
+    ]
+    assert error["details"]["problems"] == [
+        {"field": "items.0.name", "message": "Must be of type string", "type": "type"}
+    ]
+    assert "private-input-value" not in response.text
+    create_run.assert_not_awaited()
+
+
+async def test_a_selected_entry_validates_its_own_contract_instead_of_the_default(
+    owner_client: OpenClient,
+) -> None:
+    workflow = _workflow()
+    primary = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="core.input",
+        definition_version=1,
+        config={"input_schema": {"properties": {"code": {"type": "string"}}, "required": ["code"]}},
+        layout=NodePosition(x=0, y=0),
+    )
+    selected = primary.model_copy(
+        update={
+            "id": uuid.uuid4(),
+            "definition_id": "trigger.manual",
+            "config": {
+                "input_schema": {
+                    "properties": {"amount": {"type": "integer"}},
+                    "required": ["amount"],
+                }
+            },
+        }
+    )
+    version = MagicMock(
+        id=workflow.current_version_id,
+        budget_limit=None,
+        graph=WorkflowGraph(entry_node_id=primary.id, nodes=(primary, selected)).model_dump(
+            mode="json"
+        ),
+    )
+    with (
+        patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+        patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(),
+                json={
+                    "workflow_id": str(workflow.id),
+                    "entry_node_id": str(selected.id),
+                    "input": {"code": "fits only the default"},
+                },
+            )
+    assert response.status_code == 422
+    assert response.json()["error"]["details"]["fields"] == [
+        {"field": "input.amount", "message": "Field required"}
+    ]
+    create_run.assert_not_awaited()
+
+
 class TestListRoute:
     """The `workflows:view` gate itself is proven generically by
     `tests/api/test_platform_routes.py`'s `CALLS`-driven sweep, which now

@@ -152,7 +152,7 @@ class WorkflowRunSocket:
                     message="Conversation not found",
                     details={"conversation_id": str(frame.conversation_id)},
                 )
-            await conversation_repo.create_message(
+            message = await conversation_repo.create_message(
                 db, conversation_id=conversation.id, role="user", content=frame.message
             )
             from app.services.change_feed import announce_conversation
@@ -173,6 +173,7 @@ class WorkflowRunSocket:
                     "user_id": str(ctx.user_id),
                 },
                 reply_conversation_id=conversation.id,
+                source_message_id=message.id,
             )
             await delivery.deliver_started(
                 db,

@@ -48,6 +48,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, checked_output_schema
 from app.core.exceptions import AppException, BadRequestError
 from app.core.permissions import AuthContext
@@ -58,7 +59,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context, questions
-from app.services.workflow_execution.agent_conversations import for_agent_step
+from app.services.workflow_execution.agent_conversations import ChatSourceGuard, for_agent_step
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
@@ -321,6 +322,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
+            source_guard = ChatSourceGuard(db, current.chat_source)
+            if current.resumed_agent_run_id is None:
+                await source_guard.check()
+
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:
                 before = await _cost_so_far(
@@ -328,12 +333,21 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 )
                 try:
                     if current.budget_remaining is None:
-                        segment = await runner.resume(current.auth, current.resumed_agent_run_id)
+                        segment = await runner.resume(
+                            current.auth,
+                            current.resumed_agent_run_id,
+                            on_segment=source_guard.keep_refusal,
+                            on_run_open=source_guard.check,
+                            check_model_request=source_guard.check_request,
+                        )
                     else:
                         segment = await runner.resume(
                             current.auth,
                             current.resumed_agent_run_id,
                             run_limit_usd=before + current.budget_remaining,
+                            on_segment=source_guard.keep_refusal,
+                            on_run_open=source_guard.check,
+                            check_model_request=source_guard.check_request,
                         )
                 except BadRequestError:
                     ended = await agent_run_repo.get_run(
@@ -371,6 +385,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 answers: list[dict[str, Any]] = []
 
                 async def opened(child: AgentRun) -> None:
+                    await source_guard.check(child)
                     await questions.link_agent_run(db, current, child)
 
                 text, run = await runner.execute(
@@ -389,8 +404,14 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     public_origin=current.public_origin,
                     parks_questions=not current.public_origin and current.auth.user_id is not None,
                     on_run_open=opened,
+                    on_segment=source_guard.keep_refusal,
+                    check_model_request=source_guard.check_request,
                 )
                 answer = answers[0] if answers else None
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except AppException as exc:
         return Failed(error=workflow_error(exc))
     except Exception:

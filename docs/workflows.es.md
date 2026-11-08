@@ -1,5 +1,5 @@
 ---
-source_sha: "e4e5ff113ea8"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -969,6 +969,16 @@ a run** lo abre con una entrada con la forma de ese trigger.
 del JSON, con el tipo del campo, y una llamada a la API cuya entrada no encaja se
 rechaza con los campos que están mal. Consulta
 [core.input](reference/workflow-nodes.md#core-input).
+
+Para objetos y arrays anidados, configura el `input_schema` opcional de
+JSON Schema Draft 2020-12 en **Manual**, **API request** o **Called by a workflow**
+en lugar de campos simples. El esquema se guarda con la versión publicada y cada
+run debe cumplir el contrato de esa versión antes de empezar. Quien llama por API
+o MCP puede inspeccionar ese mismo contrato antes de enviar la entrada. Consulta
+[Contratos de entrada con JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+para conocer la configuración, las referencias y los errores de validación. Las
+entradas existentes de campos simples y los workflows sin contrato conservan su
+comportamiento.
 
 ### Desde el chat { #from-the-chat }
 

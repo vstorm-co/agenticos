@@ -292,3 +292,17 @@ it("leads platform steps with the operation and the nested object title", () => 
   expect(step.label).toBe("Create task");
   expect(step.detail).toBe("Review supplier draft");
 });
+
+it("keeps external server captions without letting a renamed registry tool become an MCP step", () => {
+  const servers = [{ name: "Linear", url: "https://mcp.linear.app/mcp" }];
+  const external = { name: "linear_create_issue", presentation_kind: "generic" as const };
+  expect(toolStep(external.name, {}, true, t, servers, external)).toMatchObject({
+    kind: "mcp",
+    label: "Linear · Create issue",
+  });
+  const renamed = { name: "linear_create_issue", tool_id: "create_chart" };
+  expect(toolStep(renamed.name, {}, true, t, servers, renamed)).toMatchObject({
+    kind: "chart",
+    label: "Linear Create Issue",
+  });
+});

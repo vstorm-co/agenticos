@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Requires the CodeRabbit GitHub App to be installed for this repository.
+language: en-US
+reviews:
+  profile: chill
+  auto_approvals:
+    enabled: false
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: false

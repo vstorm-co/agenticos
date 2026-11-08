@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0296_workflow_question_wait"
-down_revision: str = "0295_tool_approval_consent"
+revision: str = "0298_workflow_question_wait"
+down_revision: str = "0297_workflow_chat_source"
 branch_labels: None = None
 depends_on: None = None
 

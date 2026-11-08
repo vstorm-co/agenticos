@@ -1,5 +1,5 @@
 ---
-source_sha: "e4e5ff113ea8"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -942,6 +942,15 @@ tego wyzwalacza.
 **Manual** to wyzwalacz, który osoba uruchamia przyciskiem **Test draft**; **API request** to ten, który wywołuje system, a **Trigger** pokazuje jego endpoint i przykładowe żądanie. Daj któremuś **pola wejścia**, a run poprosi o to, czego potrzebuje: **Test draft** i **Start a run** pokazują formularz z jednym polem na każde pole zamiast
 JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
 listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
+
+Dla zagnieżdżonych obiektów i tablic skonfiguruj opcjonalne `input_schema`
+JSON Schema Draft 2020-12 w **Manual**, **API request** lub **Called by a workflow**
+zamiast prostych pól. Schemat jest zapisywany z opublikowaną wersją, a każdy run
+musi spełniać kontrakt tej wersji przed startem. Wywołujący przez API i MCP mogą
+sprawdzić ten sam kontrakt przed wysłaniem wejścia. Zobacz
+[Kontrakty wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts),
+aby poznać konfigurację, referencje i błędy walidacji. Istniejące wejścia prostych
+pól i workflow bez kontraktu zachowują dotychczasowe działanie.
 
 ### Z czatu { #from-the-chat }
 

@@ -23,6 +23,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Workflow agent steps can use the existing Ask Question tool to wait for a user and resume the same conversation. Questions remain available in the originating chat and workflow run view after reload; answers are saved before the workflow worker continues under its current budget. Question cards honor current workflow grants and retain newer questions when polling overlaps a delayed answer response. Completed answers remain in agent context after chat compaction, and question waits do not stall shared mailbox polling.
 
+## [1.57.0] - 2026-11-08
+
+### Added
+
+- Workflow Manual, API and Called by a workflow triggers can declare an optional
+  JSON Schema Draft 2020-12 input contract, including nested objects, arrays,
+  enums, required fields, length limits, additional-property restrictions and
+  local `$defs`/`$ref` references. Published versions freeze the contract; invalid
+  input is rejected before a run starts with field paths. API and MCP discovery
+  expose the effective schema, preserving existing simple-field and untyped inputs.
+  Raw-schema validation runs in an isolated process with bounded resources and
+  diagnostics, with Linux address-space limits and native macOS support. Step tests use the contract of the entry that reaches the tested step.
+  Publication rejects negations that exclude every object; discovered legacy
+  date fields retain calendar validation without requiring format assertions.
+  Discovery marks the additional integer-token requirement of legacy simple fields.
+  Validator memory exhaustion returns a controlled input refusal rather than
+  a retryable server failure.
+
+### Changed
+
+- **Breaking:** agent `list_workflows` discovery refuses encoded responses above
+  32 KiB. Narrow the agent's workflow binding or input contracts, or inspect
+  contracts through the HTTP input-schema endpoint outside the agent context.
+
+## [1.56.4] - 2026-11-08
+
+### Changed
+
+- Add optional CodeRabbit review preferences and document installation and review triggers; the GitHub App must be installed separately (#2812).
+
+## [1.56.3] - 2026-11-08
+
+### Fixed
+
+- Keep guardrail-refused prompts out of later models through queued workflow branches, retries and calls, routine retention, conversation search, platform MCP readers, cached summaries, parked continuations, voice reconnects and transcript titles (#2767). Existing cached summaries are rebuilt once after upgrading.
+
+## [1.56.2] - 2026-11-07
+
+### Fixed
+
+- Keep renamed tools’ chat views, drawings, drafts and run steps through streaming, reloads and shared links; prevent external tools from claiming built-in renderers by name (#2740).
+- Cancel clipboard feedback timers when a copied card closes, including copies that finish after the card unmounts.
+
 ## [1.56.1] - 2026-11-07
 
 ### Fixed
@@ -20583,7 +20626,11 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...HEAD
+[1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
+[1.56.4]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...v1.56.4
+[1.56.3]: https://github.com/vstorm-co/agenticos/compare/v1.56.2...v1.56.3
+[1.56.2]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...v1.56.2
 [1.56.1]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...v1.56.1
 [1.56.0]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...v1.55.0

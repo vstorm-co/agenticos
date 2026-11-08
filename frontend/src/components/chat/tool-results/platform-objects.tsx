@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -45,7 +47,7 @@ function response(call: ToolCall): Record<string, unknown> | null {
 
 /** MCP domain refusals arrive as tool output, rather than a transport exception. */
 export function platformCallError(call: ToolCall): string | null {
-  if (!call.name.startsWith("agenticos_")) return null;
+  if (!toolLookupName(call).startsWith("agenticos_")) return null;
   if (typeof call.result === "string" && !/^\s*\{\s*"error"\s*:/.test(call.result)) return null;
   const envelope = object(response(call)?.error);
   return typeof envelope?.message === "string" ? envelope.message : null;
@@ -75,14 +77,14 @@ export function platformObjects(calls: ToolCall[]): PlatformObject[] {
     "agenticos_update_virtual_table_record",
   ]);
   for (const call of calls) {
-    if (!supported.has(call.name)) continue;
+    if (!supported.has(toolLookupName(call))) continue;
     const data = response(call);
     if (!data || data.error) continue;
     if (typeof data.id === "string" && Array.isArray(data.columns)) {
       const primary = data.columns.map(object).find((column) => column?.type === "text");
       if (typeof primary?.id === "string") columns.set(data.id, primary.id);
     }
-    const name = call.name;
+    const name = toolLookupName(call);
     const id = data.id;
     if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) continue;
     let item: PlatformObject | null = null;

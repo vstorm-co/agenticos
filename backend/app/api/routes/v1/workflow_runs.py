@@ -91,6 +91,11 @@ async def start_workflow_run(
     and the known outputs it names stand in for those steps; a step inside a
     loop, or one the draft does not have, answers 409 `STEP_NOT_TESTABLE`.
 
+    The selected trigger's input contract is checked before admission. Invalid
+    input or a validation resource limit answers 422 `WORKFLOW_RUN_INPUT_INVALID`
+    with field paths. Busy schema validators answer 429; an unavailable validator
+    answers 503 `WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. These refusals create no run.
+
     Rate-limited per caller like `POST /agents/{id}/run`; over the allowance
     answers 429 with `Retry-After`."""
     return await service.start(

@@ -232,6 +232,8 @@ async def run_result(
             RunStep(
                 tool_call_id=call.tool_call_id,
                 tool_name=call.tool_name,
+                tool_id=call.tool_id,
+                presentation_kind=call.presentation_kind,
                 args=call.args,
                 result=call.result,
             )

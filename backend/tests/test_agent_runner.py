@@ -169,6 +169,7 @@ def _db(monthly_budget_usd: Decimal | None = None):
     # context, because that exit rolls back on an exception and is skipped
     # entirely by a cancellation.
     db.commit = AsyncMock()
+    db.scalar = AsyncMock(return_value=0)
     # `db.get` is how the organization row - and with it the org-wide spending
     # cap the runner reads for every run - comes back. Uncapped by default,
     # which is what an organization that never opened the setting looks like.
@@ -193,6 +194,8 @@ def _prepared(
     built = MagicMock()
     built.ledger = ledger or SpendLedger()
     built.model_label = "gpt-4.1"
+    built.deps.tool_definitions = {}
+    built.deps.tool_identities = {}
     # A real gauge: what a turn records against its conversation is read off
     # this, and a `MagicMock` answers "yes, summarised" to every turn.
     built.context = ContextGauge()
@@ -3339,6 +3342,7 @@ class TestParking:
         assert recorded["status"] == RunStatus.AWAITING_APPROVAL.value
         assert recorded["paused_state"] == {
             "messages": [],
+            "tool_identities": {},
             "channel_destination": None,
             "channel_file_attempts": 0,
             "channel_context": "",
@@ -3829,6 +3833,8 @@ class TestResume:
         surface: RunSurface = RunSurface.API,
         parent_run_id: uuid.UUID | None = None,
         stream_receipt: bool = False,
+        conversation_id: uuid.UUID | None = None,
+        current_revision: int | None = 0,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -3844,6 +3850,7 @@ class TestResume:
             user_id=None if orphaned else uuid.uuid4(),
             surface=surface.value,
             parent_run_id=parent_run_id,
+            conversation_id=conversation_id,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         from contextlib import asynccontextmanager
@@ -3887,13 +3894,20 @@ class TestResume:
                 new=AsyncMock(return_value=self._version()),
             ),
             patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
-            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finished,
+            patch(
+                "app.services.agent_runner.conversation_repo.get_guardrail_revision",
+                new=AsyncMock(return_value=current_revision),
+            ),
             patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
+            self.finished = finished
             self.resolve = resolve
             resumer = _ctx()
             # Kept for the tests that ask *whose* account the continuation spoke
@@ -3903,6 +3917,34 @@ class TestResume:
             await service.resume(resumer, run.id, run_limit_usd=run_limit_usd)
 
         return build
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("stored", "current", "has_conversation", "allowed"),
+        [
+            (0, 0, True, True),
+            (None, 0, True, True),
+            (None, 1, True, False),
+            (1, 1, True, True),
+            (1, 2, True, False),
+            (0, None, True, False),
+            (0, None, False, False),
+            (None, None, False, True),
+        ],
+    )
+    async def test_a_parked_snapshot_is_replayed_only_before_another_refusal(
+        self, stored, current, has_conversation, allowed
+    ):
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}, "guardrail_revision": stored},
+            conversation_id=uuid.uuid4() if has_conversation else None,
+            current_revision=current,
+        )
+        assert build.return_value.agent.run.await_count == (1 if allowed else 0)
+        assert self.finished.await_args.kwargs["status"] == (
+            RunStatus.COMPLETED.value if allowed else RunStatus.GUARDRAIL_BLOCKED.value
+        )
 
     @pytest.mark.anyio
     async def test_streamed_resume_announces_its_saved_message_without_a_second_bubble(self):
@@ -9586,3 +9628,18 @@ class TestLiveQuestionContinuation:
                 raise asyncio.CancelledError
 
         end.assert_awaited_once_with(turn)
+
+
+@pytest.mark.security
+def test_the_parked_payload_carries_the_history_revision():
+    from app.services.agent_runner import _classify_output
+
+    result = MagicMock(
+        output=DeferredToolRequests(
+            approvals=[ToolCallPart("send_email", {}, tool_call_id="send-1")]
+        )
+    )
+    result.all_messages.return_value = []
+    _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
+    assert state is not None
+    assert state.model_dump(mode="json")["guardrail_revision"] == 7

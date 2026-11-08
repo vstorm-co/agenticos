@@ -319,6 +319,8 @@ class TestTheChatsDoor:
             ("assistant", ""),
             ("user", "Summarise the leads"),
         ]
+        source = next(message for message in messages if message.role == "user")
+        assert (run.source_conversation_id, run.source_message_id) == (conversation.id, source.id)
         pending = next(message for message in messages if message.role == "assistant")
         assert pending.parts is not None
         assert pending.parts[0]["run_id"] == str(run_id)
@@ -368,7 +370,9 @@ class TestTheChatsDoor:
                 [ModelRequest(parts=[SystemPromptPart(content="Earlier turns, summarised.")])],
                 mode="json",
             )
-            await ConversationService(db).keep_summary(conversation.id, summary)
+            await ConversationService(db).keep_summary(
+                conversation.id, summary, expected_revision=conversation.guardrail_revision
+            )
             cutoff = await conversation_repo.last_ordinal(db, conversation.id)
 
             await conversation_repo.save_workflow_message(
@@ -411,7 +415,9 @@ class TestTheChatsDoor:
             # Fold the answer into a fresh summary, the way the next turn would,
             # so the answer is now accounted for by the summary rather than a row.
             await ConversationService(db).keep_summary(
-                conversation.id, ModelMessagesTypeAdapter.dump_python(history, mode="json")
+                conversation.id,
+                ModelMessagesTypeAdapter.dump_python(history, mode="json"),
+                expected_revision=conversation.guardrail_revision,
             )
 
             # An identical redelivery keeps the id and ordinal, so a terminal

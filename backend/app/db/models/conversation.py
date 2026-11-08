@@ -107,6 +107,11 @@ class Conversation(Base, TimestampMixin):
     Null until a summary has run, which for most conversations is for ever.
     """
 
+    guardrail_revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    """Fences summaries built before a turn became refused, including in-flight compaction."""
+
     summary_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """The last transcript row `summary_messages` accounts for.
 
@@ -470,6 +475,7 @@ class ToolCall(Base):
     )
     tool_call_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tool_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     presentation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     args: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -911,6 +911,15 @@ other trigger has a door of its own. A test run of the draft takes any trigger, 
 field is, and an API call whose input does not fit is refused with the fields that
 are wrong. See [core.input](reference/workflow-nodes.md#core-input).
 
+For nested objects and arrays, configure an optional JSON Schema Draft 2020-12
+`input_schema` on **Manual**, **API request** or **Called by a workflow** instead
+of simple fields. The schema is saved with the published version, and every run
+must satisfy that version's contract before it starts. API and MCP callers can
+inspect the same contract before sending input. See
+[JSON Schema input contracts](reference/workflow-nodes.md#json-schema-input-contracts)
+for configuration, references and validation errors. Existing simple-field inputs
+and workflows without a contract keep their behavior.
+
 ### From the chat { #from-the-chat }
 
 The chat's picker of who answers lists, below the agents, the published workflows

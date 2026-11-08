@@ -47,6 +47,7 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.db.models.voice_call import VoiceCall
+from app.repositories.conversation import mark_run_messages_refused
 
 
 async def create_run(
@@ -169,9 +170,7 @@ async def finish_run(
     await db.flush()
     # The rows already written; see `Message.guardrail_refused` for why on the row.
     if status == RunStatus.GUARDRAIL_BLOCKED.value:
-        await db.execute(
-            sql_update(Message).where(Message.run_id == run.id).values(guardrail_refused=True)
-        )
+        await mark_run_messages_refused(db, run_id=run.id)
     await db.refresh(run)
     return run
 

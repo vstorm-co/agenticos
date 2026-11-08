@@ -1,5 +1,5 @@
 ---
-source_sha: "f64755f9783a"
+source_sha: "fe652977b769"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2664,6 +2664,11 @@ Spezifikationsversion 14 entfernt gespeicherte `virtual_tables`-Bindungen beim L
 
 ## Workflows { #workflows }
 
+Die Erkennung mit `list_workflows` ist auf 32 KiB kodiertes JSON einschließlich
+der Eingabeverträge begrenzt. Größere Antworten werden vollständig abgelehnt.
+Wählen Sie weniger Workflows oder kleinere Verträge für die Bindung oder prüfen
+Sie den HTTP-Endpunkt für Eingabeschemas außerhalb des Agentenkontexts.
+
 Lässt den Agenten die veröffentlichten [Workflows](../workflows.md) starten, die sein
 Binding nennt, und lesen, wie sie liefen. Das Panel im Builder listet die Workflows der
 Organisation, eine Zeile je Workflow, und eine angehakte Zeile ist einer, den der Agent
@@ -3065,8 +3070,30 @@ Zugs die Nachricht eines `guardrail_blocked`-Runs nicht erneut ab, gleich welche
 Prüfung ihn gestoppt hat. An ihrer Stelle liest das Modell einen kurzen Hinweis,
 dass ein Guardrail diesen Zug gestoppt hat, ohne den Text der Nachricht und ohne
 das, was die mit ihr gesendeten Dateien hinzugefügt haben. Die Unterhaltung zeigt
-der Person weiterhin, was sie eingegeben hat. Die Suche in früheren Unterhaltungen
-(`conversation_search`) filtert diese Nachrichten noch nicht.
+der Person weiterhin, was sie eingegeben hat. Die Ablehnung eines Agent-Schritts
+im Workflow markiert auch die genaue Quellnachricht im Chat. Die Suche in früheren
+Unterhaltungen (`conversation_search`) lässt abgelehnte Nachrichten bei Treffern,
+Ausschnitten und beim Lesen des Transkripts aus. Diese Tools erhalten keinen Titel
+einer Unterhaltung mit einem abgelehnten Zug, auch bei bereits gespeicherten Titeln.
+
+Wiederholungen und aufgerufene Workflows behalten diese Herkunft der Ablehnung.
+Sie erben weder ein Antwortziel noch Zugriff auf den Workspace des Quellchats.
+War ein neu abgelehnter Zug bereits komprimiert, wird die gespeicherte
+Zusammenfassung, die ihn enthält, verworfen. Der spätere Verlauf wird mit dem
+Ablehnungshinweis neu aufgebaut. Gesprächserwähnungen verwenden dieselbe
+gefilterte Liste, damit ihre Bezeichnungen keinem Modell abgelehnten Text wiedergeben.
+
+Eine bereits laufende Komprimierung kann einen später abgelehnten Zug nicht
+wieder im Cache speichern. Beim Upgrade werden vorhandene Zusammenfassungen
+einmal neu aufgebaut; die ursprünglichen Nachrichten bleiben erhalten.
+
+Jeder Run prüft seinen Verlaufsstand vor jeder Modellanfrage, auch nach Tool-Aufrufen. Agenten-, Modell- und Entscheidungsschritte eines Workflows prüfen außerdem ihre gemeinsame Chatquelle vor dem Start; wartende Schritte dürfen eine abgelehnte oder gelöschte Quelle nicht wiederverwenden. Voice-Zusammenfassungen und neue Realtime-Sitzungen verwenden dieselbe Revisionsprüfung.
+
+Coding-Harnesses prüfen denselben Kontext vor dem Start und vor jedem ACP-Prompt, auch nach einer Korrektur der Aufgabe.
+
+Wird ein früherer Zug abgelehnt, während ein Run auf Freigabe oder eine Antwort
+wartet, stoppt der Run vor der Wiederholung von Tools oder einem Modellaufruf.
+Beginnen Sie einen neuen Zug mit dem aktuellen, gefilterten Verlauf.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

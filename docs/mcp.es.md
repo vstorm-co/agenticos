@@ -1,5 +1,5 @@
 ---
-source_sha: "d50591772136"
+source_sha: "ce5e1db92c13"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1251,6 +1251,12 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
 | `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
 
+La herramienta de la plataforma `read_conversation` omite los turnos rechazados
+por guardrails y los fragmentos citados de respuestas. `list_conversations` omite
+conversaciones con turnos rechazados para que un título generado no repita su
+texto a un modelo. La consola conserva la transcripción completa para la persona
+autorizada.
+
 La búsqueda con `list_projects` devuelve solo identificadores y nombres.
 `get_project` lee las instrucciones y la configuración de un proyecto elegido.
 Es una operación de solo lectura y se ejecuta sin aprobación con `writes`,
@@ -1363,6 +1369,23 @@ La cola de comprobaciones de estado utiliza su propia fecha indexada. La renovac
 ## Crear workflows y tablas { #workflow-and-table-tools }
 
 El servidor MCP de la plataforma también ofrece herramientas para workflows y Virtual Tables. Empieza con `list_workflow_definitions`, `get_workflow_definition`, `list_workflow_nodes` y `get_workflow_node`. Crea y guarda grafos privados con `create_workflow_draft` y `update_workflow_draft`, respetando `expected_revision`. `test_workflow_draft` acepta un `entry_node_id` opcional; revisa `get_workflow_execution` y `get_workflow_execution_steps` antes de afirmar que ha funcionado. Las pruebas pueden llamar a API reales y escribir datos. `publish_workflow` activa las entradas configuradas, exige los permisos de publicación existentes y oculta al modelo los secretos de firma de un solo uso. La publicación desatendida sigue requiriendo una sesión humana; una clave API no puede retener la autoridad de una persona.
+
+Usa `get_workflow_input_schema` antes de `run_workflow` para inspeccionar el
+contrato de entrada publicado sin ejecutarlo. Acepta `workflow_id` y un `version_id`
+opcional y devuelve los mismos contratos `input_schema` por entrada que el
+[endpoint de descubrimiento HTTP](api.md#running-a-workflow). Selecciona el
+`entry_node_id` deseado y envía `fields` compatibles. Los contratos JSON Schema
+Draft 2020-12, los campos simples existentes y las entradas sin tipado comparten
+este formato de descubrimiento; la admisión valida contra el contrato de la
+versión admitida para el run.
+
+La herramienta MCP devuelve solo entradas Manual/API que su `run_workflow`
+puede iniciar. Los contratos Form y Called by a workflow siguen disponibles
+por HTTP para sus propias vías de admisión.
+
+`get_workflow_input_schema` rechaza respuestas de más de 32 KiB de JSON
+codificado, incluidas todas las entradas devueltas. Nunca devuelve un contrato
+parcial. Consulta contratos mayores por HTTP fuera del contexto del modelo.
 
 Para registros operativos usa `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` y `update_virtual_table_record`. Las modificaciones de esquemas y registros conservan la comprobación de revisiones. Todas las herramientas utilizan la organización, permisos y concesiones del solicitante; las escrituras conservan la aprobación MCP de la plataforma. Los skills de Architect workflow-builder y virtual-tables explican la selección de triggers, cómo envolver una API HTTP documentada cuando falta la integración en la galería MCP y cómo ofrecer un workflow publicado e invocable como herramienta de un agente. Las credenciales se configuran en la bóveda, nunca en grafos o respuestas al modelo.
 

@@ -116,6 +116,9 @@ async def list_conversations(
     auth: Auth,
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum conversations to return"),
+    for_model: bool = Query(
+        False, description="Omit conversations containing guardrail-refused turns"
+    ),
     search: str | None = Query(default=None, description="Search by title"),
     agent_id: UUID | None = Query(default=None, description="Only threads this agent answered in"),
     include_archived: bool = Query(False, description="Include archived conversations"),
@@ -162,6 +165,7 @@ async def list_conversations(
         hide_channels=hide_channels,
         project_id=project_id,
         reader=auth,
+        for_model=for_model,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 

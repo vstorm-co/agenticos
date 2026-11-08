@@ -565,7 +565,7 @@ async def test_downgrading_an_active_question_preserves_its_conversation_and_rem
     seeded, _ = await _seed(engine, monkeypatch, rounds=1)
     await drive(seeded)
     await _answer(seeded, "question-1")
-    filename = Path(__file__).parents[2] / "alembic/versions/0296_workflow_question_wait.py"
+    filename = Path(__file__).parents[2] / "alembic/versions/0298_workflow_question_wait.py"
     spec = importlib.util.spec_from_file_location("workflow_question_migration", filename)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)

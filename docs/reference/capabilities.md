@@ -2379,6 +2379,11 @@ Spec version 14 removes stored `virtual_tables` bindings when they load. Existin
 
 ## Workflows { #workflows }
 
+`list_workflows` discovery is limited to 32 KiB of encoded JSON, including
+input contracts. Larger responses return a refusal instead of a partial list.
+Choose fewer workflows or smaller contracts for the binding, or inspect the
+HTTP input-schema endpoint outside the agent context.
+
 Lets the agent start the published [workflows](../workflows.md) its binding names,
 and read how they went. The Builder's panel lists the organization's workflows, one
 row each, and a ticked row is one the agent may start. A workflow that is a draft,
@@ -2736,8 +2741,28 @@ its own turn, so a later turn's history does not replay the message of a
 `guardrail_blocked` run, whichever check stopped it. In its place the model reads a
 short note that a guardrail stopped that turn, without the message's text or what
 the files sent with it added. The conversation still shows the person what they
-typed. Search over past conversations (`conversation_search`) does not filter these
-messages yet.
+typed. Workflow agent-step refusals also mark the exact source chat turn. Search
+over past conversations (`conversation_search`) omits refused messages from
+matching, snippets and transcript reads. Conversation titles are withheld from
+these tools when the conversation contains a refused turn, including existing
+stored titles.
+
+Workflow retries and called workflows preserve this refusal provenance. They do
+not inherit a reply destination or access to the source chat’s workspace. If a newly
+refused turn was already compacted, the stored summary covering it is discarded
+so later history rebuilds with the refusal note. Conversation mentions use the
+same filtered listing, so their labels cannot repeat a refused turn to a model.
+
+A compaction already in flight cannot restore a later refused turn to the cache.
+Upgrading rebuilds existing cached summaries once; the original messages remain.
+
+Every run revalidates its history snapshot before each model request, including after tool calls. Workflow agent, model and decision steps also check their shared chat source before starting; queued sibling steps cannot reuse a refused or deleted source. Voice summaries and new realtime sessions use the same revision check.
+
+Coding harnesses check the same context before launch and before each ACP prompt, including prompts after a task correction.
+
+If an earlier turn is refused while a run waits for approval or an answer, that
+run stops before replaying tools or calling a model. Start a new turn to continue
+with the current, filtered history.
 
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and

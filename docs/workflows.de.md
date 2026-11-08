@@ -1,5 +1,5 @@
 ---
-source_sha: "e4e5ff113ea8"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -1026,6 +1026,16 @@ Triggers.
 Eingabefeld, so typisiert wie dieses, und ein API-Aufruf, dessen Eingabe nicht passt,
 wird mit den falschen Feldern abgelehnt. Siehe
 [core.input](reference/workflow-nodes.md#core-input).
+
+Konfiguriere für verschachtelte Objekte und Arrays optional `input_schema`
+nach JSON Schema Draft 2020-12 bei **Manual**, **API request** oder
+**Called by a workflow** anstelle einfacher Felder. Das Schema wird mit der
+veröffentlichten Version gespeichert, und jeder Run muss vor dem Start den Vertrag
+dieser Version erfüllen. API- und MCP-Aufrufer können denselben Vertrag vor dem
+Senden der Eingabe prüfen. Siehe
+[Eingabeverträge mit JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+für Konfiguration, Referenzen und Validierungsfehler. Bestehende Eingaben mit
+einfachen Feldern und Workflows ohne Vertrag behalten ihr Verhalten.
 
 ### Aus dem Chat { #from-the-chat }
 

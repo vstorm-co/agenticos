@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus
+from app.repositories import conversation as conversation_repo
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, Waiting
 from app.workflows.nodes.agent_run import AgentRunConfig, AgentRunInput
@@ -54,6 +55,7 @@ def _dispatch(resumed: uuid.UUID | None = None) -> context.DispatchContext:
 
 @pytest.fixture
 def runner(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    monkeypatch.setattr(conversation_repo, "message_refusal", AsyncMock(return_value=False))
     stub = MagicMock()
     stub.execute = AsyncMock()
     stub.resume = AsyncMock()
@@ -417,3 +419,111 @@ async def test_a_resumed_agent_uses_only_the_current_workflow_headroom(runner, m
         )
     assert isinstance(result, Completed)
     assert runner.resume.await_args.kwargs["run_limit_usd"] == Decimal("3")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("status", [RunStatus.GUARDRAIL_BLOCKED, RunStatus.COMPLETED])
+@pytest.mark.parametrize("source", ["chat", "api", "legacy"])
+async def test_a_refused_chat_step_marks_only_its_admitted_source_turn(
+    runner, monkeypatch, status, source
+):
+    mark = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "mark_message_refused", mark)
+    finished = _run(status)
+
+    async def execute(*args, **kwargs):
+        await kwargs["on_segment"](SimpleNamespace(run=finished))
+        return "", finished
+
+    runner.execute.side_effect = execute
+    conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+    current = dataclasses.replace(
+        _dispatch(),
+        source_conversation_id=None if source == "api" else conversation_id,
+        chat_source=context.ChatSource(conversation_id, message_id) if source == "chat" else None,
+    )
+    with context.dispatching_as(current):
+        await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="secret")
+        )
+    if status is RunStatus.GUARDRAIL_BLOCKED and source == "chat":
+        assert mark.await_args.kwargs == {
+            "message_id": message_id,
+            "conversation_id": conversation_id,
+        }
+    else:
+        mark.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("identity", ["complete", "no-message", "no-conversation", "payload-only"])
+def test_a_retry_source_comes_only_from_the_admitted_provenance(identity):
+    from app.db.models.workflow_run import WorkflowRun
+    from app.services.workflow_execution.dispatcher import _chat_source
+
+    conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+    run = WorkflowRun(
+        input={"conversation_id": str(conversation_id), "source_message_id": str(message_id)},
+        reply_conversation_id=None,
+        source_conversation_id=conversation_id
+        if identity not in {"no-conversation", "payload-only"}
+        else None,
+        source_message_id=message_id if identity not in {"no-message", "payload-only"} else None,
+    )
+    assert _chat_source(run) == (
+        context.ChatSource(conversation_id, message_id) if identity == "complete" else None
+    )
+    run.has_chat_source = True
+    run.source_conversation_id = run.source_message_id = None
+    assert _chat_source(run) == context.ChatSource(None, None)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.parametrize("late", [False, True])
+@pytest.mark.parametrize("verdict", [True, None])
+async def test_a_sibling_cannot_start_or_resume_after_the_shared_source_is_refused(
+    runner, monkeypatch, resumed, late, verdict
+):
+    read = AsyncMock(side_effect=[False, verdict] if late and not resumed else [verdict])
+    monkeypatch.setattr(conversation_repo, "message_refusal", read)
+    monkeypatch.setattr(agent_node, "_cost_so_far", AsyncMock(return_value=Decimal(0)))
+    attempted = runner.resume if resumed else runner.execute
+
+    async def opening(*args, **kwargs):
+        await kwargs["on_run_open"](_run(RunStatus.RUNNING))
+        raise AssertionError("a refused source reached the agent")
+
+    attempted.side_effect = opening
+    current = dataclasses.replace(
+        _dispatch(uuid.uuid4() if resumed else None),
+        chat_source=context.ChatSource(uuid.uuid4(), uuid.uuid4()),
+    )
+    with context.dispatching_as(current):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="shared")
+        )
+    assert isinstance(result, Failed)
+    assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
+    assert attempted.await_count == (1 if late or resumed else 0)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("missing", ["message", "conversation", "both"])
+async def test_a_deleted_source_stays_closed_without_a_message_to_mark(monkeypatch, missing):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+
+    mark = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "mark_message_refused", mark)
+    guard = ChatSourceGuard(
+        MagicMock(),
+        context.ChatSource(
+            None if missing in {"conversation", "both"} else uuid.uuid4(),
+            None if missing in {"message", "both"} else uuid.uuid4(),
+        ),
+    )
+    with pytest.raises(GuardrailBlocked):
+        await guard.check()
+    await guard.keep_refusal(SimpleNamespace(run=_run(RunStatus.GUARDRAIL_BLOCKED)))
+    mark.assert_not_awaited()

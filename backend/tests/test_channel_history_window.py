@@ -94,3 +94,10 @@ class TestEachSurfaceChoosesItsOwnWidth:
         from app.services.agent_session import HISTORY_MESSAGES as WEB_CHAT
 
         assert WEB_CHAT == HISTORY_MESSAGES
+
+
+async def test_a_new_channel_thread_has_no_persisted_snapshot():
+    from app.services.channels.router import ChannelMessageRouter
+
+    history = await ChannelMessageRouter._load_history(MagicMock(), None)
+    assert history == [] and history.revision is None

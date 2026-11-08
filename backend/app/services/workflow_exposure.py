@@ -857,7 +857,7 @@ class WorkflowExposureService:
             return thanks
         problems = input_problems(config, submission.values)
         if problems:
-            raise WorkflowRunInputInvalidError(problems=problems)
+            raise WorkflowRunInputInvalidError(problems=problems, root="values")
         run, _entry = await self.runs.admit_pinned(
             ctx,
             workflow,

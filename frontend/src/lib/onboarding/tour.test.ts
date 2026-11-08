@@ -92,6 +92,7 @@ describe("pageKey", () => {
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-input-contract",
     ]);
   });
   it("collapses every concrete builder route onto the one builder identity", () => {
