@@ -8477,7 +8477,16 @@
         "files": "Dateien",
         "noFiles": "Keine Dateien.",
         "unreadable": "Diese Version konnte nicht geladen werden.",
-        "retry": "Erneut versuchen"
+        "retry": "Erneut versuchen",
+        "reference": "Referenz",
+        "compareAgainst": "Damit vergleichen",
+        "onlyDifferences": "Nur Unterschiede",
+        "sameAsReference": "wie die Referenz",
+        "file": {
+          "added": "hinzugefügt",
+          "removed": "entfernt",
+          "changed": "geändert"
+        }
       },
       "edit": {
         "saved": "Als v{number} gespeichert.",
