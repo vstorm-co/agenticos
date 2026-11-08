@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.56.4] - 2026-11-08
+
 ### Changed
 
 - Add optional CodeRabbit review preferences and document installation and review triggers; the GitHub App must be installed separately (#2812).
@@ -20596,7 +20598,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...HEAD
+[1.56.4]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...v1.56.4
 [1.56.3]: https://github.com/vstorm-co/agenticos/compare/v1.56.2...v1.56.3
 [1.56.2]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...v1.56.2
 [1.56.1]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...v1.56.1
