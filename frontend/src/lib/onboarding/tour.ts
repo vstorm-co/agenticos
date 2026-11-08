@@ -514,6 +514,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "workflow-step-view",
     optional: true,
   },
+  {
+    id: "workflow-input-contract",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-input-contract",
+    permission: Perm.workflowsEdit,
+    optional: true,
+  },
   // Every workflow's runs, filtered on the server: one describing stop on the list.
   {
     id: "workflows-runs",

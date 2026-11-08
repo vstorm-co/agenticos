@@ -219,6 +219,33 @@ class TestPublish:
     def _ctx(self) -> AuthContext:
         return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
 
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            {"$id": 12},
+            {"$ref": "#/$defs/missing"},
+            {"type": "unknown"},
+            {"properties": {"email": {"pattern": "(" * 600 + "a" + ")" * 600}}},
+            {"properties": {"email": {"pattern": "a{4294967296}"}}},
+            {"type": "array"},
+            {
+                "$defs": {"rows": {"type": "array"}},
+                "allOf": [{"$ref": "#/$defs/rows"}],
+            },
+        ],
+    )
+    async def test_invalid_json_schema_is_a_field_refusal_at_publication(
+        self, mock_db_session, schema: dict[str, object]
+    ) -> None:
+        with pytest.raises(GraphValidationError) as refused:
+            await validate_graph(
+                mock_db_session, self._ctx(), _graph({"input_schema": schema}, ("payload", "email"))
+            )
+        assert refused.value.status_code == 422
+        assert any(
+            "input_schema" in problem["field"] for problem in refused.value.details["fields"]
+        )
+
     @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
     async def test_a_declared_field_binds_where_its_type_fits(self, mock_db_session, trigger_id):
         graph = _graph({"fields": FIELDS}, ("payload", "email"), trigger_id)

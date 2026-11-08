@@ -74,6 +74,7 @@ from app.services.workflow_execution import (
     dispatch_queue,
     dispatcher,
     events,
+    input_validation,
     limits,
 )
 from app.services.workflow_execution.exceptions import (
@@ -170,8 +171,8 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     return payload
 
 
-def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
-    """Refuse `payload` when the graph's entry declares fields it does not fit: a Manual,
+async def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
+    """Refuse `payload` when the graph's entry declares a contract it does not fit: a Manual,
     API, Form or Called by a workflow trigger.
 
     Raises:
@@ -183,9 +184,13 @@ def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None
         return
     # The graph passed `validate_graph` - at publish, or just now for a draft -
     # so its config fits.
-    # Only the fields: a Form trigger's config carries its page's words beside them.
-    fields = TriggerInputConfig.model_validate({"fields": entry.config.get("fields", [])})
-    problems = input_problems(fields, payload)
+    # A Form trigger's config also carries its page's presentation settings.
+    schema = entry.config.get("input_schema")
+    if schema is not None:
+        problems = await input_validation.schema_problems(schema, payload)
+    else:
+        contract = TriggerInputConfig.model_validate({"fields": entry.config.get("fields", [])})
+        problems = input_problems(contract, payload)
     if problems:
         raise WorkflowRunInputInvalidError(problems=problems)
 
@@ -314,9 +319,11 @@ class WorkflowExecutionService:
                 that does not start from a chat message.
             WorkflowRunInputTooLargeError: `run_input` is over
                 `WORKFLOW_RUN_MAX_INPUT_BYTES`.
-            WorkflowRunInputInvalidError: The version being run starts from
-                Manual or API with declared fields, and `run_input` does not
-                fit them.
+            WorkflowRunInputInvalidError: The selected trigger's fields or JSON
+                Schema refuse `run_input`, or schema validation exceeds its limit.
+            RateLimitError: Every isolated schema-validation slot is busy.
+            WorkflowInputValidationUnavailableError: The isolated validator fails
+                before it can return a trustworthy answer.
             WorkflowInlineStorageLimitError: Input and snapshot reservations exceed
                 the retained-payload allowance; no run is created.
             WorkflowAdmissionQuotaError: Admitting this run would push the
@@ -383,7 +390,7 @@ class WorkflowExecutionService:
                 "fired_at": datetime.now(UTC).isoformat(),
                 "input": {**configured, **payload},
             }
-        _check_declared_input(graph, payload)
+        await _check_declared_input(graph, payload)
         run, _entry = await self._admit(
             ctx,
             workflow,
@@ -490,7 +497,7 @@ class WorkflowExecutionService:
         if call_entry is not None:
             graph = entry_graph(graph, call_entry.id)
         payload = _checked_input(run_input)
-        _check_declared_input(graph, payload)
+        await _check_declared_input(graph, payload)
         await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         parent_step = await workflow_run_repo.get_node_run_by_id(self.db, parent_node_run_id)

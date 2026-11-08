@@ -1,5 +1,5 @@
 ---
-source_sha: "d2c11cec8ef2"
+source_sha: "56f00d2af57c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2663,6 +2663,11 @@ Tabellenoperationen sind Werkzeuge von **AgenticOS MCP**, keine separate Capabil
 Spezifikationsversion 14 entfernt gespeicherte `virtual_tables`-Bindungen beim Laden. Bestehende Freigaben für veröffentlichte Apps wechseln zu `table_bindings`; dieses Feld stellt keine Werkzeuge bereit. Deaktivierte Freigaben bleiben deaktiviert. MCP-Verbindungen, erlaubte Werkzeuge und Genehmigungen werden nicht automatisch erweitert. Bei alten Agenten ohne Plattform-MCP muss es ausdrücklich verbunden werden, bevor sie Tabellen bearbeiten können.
 
 ## Workflows { #workflows }
+
+Die Erkennung mit `list_workflows` ist auf 32 KiB kodiertes JSON einschließlich
+der Eingabeverträge begrenzt. Größere Antworten werden vollständig abgelehnt.
+Wählen Sie weniger Workflows oder kleinere Verträge für die Bindung oder prüfen
+Sie den HTTP-Endpunkt für Eingabeschemas außerhalb des Agentenkontexts.
 
 Lässt den Agenten die veröffentlichten [Workflows](../workflows.md) starten, die sein
 Binding nennt, und lesen, wie sie liefen. Das Panel im Builder listet die Workflows der

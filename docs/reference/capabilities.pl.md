@@ -1,5 +1,5 @@
 ---
-source_sha: "d2c11cec8ef2"
+source_sha: "56f00d2af57c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2479,6 +2479,11 @@ Operacje na tabelach są narzędziami **AgenticOS MCP**, a nie osobnym capabilit
 Wersja 14 specyfikacji usuwa zapisane powiązania `virtual_tables` podczas wczytywania. Istniejące uprawnienia używane przez opublikowane aplikacje przechodzą do `table_bindings`; to pole nie udostępnia narzędzi. Wyłączone uprawnienia pozostają wyłączone. Połączenia MCP, dozwolone narzędzia i ustawienia zatwierdzania nie są automatycznie rozszerzane. Stary agent bez platformowego MCP wymaga jego jawnego podłączenia przed operowaniem na tabelach.
 
 ## Workflowy { #workflows }
+
+Odkrywanie przez `list_workflows` ma limit 32 KiB zakodowanego JSON, wliczając
+kontrakty wejścia. Większa odpowiedź zwraca odmowę zamiast częściowej listy.
+Wybierz mniej workflow lub mniejsze kontrakty w powiązaniu albo sprawdź
+endpoint HTTP schematu wejścia poza kontekstem agenta.
 
 Pozwala agentowi uruchamiać opublikowane [workflowy](../workflows.md), które wskazuje
 jego binding, i czytać, jak poszły. Panel w Builderze wypisuje workflowy organizacji,

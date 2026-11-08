@@ -1,5 +1,5 @@
 ---
-source_sha: "d2c11cec8ef2"
+source_sha: "56f00d2af57c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2541,6 +2541,11 @@ Las operaciones de tablas son herramientas de **AgenticOS MCP**, no una capacida
 La versión 14 de la especificación elimina las conexiones `virtual_tables` guardadas al cargarlas. Los permisos existentes de las aplicaciones publicadas pasan a `table_bindings`; este campo no expone herramientas. Los permisos desactivados siguen desactivados. Las conexiones MCP, herramientas permitidas y aprobaciones no se amplían automáticamente. Un agente antiguo sin MCP de la plataforma necesita conectarlo explícitamente antes de operar con tablas.
 
 ## Workflows { #workflows }
+
+El descubrimiento con `list_workflows` se limita a 32 KiB de JSON codificado,
+incluidos los contratos de entrada. Las respuestas mayores devuelven un rechazo
+en lugar de una lista parcial. Elige menos workflows o contratos más pequeños
+para el vínculo, o consulta el endpoint HTTP del esquema fuera del contexto del agente.
 
 Permite al agente iniciar los [workflows](../workflows.md) publicados que nombra su
 binding, y leer cómo fueron. El panel del Builder lista los workflows de la

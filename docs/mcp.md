@@ -1284,6 +1284,22 @@ Health admission uses its own indexed timestamp. Renewing OAuth credentials or p
 
 The platform MCP server also supplies workflow and Virtual Table tools. Start with `list_workflow_definitions`, `get_workflow_definition`, `list_workflow_nodes` and `get_workflow_node`. Create and save private graphs with `create_workflow_draft` and `update_workflow_draft`, preserving `expected_revision`. `test_workflow_draft` accepts an optional `entry_node_id`; inspect `get_workflow_execution` and `get_workflow_execution_steps` before claiming success. Testing can call real APIs and write data. `publish_workflow` activates configured entries, requires the existing publication permissions, and withholds one-time signing secrets from the model. Unattended publication still requires a human session; an API key cannot retain a person's authority.
 
+Use `get_workflow_input_schema` before `run_workflow` to inspect the published
+input contract without executing it. It accepts `workflow_id` and an optional
+`version_id`, returning the same per-entry `input_schema` contracts as the
+[HTTP discovery endpoint](api.md#running-a-workflow). Select the intended
+`entry_node_id` and send matching `fields`. JSON Schema Draft 2020-12 contracts,
+legacy simple fields and untyped inputs share this discovery format; admission
+validates against the version admitted for the run.
+
+The MCP tool returns only Manual/API entries that its paired `run_workflow`
+can start. Form and Called by a workflow contracts remain available through
+HTTP discovery for their own admission surfaces.
+
+`get_workflow_input_schema` refuses responses above 32 KiB of encoded JSON,
+including all returned entries. It never returns a partial contract. Inspect
+larger contracts through the HTTP endpoint outside the model context.
+
 For operational records use `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`. Schema and record writes preserve revision checks. All tools use the caller's organization, permissions and resource grants; write tools retain the platform MCP approval gate. Architect's workflow-builder and virtual-tables skills explain choosing triggers, wrapping a documented HTTP API when the MCP gallery lacks an integration, and binding a published callable workflow to an agent. Credentials are configured in the vault UI, never embedded in graphs or model output.
 
 

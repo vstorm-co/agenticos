@@ -11,7 +11,14 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    JsonValue,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
@@ -310,6 +317,32 @@ class WorkflowVersionDetail(WorkflowVersionRead):
 class WorkflowVersionList(BaseSchema):
     items: list[WorkflowVersionRead]
     next_before: int | None = None
+
+
+class WorkflowEntryInputSchema(BaseSchema):
+    """The input contract of one trigger in a published version."""
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    entry_node_id: UUID
+    trigger: str
+    input_schema: dict[str, JsonValue]
+
+
+class WorkflowInputSchema(BaseSchema):
+    """Version-pinned input discovery, in default-entry order.
+
+    Each entry declares a JSON object using Draft 2020-12. Simple input fields
+    are represented with a `x-agenticos-strict-integer` marker where legacy
+    integer fields additionally require integer tokens; an untyped entry accepts any
+    object. Only triggers that accept caller-defined input are included.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    workflow_id: UUID
+    version_id: UUID
+    entries: list[WorkflowEntryInputSchema]
 
 
 class NodeCatalogPort(BaseSchema):

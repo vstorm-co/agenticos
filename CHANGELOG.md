@@ -19,6 +19,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Workflow Manual, API and Called by a workflow triggers can declare an optional
+  JSON Schema Draft 2020-12 input contract, including nested objects, arrays,
+  enums, required fields, length limits, additional-property restrictions and
+  local `$defs`/`$ref` references. Published versions freeze the contract; invalid
+  input is rejected before a run starts with field paths. API and MCP discovery
+  expose the effective schema, preserving existing simple-field and untyped inputs.
+  Raw-schema validation runs in an isolated process with bounded resources and
+  diagnostics, with Linux address-space limits and native macOS support. Step tests use the contract of the entry that reaches the tested step.
+  Publication rejects negations that exclude every object; discovered legacy
+  date fields retain calendar validation without requiring format assertions.
+  Discovery marks the additional integer-token requirement of legacy simple fields.
+  Validator memory exhaustion returns a controlled input refusal rather than
+  a retryable server failure.
+
+### Changed
+
+- **Breaking:** agent `list_workflows` discovery refuses encoded responses above
+  32 KiB. Narrow the agent's workflow binding or input contracts, or inspect
+  contracts through the HTTP input-schema endpoint outside the agent context.
+
 ## [1.56.4] - 2026-11-08
 
 ### Changed

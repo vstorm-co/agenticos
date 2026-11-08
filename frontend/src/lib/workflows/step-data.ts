@@ -1,3 +1,4 @@
+import { entryGraph, entryNodes } from "./triggers";
 import { outputRefs, type Uuid, type WorkflowGraph, type WorkflowNodeRunRead } from "./types";
 
 /** What one step did the last time a watched test run reached it. */
@@ -236,6 +237,22 @@ export function ancestorsOf(graph: WorkflowGraph, nodeId: Uuid): Set<Uuid> {
     }
   }
   return found;
+}
+
+/**
+ * The start a step test of `nodeId` admits from, exactly as the backend's
+ * `WorkflowExecutionService.start` picks it when no `entry_node_id` is named:
+ * the first trigger root - the default entry, then any other trigger in graph
+ * order - whose reachable branch contains the step, returned as that branch's
+ * graph (its `entry_node_id` names the selected start). Null when no start
+ * reaches the step.
+ */
+export function testEntryGraph(graph: WorkflowGraph, nodeId: Uuid): WorkflowGraph | null {
+  for (const entry of entryNodes(graph)) {
+    const branch = entryGraph(graph, entry.id);
+    if (branch.nodes.some((node) => node.id === nodeId)) return branch;
+  }
+  return null;
 }
 
 /**

@@ -337,6 +337,31 @@ WORKFLOW_TRIGGER_MISMATCH`, because a webhook, a schedule, a chat message or a
 table record starts it. `"mode": "test"` runs the current draft instead, from any
 trigger, and needs `workflows:edit`.
 
+Before calling, read `GET /api/v1/workflows/{id}/input-schema` with
+`workflows:view`. It returns the published `version_id` and an `entries` list with
+`entry_node_id`, `trigger` and effective `input_schema` for each Manual, API,
+Called by a workflow or Form entry. Pass `version_id` to inspect a specific
+published version. JSON Schema contracts are returned unchanged; simple fields
+are represented as JSON Schema, and untyped entries return `{"type": "object"}`.
+Use the intended entry's contract and pass its `entry_node_id` when starting.
+
+Legacy simple `integer` fields additionally require JSON integer tokens: `1`
+is accepted, while `1.0` and `1e0` are refused. Discovery marks these fields with
+`x-agenticos-strict-integer: true`, including inside optional nullable fields.
+Ordinary JSON Schema cannot assert this token distinction, so schema validation
+alone is insufficient for those legacy fields; server admission remains authoritative.
+Raw JSON Schema contracts use standard integer semantics instead.
+
+The optional [JSON Schema input contract](reference/workflow-nodes.md#json-schema-input-contracts)
+is checked before admission. A mismatch answers `422 WORKFLOW_RUN_INPUT_INVALID`
+with field paths and messages in `error.details.fields`; no run is created.
+Each entry has `field` and `message`; nested request paths include array indices,
+for example `input.items.0.sku`. For existing callers, `error.details.problems`
+also retains `field`, `message` and `type` with paths relative to the input object.
+The contract comes from the current published version, or from the draft for
+`"mode": "test"`. It applies equally over WebSocket and MCP and when another
+workflow calls it.
+
 `deadline_seconds` (up to thirty days) sets
 a deadline that is checked each time a node is about to be dispatched: the
 first node due after it passes fails the run with `DEADLINE_EXCEEDED`, while a
