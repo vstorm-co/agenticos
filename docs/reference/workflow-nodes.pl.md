@@ -1,5 +1,5 @@
 ---
-source_sha: "35ee6786770a"
+source_sha: "e8b4fa1cb76d"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -152,6 +152,10 @@ sekund, wliczając start procesu. Każda pętla zdarzeń API lub workera dopuszc
 najwyżej dwie równoczesne walidacje; gdy oba miejsca są zajęte, przyjęcie runu
 jest od razu odrzucane z `429`. Dotychczasowe kontrakty prostych pól nadal są
 sprawdzane bez osobnego procesu.
+
+Linux wymusza dodatkowo limit przestrzeni adresowej 256 MiB i limit CPU.
+Przy natywnym uruchomieniu na macOS pozostają limity CPU i czasu, ale bez limitu
+przestrzeni adresowej, ponieważ Darwin nie obsługuje `RLIMIT_AS`.
 
 Przekroczenie czasu lub limitu rozmiaru protokołu walidacji odrzuca przyjęcie
 runu z `422 WORKFLOW_RUN_INPUT_INVALID`, wskazując `input` w `error.details.fields`

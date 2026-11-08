@@ -32,6 +32,9 @@ _LAUNCHER = """
 import os, resource, sys
 cpu, memory = int(sys.argv[1]), int(sys.argv[2])
 for kind, value in ((resource.RLIMIT_CPU, cpu), (resource.RLIMIT_AS, memory)):
+    # Darwin rejects RLIMIT_AS; Linux production keeps the hard memory ceiling.
+    if sys.platform == "darwin" and kind == resource.RLIMIT_AS:
+        continue
     _, hard = resource.getrlimit(kind)
     ceiling = value if hard == resource.RLIM_INFINITY else min(value, hard)
     resource.setrlimit(kind, (ceiling, ceiling))
@@ -89,7 +92,8 @@ async def schema_problems(
 
     Two children at most per API/worker loop; a saturated validator refuses
     immediately with 429. Wall time includes process startup and communication.
-    Time, CPU, memory and protocol size are bounded independently of schema depth.
+    Time, CPU and protocol size are bounded independently of schema depth.
+    Linux also enforces a hard address-space limit; macOS does not support it.
     """
     request: ValidationRequest = {"schema": schema, "input": payload}
     encoded = json.dumps(

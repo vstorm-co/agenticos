@@ -1,5 +1,5 @@
 ---
-source_sha: "35ee6786770a"
+source_sha: "e8b4fa1cb76d"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -154,6 +154,10 @@ API o de un worker admite como máximo dos validaciones simultáneas; si ambas
 plazas están ocupadas, la admisión se rechaza inmediatamente con `429`. Los
 contratos existentes de campos simples siguen validándose sin un proceso
 separado.
+
+Linux impone además un límite de espacio de direcciones de 256 MiB y un límite
+de CPU. El desarrollo nativo en macOS conserva los límites de CPU y tiempo,
+pero no el de espacio de direcciones porque Darwin no admite `RLIMIT_AS`.
 
 Un tiempo de espera agotado o un límite de tamaño del protocolo de validación
 rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en

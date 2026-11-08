@@ -3,6 +3,9 @@
 import asyncio
 import io
 import json
+import os
+import resource
+import sys
 import weakref
 from unittest.mock import AsyncMock
 
@@ -16,6 +19,51 @@ from app.workflows.contracts import input_schema_worker
 from app.workflows.contracts.input_schema import MAX_SCHEMA_BYTES, check_input_schema
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_launcher_preserves_supported_resource_limits(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    limits: list[tuple[int, tuple[int, int]]] = []
+    launched: list[tuple[str, list[str]]] = []
+
+    def set_limit(kind: int, value: tuple[int, int]) -> None:
+        limits.append((kind, value))
+
+    def launch(executable: str, arguments: list[str]) -> None:
+        launched.append((executable, arguments))
+
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "argv", ["launcher", "3", "268435456", "python", "-I"])
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (resource.RLIM_INFINITY,) * 2)
+    monkeypatch.setattr(resource, "setrlimit", set_limit)
+    monkeypatch.setattr(os, "execv", launch)
+    exec(input_validation._LAUNCHER, {})  # noqa: S102 - exercise the repository-owned launcher
+    expected = [(resource.RLIMIT_CPU, (3, 3))]
+    if platform == "linux":
+        expected.append((resource.RLIMIT_AS, (268435456, 268435456)))
+    assert limits == expected
+    assert launched == [("python", ["python", "-I"])]
+
+
+def test_linux_memory_limit_failure_does_not_start_an_unbounded_validator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def set_limit(kind: int, value: tuple[int, int]) -> None:
+        if kind == resource.RLIMIT_AS:
+            raise ValueError("Memory limit refused")
+
+    def launch(executable: str, arguments: list[str]) -> None:
+        pytest.fail("A validator without its required limits must not start")
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys, "argv", ["launcher", "3", "268435456", "python", "-I"])
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (resource.RLIM_INFINITY,) * 2)
+    monkeypatch.setattr(resource, "setrlimit", set_limit)
+    monkeypatch.setattr(os, "execv", launch)
+    with pytest.raises(ValueError, match="Memory limit refused"):
+        exec(input_validation._LAUNCHER, {})  # noqa: S102 - exercise the repository-owned launcher
 
 
 @pytest.mark.parametrize("character", ["x", "界"])

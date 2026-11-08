@@ -1,5 +1,5 @@
 ---
-source_sha: "35ee6786770a"
+source_sha: "e8b4fa1cb76d"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -158,6 +158,10 @@ Ereignisschleife der API oder eines Workers erlaubt höchstens zwei gleichzeitig
 Validierungen; sind beide Plätze belegt, wird der Run sofort mit `429` abgelehnt.
 Bestehende Verträge mit einfachen Feldern werden weiterhin ohne separaten
 Prozess validiert.
+
+Linux erzwingt zusätzlich ein Adressraumlimit von 256 MiB und ein CPU-Limit.
+Bei nativer Entwicklung unter macOS bleiben CPU- und Zeitlimits bestehen, aber
+kein Adressraumlimit, da Darwin `RLIMIT_AS` nicht unterstützt.
 
 Eine Zeitüberschreitung oder ein Größenlimit des Validierungsprotokolls lehnt
 den Run mit `422 WORKFLOW_RUN_INPUT_INVALID` ab; `error.details.fields` nennt

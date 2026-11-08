@@ -143,6 +143,10 @@ including startup. Each API or worker event loop permits at most two concurrent
 validations; when both slots are busy, admission is refused immediately with
 `429`. Existing simple-field contracts continue to validate inline.
 
+Linux additionally enforces a 256 MiB address-space limit and a CPU limit.
+Native macOS development retains the CPU and wall-clock limits, but has no
+address-space limit because Darwin does not support `RLIMIT_AS`.
+
 A timeout or validation protocol-size limit refuses admission with
 `422 WORKFLOW_RUN_INPUT_INVALID`, naming `input` in `error.details.fields` and
 `validation_limit` as the legacy problem's `type`. Validator startup failure,
