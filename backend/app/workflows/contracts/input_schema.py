@@ -251,6 +251,37 @@ def _object_possible(
     return True
 
 
+def _canonical_schema(schema: JsonValue) -> JsonValue:
+    """Normalize unordered names, without treating literal data as schemas.
+
+    `required`, type unions and dependent-required names have set semantics.
+    The document has already passed its meta-schema. Literal arrays and
+    positional schema arrays retain their original order,
+    including data that a local JSON Pointer may also use as a schema target.
+    """
+    if not isinstance(schema, dict):
+        return schema
+    result = dict(schema)
+    for keyword, value in schema.items():
+        if keyword in {"required", "type"} and isinstance(value, list):
+            result[keyword] = sorted(value, key=lambda item: json.dumps(item, sort_keys=True))
+        elif keyword == "dependentRequired" and isinstance(value, dict):
+            result[keyword] = {
+                name: sorted(
+                    cast("list[JsonValue]", names),
+                    key=lambda item: json.dumps(item, sort_keys=True),
+                )
+                for name, names in value.items()
+            }
+        elif keyword in _SAME_VALUE | _CHILD_VALUE:
+            result[keyword] = _canonical_schema(value)
+        elif keyword in _SCHEMA_MAPS and isinstance(value, dict):
+            result[keyword] = {name: _canonical_schema(child) for name, child in value.items()}
+        elif keyword in _SCHEMA_LISTS and isinstance(value, list):
+            result[keyword] = [_canonical_schema(child) for child in value]
+    return result
+
+
 def _every_object_matches(
     schema: Mapping[str, JsonValue] | bool,
     possible: Mapping[int, bool],
@@ -360,7 +391,12 @@ def check_input_schema(schema: InputSchema) -> None:
             identities[key] = (
                 identities[reference]
                 if isinstance(contents, Mapping) and len(contents) == 1 and reference is not None
-                else json.dumps(contents, sort_keys=True)
+                else json.dumps(
+                    _canonical_schema(
+                        dict(contents) if isinstance(contents, Mapping) else contents
+                    ),
+                    sort_keys=True,
+                )
             )
             possible[key] = _object_possible(
                 contents, possible, reference, unrestricted, identities

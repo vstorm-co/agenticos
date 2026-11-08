@@ -1059,3 +1059,52 @@ def test_duplicate_restrictive_oneof_resolves_static_aliases(inline: bool) -> No
     }
     with pytest.raises(ValidationError, match="must allow a JSON object"):
         TriggerInputConfig(input_schema=schema)
+
+
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [
+        ({"required": ["x", "y"]}, {"required": ["y", "x"]}),
+        (
+            {"type": ["object", "null"], "required": ["x", "y"]},
+            {"type": ["null", "object"], "required": ["y", "x"]},
+        ),
+        ({"dependentRequired": {"x": ["y", "z"]}}, {"dependentRequired": {"x": ["z", "y"]}}),
+        (
+            {"properties": {"row": {"required": ["x", "y"]}}},
+            {"properties": {"row": {"required": ["y", "x"]}}},
+        ),
+    ],
+)
+def test_reordered_name_sets_cannot_make_duplicate_oneof_branches_unique(
+    left: dict[str, JsonValue], right: dict[str, JsonValue]
+) -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema={"oneOf": [left, right]})
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "payload"),
+    [
+        (
+            {"const": {"required": ["x", "y"]}},
+            {"const": {"required": ["y", "x"]}},
+            {"required": ["x", "y"]},
+        ),
+        (
+            {"enum": [{"required": ["x", "y"]}]},
+            {"enum": [{"required": ["y", "x"]}]},
+            {"required": ["x", "y"]},
+        ),
+        (
+            {"properties": {"row": {"prefixItems": [{"type": "string"}, {"type": "integer"}]}}},
+            {"properties": {"row": {"prefixItems": [{"type": "integer"}, {"type": "string"}]}}},
+            {"row": ["x", 1]},
+        ),
+    ],
+)
+def test_schema_canonicalization_preserves_literal_and_positional_array_order(
+    left: dict[str, JsonValue], right: dict[str, JsonValue], payload: dict[str, JsonValue]
+) -> None:
+    config = TriggerInputConfig(input_schema={"oneOf": [left, right]})
+    assert input_problems(config, payload) == []
