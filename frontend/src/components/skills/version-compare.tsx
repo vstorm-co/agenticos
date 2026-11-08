@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Crosshair, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -27,8 +27,9 @@ export interface Compared {
 /**
  * The versions a reader picked on the diagram, side by side in the order picked:
  * each one's description, instructions and files, read the way the skill serves them.
- * One column is the reference - the first, until another is chosen - and every other
- * column marks what it says differently from it, word by word, as History's diffs do.
+ * One column is the reference - the first picked, until another is set - and it is
+ * always drawn first, behind a divider; the others keep the order they were picked in
+ * and mark what they say differently from it, word by word, as History's diffs do.
  */
 export function VersionCompare({
   skillId,
@@ -73,17 +74,27 @@ export function VersionCompare({
         <p className="text-muted-foreground px-4 pt-3 text-xs">{t("pickAnother")}</p>
       )}
       <div className="flex gap-3 overflow-x-auto p-4">
-        {compared.map((item) => (
-          <Column
-            key={item.key}
-            skillId={skillId}
-            item={item}
-            reference={item.key === reference.key ? null : reference}
-            onlyDifferences={onlyDifferences}
-            onReference={() => setChosen(item.key)}
-            onRemove={() => onRemove(item)}
-          />
-        ))}
+        {[reference, ...compared.filter((item) => item.key !== reference.key)].map(
+          (item, index) => (
+            <Fragment key={item.key}>
+              {index === 1 && (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  className="bg-border w-0.5 shrink-0 rounded-full"
+                />
+              )}
+              <Column
+                skillId={skillId}
+                item={item}
+                reference={index === 0 ? null : reference}
+                onlyDifferences={onlyDifferences}
+                onReference={() => setChosen(item.key)}
+                onRemove={() => onRemove(item)}
+              />
+            </Fragment>
+          ),
+        )}
       </div>
     </ListCard>
   );

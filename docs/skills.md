@@ -692,7 +692,8 @@ like, from main and forks alike, to see their descriptions, instructions and fil
 side by side. Drag to move the diagram, and zoom with the wheel or the buttons, as
 on an agent's map.
 
-The first version picked is the **Reference**. Every other column marks what it
+The first version picked is the **Reference**, always drawn first behind a divider.
+Every other column marks what it
 says differently from it, word by word as History's diffs do, and its files as
 added, removed or changed. **Set as reference** makes another column the
 reference, and **Only the differences** folds the parts that say the same.

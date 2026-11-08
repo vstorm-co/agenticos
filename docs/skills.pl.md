@@ -1,5 +1,5 @@
 ---
-source_sha: "df3692303c1d"
+source_sha: "8165780dbb47"
 ---
 
 # Skille { #skills }
@@ -712,7 +712,8 @@ Wybierz dowolnie wiele wersji, z main i z forków, żeby zobaczyć obok siebie i
 opisy, instrukcje i pliki. Diagram przesuwa się przeciągnięciem i przybliża kółkiem
 albo przyciskami, tak jak mapa agenta.
 
-Pierwsza wybrana wersja jest **wzorcem**. Każda inna kolumna zaznacza, co mówi
+Pierwsza wybrana wersja jest **wzorcem** i zawsze stoi pierwsza, za kreską
+oddzielającą. Każda inna kolumna zaznacza, co mówi
 inaczej niż on, słowo po słowie, tak jak diffy w historii, a jej pliki jako dodane,
 usunięte albo zmienione. **Ustaw jako wzorzec** robi wzorcem inną kolumnę, a **Tylko
 różnice** zwija części, które mówią to samo.
