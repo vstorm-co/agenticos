@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.57.0] - 2026-11-08
+
 ### Added
 
 - Workflow Manual, API and Called by a workflow triggers can declare an optional
@@ -20620,7 +20622,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...HEAD
+[1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
 [1.56.4]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...v1.56.4
 [1.56.3]: https://github.com/vstorm-co/agenticos/compare/v1.56.2...v1.56.3
 [1.56.2]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...v1.56.2
