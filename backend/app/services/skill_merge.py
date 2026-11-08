@@ -18,14 +18,14 @@ digests. Nothing here reads the database; the catch-up service stores the parts.
 
 Matching a side against the base compares every pair of equal lines, and goes over
 them again for each stretch it splits the texts into, so a line that repeats costs CPU
-quadratic in how often it does. Blank lines repeat the most - a skill's paragraphs are
-separated by them - so they never anchor the matching: the other lines are matched
-first, and in each stretch between those matches the blank lines are paired in order,
-which keeps as many of them as any matching could. A merge is refused, before it
-runs, for a side longer than `MAX_LINES` or a pair of sides with more than `MAX_PAIRS`
-pairs of equal lines that are not blank.
+cubic in how often it does. Lines that repeat - the blank lines between a skill's
+paragraphs, a `---` rule, a code fence - therefore never anchor the matching: the other
+lines are matched first, each occurring at most `MAX_REPEATS` times, and in each stretch
+between those matches the repeated lines are paired in order. A merge is refused,
+before it runs, only for a side longer than `MAX_LINES`.
 """
 
+from bisect import bisect_left
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -35,13 +35,13 @@ from enum import StrEnum
 MAX_LINES = 5000
 """The most lines a side may hold for the merge to run."""
 
-MAX_PAIRS = 1_000_000
-"""The most pairs of equal lines that are not blank between the base and a side, about
-a thousand identical lines on both: a tenth of a second of matching."""
+MAX_REPEATS = 4
+"""How often a line may occur in the base or a side and still anchor the matching; a line
+occurring more often is paired in order between the anchors, as a blank line is."""
 
 
 class MergeTooLarge(ValueError):
-    """The texts are too long, or repeat their lines too often, to merge line by line."""
+    """The texts are too long to merge line by line."""
 
 
 class PartState(StrEnum):
@@ -111,8 +111,7 @@ def merge_text(base: str, fork: str, main: str) -> list[MergePart]:
     Joining every part's `merged` text gives the merge, once no part is a conflict.
 
     Raises:
-        MergeTooLarge: A side is past `MAX_LINES`, or shares past `MAX_PAIRS` equal-line
-            pairs with the base.
+        MergeTooLarge: A side is past `MAX_LINES`.
     """
     base_lines, fork_lines, main_lines = (_lines(text) for text in (base, fork, main))
     _refuse_too_large(base_lines, fork_lines, main_lines)
@@ -188,14 +187,6 @@ class _Kept:
 def _refuse_too_large(base: list[str], fork: list[str], main: list[str]) -> None:
     if max(len(base), len(fork), len(main)) > MAX_LINES:
         raise MergeTooLarge(f"a side holds more than {MAX_LINES} lines")
-    counts = Counter(line for line in base if not _blank(line))
-    for side in (fork, main):
-        pairs = sum(
-            counts[line] * times
-            for line, times in Counter(line for line in side if not _blank(line)).items()
-        )
-        if pairs > MAX_PAIRS:
-            raise MergeTooLarge(f"more than {MAX_PAIRS} pairs of equal lines to compare")
 
 
 def _lines(text: str) -> list[str]:
@@ -233,25 +224,74 @@ def _blank(line: str) -> bool:
     return not line.strip()
 
 
+def _repeated(base: list[str], side: list[str]) -> set[str]:
+    """The lines that do not anchor the matching: blank, or past `MAX_REPEATS` in a text."""
+    in_base, in_side = Counter(base), Counter(side)
+    return {
+        line
+        for line in in_base.keys() | in_side.keys()
+        if _blank(line) or in_base[line] > MAX_REPEATS or in_side[line] > MAX_REPEATS
+    }
+
+
 def _matched(base: list[str], side: list[str]) -> list[Match]:
     """The stretches of the base a side kept, in order, then an empty one at the end.
 
-    The lines that are not blank are matched first, and a blank line only extends such
-    a match; in each stretch left between two matches, the blank lines on both sides
+    The lines that do not repeat are matched first, and a repeated one only extends such
+    a match; in each stretch left between two matches, the repeated lines on both sides
     are then paired in order.
     """
-    anchored = SequenceMatcher(_blank, base, side, autojunk=False).get_matching_blocks()
+    repeated = _repeated(base, side)
+    anchored = SequenceMatcher(
+        repeated.__contains__, base, side, autojunk=False
+    ).get_matching_blocks()
     found: list[Match] = []
     at_base = at_side = 0
     for block in anchored:
-        base_blanks = [i for i in range(at_base, block.a) if _blank(base[i])]
-        side_blanks = [j for j in range(at_side, block.b) if _blank(side[j])]
-        found.extend(Match(i, j, 1) for i, j in zip(base_blanks, side_blanks, strict=False))
+        found.extend(
+            _in_order(
+                base,
+                side,
+                [i for i in range(at_base, block.a) if base[i] in repeated],
+                [j for j in range(at_side, block.b) if side[j] in repeated],
+            )
+        )
         if block.size:
             found.append(block)
         at_base, at_side = block.a + block.size, block.b + block.size
-    found.append(Match(len(base), len(side), 0))
-    return found
+    return [*_joined(found), Match(len(base), len(side), 0)]
+
+
+def _joined(matches: list[Match]) -> Iterator[Match]:
+    """Matches that run on from one another as one, so a kept stretch is one part."""
+    run: Match | None = None
+    for match in matches:
+        if run is not None and (run.a + run.size, run.b + run.size) == (match.a, match.b):
+            run = Match(run.a, run.b, run.size + match.size)
+            continue
+        if run is not None:
+            yield run
+        run = match
+    if run is not None:
+        yield run
+
+
+def _in_order(
+    base: list[str], side: list[str], base_at: list[int], side_at: list[int]
+) -> Iterator[Match]:
+    """Each repeated line of the base paired with the next equal one of the side after
+    the last pair, so the pairs never cross; one with none left stays unpaired."""
+    where: dict[str, list[int]] = {}
+    for position, line_at in enumerate(side_at):
+        where.setdefault(side[line_at], []).append(position)
+    after = 0
+    for line_at in base_at:
+        positions = where.get(base[line_at], [])
+        found = bisect_left(positions, after)
+        if found == len(positions):
+            continue
+        after = positions[found] + 1
+        yield Match(line_at, side_at[positions[found]], 1)
 
 
 def _state[T](base: Sequence[T], fork: Sequence[T], main: Sequence[T]) -> PartState:

@@ -9,7 +9,7 @@ import pytest
 
 from app.services.skill_merge import (
     MAX_LINES,
-    MAX_PAIRS,
+    MAX_REPEATS,
     FileMerge,
     MergePart,
     MergeTooLarge,
@@ -134,15 +134,9 @@ class TestMergeText:
 
 @pytest.mark.security
 class TestWhatIsTooLargeToMerge:
-    """Matching compares every pair of equal lines, so repetition is what costs. The limit
-    keeps a body an editor wrote from holding a worker's CPU, and lets ordinary ones through."""
-
-    def test_a_body_repeating_one_line_past_the_budget_is_refused_before_matching(self):
-        repeated = "Check the date.\n" * 1001
-        assert MAX_PAIRS < 1001 * 1001
-
-        with pytest.raises(MergeTooLarge, match="pairs of equal lines"):
-            merge_text(repeated, repeated + "fork\n", "main\n" + repeated)
+    """Matching goes over every pair of equal lines once per stretch it splits the texts
+    into, so repetition is what costs. A repeated line never anchors it, which keeps a body
+    an editor wrote from holding a worker's CPU; only a side past the line limit is refused."""
 
     def test_a_side_past_the_line_limit_is_refused(self):
         long = "".join(f"line {number}\n" for number in range(MAX_LINES + 1))
@@ -150,14 +144,34 @@ class TestWhatIsTooLargeToMerge:
         with pytest.raises(MergeTooLarge, match=f"more than {MAX_LINES} lines"):
             merge_text("one\n", "one\n", long)
 
-    def test_a_long_body_of_distinct_lines_and_one_at_the_budget_still_merge(self):
+    def test_a_long_body_of_distinct_lines_still_merges(self):
         distinct = "".join(f"line {number}\n" for number in range(MAX_LINES))
         changed = distinct.replace("line 7\n", "LINE 7\n")
         assert merged_text(merge_text(distinct, changed, distinct)) == changed
 
-        repeated = "Check the date.\n" * 1000
-        assert MAX_PAIRS == 1000 * 1000
-        assert merged_text(merge_text(repeated, repeated, repeated)) == repeated
+    def test_a_line_repeated_past_the_anchor_limit_still_merges(self):
+        repeated = "Check the date.\n" * (MAX_REPEATS * 300)
+
+        parts = merge_text(repeated, repeated + "fork\n", "main\n" + repeated)
+
+        assert merged_text(parts) == "main\n" + repeated + "fork\n"
+
+    def test_steps_between_repeated_rules_merge_at_once_one_conflict_each(self):
+        """`---` and `- [ ]` repeat as blank lines do; matched like other lines, nine hundred
+        rewritten steps between them held the CPU for a minute under the old pair limit."""
+
+        def steps(side: str) -> str:
+            return "".join(
+                f"## Step {number} as {side} has it\n---\n- [ ]\n" for number in range(900)
+            )
+
+        started = time.perf_counter()
+        parts = merge_text(steps("base"), steps("fork"), steps("main"))
+        took = time.perf_counter() - started
+
+        assert took < 2
+        assert _states(parts) == [PartState.CONFLICT, PartState.SAME] * 900
+        assert {part.base for part in parts if part.state is PartState.SAME} == {"---\n- [ ]\n"}
 
     def test_paragraphs_between_blank_lines_merge_at_once_one_conflict_each(self):
         """Blank lines repeat in every skill; matched like other lines, a thousand rewritten

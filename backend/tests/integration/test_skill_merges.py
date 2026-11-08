@@ -34,6 +34,7 @@ from app.schemas.skill_merge import MergeDescriptionEdit, MergeFilePick, MergePa
 from app.schemas.skill_version import SkillForkCreate, SkillVersionCreate
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_check import SkillCheckService
+from app.services.skill_merge import MAX_LINES
 from app.services.skill_versions import SkillVersionService, manifest_of
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner
@@ -193,20 +194,21 @@ class TestWhatCannotBeMerged:
             with pytest.raises(ConflictError):
                 await service.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
 
-    async def test_texts_too_repetitive_to_merge_are_refused_before_merging(self, db):
+    async def test_texts_too_long_to_merge_are_refused_before_merging(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
-        repeated = "Check the date.\n" * 1001
-        await _main(db, ctx, skill, content=repeated + "Say hello.")
+        long = "".join(f"Check line {number}.\n" for number in range(MAX_LINES))
+        await _main(db, ctx, skill, content=long + "Say hello.")
         fork = await _fork(db, ctx, skill)
-        fork = await _on_fork(db, ctx, skill, fork, content=repeated + "Say goodbye.")
-        await _main(db, ctx, skill, content=repeated + "Say thanks.")
+        fork = await _on_fork(db, ctx, skill, fork, content=long + "Say goodbye.")
+        await _main(db, ctx, skill, content=long + "Say thanks.")
 
         with pytest.raises(TooLargeToMerge) as refused:
             await SkillCatchUpService(db).merge_sides(ctx, skill=skill, fork=fork, kind=CATCH_UP)
 
         assert refused.value.status_code == 422
-        assert "too long or too repetitive to merge" in refused.value.message
+        assert "too long to merge" in refused.value.message
+        assert refused.value.details["max_lines"] == MAX_LINES
 
     async def test_a_fork_that_changed_nothing_has_nothing_to_move_to_main(self, db):
         ctx = await _owner(db)

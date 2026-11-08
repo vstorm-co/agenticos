@@ -74,7 +74,6 @@ from app.services.agent_registry import delegation_binding
 from app.services.skill_agents import Line, SkillAgentService, lines_of
 from app.services.skill_merge import (
     MAX_LINES,
-    MAX_PAIRS,
     MergePart,
     MergeTooLarge,
     PartState,
@@ -266,7 +265,7 @@ class SkillCatchUpService:
         Raises:
             ConflictError: The fork is archived, has no version of its own - its agents
                 return to main instead - or the merge would change nothing.
-            TooLargeToMerge: The texts are too long or too repetitive to merge (422).
+            TooLargeToMerge: The texts are too long to merge (422).
         """
         self.versions.refuse_archived(fork)
         if fork.latest_version_id is None:
@@ -304,10 +303,10 @@ class SkillCatchUpService:
         except MergeTooLarge as exc:
             raise TooLargeToMerge(
                 message=(
-                    f"The fork '{fork.name}' and main are too long or too repetitive to merge "
+                    f"The fork '{fork.name}' and main are too long to merge "
                     "automatically. Bring the changes over by hand in the editor."
                 ),
-                details={"fork_id": fork.id, "max_lines": MAX_LINES, "max_pairs": MAX_PAIRS},
+                details={"fork_id": fork.id, "max_lines": MAX_LINES},
             ) from exc
         return MergeSides(
             base=base,
