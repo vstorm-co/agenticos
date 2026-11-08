@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Onboarding } from "@/lib/onboarding-api";
@@ -65,7 +65,7 @@ it("offers a member a real contact and examples, without admin configuration", a
   const [example] = screen.getAllByRole("button", { name: "View example" });
   if (!example) throw new Error("Missing example action");
   await userEvent.click(example);
-  await screen.findByText("Recorded example result");
+  await screen.findByRole("dialog", { name: "Turn meeting notes into an action plan" });
   expect(env.save).toHaveBeenCalledWith({ goal: "meeting" });
   expect(env.push).not.toHaveBeenCalled();
 });
@@ -118,7 +118,9 @@ it("opens a recorded example while preferences are pending and returns keyboard 
   if (!button) throw new Error("Missing example action");
   expect(button).toHaveAccessibleDescription("Turn meeting notes into an action plan");
   await userEvent.click(button);
-  expect(await screen.findByText("Recorded example result")).toBeVisible();
+  expect(await screen.findByRole("dialog")).toHaveAccessibleName(
+    "Turn meeting notes into an action plan",
+  );
   expect(button).toHaveAttribute("aria-busy", "true");
   await userEvent.click(screen.getByRole("button", { name: "Back to getting started" }));
   expect(
@@ -135,12 +137,37 @@ it("keeps the free demonstration available if saving the preference fails", asyn
   const [button] = screen.getAllByRole("button", { name: "View example" });
   if (!button) throw new Error("Missing example action");
   await userEvent.click(button);
-  expect(await screen.findByText("Recorded example result")).toBeVisible();
+  expect(await screen.findByRole("dialog")).toBeVisible();
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(screen.getByRole("button", { name: "Back to getting started" }));
   expect(button).toHaveFocus();
   expect(env.push).not.toHaveBeenCalled();
 });
+
+it.each(["close", "escape", "back"])(
+  "dismisses a recorded example with %s and restores the task button",
+  async (method) => {
+    render(<StartHub />);
+    const button = screen.getAllByRole("button", { name: "View example" })[2];
+    if (!button) throw new Error("Missing comparison action");
+    await userEvent.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Compare three offers" });
+    expect(within(dialog).getByRole("heading", { level: 2 })).toHaveFocus();
+    expect(within(dialog).getByRole("note")).toHaveTextContent("No AI was called");
+    if (method === "escape") await userEvent.keyboard("{Escape}");
+    else
+      await userEvent.click(
+        within(dialog).getByRole("button", {
+          name: method === "close" ? "Close" : "Back to getting started",
+        }),
+      );
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(button).toHaveFocus());
+    expect(env.push).not.toHaveBeenCalled();
+    await userEvent.click(button);
+    expect(await screen.findByRole("dialog", { name: "Compare three offers" })).toBeVisible();
+  },
+);
 
 it("does not pull someone back into chat after they leave a pending start", async () => {
   if (!env.data) throw new Error("missing fixture");

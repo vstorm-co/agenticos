@@ -1,5 +1,5 @@
 ---
-source_sha: "a55761046e4e"
+source_sha: "2fe45c383dab"
 ---
 
 # Die Konsole { #the-console }
@@ -1008,6 +1008,8 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 Seitenhilfe. Eine angenommene Einladung öffnet denselben Start in der beigetretenen
 Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
 fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
+
+Aufgezeichnete Beispiele öffnen sich in einem Dialog. Schließen Sie ihn mit der Schaltfläche ×, Escape oder der Zurück-Schaltfläche; der Tastaturfokus kehrt zur Aufgabenkarte zurück.
 
 Wählen Sie eine fiktive Besprechungsnotiz, eine Richtlinienfrage oder einen
 Angebotsvergleich. Prüfen oder bearbeiten Sie den Text vor **Aufgabe starten**.

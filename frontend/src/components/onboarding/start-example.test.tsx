@@ -24,11 +24,3 @@ it("does not submit an empty task", async () => {
   await userEvent.clear(screen.getByRole("textbox"));
   expect(screen.getByRole("button", { name: "Run this task" })).toBeDisabled();
 });
-
-it("returns from an inline recorded example without starting a task", async () => {
-  const back = vi.fn();
-  render(<StartExample goal="meeting" onBack={back} />);
-  expect(screen.getByRole("heading", { level: 2 })).toHaveFocus();
-  await userEvent.click(screen.getByRole("button", { name: "Back to getting started" }));
-  expect(back).toHaveBeenCalledOnce();
-});

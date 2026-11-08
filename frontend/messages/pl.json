@@ -13256,6 +13256,7 @@
     "jsonInvalid": "Wpisz poprawny JSON wymaganego typu. Ostatnia poprawna wartość pozostaje bez zmian."
   },
   "start": {
+    "preview": "Podgląd przykładu",
     "title": "Zróbmy pierwsze zadanie",
     "returnTitle": "Wróć do swojej pracy",
     "intro": "Wypróbuj fikcyjny przykład albo użyj własnego materiału. Pozostałe możliwości poznasz wtedy, gdy będą potrzebne.",

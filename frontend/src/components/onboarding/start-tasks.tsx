@@ -28,7 +28,7 @@ import { useStart } from "@/hooks/use-start";
 import { useRouter } from "@/lib/locale-navigation";
 import { START_GOALS, exampleChat, type Onboarding, type StartGoal } from "@/lib/onboarding-api";
 import { getErrorMessage } from "@/lib/api-error";
-import { StartExample } from "./start-example";
+import { StartPreview } from "./start-preview";
 import { StartModel } from "./start-model";
 
 export function StartTasks({ data }: { data: Onboarding }) {
@@ -143,14 +143,14 @@ export function StartTasks({ data }: { data: Onboarding }) {
         </p>
       )}
       {demo && (
-        <StartExample
+        <StartPreview
           key={demo}
           goal={demo}
-          onBack={() => {
+          onClose={() => setDemo(null)}
+          onRestoreFocus={() => {
             const target = trigger.current?.disabled
               ? document.getElementById(`start-title-${demo}`)
               : trigger.current;
-            setDemo(null);
             target?.focus();
           }}
         />

@@ -40,6 +40,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep recorded first-task examples in a dismissible dialog with visible close
+  controls, Escape support and focus restoration. Compact the start page and
+  separate demonstration material from its recorded result.
 - Keep recorded examples available while a preference save is pending or fails,
   restore keyboard focus on return, and avoid late chat navigation after leaving
   the start. Scope pending start operations to their initiating membership.

@@ -1,5 +1,5 @@
 ---
-source_sha: "a55761046e4e"
+source_sha: "2fe45c383dab"
 ---
 
 # Konsola { #the-console }
@@ -935,6 +935,8 @@ Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub p
 strony. Przyjęte zaproszenie otwiera ten sam start w organizacji, do której
 właśnie dołączasz. Rejestracja próbuje od razu zalogować konto; gdy sesja się nie
 powiedzie, formularz logowania zachowuje cel i już utworzone konto.
+
+Zapisane przykłady otwierają się w oknie. Zamknij je przyciskiem ×, klawiszem Escape lub przyciskiem powrotu; fokus klawiatury wraca do karty zadania.
 
 Wybierz fikcyjną notatkę, pytanie o politykę albo porównanie ofert. Przejrzyj lub
 zmień tekst przed **Uruchom zadanie**. Wykonanie korzysta z modelu agenta i zwykłych

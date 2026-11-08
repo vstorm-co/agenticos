@@ -87,22 +87,24 @@ export function StartHub() {
           </p>
           <h1 className={styles.title}>{t(data.has_result ? "returnTitle" : "title")}</h1>
           <p className={styles.intro}>{t("intro")}</p>
-          <div className={styles.path}>
-            <span>
-              <MousePointer2 size={13} aria-hidden />
-              {t("chooseStep")}
-            </span>
-            <ChevronRight size={12} aria-hidden />
-            <span>
-              <PencilLine size={13} aria-hidden />
-              {t("editStep")}
-            </span>
-            <ChevronRight size={12} aria-hidden />
-            <span>
-              <Play size={13} aria-hidden />
-              {t("runStep")}
-            </span>
-          </div>
+          {data.agents.length > 0 && (
+            <div className={styles.path}>
+              <span>
+                <MousePointer2 size={13} aria-hidden />
+                {t("chooseStep")}
+              </span>
+              <ChevronRight size={12} aria-hidden />
+              <span>
+                <PencilLine size={13} aria-hidden />
+                {t("editStep")}
+              </span>
+              <ChevronRight size={12} aria-hidden />
+              <span>
+                <Play size={13} aria-hidden />
+                {t("runStep")}
+              </span>
+            </div>
+          )}
         </header>
         {data.has_result && data.latest_conversation_id && (
           <Link className={styles.result} href={`/chat?id=${data.latest_conversation_id}`}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ArrowLeft, FileText, NotebookPen, Columns3, Play, ShieldCheck } from "lucide-react";
@@ -12,29 +12,18 @@ import type { StartGoal } from "@/lib/onboarding-api";
 export function StartExample({
   goal,
   onRun,
-  onBack,
 }: {
   goal: StartGoal;
   onRun?: (prompt: string) => void;
-  onBack?: () => void;
 }) {
   const t = useTranslations("start");
-  const heading = useRef<HTMLHeadingElement>(null);
-  const inline = !!onBack;
-  useEffect(() => {
-    if (inline) heading.current?.focus();
-  }, [inline]);
   const [prompt, setPrompt] = useState(t(`examples.${goal}.prompt`));
   const Icon = { meeting: NotebookPen, document: FileText, compare: Columns3 }[goal];
   return (
     <section className={`${styles.example} ${styles.enter} space-y-5`}>
       <div className={styles.exampleHeader}>
         <Icon size={26} className="mt-1 shrink-0" aria-hidden />
-        <h2
-          ref={heading}
-          tabIndex={-1}
-          className="text-xl font-semibold tracking-tight focus:outline-none"
-        >
+        <h2 className="text-xl font-semibold tracking-tight focus:outline-none">
           {t(`examples.${goal}.title`)}
         </h2>
       </div>
@@ -73,17 +62,10 @@ export function StartExample({
         </div>
       )}
       <p>
-        {onBack ? (
-          <Button variant="ghost" onClick={onBack}>
-            <ArrowLeft size={14} className="mr-1.5 inline" aria-hidden />
-            {t("back")}
-          </Button>
-        ) : (
-          <Link href="/onboarding" className="text-sm underline underline-offset-4">
-            <ArrowLeft size={14} className="mr-1.5 inline" aria-hidden />
-            {t("back")}
-          </Link>
-        )}
+        <Link href="/onboarding" className="text-sm underline underline-offset-4">
+          <ArrowLeft size={14} className="mr-1.5 inline" aria-hidden />
+          {t("back")}
+        </Link>
       </p>
     </section>
   );

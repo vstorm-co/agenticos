@@ -12842,6 +12842,7 @@
     "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
   },
   "start": {
+    "preview": "Kayıtlı gösterim",
     "title": "İlk görevinizi yapalım",
     "returnTitle": "Çalışmanıza devam edin",
     "intro": "Kurgusal bir örnek deneyin veya kendi içeriğinizi kullanın. Diğer özellikleri ihtiyaç duyduğunuzda keşfedebilirsiniz.",

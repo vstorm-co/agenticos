@@ -1,5 +1,5 @@
 ---
-source_sha: "a55761046e4e"
+source_sha: "2fe45c383dab"
 ---
 
 # La consola { #the-console }
@@ -961,6 +961,8 @@ Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una pág
 Aceptar una invitación abre este mismo inicio en la organización correspondiente.
 El registro intenta iniciar sesión directamente; si falla, el formulario de acceso
 conserva el destino y la cuenta ya creada.
+
+Los ejemplos grabados se abren en un diálogo. Ciérrelo con el botón ×, Escape o el botón de volver; el foco del teclado regresa a la tarjeta de la tarea.
 
 Elige una nota de reunión ficticia, una pregunta sobre una política o una comparación
 de ofertas. Revisa o edita el texto antes de **Run this task**. La ejecución usa

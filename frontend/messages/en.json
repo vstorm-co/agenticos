@@ -13481,6 +13481,7 @@
     "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   },
   "start": {
+    "preview": "Recorded demonstration",
     "title": "Let's do your first task",
     "returnTitle": "Pick up where you left off",
     "intro": "Try a fictional example or bring your own material. You can explore the rest whenever you need it.",

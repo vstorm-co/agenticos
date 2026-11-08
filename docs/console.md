@@ -906,6 +906,8 @@ An accepted organization invitation opens this same start in the organization
 you joined. Registration tries to sign you in immediately; if that session
 fails, the sign-in form keeps the destination and the account already created.
 
+Recorded examples open in a dialog. Close it with the × button, Escape or the return button; keyboard focus returns to the task card.
+
 Choose a fictional meeting note, a policy question or an offer comparison.
 Review or edit the text before **Run this task**. Execution uses the selected
 agent's model and normal spending limits, and may incur provider charges. No

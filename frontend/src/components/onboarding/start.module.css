@@ -3,7 +3,7 @@
   background: var(--color-background);
 }
 .frame {
-  max-width: 1080px;
+  max-width: 1040px;
   margin-inline: auto;
   padding: 24px 32px 40px;
 }
@@ -22,7 +22,7 @@
 }
 .hero {
   max-width: 660px;
-  margin: 64px auto 38px;
+  margin: 40px auto 28px;
   text-align: center;
 }
 .workspace {
@@ -34,7 +34,7 @@
 }
 .title {
   margin-top: 16px;
-  font-size: clamp(30px, 4vw, 44px);
+  font-size: clamp(28px, 3.4vw, 38px);
   font-weight: 600;
   line-height: 1.12;
   letter-spacing: -0.045em;
@@ -54,7 +54,7 @@
   justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 26px;
+  margin-top: 20px;
   font-size: 12px;
   color: var(--color-muted-foreground);
 }
@@ -78,7 +78,8 @@
 }
 .tasks {
   display: grid;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
 }
 .readiness {
   display: flex;
@@ -123,7 +124,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--color-card);
   transition:
     border-color 180ms,
@@ -147,15 +148,15 @@
 .artwork {
   display: grid;
   place-items: center;
-  height: 148px;
+  height: 108px;
   background: var(--color-muted);
   margin: 10px 10px 0;
   border-radius: 10px;
   overflow: hidden;
 }
 .artwork svg {
-  width: 160px;
-  height: 112px;
+  width: 136px;
+  height: 94px;
   color: var(--color-foreground);
 }
 .artPaper {
@@ -182,10 +183,10 @@
   flex: 1;
   flex-direction: column;
   gap: 10px;
-  padding: 22px;
+  padding: 18px;
 }
 .cardTitle {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: -0.025em;
@@ -271,7 +272,7 @@
   margin-inline: auto;
   padding: 28px;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--color-card);
 }
 .exampleHeader {
@@ -289,7 +290,7 @@
 .exampleResult {
   background: var(--color-muted);
   border-radius: 12px;
-  padding: 22px;
+  padding: 18px;
 }
 .next {
   margin-top: 32px;
@@ -353,7 +354,7 @@
     padding: 20px 20px 28px;
   }
   .hero {
-    margin: 40px auto 30px;
+    margin: 28px auto 24px;
   }
   .path {
     display: grid;
@@ -404,6 +405,12 @@
   .example {
     padding: 20px;
   }
+  .panel button {
+    max-width: 100%;
+    height: auto;
+    min-height: 40px;
+    white-space: normal;
+  }
   .footer {
     margin-top: 28px;
     gap: 4px 16px;
@@ -419,8 +426,8 @@
     display: flex;
   }
   .artwork {
-    height: 112px;
-    min-height: 112px;
+    height: 94px;
+    min-height: 94px;
     margin: 8px 8px 0;
   }
   .artwork svg {
@@ -429,5 +436,90 @@
   }
   .cardBody {
     padding: 18px;
+  }
+}
+
+/* Keep dismissal visible while long source material scrolls independently. */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 880px;
+  padding: 0;
+  overflow: hidden;
+}
+.previewHeader {
+  display: grid;
+  flex-shrink: 0;
+  gap: 10px;
+  padding: 24px 56px 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+.previewLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+}
+.previewBody {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.previewMaterial,
+.previewResult {
+  min-width: 0;
+  padding: 24px;
+}
+.previewMaterial {
+  background: var(--color-muted);
+  border-right: 1px solid var(--color-border);
+}
+.previewBody h3 {
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.previewBody p {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.previewFooter {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border);
+}
+.previewFooter button {
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .previewHeader {
+    padding: 20px 52px 16px 20px;
+  }
+  .previewBody {
+    grid-template-columns: 1fr;
+  }
+  .previewMaterial,
+  .previewResult {
+    padding: 20px;
+  }
+  .previewMaterial {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .previewFooter {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px;
   }
 }
