@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.58.2] - 2026-11-08
+
 ### Fixed
 
 - Concurrent first ingests into the same new collection no longer fail on PostgreSQL catalog uniqueness. Table and index creation is serialized per collection, and a rolled-back creator releases waiting writes (#2774).
@@ -20638,7 +20640,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...HEAD
+[1.58.2]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...v1.58.2
 [1.58.1]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...v1.58.1
 [1.58.0]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
