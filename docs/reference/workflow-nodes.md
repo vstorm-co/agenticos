@@ -166,6 +166,9 @@ contracts are also exposed as JSON Schema.
 
 HTTP discovery exposes only the first **Called by a workflow** entry, with the default entry first, because child-workflow calls cannot select another entry. Platform MCP discovery exposes only Manual/API entries supported by its run tool.
 
+Standalone `then`/`else` branches and branches excluded by a literal boolean
+`if` are checked for reference safety but do not create runtime recursion edges.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its

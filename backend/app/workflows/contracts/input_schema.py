@@ -103,13 +103,20 @@ def _too_deep(value: JsonValue) -> bool:
 def _subschemas(
     schema: Mapping[str, JsonValue],
 ) -> Iterator[tuple[dict[str, JsonValue] | bool, bool, bool]]:
-    """Subschemas, same-input evaluation, and nonasserting content annotations.
+    """Subschemas, same-input evaluation, and statically unevaluated schemas.
 
     The parent already passed the Draft meta-schema, including child types.
     """
     for keyword, value in schema.items():
         if keyword in _SAME_VALUE | _CHILD_VALUE and isinstance(value, (dict, bool)):
-            yield value, keyword in _SAME_VALUE, keyword == "contentSchema"
+            inactive = (keyword == "then" and ("if" not in schema or schema["if"] is False)) or (
+                keyword == "else" and ("if" not in schema or schema["if"] is True)
+            )
+            yield (
+                value,
+                keyword in _SAME_VALUE and not inactive,
+                keyword == "contentSchema" or inactive,
+            )
         elif keyword in _SCHEMA_MAPS and isinstance(value, dict):
             for child in value.values():
                 yield (
@@ -380,6 +387,17 @@ def _every_object_matches(
     return True
 
 
+def _schema_resolver(schema: InputSchema) -> Resolver[Schema]:
+    """Index supplied resources once; never install external retrieval.
+
+    A lookup returns its crawled registry only to that resolver, so uncrawled
+    sibling resolvers would otherwise reindex the whole document per reference.
+    """
+    resource = DRAFT202012.create_resource(schema)
+    base = resource.id() or ""
+    return Registry().with_resource(base, resource).crawl().resolver(base)
+
+
 def check_input_schema(schema: InputSchema) -> None:
     """Refuse invalid dialects, unresolved/external references and endless ref loops.
 
@@ -402,7 +420,7 @@ def check_input_schema(schema: InputSchema) -> None:
     connections: dict[int, set[int]] = {}
     references: dict[int, int] = {}
     resource = DRAFT202012.create_resource(schema)
-    resolver = Registry().resolver_with_root(resource)
+    resolver = _schema_resolver(schema)
     annotation_checked: set[int] = set()
     pending: list[tuple[Resource[Schema], Resolver[Schema], bool]] = [(resource, resolver, False)]
     while pending:
@@ -589,7 +607,9 @@ def schema_input_problems(
     seen_required: set[tuple[tuple[str | int, ...], tuple[str, ...]]] = set()
     truncated = False
     try:
-        for error in _InputValidator(schema, registry=Registry()).iter_errors(run_input):
+        for error in _InputValidator(
+            schema, registry=Registry(), _resolver=_schema_resolver(schema)
+        ).iter_errors(run_input):
             for specific in _specific_errors(error):
                 for path in _error_paths(specific, seen_required):
                     problem = {

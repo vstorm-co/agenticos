@@ -1,5 +1,5 @@
 ---
-source_sha: "ee4fc0273506"
+source_sha: "4e584683df83"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -177,6 +177,10 @@ Wywołujący może sprawdzić efektywny kontrakt przed wykonaniem przez
 pól są również udostępniane jako JSON Schema.
 
 Odkrywanie przez HTTP udostępnia tylko pierwsze wejście **Called by a workflow**, z wejściem domyślnym na początku, ponieważ wywołania podrzędnego workflow nie pozwalają wybrać innego wejścia. Odkrywanie przez platformowy MCP udostępnia tylko wejścia Manual/API obsługiwane przez jego narzędzie uruchamiania.
+
+Samodzielne gałęzie `then`/`else` oraz gałęzie wykluczone przez literalny warunek
+logiczny `if` są sprawdzane pod kątem bezpieczeństwa referencji, ale nie tworzą
+krawędzi rekurencji wykonywanej przy walidacji.
 
 ### trigger.manual { #trigger-manual }
 

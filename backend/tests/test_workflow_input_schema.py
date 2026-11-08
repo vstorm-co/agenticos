@@ -1,12 +1,15 @@
 """Portable trigger contracts retain JSON Schema semantics at admission and discovery."""
 
 import json
+from collections.abc import Iterator
 from copy import deepcopy
 
 import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import JsonValue, ValidationError
+from referencing import Resource
+from referencing.jsonschema import Schema
 
 from app.services.workflow_execution.exceptions import WorkflowRunInputInvalidError
 from app.workflows.contracts import input_schema
@@ -1437,3 +1440,64 @@ def test_resource_uri_references_still_refuse_same_value_cycles() -> None:
         TriggerInputConfig(
             input_schema={"$id": "https://example.com/root", "$ref": "https://example.com/root"}
         )
+
+
+def test_sibling_resource_references_index_the_document_once_per_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    count = 128
+    schema: dict[str, JsonValue] = {
+        "$id": "https://example.com/root",
+        "$defs": {f"part{i}": {"$id": f"part{i}", "type": "object"} for i in range(count)},
+        "allOf": [{"$ref": f"part{i}"} for i in range(count)],
+    }
+    visits = 0
+    original = Resource.subresources
+
+    def subresources(resource: Resource[Schema]) -> Iterator[Resource[Schema]]:
+        nonlocal visits
+        visits += 1
+        yield from original(resource)
+
+    monkeypatch.setattr(Resource, "subresources", subresources)
+    check_input_schema(schema)
+    assert visits <= count * 4
+    visits = 0
+    assert schema_input_problems(schema, {}) == []
+    assert visits <= count * 4
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"if": False, "then": {"$ref": "#"}},
+        {"if": True, "else": {"$ref": "#"}},
+        {"then": {"$ref": "#"}},
+        {"else": {"$ref": "#"}},
+    ],
+)
+def test_statically_inactive_conditional_branches_do_not_create_cycles(
+    schema: dict[str, JsonValue],
+) -> None:
+    config = TriggerInputConfig(input_schema=schema)
+    assert input_problems(config, {}) == []
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"if": True, "then": {"$ref": "#"}},
+        {"if": False, "else": {"$ref": "#"}},
+        {"then": {"$ref": "#"}, "$ref": "#/then"},
+    ],
+)
+def test_executed_conditional_references_still_refuse_same_value_cycles(
+    schema: dict[str, JsonValue],
+) -> None:
+    with pytest.raises(ValidationError, match="reference cycle"):
+        TriggerInputConfig(input_schema=schema)
+
+
+def test_inactive_conditional_branches_still_require_supplied_references() -> None:
+    with pytest.raises(ValidationError, match="within the supplied document"):
+        TriggerInputConfig(input_schema={"if": False, "then": {"$ref": "https://outside.test"}})

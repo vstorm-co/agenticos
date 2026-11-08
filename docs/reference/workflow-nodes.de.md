@@ -1,5 +1,5 @@
 ---
-source_sha: "ee4fc0273506"
+source_sha: "4e584683df83"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -185,6 +185,10 @@ Aufrufer können den wirksamen Vertrag vor der Ausführung über die
 einfachen Feldern werden als JSON Schema bereitgestellt.
 
 Die HTTP-Erkennung zeigt nur den ersten Einstieg **Called by a workflow**, wobei der Standardeinstieg zuerst kommt, da Aufrufe untergeordneter Workflows keinen anderen Einstieg auswählen können. Die Plattform-MCP-Erkennung zeigt nur die Manual/API-Einstiege, die ihr Ausführungswerkzeug unterstützt.
+
+Eigenständige `then`/`else`-Zweige und Zweige, die ein boolescher Literalwert
+für `if` ausschließt, werden auf sichere Referenzen geprüft, erzeugen aber keine
+Rekursionskanten für die Auswertung.
 
 ### trigger.manual { #trigger-manual }
 

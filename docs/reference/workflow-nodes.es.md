@@ -1,5 +1,5 @@
 ---
-source_sha: "ee4fc0273506"
+source_sha: "4e584683df83"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -180,6 +180,10 @@ Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante l
 campos simples también se exponen como JSON Schema.
 
 El descubrimiento por HTTP expone únicamente la primera entrada **Called by a workflow**, con la entrada predeterminada primero, porque las llamadas a workflows secundarios no permiten seleccionar otra entrada. El descubrimiento del MCP de la plataforma expone solo las entradas Manual/API admitidas por su herramienta de ejecución.
+
+Las ramas `then`/`else` independientes y las excluidas por un valor booleano
+literal en `if` se comprueban para asegurar referencias seguras, pero no crean
+aristas de recursión durante la evaluación.
 
 ### trigger.manual { #trigger-manual }
 
