@@ -769,6 +769,10 @@ run history. The run is recorded with the surface `workflow`. Bound `sources`
 are appended to the prompt as numbered context. An approval-gated tool call
 parks the step, and the decision resumes the same agent run.
 
+The existing `ask_user_question` tool also parks this step. The workflow shows `waiting_for_user`; its question card is available in the originating chat and run view. Only the person asked can answer. Answers are saved before the workflow continuation is queued, and resume the pending tool call under the current workflow budget. Reloading the page does not discard the question. Cancelling the workflow closes its waiting agent runs; unanswered questions expire after `QUESTION_EXPIRY_HOURS` (24 by default).
+
+This applies to the step’s own agent when a signed-in person is behind the run. Public-origin runs have no person to ask. Delegates still need a live question surface. If a model batches a question with an approval-gated call, approval takes priority and that question is treated as declined when the approval resumes.
+
 `inline` configures the agent in the step instead of `agent`, and exactly one of
 the two is set. The spec is the step's, versioned with the graph: the first run
 creates an agent owned by the workflow, kept out of the catalog and reached
@@ -790,6 +794,7 @@ and an answer with no object where one was asked for fails it with
 |---|---|
 | Completed | Completed |
 | Awaiting approval | Waits, then resumes the same run |
+| Awaiting answer | Waits for the person, then resumes the same conversation |
 | Budget exceeded | `AGENT_BUDGET_EXCEEDED` |
 | Guardrail blocked | `AGENT_GUARDRAIL_BLOCKED` |
 | Otherwise | `AGENT_RUN_FAILED` |

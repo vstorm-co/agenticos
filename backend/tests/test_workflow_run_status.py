@@ -12,6 +12,7 @@ pytestmark = pytest.mark.anyio
 
 RUNNING = (NodeRunStatus.RUNNING, None)
 APPROVAL = (NodeRunStatus.WAITING, WaitingReason.APPROVAL)
+QUESTION = (NodeRunStatus.WAITING, WaitingReason.QUESTION)
 BACKOFF = (NodeRunStatus.WAITING, WaitingReason.RETRY_BACKOFF)
 TIMER = (NodeRunStatus.WAITING, WaitingReason.TIMER)
 CALLED = (NodeRunStatus.WAITING, WaitingReason.EXTERNAL_EVENT)
@@ -44,6 +45,13 @@ def test_a_timer_or_a_called_run_reads_as_running(state):
 
 def test_no_live_rows_reads_as_running():
     assert derive_status([]) == DerivedStatus(WorkflowRunStatus.RUNNING, None)
+
+
+def test_a_question_is_visible_beside_running_approval_and_retry_siblings():
+    assert derive_status([RUNNING, QUESTION, APPROVAL, BACKOFF]) == DerivedStatus(
+        WorkflowRunStatus.WAITING_FOR_USER, "question"
+    )
+    assert derive_status([QUESTION, ATTENTION]).status is WorkflowRunStatus.NEEDS_ATTENTION
 
 
 async def test_refreshing_writes_only_what_changed():

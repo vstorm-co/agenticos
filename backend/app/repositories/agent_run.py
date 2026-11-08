@@ -392,6 +392,17 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     return run
 
 
+async def keep_paused_state(
+    db: AsyncSession, *, run: AgentRun, paused_state: dict[str, Any]
+) -> AgentRun:
+    """Persist accepted question results while the run remains parked."""
+    run.paused_state = paused_state
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
 async def record_chat_notice(db: AsyncSession, *, run: AgentRun, at: datetime) -> AgentRun:
     """Remember that the run's chat was told this park could not continue."""
     run.chat_notice_sent_at = at
@@ -2313,6 +2324,10 @@ async def list_unanswered_runs(
         .where(
             AgentRun.status == RunStatus.AWAITING_ANSWER.value,
             AgentRun.ended_at < older_than,
+            or_(
+                AgentRun.paused_state["question_results"].is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
         )
         .order_by(AgentRun.ended_at.asc())
         .limit(limit)

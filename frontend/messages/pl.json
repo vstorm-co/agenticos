@@ -3700,7 +3700,8 @@
         "queued": "W kolejce",
         "running": "W toku",
         "waiting_approval": "Czeka na zatwierdzenie",
-        "waiting_retry": "Ponawia"
+        "waiting_retry": "Ponawia",
+        "waiting_for_user": "Czeka na odpowiedź"
       },
       "nodeStatus": {
         "cancelled": "Anulowany",
@@ -4248,6 +4249,9 @@
       "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach.",
       "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)",
       "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane.",
+      "runQuestionsTitle": "Twój agent potrzebuje odpowiedzi, aby kontynuować",
+      "runQuestionsFailed": "Nie udało się wczytać pytań.",
+      "runQuestionsRetry": "Spróbuj ponownie",
       "startRunSchema": "Oczekiwany schemat wejścia"
     },
     "adminApns": {
@@ -6874,6 +6878,10 @@
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
+      },
+      "workflow-run-questions": {
+        "title": "Odpowiedz agentowi",
+        "body": "Agent w tym workflow może poprosić o wyjaśnienie. Odpowiedz tutaj, aby wznowić zapisaną rozmowę i kontynuować workflow."
       },
       "workflow-input-contract": {
         "title": "Określ oczekiwane dane wejściowe",

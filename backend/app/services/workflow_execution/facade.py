@@ -8,6 +8,7 @@ anything about the run itself is touched.
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
@@ -15,6 +16,7 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from pydantic import JsonValue
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,6 +60,7 @@ from app.schemas.workflow_run import (
     WorkflowFileRead,
     WorkflowNodeRunList,
     WorkflowNodeRunRead,
+    WorkflowQuestionRead,
     WorkflowRunFilters,
     WorkflowRunGraph,
     WorkflowRunList,
@@ -110,6 +113,9 @@ from app.workflows.triggers import (
 )
 
 logger = logging.getLogger(__name__)
+
+type QuestionResponses = Mapping[str, list[dict[str, JsonValue]]]
+type WorkflowQuestions = list[WorkflowQuestionRead]
 
 
 @dataclass(frozen=True)
@@ -936,6 +942,75 @@ class WorkflowExecutionService:
     async def get(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
         run, workflow = await self._load_with_workflow(ctx, run_id, Perm.WORKFLOWS_VIEW)
         return _read(run, can_cancel=await self._may_resolve(ctx, run, workflow))
+
+    async def questions(self, ctx: AuthContext, run_id: UUID) -> WorkflowQuestions:
+        """The open questions asked of this run's execution principal."""
+        from app.services.workflow_execution import question_tree
+
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+
+        async def can_answer(current: WorkflowRun) -> bool:
+            return await self._reachable(ctx, current.workflow_id, Perm.WORKFLOWS_RUN) is not None
+
+        return await question_tree.read(
+            self.db,
+            ctx,
+            run,
+            load=lambda child_id: self._load(ctx, child_id, Perm.WORKFLOWS_VIEW),
+            can_answer=can_answer,
+        )
+
+    async def answer_questions(
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        node_run_id: UUID,
+        responses: QuestionResponses,
+    ) -> WorkflowRunRead:
+        """Record an answer and queue the same agent step, without executing it here.
+
+        Only the signed-in execution principal may answer. The queued continuation
+        rechecks workflow authority, its deadline and its remaining budget.
+        """
+        from app.services.workflow_execution import questions
+
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_RUN)
+        if (
+            ctx.user_id is None
+            or ctx.api_key_id is not None
+            or run.execution_principal_user_id != ctx.user_id
+            or run.public_origin
+        ):
+            raise AuthorizationError(
+                message="Only the person this workflow asked may answer",
+                details={"run_id": run_id},
+            )
+        locked = await workflow_run_repo.get_run_for_update(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if locked is None:
+            raise WorkflowRunNotFoundError(run_id=run_id)
+        if WorkflowRunStatus(locked.status).is_terminal:
+            raise WorkflowRunAlreadyTerminalError(run_id=run_id, status=locked.status)
+        node = await workflow_run_repo.get_node_run_by_id_for_update(self.db, node_run_id)
+        if node is None or node.workflow_run_id != locked.id:
+            raise WorkflowStepNotFoundError(node_run_id=node_run_id)
+        await questions.accept(self.db, ctx, run=locked, node=node, responses=responses)
+        return _read(locked, can_cancel=True)
+
+    async def answer_agent_questions(
+        self,
+        ctx: AuthContext,
+        agent_run_id: UUID,
+        responses: QuestionResponses,
+    ) -> WorkflowRunRead | None:
+        """Route an existing question card back to its owning workflow, if any."""
+        node = await workflow_run_repo.find_node_run_for_agent_run(
+            self.db, agent_run_id, organization_id=ctx.organization_id
+        )
+        if node is None:
+            return None
+        return await self.answer_questions(ctx, node.workflow_run_id, node.id, responses)
 
     async def list(
         self,

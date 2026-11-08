@@ -41,6 +41,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_an_answered_or_ended_question_wakes_its_owning_step": "'approval' names the wake module; an accepted question continuation, not an authorization refusal",
+    "tests/test_workflow_run_status.py::test_a_question_is_visible_beside_running_approval_and_retry_siblings": "'approval' names a waiting status; severity reporting, not an authorization refusal",
     "tests/integration/test_artifact_log_bindings.py::TestReading::test_the_lines_are_cut_to_the_pages_byte_budget": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_artifact_log_bindings.py::TestBesideATable::test_the_byte_budget_is_shared_fairly_between_a_table_and_a_log": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_workflow_approval_metrics_migration.py::test_an_existing_request_reads_unmeasured": "'approval' names the approval step's stored column the migration adds, not an authorization refusal",

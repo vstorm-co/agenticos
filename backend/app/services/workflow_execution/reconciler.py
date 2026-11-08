@@ -31,7 +31,7 @@ from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, Nod
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatch_queue, dispatcher
-from app.services.workflow_execution.approval_wake import still_waiting_on
+from app.services.workflow_execution.approval_wake import ready_to_resume, still_waiting_on
 from app.services.workflow_execution.approvals import still_parked
 
 logger = logging.getLogger(__name__)
@@ -178,7 +178,10 @@ class WorkflowReconcilerService:
         one for the same `NodeRun`, read back here as "already dispatched"
         inside a savepoint rather than as a failure.
         """
-        node_runs = await workflow_run_repo.list_stale_approval_waits(self.db, limit=limit)
+        node_runs = [
+            *await workflow_run_repo.list_stale_approval_waits(self.db, limit=limit),
+            *await workflow_run_repo.list_stale_question_waits(self.db, limit=limit),
+        ]
         woken = 0
         for scanned in node_runs:
             run = await workflow_run_repo.get_run_by_id_for_update(self.db, scanned.workflow_run_id)
@@ -192,6 +195,8 @@ class WorkflowReconcilerService:
                 or node_run is None
                 or not still_waiting_on(run, node_run, agent_run_id=scanned.waiting_agent_run_id)
             ):
+                continue
+            if not await ready_to_resume(self.db, node_run, organization_id=run.organization_id):
                 continue
             try:
                 async with self.db.begin_nested():

@@ -95,6 +95,45 @@ async def test_an_approval_parks_the_node_on_the_agent_run(runner):
     assert scope.cost == Decimal("0.01")
 
 
+async def test_a_question_parks_the_node_and_enables_the_existing_question_tool(runner):
+    parked = _run(RunStatus.AWAITING_ANSWER, cost="0.01")
+    runner.execute.return_value = ("", parked)
+
+    result, scope = await _call()
+
+    assert isinstance(result, Waiting) and result.reason == "question"
+    assert scope.waiting_agent_run_id == parked.id
+    assert runner.execute.await_args.kwargs["parks_questions"] is True
+
+
+@pytest.mark.parametrize(
+    "status",
+    [None, RunStatus.AWAITING_ANSWER, RunStatus.RUNNING, RunStatus.CANCELLED, RunStatus.COMPLETED],
+)
+async def test_a_wake_collects_a_terminal_child_without_replaying_it(runner, monkeypatch, status):
+    from app.core.exceptions import BadRequestError
+    from app.workflows.contracts.results import Uncertain
+
+    runner.resume.side_effect = BadRequestError(message="This run is not parked", details={})
+    child = (
+        None
+        if status is None
+        else _run(status, error="No answer within 24h - the question expired")
+    )
+    monkeypatch.setattr(agent_node, "_cost_so_far", AsyncMock(return_value=Decimal("0.01")))
+    monkeypatch.setattr(agent_node.agent_run_repo, "get_run", AsyncMock(return_value=child))
+
+    result, _ = await _call(resumed=uuid.uuid4())
+
+    runner.execute.assert_not_awaited()
+    if status is RunStatus.COMPLETED:
+        assert isinstance(result, Uncertain)
+    elif status is RunStatus.CANCELLED:
+        assert isinstance(result, Failed) and "question expired" in result.error.message
+    else:
+        assert isinstance(result, Failed) and result.error.message == "This run is not parked"
+
+
 async def test_a_wake_continues_the_same_run_and_books_only_what_it_added(runner, monkeypatch):
     parked_id = uuid.uuid4()
     finished = _run(RunStatus.COMPLETED, cost="0.05")

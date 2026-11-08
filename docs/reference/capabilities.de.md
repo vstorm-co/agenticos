@@ -1,5 +1,5 @@
 ---
-source_sha: "56f00d2af57c"
+source_sha: "fe652977b769"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3236,8 +3236,8 @@ Person abgelehnt hat, und macht weiter.
 
 Das Tool und sein Schema stammen aus `AskUser` in pydantic-ai-harness. Es ist in
 jedem neuen Agent und jeder Vorlage standardmäßig aktiv und lässt sich abschalten.
-Wo noch niemand antworten kann — ein Zeitplan, ein Webhook, die API —, erfährt der
-Agent, dass die Person abgelehnt hat.
+Ein eigenständiger Agent-Run ohne Fragekanal — aus einem Zeitplan, Webhook oder
+der API — erfährt, dass die Person abgelehnt hat.
 
 Im Konsolenchat speichert der Run seine Fragen und pausiert, bevor die Karte
 erscheint — im Run-Verlauf als **Wartet auf eine Antwort**. Ein Chatwechsel,
@@ -3251,6 +3251,10 @@ Antworten kann nur die gefragte Person. API-Clients können
 Karte zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
+
+In einem Workflow-Agent-Schritt speichert dasselbe Tool die Unterhaltung und pausiert den Workflow mit **Wartet auf Benutzer**. Antworte in der Workflow-Run-Ansicht oder im ursprünglichen Chat. Die Antwort wird gespeichert, und der Workflow-Worker setzt denselben Agent-Run mit seinem Budget und den bisherigen Tool-Ergebnissen fort. Workflow-Clients lesen `GET /workflow-runs/{run_id}/questions` und senden `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` mit dem üblichen Objekt `responses`. Jeder Eintrag nennt die zugehörige `workflow_run_id`; verwende diese beim Beantworten einer Frage aus einem synchron aufgerufenen Workflow.
+
+Fragekarten erscheinen nur, solange du den zugehörigen Workflow ausführen darfst. Eine **use**-Freigabe für diesen Workflow erlaubt ebenfalls das Antworten; andere Personen mit Lesezugriff können nicht für dich antworten.
 
 ## Entwürfe { #drafts }
 

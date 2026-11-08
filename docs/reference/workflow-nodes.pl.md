@@ -1,5 +1,5 @@
 ---
-source_sha: "34e8bf8372e8"
+source_sha: "b4d9ec998c26"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -793,6 +793,10 @@ agenta. Run jest zapisywany z powierzchnią `workflow`. Zbindowane `sources` są
 dopisywane do promptu jako numerowany kontekst. Wywołanie narzędzia wymagające
 zatwierdzenia zatrzymuje krok, a decyzja wznawia ten sam run agenta.
 
+Istniejące narzędzie `ask_user_question` również wstrzymuje ten krok. Workflow pokazuje `waiting_for_user`, a karta pytania jest dostępna w czacie źródłowym i widoku runa. Odpowiedzieć może tylko osoba, której zadano pytanie. Odpowiedzi są zapisywane przed zakolejkowaniem kontynuacji workflow i wznawiają oczekujące wywołanie narzędzia z uwzględnieniem bieżącego budżetu workflow. Odświeżenie strony nie usuwa pytania. Anulowanie workflow zamyka oczekujące runy agentów; pytania bez odpowiedzi wygasają po `QUESTION_EXPIRY_HOURS` (domyślnie 24).
+
+Dotyczy to własnego agenta kroku, gdy za runem stoi zalogowana osoba. Runy ze źródła publicznego nie mają osoby, której można zadać pytanie. Delegaci nadal wymagają aktywnego kanału pytań. Jeśli model wyśle pytanie razem z wywołaniem wymagającym zatwierdzenia, pierwszeństwo ma zatwierdzenie, a po wznowieniu pytanie jest traktowane jako odrzucone.
+
 `inline` konfiguruje agenta w kroku zamiast `agent` i ustawione jest dokładnie jedno
 z nich. Spec należy do kroku i jest wersjonowany razem z grafem: pierwszy run
 tworzy agenta należącego do workflow, ukrytego w katalogu i osiągalnego przez
@@ -813,6 +817,7 @@ obiektu tam, gdzie o niego proszono, błędem `STRUCTURED_OUTPUT_MISMATCH`.
 |---|---|
 | Completed | Completed |
 | Czeka na zatwierdzenie | Czeka, potem wznawia ten sam run |
+| Czeka na odpowiedź | Czeka na osobę, potem wznawia tę samą rozmowę |
 | Przekroczony budżet | `AGENT_BUDGET_EXCEEDED` |
 | Zablokowany przez guardrail | `AGENT_GUARDRAIL_BLOCKED` |
 | Inaczej | `AGENT_RUN_FAILED` |

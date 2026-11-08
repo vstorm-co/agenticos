@@ -4,7 +4,7 @@ from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from sqlalchemy import (
     ColumnElement,
@@ -1757,6 +1757,65 @@ async def create_message(
 
     if message.guardrail_refused:
         await _invalidate_refused_history(db, conversation_id, message.ordinal)
+    return message
+
+
+async def save_workflow_message(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    workflow_run_id: UUID,
+    content: str,
+    parts: list[dict[str, object]],
+) -> Message:
+    """Keep the pending workflow card and its final answer in the same chat message.
+
+    A stable identity lets a reloaded chat discover a waiting workflow and keeps
+    terminal delivery from adding a second copy of the card.
+
+    The card is admitted early in the thread, but its answer can arrive after the
+    person has sent more turns and those turns have been compacted into a summary.
+    Left at its admission `ordinal`, the answer would sit at or below the summary
+    cutoff and vanish from the next turn's history - it is in neither the saved
+    summary nor the rows replayed after it. On a material change the row moves to
+    the `ordinal` this INSERT allocated: PostgreSQL evaluates the identity default
+    before `ON CONFLICT`, so `excluded.ordinal` is a fresh position even when no
+    row is inserted. An identical redelivery keeps its ordinal, so a terminal
+    answer already compacted into a summary is not replayed a second time.
+    """
+    statement = pg_insert(Message).values(
+        id=uuid5(workflow_run_id, "workflow-chat-message"),
+        conversation_id=conversation_id,
+        role="assistant",
+        content=content,
+        parts=parts,
+    )
+    advanced = case(
+        (
+            or_(
+                Message.content.is_distinct_from(statement.excluded.content),
+                Message.parts.is_distinct_from(statement.excluded.parts),
+            ),
+            statement.excluded.ordinal,
+        ),
+        else_=Message.ordinal,
+    )
+    statement = statement.on_conflict_do_update(
+        index_elements=[Message.id],
+        set_={
+            "content": content,
+            "parts": parts,
+            "ordinal": advanced,
+        },
+    ).returning(Message)
+    message = (await db.execute(statement)).scalar_one()
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(updated_at=datetime.now(UTC))
+    )
+    await db.flush()
+    await db.refresh(message)
     return message
 
 

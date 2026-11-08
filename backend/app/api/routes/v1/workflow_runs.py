@@ -32,6 +32,7 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.field_errors import field_details
 from app.core.permissions import Perm
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
+from app.schemas.agent import QuestionAnswers
 from app.schemas.reply_expectation import ReplyExpectation, ReplyExpectationEdit
 from app.schemas.workflow_log_entry import (
     LOG_SUMMARY_DAYS,
@@ -46,6 +47,7 @@ from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowFileList,
     WorkflowNodeRunList,
+    WorkflowQuestionRead,
     WorkflowResumed,
     WorkflowRunFilters,
     WorkflowRunGraph,
@@ -141,6 +143,38 @@ async def list_workflow_runs(
 async def get_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
     """One run's current state."""
     return await service.get(ctx, run_id)
+
+
+@router.get("/{run_id}/questions", response_model=list[WorkflowQuestionRead])
+async def get_workflow_questions(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
+    """The agent questions this workflow is waiting on you to answer.
+
+    Only questions put to the caller are returned. Reloading the chat or run
+    view reads the same saved questions without starting another execution.
+    Questions from active, synchronously called workflows are included when
+    the caller may view them. Answer using each entry's owning workflow run id.
+    Cards are offered only while the caller may still run that workflow,
+    including access granted by a per-workflow use grant.
+    """
+    return await service.questions(ctx, run_id)
+
+
+@router.post("/{run_id}/nodes/{node_run_id}/answers", response_model=WorkflowRunRead)
+async def answer_workflow_questions(
+    run_id: UUID,
+    node_run_id: UUID,
+    data: QuestionAnswers,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+) -> Any:
+    """Save answers and queue the waiting step to continue its agent conversation.
+
+    Only the person asked may answer. Tool call ids bind the answers to the
+    current questions; a stale answer cannot answer a later question. The
+    workflow worker continues the same agent run under its current budget and
+    authority checks. This request makes no model call.
+    """
+    return await service.answer_questions(ctx, run_id, node_run_id, data.responses)
 
 
 @router.post("/{run_id}/cancel", response_model=WorkflowRunRead)

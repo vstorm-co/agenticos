@@ -101,7 +101,9 @@ on resumes it as its publisher, so it needs permission to run the workflow. A ca
 be restored, still paused, or deleted with its versions, runs and shares; one whose
 runs have not ended is refused with `WORKFLOW_IN_USE`.
 
-Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives only the workflow result. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives the workflow result and any agent questions. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+
+An agent step can call `ask_user_question` to pause with **Waiting for user**. Answer its question card in the originating chat or on the run page. Your answer completes the pending tool call, and the workflow worker resumes the same agent conversation. The agent can ask again before returning its final result. Other independent branches may continue while this step waits.
 
 Agents called from workflows can use their AgenticOS MCP tools in the background worker as well as in the web chat.
 

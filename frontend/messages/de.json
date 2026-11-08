@@ -5153,6 +5153,10 @@
         "title": "Deine Coding-Konten",
         "body": "Verbinde Codex oder Claude Code, ohne den Chat zu verlassen. Dies sind deine privaten Cloud-Konten; lokale Desktop-Werkzeuge behalten ihre eigene Anmeldung."
       },
+      "workflow-run-questions": {
+        "title": "Dem Agent antworten",
+        "body": "Ein Agent in diesem Workflow kann Rückfragen stellen. Antworte hier, um die gespeicherte Unterhaltung und den Workflow fortzusetzen."
+      },
       "workflow-input-contract": {
         "title": "Erwartete Eingabe festlegen",
         "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema Draft 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
@@ -6952,7 +6956,8 @@
         "queued": "In der Warteschlange",
         "running": "Läuft",
         "waiting_approval": "Wartet auf Freigabe",
-        "waiting_retry": "Wird wiederholt"
+        "waiting_retry": "Wird wiederholt",
+        "waiting_for_user": "Wartet auf Antwort"
       },
       "nodeStatus": {
         "cancelled": "Abgebrochen",
@@ -7500,6 +7505,9 @@
       "replyMailboxConnect": "Zuerst Gmail oder Outlook unter Integrationen verbinden.",
       "replySharedMailbox": "Freigegebenes Outlook-Postfach (optional)",
       "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.",
+      "runQuestionsTitle": "Dein Agent braucht eine Antwort, um fortzufahren",
+      "runQuestionsFailed": "Die Fragen konnten nicht geladen werden.",
+      "runQuestionsRetry": "Erneut versuchen",
       "startRunSchema": "Erwartetes Eingabeschema"
     },
     "adminApns": {
