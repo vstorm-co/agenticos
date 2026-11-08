@@ -81,7 +81,7 @@ export function VersionCompare({
                 <div
                   role="separator"
                   aria-orientation="vertical"
-                  className="bg-border w-0.5 shrink-0 rounded-full"
+                  className="bg-foreground/30 w-0.5 shrink-0 self-stretch rounded-full"
                 />
               )}
               <Column
@@ -105,13 +105,18 @@ export function VersionCompare({
  * drawn pushes it down the list, so the page holding it is found again from the total.
  */
 function useComparedVersion(skillId: string, item: Compared) {
-  const [newest, setNewest] = useState(item.newest);
-  const page = Math.floor((newest - item.number) / PAGE_SIZE);
+  // Kept for the version it was found for: the reference a column reads can change, and
+  // another line's newest number would point at the wrong page, or below the first.
+  const [moved, setMoved] = useState<{ key: string; newest: number } | null>(null);
+  const newest = moved?.key === item.key ? moved.newest : item.newest;
+  const page = Math.max(0, Math.floor((newest - item.number) / PAGE_SIZE));
   const listed = useSkillVersions(skillId, item.fork, page);
   const id = listed.versions.find((version) => version.number === item.number)?.id ?? null;
   const read = useSkillVersion(skillId, id);
   const loaded = !listed.isLoading && !listed.error;
-  if (loaded && id === null && listed.total > newest) setNewest(listed.total);
+  if (loaded && id === null && listed.total > newest) {
+    setMoved({ key: item.key, newest: listed.total });
+  }
   return {
     version: read.version,
     missing: loaded && id === null && listed.total <= newest,
@@ -146,16 +151,26 @@ function Column({
   const against = useComparedVersion(skillId, reference ?? item);
   const base = reference === null ? null : against.version;
   const version = own.version;
+  // A column is unreadable when its own version is, or the reference it is marked against.
+  const broken =
+    own.failed || own.missing
+      ? own
+      : reference !== null && (against.failed || against.missing)
+        ? against
+        : null;
   return (
     <section
       aria-label={item.name}
-      className="bg-card flex w-96 shrink-0 flex-col gap-3 rounded-xl border p-3"
+      className={cn(
+        "flex w-96 shrink-0 flex-col gap-3 rounded-xl p-3",
+        reference === null ? "border-primary bg-primary/5 border-2" : "bg-card border",
+      )}
     >
       <header className="flex items-center justify-between gap-2">
         <h3 className="truncate font-mono text-sm font-medium">{item.name}</h3>
         <span className="flex shrink-0 items-center gap-1.5">
           {reference === null ? (
-            <Badge variant="outline">{t("reference")}</Badge>
+            <Badge>{t("reference")}</Badge>
           ) : (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onReference}>
               <Crosshair className="size-3.5" aria-hidden />
@@ -172,13 +187,13 @@ function Column({
           </button>
         </span>
       </header>
-      {own.failed || own.missing ? (
+      {broken ? (
         <div role="alert" className="space-y-2 text-sm">
           <p className="text-destructive">
             {t("unreadable")}
-            {own.failed ? ` ${getErrorMessage(own.failed, tErrors)}` : ""}
+            {broken.failed ? ` ${getErrorMessage(broken.failed, tErrors)}` : ""}
           </p>
-          <Button variant="outline" size="sm" onClick={own.retry}>
+          <Button variant="outline" size="sm" onClick={broken.retry}>
             {t("retry")}
           </Button>
         </div>
