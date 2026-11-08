@@ -30,6 +30,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.suggestion import SuggestionStatus
+from app.db.models.system_agent_profile import DAILY_BRIEFING
 from app.db.models.user import User
 from app.repositories import (
     agent_repo,
@@ -122,7 +123,17 @@ async def _agent(
     return agent
 
 
-async def _run(db, org, agent, user, *, surface: RunSurface, cost: str, started_at=_NOW) -> None:
+async def _run(
+    db,
+    org,
+    agent,
+    user,
+    *,
+    surface: RunSurface,
+    cost: str,
+    started_at=_NOW,
+    system_role: str | None = None,
+) -> None:
     db.add(
         AgentRun(
             id=uuid.uuid4(),
@@ -131,6 +142,7 @@ async def _run(db, org, agent, user, *, surface: RunSurface, cost: str, started_
             user_id=user.id,
             status=RunStatus.COMPLETED.value,
             surface=surface.value,
+            system_role=system_role,
             started_at=started_at,
             cost_usd=Decimal(cost),
         )
@@ -237,7 +249,15 @@ class TestBackgroundSpend:
         org = await _organization(db, user)
         agent = await _agent(db, org)
         await _run(db, org, agent, user, surface=RunSurface.PROACTIVE, cost="0.10")
-        await _run(db, org, agent, user, surface=RunSurface.PROACTIVE, cost="0.05")
+        await _run(
+            db,
+            org,
+            agent,
+            user,
+            surface=RunSurface.PROACTIVE,
+            cost="0.05",
+            system_role=DAILY_BRIEFING,
+        )
         await _run(db, org, agent, user, surface=RunSurface.WEB, cost="5")
         await _run(db, org, agent, other, surface=RunSurface.PROACTIVE, cost="1")
         await _run(
@@ -256,7 +276,7 @@ class TestBackgroundSpend:
 
         assert spent == Decimal("0.15")
         assert (
-            await agent_run_repo.last_proactive_run_at(db, organization_id=org.id, user_id=user.id)
+            await agent_run_repo.last_nightly_run_at(db, organization_id=org.id, user_id=user.id)
             == _NOW
         )
 
@@ -265,7 +285,7 @@ class TestBackgroundSpend:
         org = await _organization(db, user)
 
         assert (
-            await agent_run_repo.last_proactive_run_at(db, organization_id=org.id, user_id=user.id)
+            await agent_run_repo.last_nightly_run_at(db, organization_id=org.id, user_id=user.id)
             is None
         )
         assert await agent_run_repo.proactive_spend_since(
@@ -492,6 +512,7 @@ class TestWhatTheNightlyLookSends:
             surface=RunSurface.PROACTIVE,
             cost="0.01",
             started_at=_NOW - timedelta(days=1),
+            system_role=DAILY_BRIEFING,
         )
         look = NightlyLook(db)
         look.thinker = thinker = self._thinker(agent)
@@ -570,6 +591,7 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
             surface=RunSurface.PROACTIVE,
             cost="0.01",
             started_at=at,
+            system_role=DAILY_BRIEFING,
         )
 
     async def test_a_prompt_with_no_run_yet_is_not_read_and_a_later_look_reads_it(self, db) -> None:
@@ -727,8 +749,10 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
 
         assert await self._read(db, org, person) == [_CLEAN]
 
-    async def test_a_prompt_decided_before_the_last_look_is_not_new_again(self, db) -> None:
-        """The last look read it, so it wakes nobody a second time."""
+    async def test_a_legacy_look_without_receipts_does_not_claim_a_prompt_was_read(
+        self, db
+    ) -> None:
+        """Old timestamps cannot establish which prompts were actually read."""
         org, person, agent, chat = await self._scene(db)
         look_at = _NOW - timedelta(hours=1)
         await self._looked_at(db, org, person, look_at)
@@ -742,7 +766,7 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
         )
         await self._prompt(db, chat, _CLEAN, run=run, created_at=look_at - timedelta(minutes=5))
 
-        assert await self._read(db, org, person) is None
+        assert await self._read(db, org, person) == [_CLEAN]
 
     async def test_a_late_verdict_that_refuses_wakes_nobody(self, db) -> None:
         org, person, agent, chat = await self._scene(db)

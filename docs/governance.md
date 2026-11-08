@@ -549,6 +549,20 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
+The nightly look becomes due 20 hours after its own last attempt. Watches and
+memory maintenance do not move that clock. Watches still count toward the
+person's proactivity spending limit.
+
+A successful look records the person and a digest of each prompt it read,
+without copying the text. Finishing a previously read approval or question wait
+therefore does not buy another model call. A deferred prompt remains unread
+until a later look includes it; changed text is unread again. Failed model
+calls do not mark prompts as read.
+
+After upgrading, unclassified legacy background runs do not postpone the next
+look. Existing messages have no read receipt, so eligible recent prompts may
+be included in one catch-up look under the usual switches and budgets.
+
 The nightly job reads only a prompt that passed the input
 [guardrail](reference/capabilities.md#guardrails) of the agent it was sent to,
 because the proactivity model has no guardrails of its own:

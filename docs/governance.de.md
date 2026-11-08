@@ -1,5 +1,5 @@
 ---
-source_sha: "4b2741023fcd"
+source_sha: "1276ed684962"
 ---
 
 # Governance { #governance }
@@ -631,6 +631,22 @@ Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
 der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
+
+Der nächtliche Blick wird 20 Stunden nach seinem eigenen letzten Versuch
+fällig. Beobachtungen und Speicherwartung verschieben diesen Zeitpunkt nicht.
+Beobachtungen zählen weiterhin zum persönlichen Proaktivitätsbudget.
+
+Ein erfolgreicher Blick speichert die Person und einen Hash jedes gelesenen
+Prompts, ohne den Text zu kopieren. Das Abschließen einer bereits gelesenen
+Genehmigungs- oder Fragepause löst daher keinen weiteren bezahlten Modellaufruf
+aus. Ein zurückgestellter Prompt bleibt ungelesen, bis ein späterer Blick ihn
+berücksichtigt; geänderter Text ist wieder neu. Fehlgeschlagene Modellaufrufe
+markieren keine Prompts als gelesen.
+
+Nach dem Upgrade verschieben alte Hintergrund-Runs ohne Rollenzuordnung den
+nächsten Blick nicht. Bestehende Nachrichten haben keinen Lesenachweis, sodass
+geeignete aktuelle Prompts einmal nachgeholt werden können. Die üblichen
+Schalter und Budgets gelten weiterhin.
 
 Der nächtliche Job liest nur einen Prompt, der den Eingabe-Guardrail des Agents
 passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
