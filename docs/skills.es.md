@@ -1,5 +1,5 @@
 ---
-source_sha: "d06fb01d13f1"
+source_sha: "df3692303c1d"
 ---
 
 # Skills { #skills }
@@ -736,7 +736,7 @@ rueda o los botones, como el mapa de un agent.
 
 La primera versión elegida es la **Referencia**. Cada otra columna marca lo que dice
 distinto de ella, palabra por palabra como los diffs del historial, y sus archivos
-como añadidos, eliminados o cambiados. **Comparar con esta** hace referencia a otra
+como añadidos, eliminados o cambiados. **Fijar como referencia** hace referencia a otra
 columna, y **Solo las diferencias** pliega las partes que dicen lo mismo.
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
