@@ -1,6 +1,33 @@
 # Automated pull request review
 
-!!! warning "The reviewer is switched off on pull requests — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
+## CodeRabbit (requires installation)
+
+The repository's `.coderabbit.yaml` proposes review settings; merging it does not
+install or authorize CodeRabbit. A maintainer with the required organization
+permissions must install or approve the GitHub App for this repository. See the
+[GitHub setup guide](https://docs.coderabbit.ai/platforms/github-com).
+
+Once the app is installed and enabled, eligible non-draft pull requests targeting
+the default branch receive automatic reviews. Drafts are skipped. The configuration
+uses balanced (`chill`) feedback and disables automatic approvals, requests for
+changes and poems.
+
+Automatic incremental reviews on subsequent pushes are disabled. After pushing
+fixes, comment `@coderabbitai review` for an incremental review or
+`@coderabbitai full review` for a fresh review of the whole pull request. See
+[automatic review controls](https://docs.coderabbit.ai/configuration/auto-review).
+
+Inline findings create review threads. Under `main`'s existing ruleset, resolve
+those threads before merging; replying alone does not resolve them. This
+configuration does not add a required status check or change branch protection.
+
+CodeRabbit and the Codex GitHub integration are separate from the custom GitHub
+Actions workflow below. This configuration does not enable or disable either
+existing reviewer.
+
+## Custom review workflow
+
+!!! warning "The custom workflow is switched off on pull requests — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
 
     Since 2026-08-05 evening every run died about twelve seconds into
     `Review the diff` (`codex exited with code 1`), concluded `success`, and
@@ -18,8 +45,10 @@
     configured enforced spend limit`, which is a setting in the OpenAI project,
     not in this repository.
 
-    Until the trigger is back the review before a merge is a human one, plus the
-    local `/review` command in `.claude/commands/review.md`.
+    This custom workflow does not automatically review pull requests until its
+    trigger is restored. Human review and the local `/review` command in
+    `.claude/commands/review.md` remain available; separately installed GitHub
+    integrations operate independently.
 
 A GitHub Action reviews pull requests against **this repository's own standard**.
 It is not a linter with a language model attached: the prompt in
@@ -53,7 +82,7 @@ is the second half of this page.
 
 | Trigger | Who | Note |
 |---|---|---|
-| `workflow_dispatch` with a pull request number | write access | Manual, for testing. **The only live trigger today** |
+| `workflow_dispatch` with a pull request number | write access | Manual, for testing. **The only live trigger for this workflow today** |
 | A pull request is opened, reopened or marked ready | automatic | Drafts are skipped. Removed by [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 | The `ai-review` label is added | anyone with write access | On demand. Removed by [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 
