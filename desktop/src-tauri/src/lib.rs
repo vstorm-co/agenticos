@@ -27,6 +27,8 @@ mod diagnostics;
 mod docker_install;
 mod docker_runtime;
 mod dropped;
+#[cfg(all(test, target_os = "linux"))]
+mod glib_soundness;
 mod local_agents;
 mod local_backup;
 mod local_browser;
