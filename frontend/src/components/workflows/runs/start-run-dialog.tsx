@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -46,6 +46,8 @@ interface StartRunDialogProps {
   canRunLive: boolean;
   /** Whether this caller may test the draft (`workflows:edit`). */
   canTest: boolean;
+  /** Published-contract loading or failure does not block independent draft tests. */
+  liveNotice?: ReactNode;
   busy?: boolean;
   /** Structured admission refusals stay beside the input until it is edited. */
   error?: unknown;
@@ -92,6 +94,7 @@ export function StartRunDialog({
   onOpenChange,
   canRunLive,
   canTest,
+  liveNotice,
   busy,
   error,
   onInputChange,
@@ -151,6 +154,7 @@ export function StartRunDialog({
           <DialogTitle>{t("startRunTitle")}</DialogTitle>
           <DialogDescription>{t("startRunDescription")}</DialogDescription>
         </DialogHeader>
+        {liveNotice}
         <fieldset className="space-y-4" disabled={busy}>
           <div className="space-y-1.5">
             <Label htmlFor="run-mode">{t("startRunMode")}</Label>
@@ -178,7 +182,11 @@ export function StartRunDialog({
               </SelectTrigger>
               <SelectContent>
                 {canTest && <SelectItem value="test">{t("modeTest")}</SelectItem>}
-                {canRunLive && <SelectItem value="real">{t("modeReal")}</SelectItem>}
+                {(canRunLive || mode === "real") && (
+                  <SelectItem value="real" disabled={!canRunLive}>
+                    {t("modeReal")}
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

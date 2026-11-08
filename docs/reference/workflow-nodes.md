@@ -152,8 +152,8 @@ A timeout, validator memory exhaustion or validation protocol-size limit refuses
 `validation_limit` as the legacy problem's `type`. Validator startup failure,
 abnormal exit (including termination by an OS resource limit), or invalid output
 returns `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Neither refusal creates a
-run. At most 100 diagnostic entries are returned; when more problems exist, the
-final entry is a truncation summary. Diagnostics never quote submitted values.
+run. Diagnostics are limited to 50 entries and 4 KiB of UTF-8 JSON. When either
+limit is reached, the final entry summarizes truncation. Diagnostics never quote submitted values.
 
 Callers can inspect the effective contract before execution through the
 [workflow input-schema API](../api.md#running-a-workflow) or

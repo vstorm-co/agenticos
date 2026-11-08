@@ -1,5 +1,5 @@
 ---
-source_sha: "5a8f2db06a79"
+source_sha: "cfa0e0add799"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -165,8 +165,8 @@ rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en
 formato existente. Un fallo al arrancar el validador, una terminación anormal
 (incluida la causada por un límite de recursos del sistema operativo) o una salida
 inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
-rechazos crea un run. Se devuelven como máximo 100 entradas de diagnóstico; si hay
-más problemas, la última resume el truncamiento de la lista. Los diagnósticos nunca citan los
+rechazos crea un run. Los diagnósticos se limitan a 50 entradas y 4 KiB de JSON UTF-8. Al alcanzar
+cualquiera de los límites, la última entrada resume el truncamiento. Los diagnósticos nunca citan los
 valores enviados.
 
 Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante la

@@ -203,7 +203,10 @@ async def test_mcp_schema_discovery_refuses_oversized_results_instead_of_partial
     count: int, character: str, length: int
 ) -> None:
     response = {
-        "entries": [{"input_schema": {"description": character * length}} for _ in range(count)]
+        "entries": [
+            {"trigger": "core.input", "input_schema": {"description": character * length}}
+            for _ in range(count)
+        ]
     }
     api = MagicMock(spec=PlatformApi)
     api.request = AsyncMock(return_value=response)
@@ -218,14 +221,56 @@ async def test_mcp_schema_discovery_refuses_oversized_results_instead_of_partial
 async def test_mcp_schema_discovery_preserves_the_exact_utf8_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    response = {"entries": [{"input_schema": {"description": "界"}}]}
+    response = {"entries": [{"trigger": "core.input", "input_schema": {"description": "界"}}]}
     size = len(json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode())
     api = MagicMock(spec=PlatformApi)
     api.request = AsyncMock(return_value=response)
     api.refuse.return_value = {"error": "bounded refusal"}
     tool = {tool.name: tool for tool in platform_tools(api)}["get_workflow_input_schema"]
     monkeypatch.setattr(_tools, "MAX_DISCOVERY_BYTES", size)
-    assert await tool.function(workflow_id=ID) is response
+    assert await tool.function(workflow_id=ID) == response
     api.refuse.assert_not_called()
     monkeypatch.setattr(_tools, "MAX_DISCOVERY_BYTES", size - 1)
     assert await tool.function(workflow_id=ID) == {"error": "bounded refusal"}
+
+
+async def test_mcp_schema_discovery_only_advertises_entries_its_run_tool_can_start() -> None:
+    manual = {
+        "trigger": "trigger.manual",
+        "entry_node_id": str(ID),
+        "input_schema": {"type": "object"},
+    }
+    api_entry = {**manual, "trigger": "core.input"}
+    response = {
+        "workflow_id": str(ID),
+        "entries": [
+            manual,
+            {**manual, "trigger": "trigger.workflow_call"},
+            {
+                **manual,
+                "trigger": "trigger.form",
+                "input_schema": {"description": "x" * MAX_DISCOVERY_BYTES},
+            },
+            api_entry,
+        ],
+    }
+    api = MagicMock(spec=PlatformApi)
+    api.request = AsyncMock(return_value=response)
+    tool = {tool.name: tool for tool in platform_tools(api)}["get_workflow_input_schema"]
+    assert await tool.function(workflow_id=ID) == {
+        "workflow_id": str(ID),
+        "entries": [manual, api_entry],
+    }
+    assert len(response["entries"]) == 4
+    api.refuse.assert_not_called()
+
+
+@pytest.mark.parametrize("entries", [{}, ["invalid"], [{"trigger": {}}]])
+async def test_malformed_owned_discovery_responses_fail_instead_of_hiding_entries(
+    entries: object,
+) -> None:
+    api = MagicMock(spec=PlatformApi)
+    api.request = AsyncMock(return_value={"entries": entries})
+    tool = {tool.name: tool for tool in platform_tools(api)}["get_workflow_input_schema"]
+    with pytest.raises(TypeError, match="Workflow input-schema"):
+        await tool.function(workflow_id=ID)

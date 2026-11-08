@@ -1,5 +1,5 @@
 ---
-source_sha: "3acef7aca063"
+source_sha: "ce5e1db92c13"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1396,6 +1396,10 @@ gewünschte `entry_node_id` und sende passende `fields`. Verträge nach JSON Sch
 Draft 2020-12, bisherige einfache Felder und untypisierte Eingaben verwenden dieses
 gemeinsame Abfrageformat; beim Annehmen eines Runs wird gegen den Vertrag der
 für den Run angenommenen Version geprüft.
+
+Das MCP-Werkzeug liefert nur Manual/API-Eingänge, die sein `run_workflow`
+starten kann. Verträge für Form und Called by a workflow bleiben über HTTP
+für ihre jeweiligen Startwege verfügbar.
 
 `get_workflow_input_schema` lehnt Antworten über 32 KiB kodiertem JSON ab,
 einschließlich aller zurückgegebenen Eingänge. Es liefert nie einen Teilvertrag.

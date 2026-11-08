@@ -75,7 +75,27 @@ export default function WorkflowRunsPage({ params }: PageProps) {
       ? workflow.live_triggers.some((trigger) => startsByHand(trigger))
       : startsByHand(workflow.live_trigger));
   const awaitingContract = canRunLive && (live === undefined || Boolean(liveError));
-  const { start } = useWorkflowRuns(id, startOpen && !awaitingContract);
+  const contractBlocksStart = awaitingContract && !canTest;
+  const { start } = useWorkflowRuns(id, startOpen && !contractBlocksStart);
+  const contractNotice = awaitingContract ? (
+    liveError ? (
+      <ErrorState
+        title={t("modeReal")}
+        description={getErrorMessage(liveError, errors)}
+        cta={{
+          label: common("retry"),
+          onClick: () => {
+            void refetchLive();
+          },
+        }}
+      />
+    ) : (
+      <div className="space-y-2">
+        <p className="text-muted-foreground text-sm">{t("modeReal")}</p>
+        <LoadingState variant="skeleton-panel" />
+      </div>
+    )
+  ) : null;
 
   const choices = (graph: WorkflowGraph | null | undefined, byHand = false) =>
     graph === null || graph === undefined
@@ -117,26 +137,14 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           <WorkflowStats workflowId={id} />
         </MoreOptions>
       </div>
-      {startOpen && awaitingContract && (
+      {startOpen && contractBlocksStart && (
         <Dialog open onOpenChange={setStartOpen}>
           <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
             <DialogHeader>
               <DialogTitle>{t("startRunTitle")}</DialogTitle>
               <DialogDescription>{t("startRunDescription")}</DialogDescription>
             </DialogHeader>
-            {liveError ? (
-              <ErrorState
-                description={getErrorMessage(liveError, errors)}
-                cta={{
-                  label: common("retry"),
-                  onClick: () => {
-                    void refetchLive();
-                  },
-                }}
-              />
-            ) : (
-              <LoadingState variant="skeleton-panel" />
-            )}
+            {contractNotice}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStartOpen(false)}>
                 {t("cancel")}
@@ -145,12 +153,13 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           </DialogContent>
         </Dialog>
       )}
-      {startOpen && !awaitingContract && (
+      {startOpen && !contractBlocksStart && (
         <StartRunDialog
           open
           onOpenChange={setStartOpen}
-          canRunLive={canRunLive}
+          canRunLive={canRunLive && !awaitingContract}
           canTest={canTest}
+          liveNotice={contractNotice}
           busy={start.isPending}
           error={start.error}
           onInputChange={start.reset}

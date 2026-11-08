@@ -1,5 +1,5 @@
 ---
-source_sha: "5a8f2db06a79"
+source_sha: "cfa0e0add799"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -163,8 +163,8 @@ i `validation_limit` jako `type` problemu w dotychczasowym formacie. Błąd star
 walidatora, nieprawidłowe zakończenie procesu (także przez limit zasobów systemu
 operacyjnego) lub nieprawidłowa odpowiedź zwraca
 `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Żadna z tych odmów nie tworzy runu.
-Zwracanych jest najwyżej 100 wpisów diagnostycznych; gdy problemów jest więcej,
-ostatni wpis podsumowuje ucięcie listy. Diagnostyka nigdy nie cytuje przesłanych
+Diagnostyka ma limit 50 wpisów i 4 KiB JSON w UTF-8. Po osiągnięciu dowolnego
+limitu ostatni wpis podsumowuje ucięcie listy. Diagnostyka nigdy nie cytuje przesłanych
 wartości.
 
 Wywołujący może sprawdzić efektywny kontrakt przed wykonaniem przez

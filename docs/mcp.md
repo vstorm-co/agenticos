@@ -1292,6 +1292,10 @@ input contract without executing it. It accepts `workflow_id` and an optional
 legacy simple fields and untyped inputs share this discovery format; admission
 validates against the version admitted for the run.
 
+The MCP tool returns only Manual/API entries that its paired `run_workflow`
+can start. Form and Called by a workflow contracts remain available through
+HTTP discovery for their own admission surfaces.
+
 `get_workflow_input_schema` refuses responses above 32 KiB of encoded JSON,
 including all returned entries. It never returns a partial contract. Inspect
 larger contracts through the HTTP endpoint outside the model context.

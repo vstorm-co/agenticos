@@ -1,5 +1,6 @@
 """Portable trigger contracts retain JSON Schema semantics at admission and discovery."""
 
+import json
 from copy import deepcopy
 
 import pytest
@@ -7,7 +8,11 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import JsonValue, ValidationError
 
+from app.services.workflow_execution.exceptions import WorkflowRunInputInvalidError
+from app.workflows.contracts import input_schema
 from app.workflows.contracts.input_schema import (
+    MAX_DIAGNOSTIC_BYTES,
+    MAX_DISCOVERY_BYTES,
     MAX_NESTING,
     MAX_PROBLEMS,
     _error_paths,
@@ -1191,3 +1196,74 @@ def test_enum_alternative_order_is_unordered_while_literal_array_values_keep_ord
     config = TriggerInputConfig(input_schema={"oneOf": [{"enum": [first]}, {"enum": [second]}]})
     assert input_problems(config, first) == []
     assert input_problems(config, second) == []
+
+
+@pytest.mark.parametrize("name", ["x" * 100000, "界" * 30000, "😀" * 24000])
+def test_large_required_names_cannot_overflow_model_facing_refusals(name: str) -> None:
+    schema: dict[str, JsonValue] = {"required": [name]}
+    check_input_schema(schema)
+    problems = schema_input_problems(schema, {})
+    assert problems == [
+        {"field": "", "message": "More problems than can be shown", "type": "truncated"}
+    ]
+    assert len(json.dumps(problems, ensure_ascii=False).encode()) < MAX_DIAGNOSTIC_BYTES
+    refusal = WorkflowRunInputInvalidError(problems=problems)
+    assert len(str(refusal.details).encode()) < MAX_DISCOVERY_BYTES
+    assert len(json.dumps({"error": refusal.details}).encode()) < MAX_DISCOVERY_BYTES
+
+
+def test_byte_truncation_keeps_useful_errors_before_the_summary() -> None:
+    problems = schema_input_problems({"required": ["first", "second", "x" * 100000, "later"]}, {})
+    assert [problem["field"] for problem in problems] == ["first", "second", ""]
+    assert problems[-1]["type"] == "truncated"
+
+
+def test_diagnostic_byte_budget_uses_utf8_and_reserves_its_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema: dict[str, JsonValue] = {"required": ["界"]}
+    problem = {"field": "界", "message": "Field required", "type": "required"}
+    marker = {"field": "", "message": "More problems than can be shown", "type": "truncated"}
+    size = len(json.dumps([problem, marker], ensure_ascii=False, separators=(",", ":")).encode())
+    monkeypatch.setattr(input_schema, "MAX_DIAGNOSTIC_BYTES", size)
+    assert schema_input_problems(schema, {}) == [problem]
+    monkeypatch.setattr(input_schema, "MAX_DIAGNOSTIC_BYTES", size - 1)
+    assert schema_input_problems(schema, {}) == [marker]
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        {"$ref": "#"},
+        {"$ref": "#/contentSchema"},
+        {"contentSchema": {"$ref": "#/contentSchema"}},
+        True,
+        False,
+    ],
+)
+def test_nonasserting_content_schema_cycles_do_not_refuse_object_contracts(
+    annotation: JsonValue,
+) -> None:
+    config = TriggerInputConfig(input_schema={"type": "object", "contentSchema": annotation})
+    assert input_problems(config, {"anything": True}) == []
+
+
+def test_a_real_assertion_entering_an_annotation_cycle_is_still_refused() -> None:
+    with pytest.raises(ValidationError, match="reference cycle"):
+        TriggerInputConfig(
+            input_schema={"contentSchema": {"$ref": "#/contentSchema"}, "$ref": "#/contentSchema"}
+        )
+
+
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        ("https://example.com/schema", "within the supplied document"),
+        ("#/$defs/missing", "unresolved local reference"),
+    ],
+)
+def test_nonasserting_content_schema_references_still_require_local_resolution(
+    reference: str, message: str
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        TriggerInputConfig(input_schema={"contentSchema": {"$ref": reference}})

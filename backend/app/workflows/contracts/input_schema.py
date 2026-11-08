@@ -25,11 +25,12 @@ type InputSchema = dict[str, JsonValue]
 
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 MAX_NESTING = 64
-MAX_PROBLEMS = 100
+MAX_PROBLEMS = 50
+MAX_DIAGNOSTIC_BYTES = 4096
 MAX_SCHEMA_BYTES = 262_144
 MAX_DISCOVERY_BYTES = 32 * 1024
 
-_SAME_VALUE = frozenset({"not", "if", "then", "else", "contentSchema"})
+_SAME_VALUE = frozenset({"not", "if", "then", "else"})
 _CHILD_VALUE = frozenset(
     {
         "items",
@@ -38,6 +39,7 @@ _CHILD_VALUE = frozenset(
         "unevaluatedProperties",
         "propertyNames",
         "unevaluatedItems",
+        "contentSchema",
     }
 )
 _SCHEMA_MAPS = frozenset(
@@ -96,20 +98,24 @@ def _too_deep(value: JsonValue) -> bool:
 
 def _subschemas(
     schema: Mapping[str, JsonValue],
-) -> Iterator[tuple[dict[str, JsonValue] | bool, bool]]:
-    """Subschemas and whether they evaluate the same input value as their parent.
+) -> Iterator[tuple[dict[str, JsonValue] | bool, bool, bool]]:
+    """Subschemas, same-input evaluation, and nonasserting content annotations.
 
     The parent already passed the Draft meta-schema, including child types.
     """
     for keyword, value in schema.items():
         if keyword in _SAME_VALUE | _CHILD_VALUE and isinstance(value, (dict, bool)):
-            yield value, keyword in _SAME_VALUE
+            yield value, keyword in _SAME_VALUE, keyword == "contentSchema"
         elif keyword in _SCHEMA_MAPS and isinstance(value, dict):
             for child in value.values():
-                yield cast("dict[str, JsonValue] | bool", child), keyword == "dependentSchemas"
+                yield (
+                    cast("dict[str, JsonValue] | bool", child),
+                    keyword == "dependentSchemas",
+                    False,
+                )
         elif keyword in _SCHEMA_LISTS and isinstance(value, list):
             for child in value:
-                yield cast("dict[str, JsonValue] | bool", child), keyword != "prefixItems"
+                yield cast("dict[str, JsonValue] | bool", child), keyword != "prefixItems", False
 
 
 def _unevaluated_properties(
@@ -267,7 +273,7 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
     """Normalize unordered names, without treating literal data as schemas.
 
     Required names, type unions, enum alternatives and applicator branches
-    have set semantics; duplicate applicator branches retain their counts.
+    have no meaningful order; duplicate applicator branches retain their counts.
     The document has already passed its meta-schema. Literal arrays and
     positional schema arrays retain their original order,
     including data that a local JSON Pointer may also use as a schema target.
@@ -368,16 +374,20 @@ def check_input_schema(schema: InputSchema) -> None:
     references: dict[int, int] = {}
     resource = DRAFT202012.create_resource(schema)
     resolver = Registry().resolver_with_root(resource)
-    pending: list[tuple[Resource[Schema], Resolver[Schema]]] = [(resource, resolver)]
+    annotation_checked: set[int] = set()
+    pending: list[tuple[Resource[Schema], Resolver[Schema], bool]] = [(resource, resolver, False)]
     while pending:
-        current, current_resolver = pending.pop()
+        current, current_resolver, annotation_only = pending.pop()
         contents = current.contents
         key = id(contents)
-        if key in checked:
+        if key in (annotation_checked if annotation_only else checked):
             continue
-        connections[key] = set()
         contents = _checked_schema(contents)
-        checked[key] = contents if contents is not None else bool(current.contents)
+        if annotation_only:
+            annotation_checked.add(key)
+        else:
+            connections[key] = set()
+            checked[key] = contents if contents is not None else bool(current.contents)
         if contents is None:
             continue
         for keyword in ("$ref", "$dynamicRef"):
@@ -390,15 +400,24 @@ def check_input_schema(schema: InputSchema) -> None:
                 resolved = current_resolver.lookup(reference)
             except Unresolvable:
                 raise ValueError("Input schema contains an unresolved local reference") from None
-            connections[key].add(id(resolved.contents))
-            if keyword == "$ref":
-                references[key] = id(resolved.contents)
-            pending.append((DRAFT202012.create_resource(resolved.contents), resolved.resolver))
-        for child, same_value in _subschemas(contents):
+            if not annotation_only:
+                connections[key].add(id(resolved.contents))
+                if keyword == "$ref":
+                    references[key] = id(resolved.contents)
+            pending.append(
+                (DRAFT202012.create_resource(resolved.contents), resolved.resolver, annotation_only)
+            )
+        for child, same_value, annotation in _subschemas(contents):
             child_resource = DRAFT202012.create_resource(child)
-            if same_value:
+            if same_value and not annotation_only:
                 connections[key].add(id(child))
-            pending.append((child_resource, current_resolver.in_subresource(child_resource)))
+            pending.append(
+                (
+                    child_resource,
+                    current_resolver.in_subresource(child_resource),
+                    annotation_only or annotation,
+                )
+            )
     possible: dict[int, bool] = {}
     unrestricted: dict[int, bool] = {}
     identities: dict[int, str] = {}
@@ -509,6 +528,10 @@ def _specific_errors(error: ValidationError) -> Iterator[ValidationError]:
         yield from _specific_errors(child)
 
 
+def _truncated_problem() -> dict[str, str]:
+    return {"field": "", "message": "More problems than can be shown", "type": "truncated"}
+
+
 def schema_input_problems(
     schema: InputSchema, run_input: dict[str, JsonValue]
 ) -> list[dict[str, str]]:
@@ -516,8 +539,8 @@ def schema_input_problems(
 
     The same Draft 2020-12 contract used at publication governs admission.
     An empty registry ensures even a mutated schema cannot cause network I/O.
-    At most `MAX_PROBLEMS` problems are rendered; when more exist the final
-    entry is a value-free truncation summary.
+    Diagnostics fit `MAX_DIAGNOSTIC_BYTES` of UTF-8 JSON and `MAX_PROBLEMS`
+    entries. A value-free summary makes count or byte truncation explicit.
     """
     if _too_deep(run_input):
         return [
@@ -528,6 +551,9 @@ def schema_input_problems(
             }
         ]
     problems: list[dict[str, str]] = []
+    # Reserve the marker before adding any detail, so even a single enormous
+    # field name cannot overflow a later model-facing refusal.
+    diagnostic_bytes = 2 + json_byte_size(_truncated_problem(), limit=MAX_DIAGNOSTIC_BYTES)
     seen: set[tuple[str, str, str]] = set()
     seen_required: set[tuple[tuple[str | int, ...], tuple[str, ...]]] = set()
     truncated = False
@@ -546,6 +572,14 @@ def schema_input_problems(
                     if len(problems) >= MAX_PROBLEMS - 1:
                         truncated = True
                         break
+                    try:
+                        problem_bytes = json_byte_size(
+                            problem, limit=MAX_DIAGNOSTIC_BYTES - diagnostic_bytes - 1
+                        )
+                    except PayloadTooLarge:
+                        truncated = True
+                        break
+                    diagnostic_bytes += problem_bytes + 1
                     seen.add(key)
                     problems.append(problem)
                 if truncated:
@@ -561,11 +595,5 @@ def schema_input_problems(
             }
         ]
     if truncated:
-        problems.append(
-            {
-                "field": "",
-                "message": "More problems than can be shown",
-                "type": "truncated",
-            }
-        )
+        problems.append(_truncated_problem())
     return problems

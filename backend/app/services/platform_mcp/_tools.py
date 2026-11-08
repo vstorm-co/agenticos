@@ -40,6 +40,7 @@ from app.services.workflow_execution import context as workflow_context
 from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
 from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.triggers import BY_HAND
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
@@ -1216,6 +1217,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         marked by x-agenticos-strict-integer; ordinary schema validation alone
         cannot enforce that representation. Untyped entries
         accept any JSON object.
+        Only Manual/API entry contracts are returned: run_workflow cannot start
+        Form or Called by a workflow entries. HTTP discovery includes those
+        contracts for their own admission surfaces.
         Responses above 32 KiB of encoded JSON are refused in full; inspect larger
         contracts through the HTTP endpoint outside the model context.
         """
@@ -1224,6 +1228,19 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             f"/workflows/{workflow_id}/input-schema",
             params={} if version_id is None else {"version_id": str(version_id)},
         )
+        if "entries" in response:
+            entries = response["entries"]
+            if not isinstance(entries, list):
+                raise TypeError("Workflow input-schema entries must be an array")
+            runnable: list[JsonValue] = []
+            for entry in entries:
+                if not isinstance(entry, dict) or not isinstance(
+                    trigger := entry.get("trigger"), str
+                ):
+                    raise TypeError("Workflow input-schema entry must name a trigger")
+                if trigger in BY_HAND:
+                    runnable.append(entry)
+            response = {**response, "entries": runnable}
         try:
             json_byte_size(response, limit=MAX_DISCOVERY_BYTES)
         except PayloadTooLarge:

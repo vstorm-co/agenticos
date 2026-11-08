@@ -365,3 +365,30 @@ describe("StartRunDialog with declared fields", () => {
     expect(onStart).toHaveBeenCalledWith({ mode: "real", input: {} });
   });
 });
+
+it("lets an editor switch from an unavailable live contract to the draft", async () => {
+  const onStart = vi.fn();
+  const props = {
+    open: true,
+    onOpenChange: vi.fn(),
+    canTest: true,
+    canRunLive: true,
+    sampleInput: { draft: true },
+    onStart,
+  };
+  const { rerender } = render(<StartRunDialog {...props} />);
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "Published version" }));
+  rerender(
+    <StartRunDialog {...props} canRunLive={false} liveNotice={<p>Live contract unavailable</p>} />,
+  );
+  expect(screen.getByRole("button", { name: "Start a run" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("combobox"));
+  expect(screen.getByRole("option", { name: "Published version" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("option", { name: "Test the draft" }));
+  await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+  expect(onStart).toHaveBeenCalledWith({ mode: "test", input: { draft: true } });
+});

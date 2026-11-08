@@ -1,5 +1,5 @@
 ---
-source_sha: "5a8f2db06a79"
+source_sha: "cfa0e0add799"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -169,8 +169,8 @@ den Run mit `422 WORKFLOW_RUN_INPUT_INVALID` ab; `error.details.fields` nennt
 Ein Fehler beim Starten des Validators, ein abnormaler Prozessabbruch (auch durch
 ein Ressourcenlimit des Betriebssystems) oder eine ungültige Ausgabe liefert
 `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Beide Ablehnungen legen keinen Run
-an. Höchstens 100 Diagnoseeinträge werden zurückgegeben; gibt es weitere
-Probleme, fasst der letzte Eintrag die Kürzung zusammen. Diagnosen zitieren nie
+an. Diagnosen sind auf 50 Einträge und 4 KiB UTF-8-JSON begrenzt. Wird eine Grenze
+erreicht, fasst der letzte Eintrag die Kürzung zusammen. Diagnosen zitieren nie
 übermittelte Werte.
 
 Aufrufer können den wirksamen Vertrag vor der Ausführung über die

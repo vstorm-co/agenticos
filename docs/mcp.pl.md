@@ -1,5 +1,5 @@
 ---
-source_sha: "3acef7aca063"
+source_sha: "ce5e1db92c13"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1336,6 +1336,10 @@ wejść co [endpoint odkrywania HTTP](api.md#running-a-workflow). Wybierz właś
 `entry_node_id` i wyślij zgodne `fields`. Kontrakty JSON Schema Draft 2020-12,
 dotychczasowe proste pola i nietypowane wejścia używają tego samego formatu
 odkrywania; przyjęcie runu sprawdza kontrakt wersji przyjętej dla runu.
+
+Narzędzie MCP zwraca tylko wejścia Manual/API, które może uruchomić powiązane
+`run_workflow`. Kontrakty Form i Called by a workflow pozostają dostępne przez
+odkrywanie HTTP dla właściwych im sposobów uruchamiania.
 
 `get_workflow_input_schema` odmawia odpowiedzi większych niż 32 KiB zakodowanego
 JSON, wliczając wszystkie zwracane wejścia. Nigdy nie zwraca części kontraktu.

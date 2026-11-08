@@ -11,6 +11,7 @@ import WorkflowRunsPage from "./page";
 
 const state = vi.hoisted(() => ({
   canTest: false,
+  draftGraph: null as WorkflowGraph | null,
   version: undefined as { graph: WorkflowGraph } | undefined,
   error: null as Error | null,
   admissionError: null as Error | null,
@@ -34,7 +35,7 @@ vi.mock("@/hooks", () => ({
       current_version_id: "v1",
       status: "published",
       live_trigger: "trigger.manual",
-      draft_graph: null,
+      draft_graph: state.draftGraph,
     },
   }),
   usePermissions: () => ({
@@ -84,6 +85,7 @@ const GRAPH: WorkflowGraph = {
 
 beforeEach(() => {
   state.canTest = false;
+  state.draftGraph = null;
   state.version = undefined;
   state.error = null;
   state.admissionError = null;
@@ -172,3 +174,42 @@ describe("Workflow runs input contract", () => {
     expect(state.reset).toHaveBeenCalledOnce();
   });
 });
+
+it.each(["loading", "failed"])(
+  "keeps draft testing available while live discovery is %s",
+  async (status) => {
+    state.canTest = true;
+    state.draftGraph = {
+      ...GRAPH,
+      entry_node_id: "draft-entry",
+      nodes: GRAPH.nodes.map((node) => ({
+        ...node,
+        id: "draft-entry",
+        config: { input_schema: { type: "object", required: ["draft"] } },
+      })),
+    };
+    if (status === "failed") state.error = new Error("Cannot load this published workflow");
+    const rerender = await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "Start a run" })).toBeEnabled();
+    expect(state.inputErrorsInForm).toBe(true);
+    fireEvent.change(dialog.getByLabelText("Input (JSON)"), {
+      target: { value: '{"draft":"value"}' },
+    });
+    if (status === "failed") {
+      expect(dialog.getByRole("alert")).toHaveTextContent("Published version");
+      await userEvent.click(dialog.getByRole("button", { name: "Retry" }));
+      expect(state.refetch).toHaveBeenCalledOnce();
+    }
+    state.error = null;
+    state.version = { graph: GRAPH };
+    rerender();
+    expect(dialog.getByLabelText("Input (JSON)")).toHaveValue('{"draft":"value"}');
+    await userEvent.click(dialog.getByRole("button", { name: "Start a run" }));
+    expect(state.mutate).toHaveBeenCalledWith(
+      { workflow_id: "wf", mode: "test", input: { draft: "value" }, entry_node_id: "draft-entry" },
+      expect.any(Object),
+    );
+  },
+);

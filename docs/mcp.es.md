@@ -1,5 +1,5 @@
 ---
-source_sha: "3acef7aca063"
+source_sha: "ce5e1db92c13"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1378,6 +1378,10 @@ opcional y devuelve los mismos contratos `input_schema` por entrada que el
 Draft 2020-12, los campos simples existentes y las entradas sin tipado comparten
 este formato de descubrimiento; la admisión valida contra el contrato de la
 versión admitida para el run.
+
+La herramienta MCP devuelve solo entradas Manual/API que su `run_workflow`
+puede iniciar. Los contratos Form y Called by a workflow siguen disponibles
+por HTTP para sus propias vías de admisión.
 
 `get_workflow_input_schema` rechaza respuestas de más de 32 KiB de JSON
 codificado, incluidas todas las entradas devueltas. Nunca devuelve un contrato
