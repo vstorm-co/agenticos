@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SectionCard } from "@/components/settings/settings-section";
+import { TimeZonePicker } from "@/components/settings/time-zone-picker";
 import { WorkingHoursField } from "@/components/settings/working-hours-field";
 import { Button, FormField, Input } from "@/components/ui";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,8 +14,6 @@ import { useSaveAgentContext } from "@/hooks/use-account-profile";
 import { getErrorMessage } from "@/lib/api-error";
 import type { User } from "@/types";
 import type { WorkingHours } from "@/types/auth";
-
-const ZONES = Intl.supportedValuesOf("timeZone");
 
 /**
  * What every agent is told about the person, written once (#2301): their role,
@@ -102,18 +101,13 @@ export function AgentContextSettings({
           />
         </FormField>
         <FormField label={t("timeZone")} htmlFor="agent-context-zone">
-          <Input
+          <TimeZonePicker
             id="agent-context-zone"
             data-guidance={(!!onSaved && !!role.trim() && !zone) || undefined}
-            list="agent-context-zones"
             value={zone}
-            onChange={(event) => setZone(event.target.value)}
+            onChange={setZone}
+            disabled={saving}
           />
-          <datalist id="agent-context-zones">
-            {ZONES.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
         </FormField>
         <FormField
           label={t("workingHours")}

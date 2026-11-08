@@ -3467,7 +3467,11 @@
         "workingHoursHint": "Saat diliminize göre ayarlanır. Agentlar planlarını buna göre yapar; hiçbir iş bekletilmez veya ertelenmez.",
         "workingDays": "Çalışma günleri",
         "workStart": "Başlangıç saati",
-        "workEnd": "Bitiş saati"
+        "workEnd": "Bitiş saati",
+        "chooseTimeZone": "Saat dilimi seç",
+        "searchTimeZones": "Saat dilimi ara…",
+        "noTimeZones": "Eşleşen saat dilimi yok",
+        "noTimeZone": "Ayarlanmadı"
       },
       "prefSuggestion": "Size yönelik öneriler",
       "prefSuggestionTrigger": "AgenticOS tekrar ettiğiniz bir isteği, rol paketini veya profilinizi yapılandırmanın faydalı olabileceğini fark etti. Günde en fazla bir kez, yalnızca size gönderilir.",

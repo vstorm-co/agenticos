@@ -7200,7 +7200,11 @@
         "workingHoursHint": "In your time zone. Agents plan around it; nothing is held back or moved.",
         "workingDays": "Working days",
         "workStart": "Starts at",
-        "workEnd": "Ends at"
+        "workEnd": "Ends at",
+        "chooseTimeZone": "Choose a time zone",
+        "searchTimeZones": "Search time zones…",
+        "noTimeZones": "No matching time zones",
+        "noTimeZone": "Not set"
       },
       "prefSuggestion": "Suggestions for you",
       "prefSuggestionTrigger": "AgenticOS noticed something worth setting up - a request you keep repeating, a role pack, your profile. At most once a day, to you.",

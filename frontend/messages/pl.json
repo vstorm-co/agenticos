@@ -3441,7 +3441,11 @@
         "workingHoursHint": "W twojej strefie czasowej. Agenci planują wokół tego; nic nie jest wstrzymywane ani przesuwane.",
         "workingDays": "Dni pracy",
         "workStart": "Początek",
-        "workEnd": "Koniec"
+        "workEnd": "Koniec",
+        "chooseTimeZone": "Wybierz strefę czasową",
+        "searchTimeZones": "Szukaj strefy czasowej…",
+        "noTimeZones": "Brak pasujących stref czasowych",
+        "noTimeZone": "Nie ustawiono"
       },
       "prefSuggestion": "Propozycje dla ciebie",
       "prefSuggestionTrigger": "AgenticOS zauważył coś, co warto ustawić - prośbę, którą powtarzasz, pakiet dla twojej roli, twój profil. Najwyżej raz dziennie, do ciebie.",

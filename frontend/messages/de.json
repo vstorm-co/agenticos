@@ -6478,7 +6478,11 @@
         "workingHoursHint": "In Ihrer Zeitzone. Agents planen darum herum; nichts wird zurückgehalten oder verschoben.",
         "workingDays": "Arbeitstage",
         "workStart": "Beginn",
-        "workEnd": "Ende"
+        "workEnd": "Ende",
+        "chooseTimeZone": "Zeitzone auswählen",
+        "searchTimeZones": "Zeitzonen suchen…",
+        "noTimeZones": "Keine passenden Zeitzonen",
+        "noTimeZone": "Nicht festgelegt"
       },
       "prefSuggestion": "Vorschläge für Sie",
       "prefSuggestionTrigger": "AgenticOS hat etwas bemerkt, das sich einzurichten lohnt - eine Anfrage, die Sie wiederholen, ein Paket für Ihre Rolle, Ihr Profil. Höchstens einmal am Tag, an Sie.",
