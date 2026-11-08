@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "e11965a39f9f"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -470,6 +470,10 @@ flowchart TD
     Wiersz `RAGDocument` zapisywany jest **najpierw**, a cztery środkowe kroki
     wykonują się w zadaniu w tle z własną sesją - dlatego upload odpowiada
     `202 {"status": "processing"}`, zamiast czekać.
+
+Równoległe pierwsze zapisy do tej samej kolekcji czekają na utworzenie jej
+tabeli i indeksów w jednej transakcji. Jeśli tworzenie się nie powiedzie,
+transakcja jest wycofywana, a oczekujący zapis może utworzyć tabelę.
 
 Są dwa adresy, pod które może trafić upload —
 `POST /rag/collections/{name}/ingest` i `POST /kb/{kb_id}/documents` — i oba

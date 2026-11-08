@@ -15,6 +15,7 @@ import app.db.models  # noqa: F401
 from app.core.blocking import run_blocking_settled
 from app.core.exceptions import NotFoundError
 from app.db.base import Base
+from app.db.locks import LockScope, hold_name
 from app.db.vector_tables import (
     RAG_SAFE_TO_DATE_FN,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
@@ -750,11 +751,15 @@ class PgVectorStore(BaseVectorStore):
         return resolved.vector_scope if resolved is not None else VectorScope(tenant=None)
 
     async def _ensure_collection(self, name: str) -> None:
-        """Create table for collection if not exists."""
+        """Create the collection table and indexes under a per-name DDL lock."""
         table = self._table(name)
         _, dim = await self._for_collection(name)
         operator_class = "halfvec_cosine_ops" if dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
         async with self.async_session() as session:
+            # IF NOT EXISTS can still race on PostgreSQL's catalog uniqueness.
+            # This transaction must not reacquire COLLECTION_TEARDOWN: an unfiled
+            # writer already holds that name on its separate insertion session.
+            await hold_name(session, LockScope.COLLECTION_DDL, name)
             await session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             await session.execute(
                 text(f"""
