@@ -563,3 +563,68 @@ class TestAWebChatTurnTheEdgeRefusedKeepsNoBriefing:
         assert row.attachment_context is None
         # Marked in the transaction that ends the run: the row outlives it.
         assert row.guardrail_refused is True
+
+
+@pytest.mark.parametrize("invalidated", [False, True])
+@pytest.mark.parametrize("versioned", [False, True])
+async def test_a_parked_question_cannot_replay_history_refused_while_it_waited(
+    db, model_calls, invalidated, versioned
+):
+    from pydantic_ai.messages import (
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        ToolCallPart,
+        UserPromptPart,
+    )
+
+    from app.services.agent_runner import PausedRunState
+
+    ctx = await _owner(db)
+    agent = await _guarded_agent_without_a_workspace(db, ctx)
+    chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=f"Remember {BLOCKED}"
+    )
+    history = await ConversationService(db).model_history(chat.id, limit=20)
+    runner = AgentRunnerService(db)
+    prepared = await runner.prepare(ctx, agent.id, surface=RunSurface.WEB, conversation_id=chat.id)
+    question = {
+        "questions": [
+            {
+                "header": "Tone",
+                "question": "How formal?",
+                "options": [{"label": "Formal"}, {"label": "Casual"}],
+            }
+        ]
+    }
+    paused = PausedRunState(
+        messages=ModelMessagesTypeAdapter.dump_python(
+            [
+                *history,
+                ModelRequest(parts=[UserPromptPart(content="Draft a reply")]),
+                ModelResponse(
+                    parts=[ToolCallPart("ask_user_question", question, tool_call_id="ask-1")]
+                ),
+            ],
+            mode="json",
+        ),
+        tool_call_ids={},
+        questions=["ask-1"],
+        guardrail_revision=history.revision if versioned else None,
+    )
+    await runner.finish(prepared, status=RunStatus.AWAITING_ANSWER, paused_state=paused)
+    await db.commit()
+    assert ("guardrail_revision" in prepared.run.paused_state) is versioned
+    if invalidated:
+        await conversation_repo.mark_message_refused(
+            db, message_id=source.id, conversation_id=chat.id
+        )
+        await db.commit()
+    resumed = await runner.resume(ctx, prepared.run.id, answers={"ask-1": {"Tone": ["Formal"]}})
+    assert resumed.run.status == (
+        RunStatus.GUARDRAIL_BLOCKED.value if invalidated else RunStatus.COMPLETED.value
+    )
+    assert len(model_calls) == (0 if invalidated else 1)
+    assert resumed.run.paused_state is None

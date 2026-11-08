@@ -28,16 +28,30 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
         await connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
         for statement in (
             "CREATE TABLE conversations (id uuid PRIMARY KEY, summary_messages jsonb, summary_ordinal integer)",
-            "CREATE TABLE messages (id uuid PRIMARY KEY)",
+            "CREATE TABLE messages (id uuid PRIMARY KEY, conversation_id uuid, guardrail_refused boolean DEFAULT false)",
             "CREATE TABLE workflow_runs (id uuid PRIMARY KEY)",
+            "CREATE TABLE agent_runs (id uuid PRIMARY KEY, paused_state jsonb)",
         ):
             await connection.execute(text(statement))
         for statement in (
             "INSERT INTO conversations (id, summary_messages, summary_ordinal) VALUES (:id, '[]', 3)",
-            "INSERT INTO messages VALUES (:id)",
+            "INSERT INTO messages (id) VALUES (:id)",
             "INSERT INTO workflow_runs VALUES (:id)",
         ):
             await connection.execute(text(statement), {"id": uuid4()})
+
+        await connection.execute(
+            text("INSERT INTO agent_runs VALUES (:id, CAST(:state AS jsonb))"),
+            {
+                "id": uuid4(),
+                "state": '{"messages": [], "tool_call_ids": {}, "guardrail_revision": 1}',
+            },
+        )
+        await connection.execute(
+            text(
+                "UPDATE messages SET conversation_id = (SELECT id FROM conversations), guardrail_refused = true"
+            )
+        )
 
         def change(sync_connection: Connection, direction: str) -> None:
             with Operations.context(MigrationContext.configure(sync_connection)):
@@ -51,7 +65,7 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
                 )
             )
         ).one()
-        assert tuple(cache) == (None, None, 0)
+        assert tuple(cache) == (None, None, 1)
         indexes = set(
             (
                 await connection.execute(
@@ -90,6 +104,10 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
             is None
         )
         await connection.run_sync(change, "downgrade")
+        assert await connection.scalar(text("SELECT paused_state FROM agent_runs")) == {
+            "messages": [],
+            "tool_call_ids": {},
+        }
         assert await connection.scalar(text("SELECT count(*) FROM workflow_runs")) == 1
         await connection.run_sync(change, "upgrade")
         assert await connection.scalar(text("SELECT source_message_id FROM workflow_runs")) is None

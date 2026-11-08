@@ -1,5 +1,5 @@
 ---
-source_sha: "d8906b9824ea"
+source_sha: "8a536157d6dd"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2865,6 +2865,10 @@ powtarzały modelowi odrzuconej treści.
 Trwająca już kompakcja nie może przywrócić do cache tury odrzuconej później.
 Aktualizacja jednorazowo odbudowuje istniejące podsumowania; oryginalne wiadomości
 pozostają.
+
+Jeśli wcześniejsza tura zostanie odrzucona, gdy run czeka na akceptację lub
+odpowiedź, run zatrzyma się przed ponownym wykonaniem narzędzi lub wywołaniem
+modelu. Zacznij nową turę, aby kontynuować z aktualną, przefiltrowaną historią.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

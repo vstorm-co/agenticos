@@ -926,6 +926,9 @@ class PausedRunState(BaseModel):
     tool_call_ids: dict[str, str] = Field(
         description="Approval id -> the tool call it parked, so a decision can be replayed"
     )
+    guardrail_revision: int | None = Field(
+        default=None, ge=0, exclude_if=lambda value: value is None
+    )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
@@ -1868,8 +1871,28 @@ def _question_calls(state: PausedRunState) -> dict[str, ToolCallPart]:
     }
 
 
+async def _check_parked_history(
+    db: AsyncSession, conversation_id: UUID | None, history: ModelHistory
+) -> None:
+    """Refuse a parked snapshot before replaying its approved tools or calling a model."""
+    if conversation_id is None:
+        current_history = history.revision is None
+    else:
+        revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
+        expected = history.revision if history.revision is not None else 0
+        current_history = revision is not None and revision == expected
+    if not current_history:
+        raise GuardrailBlocked(
+            edge="input",
+            message="This run's saved conversation history is no longer valid. Start a new turn.",
+        )
+
+
 def _classify_output(
-    result: AgentRunResult[AgentOutput], *, parked: dict[str, str]
+    result: AgentRunResult[AgentOutput],
+    *,
+    parked: dict[str, str],
+    history_revision: int | None = None,
 ) -> tuple[RunStatus, str, dict[str, Any] | None, PausedRunState | None]:
     """The terminal status a finished run reaches, and what it carries there.
 
@@ -1893,6 +1916,7 @@ def _classify_output(
             messages=dump_messages(result.all_messages()),
             tool_call_ids=parked,
             questions=questions,
+            guardrail_revision=history_revision,
         )
         # Waiting on a decision outranks waiting on an answer: the approval queue
         # is where somebody can release it, and a question in the same step is
@@ -6919,7 +6943,10 @@ class AgentRunnerService:
                     # A resume continues the approved call without another user turn.
                     user_prompt=None,
                     said=None,
-                    message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+                    message_history=ModelHistory(
+                        ModelMessagesTypeAdapter.validate_python(state.messages),
+                        revision=state.guardrail_revision,
+                    ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
                     stream=frames.drive if frames is not None else None,
@@ -7515,6 +7542,8 @@ class AgentRunnerService:
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
         try:
+            if deferred_tool_results is not None and isinstance(message_history, ModelHistory):
+                await _check_parked_history(self.db, prepared.run.conversation_id, message_history)
             if on_run_open is not None:
                 await on_run_open(prepared.run)
             await self.db.commit()
@@ -7563,7 +7592,11 @@ class AgentRunnerService:
             # output anywhere (agenticos#506).
             settled = settled_calls_in(new_messages)
             status, output, structured, paused = _classify_output(
-                result, parked=prepared.approvals.parked
+                result,
+                parked=prepared.approvals.parked,
+                history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
             )
             if paused is not None:
                 paused.tool_identities = {

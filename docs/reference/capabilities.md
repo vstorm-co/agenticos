@@ -2751,6 +2751,10 @@ same filtered listing, so their labels cannot repeat a refused turn to a model.
 A compaction already in flight cannot restore a later refused turn to the cache.
 Upgrading rebuilds existing cached summaries once; the original messages remain.
 
+If an earlier turn is refused while a run waits for approval or an answer, that
+run stops before replaying tools or calling a model. Start a new turn to continue
+with the current, filtered history.
+
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is

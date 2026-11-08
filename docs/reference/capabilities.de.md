@@ -1,5 +1,5 @@
 ---
-source_sha: "d8906b9824ea"
+source_sha: "8a536157d6dd"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3081,6 +3081,10 @@ gefilterte Liste, damit ihre Bezeichnungen keinem Modell abgelehnten Text wieder
 Eine bereits laufende Komprimierung kann einen später abgelehnten Zug nicht
 wieder im Cache speichern. Beim Upgrade werden vorhandene Zusammenfassungen
 einmal neu aufgebaut; die ursprünglichen Nachrichten bleiben erhalten.
+
+Wird ein früherer Zug abgelehnt, während ein Run auf Freigabe oder eine Antwort
+wartet, stoppt der Run vor der Wiederholung von Tools oder einem Modellaufruf.
+Beginnen Sie einen neuen Zug mit dem aktuellen, gefilterten Verlauf.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

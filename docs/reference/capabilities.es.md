@@ -1,5 +1,5 @@
 ---
-source_sha: "d8906b9824ea"
+source_sha: "8a536157d6dd"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2939,6 +2939,10 @@ no repitan a un modelo el texto de un turno rechazado.
 Una compactación ya iniciada no puede devolver a la caché un turno rechazado
 después. La actualización reconstruye una vez los resúmenes guardados; los
 mensajes originales se conservan.
+
+Si se rechaza un turno anterior mientras un run espera aprobación o una respuesta,
+el run se detiene antes de volver a ejecutar herramientas o llamar a un modelo.
+Inicia un turno nuevo para continuar con el historial actual y filtrado.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

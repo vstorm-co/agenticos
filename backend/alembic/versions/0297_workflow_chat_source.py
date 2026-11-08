@@ -27,6 +27,10 @@ def upgrade() -> None:
     op.execute(
         "UPDATE conversations SET summary_messages = NULL, summary_ordinal = NULL WHERE summary_messages IS NOT NULL OR summary_ordinal IS NOT NULL"
     )
+    # Legacy parked histories have no revision and may resume only at revision 0.
+    op.execute(
+        "UPDATE conversations SET guardrail_revision = 1 WHERE EXISTS (SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id AND messages.guardrail_refused IS TRUE)"
+    )
     op.add_column("workflow_runs", sa.Column("source_conversation_id", sa.UUID(), nullable=True))
     op.add_column("workflow_runs", sa.Column("source_message_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
@@ -52,6 +56,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The previous API forbids unknown fields in this stored JSON model.
+    op.execute(
+        "UPDATE agent_runs SET paused_state = paused_state - 'guardrail_revision' WHERE paused_state ? 'guardrail_revision'"
+    )
     op.drop_index("workflow_runs_source_message_id_idx", table_name="workflow_runs")
     op.drop_index("workflow_runs_source_conversation_id_idx", table_name="workflow_runs")
     op.drop_column("workflow_runs", "source_message_id")

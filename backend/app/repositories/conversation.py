@@ -270,6 +270,13 @@ async def get_conversation_by_id(
     return await db.get(Conversation, conversation_id, options=summary_options)
 
 
+async def get_guardrail_revision(db: AsyncSession, conversation_id: UUID) -> int | None:
+    """The current refusal revision, independent of the session's identity map."""
+    return await db.scalar(
+        select(Conversation.guardrail_revision).where(Conversation.id == conversation_id)
+    )
+
+
 def _list_filters(
     *,
     search: str | None = None,
@@ -1321,7 +1328,7 @@ async def get_messages_by_conversation(
     query = select(Message).where(Message.conversation_id == conversation_id)
     if for_model:
         query = query.where(Message.guardrail_refused.is_(False))
-    if include_tool_calls:
+    if include_tool_calls or fresh:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
@@ -1514,10 +1521,8 @@ async def get_messages_after(
     `get_recent_messages` is, and for the same reason: a thread nobody compacts
     again must not grow into an unbounded prompt.
 
-    Without the attachments its sibling loads: this answers what the *model*
-    reads, and a row's files reach that as text the prompt already carries. A
-    caller that needs them touches `Message.files` and gets a `MissingGreenlet`
-    saying so, which beats a join on every turn for nobody.
+    Refresh the refusal flag while keeping serializable relationships loaded:
+    the same identity-map rows can still be returned by the turn that wrote them.
     """
     total = await db.scalar(
         select(func.count(Message.id)).where(
@@ -1527,6 +1532,10 @@ async def get_messages_after(
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+        )
         .order_by(Message.ordinal.asc())
         .offset(max(0, (total or 0) - limit))
         .limit(limit)

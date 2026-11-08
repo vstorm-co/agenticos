@@ -672,7 +672,11 @@ class ChatAgentRunner:
                     dump_messages(result.all_messages()),
                 )
             status, output, _structured, paused = _classify_output(
-                result, parked=prepared.approvals.parked
+                result,
+                parked=prepared.approvals.parked,
+                history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
             )
             if paused is not None:
                 paused.tool_identities = dict(prepared.built.deps.tool_identities)
