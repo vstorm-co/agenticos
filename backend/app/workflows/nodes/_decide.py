@@ -34,6 +34,7 @@ from app.agents.capabilities.budget import (
     BudgetGuard,
     SpendLedger,
 )
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_kind
 from app.core.vault import VaultScope
@@ -44,6 +45,7 @@ from app.services.access import SECRET, resolve_access
 from app.services.decision_models import DEFAULT_DECISION_MODEL, decision_model_schema
 from app.services.spend import assert_organization_within_budget
 from app.services.workflow_execution import budget, context
+from app.services.workflow_execution.agent_conversations import ChatSourceGuard
 from app.workflows.contracts.results import Failed, WorkflowError
 
 logger = logging.getLogger(__name__)
@@ -165,11 +167,16 @@ async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> A
     current = context.current()
     try:
         async with get_worker_db_context() as db:
+            await ChatSourceGuard(db, current.chat_source).check()
             row = await _usable_key(db, current.auth, config.secret_id)
             await assert_organization_within_budget(db, current.organization_id)
             limits = await budget.provider_limits(
                 db, organization_id=current.organization_id, remaining=current.budget_remaining
             )
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except BudgetExceeded:
         return Failed(
             error=WorkflowError(
@@ -207,7 +214,13 @@ async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> A
         capabilities=[guard],
     )
     try:
+        async with get_worker_db_context() as db:
+            await ChatSourceGuard(db, current.chat_source).check()
         result = await agent.run(text)
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except BudgetExceeded:
         return Failed(
             error=WorkflowError(

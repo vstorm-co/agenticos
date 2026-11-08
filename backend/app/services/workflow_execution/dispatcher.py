@@ -197,7 +197,9 @@ ScopePath = list[dict[str, Any]]
 
 def _chat_source(run: WorkflowRun) -> context.ChatSource | None:
     """Refusal provenance, never an input binding or a reply destination."""
-    if run.source_conversation_id is None or run.source_message_id is None:
+    if not run.has_chat_source and (
+        run.source_conversation_id is None or run.source_message_id is None
+    ):
         return None
     return context.ChatSource(run.source_conversation_id, run.source_message_id)
 

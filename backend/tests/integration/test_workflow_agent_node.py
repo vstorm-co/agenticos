@@ -1023,3 +1023,14 @@ async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model
         later = dataclasses.replace(seeded, run=retry_row)
     assert (await drive(later)).status == WorkflowRunStatus.FAILED.value
     assert recorder.prompts == []
+    async with seeded.factory() as db:
+        await db.delete(await db.get(Conversation, source_id))
+        await db.commit()
+        retried = await WorkflowExecutionService(db).retry(seeded.ctx, later.run.id)
+        await db.commit()
+        retry_row = await runs.get_run(db, retried.id, organization_id=seeded.org.id)
+        assert retry_row.has_chat_source is True
+        assert retry_row.source_conversation_id is retry_row.source_message_id is None
+        deleted_source = dataclasses.replace(seeded, run=retry_row)
+    assert (await drive(deleted_source)).status == WorkflowRunStatus.FAILED.value
+    assert recorder.prompts == []

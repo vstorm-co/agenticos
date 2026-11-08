@@ -434,6 +434,9 @@ def test_a_retry_source_comes_only_from_the_admitted_provenance(identity):
     assert _chat_source(run) == (
         context.ChatSource(conversation_id, message_id) if identity == "complete" else None
     )
+    run.has_chat_source = True
+    run.source_conversation_id = run.source_message_id = None
+    assert _chat_source(run) == context.ChatSource(None, None)
 
 
 @pytest.mark.security
@@ -443,7 +446,7 @@ def test_a_retry_source_comes_only_from_the_admitted_provenance(identity):
 async def test_a_sibling_cannot_start_or_resume_after_the_shared_source_is_refused(
     runner, monkeypatch, resumed, late, verdict
 ):
-    read = AsyncMock(side_effect=[False, verdict] if late else [verdict])
+    read = AsyncMock(side_effect=[False, verdict] if late and not resumed else [verdict])
     monkeypatch.setattr(conversation_repo, "message_refusal", read)
     monkeypatch.setattr(agent_node, "_cost_so_far", AsyncMock(return_value=Decimal(0)))
     attempted = runner.resume if resumed else runner.execute
@@ -463,4 +466,25 @@ async def test_a_sibling_cannot_start_or_resume_after_the_shared_source_is_refus
         )
     assert isinstance(result, Failed)
     assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
-    assert attempted.await_count == (1 if late else 0)
+    assert attempted.await_count == (1 if late or resumed else 0)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("missing", ["message", "conversation", "both"])
+async def test_a_deleted_source_stays_closed_without_a_message_to_mark(monkeypatch, missing):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+
+    mark = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "mark_message_refused", mark)
+    guard = ChatSourceGuard(
+        MagicMock(),
+        context.ChatSource(
+            None if missing in {"conversation", "both"} else uuid.uuid4(),
+            None if missing in {"message", "both"} else uuid.uuid4(),
+        ),
+    )
+    with pytest.raises(GuardrailBlocked):
+        await guard.check()
+    await guard.keep_refusal(SimpleNamespace(run=_run(RunStatus.GUARDRAIL_BLOCKED)))
+    mark.assert_not_awaited()

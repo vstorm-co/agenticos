@@ -50,10 +50,10 @@ class ClaimState:
 
 @dataclass(frozen=True, slots=True)
 class ChatSource:
-    """The exact turn the socket wrote, independent of the run's reply destination."""
+    """The admitted chat turn; missing IDs mean its source was deleted."""
 
-    conversation_id: UUID
-    message_id: UUID
+    conversation_id: UUID | None
+    message_id: UUID | None
 
 
 @dataclass(frozen=True, slots=True)

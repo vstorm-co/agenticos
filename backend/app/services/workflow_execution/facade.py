@@ -535,6 +535,7 @@ class WorkflowExecutionService:
             reply_conversation_id=None,
             source_conversation_id=parent.source_conversation_id,
             source_message_id=parent.source_message_id,
+            has_chat_source=parent.has_chat_source,
             causation=causation,
             parent_node_run_id=parent_node_run_id,
             retry_of_run_id=retry_of_run_id,
@@ -563,6 +564,7 @@ class WorkflowExecutionService:
         reply_conversation_id: UUID | None,
         source_conversation_id: UUID | None = None,
         source_message_id: UUID | None = None,
+        has_chat_source: bool = False,
         causation: Causation | None = None,
         retry_of_run_id: UUID | None = None,
         parent_node_run_id: UUID | None = None,
@@ -666,6 +668,7 @@ class WorkflowExecutionService:
             reply_conversation_id=reply_conversation_id,
             source_conversation_id=source_conversation_id,
             source_message_id=source_message_id,
+            has_chat_source=has_chat_source,
             retry_of_run_id=retry_of_run_id,
             parent_node_run_id=parent_node_run_id,
         )
@@ -1024,6 +1027,7 @@ class WorkflowExecutionService:
             reply_conversation_id=None,
             source_conversation_id=original.source_conversation_id,
             source_message_id=original.source_message_id,
+            has_chat_source=original.has_chat_source,
             retry_of_run_id=original.id,
             # A retry is a root of its own, so it keeps the run's flag, not
             # its chain's: a member retrying a public child from the console

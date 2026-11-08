@@ -567,8 +567,9 @@ class TestAWebChatTurnTheEdgeRefusedKeepsNoBriefing:
 
 @pytest.mark.parametrize("invalidated", [False, True])
 @pytest.mark.parametrize("versioned", [False, True])
+@pytest.mark.parametrize("external_source", [False, True])
 async def test_a_parked_question_cannot_replay_history_refused_while_it_waited(
-    db, model_calls, invalidated, versioned
+    db, model_calls, invalidated, versioned, external_source
 ):
     from pydantic_ai.messages import (
         ModelMessagesTypeAdapter,
@@ -578,14 +579,21 @@ async def test_a_parked_question_cannot_replay_history_refused_while_it_waited(
     )
 
     from app.services.agent_runner import PausedRunState
+    from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+    from app.services.workflow_execution.context import ChatSource
 
     ctx = await _owner(db)
     agent = await _guarded_agent_without_a_workspace(db, ctx)
     chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
     db.add(chat)
     await db.flush()
+    source_chat = chat
+    if external_source:
+        source_chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(source_chat)
+        await db.flush()
     source = await conversation_repo.create_message(
-        db, conversation_id=chat.id, role="user", content=f"Remember {BLOCKED}"
+        db, conversation_id=source_chat.id, role="user", content=f"Remember {BLOCKED}"
     )
     history = await ConversationService(db).model_history(chat.id, limit=20)
     runner = AgentRunnerService(db)
@@ -619,10 +627,17 @@ async def test_a_parked_question_cannot_replay_history_refused_while_it_waited(
     assert ("guardrail_revision" in prepared.run.paused_state) is versioned
     if invalidated:
         await conversation_repo.mark_message_refused(
-            db, message_id=source.id, conversation_id=chat.id
+            db, message_id=source.id, conversation_id=source_chat.id
         )
         await db.commit()
-    resumed = await runner.resume(ctx, prepared.run.id, answers={"ask-1": {"Tone": ["Formal"]}})
+    resumed = await runner.resume(
+        ctx,
+        prepared.run.id,
+        answers={"ask-1": {"Tone": ["Formal"]}},
+        on_run_open=ChatSourceGuard(db, ChatSource(source_chat.id, source.id)).check
+        if external_source
+        else None,
+    )
     assert resumed.run.status == (
         RunStatus.GUARDRAIL_BLOCKED.value if invalidated else RunStatus.COMPLETED.value
     )

@@ -88,7 +88,7 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
         assert tuple(legacy) == (None, None)
         await connection.execute(
             text(
-                "UPDATE workflow_runs SET source_conversation_id = (SELECT id FROM conversations), source_message_id = (SELECT id FROM messages)"
+                "UPDATE workflow_runs SET has_chat_source = true, source_conversation_id = (SELECT id FROM conversations), source_message_id = (SELECT id FROM messages)"
             )
         )
         await connection.execute(text("DELETE FROM messages"))
@@ -103,6 +103,7 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
             await connection.scalar(text("SELECT source_conversation_id FROM workflow_runs"))
             is None
         )
+        assert await connection.scalar(text("SELECT has_chat_source FROM workflow_runs")) is True
         await connection.run_sync(change, "downgrade")
         assert await connection.scalar(text("SELECT paused_state FROM agent_runs")) == {
             "messages": [],

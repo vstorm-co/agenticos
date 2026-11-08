@@ -318,7 +318,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     try:
         async with get_worker_db_context() as db:
             source_guard = ChatSourceGuard(db, current.chat_source)
-            await source_guard.check()
+            if current.resumed_agent_run_id is None:
+                await source_guard.check()
 
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:

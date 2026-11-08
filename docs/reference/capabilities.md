@@ -2751,7 +2751,7 @@ same filtered listing, so their labels cannot repeat a refused turn to a model.
 A compaction already in flight cannot restore a later refused turn to the cache.
 Upgrading rebuilds existing cached summaries once; the original messages remain.
 
-Every run revalidates its history snapshot before its first model request. Workflow agent and model steps also check their shared chat source before starting; an already-refused source cannot be reused by queued sibling steps.
+Every run revalidates its history snapshot before its first model request. Workflow agent, model and decision steps also check their shared chat source before starting; queued sibling steps cannot reuse a refused or deleted source.
 
 If an earlier turn is refused while a run waits for approval or an answer, that
 run stops before replaying tools or calling a model. Start a new turn to continue

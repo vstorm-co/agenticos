@@ -96,9 +96,13 @@ class ChatSourceGuard:
         """Check admission and again at the runner's pre-model commit boundary."""
         if self.source is None:
             return
-        refused = await conversation_repo.message_refusal(
-            self.db, message_id=self.source.message_id, conversation_id=self.source.conversation_id
-        )
+        refused = None
+        if self.source.message_id is not None and self.source.conversation_id is not None:
+            refused = await conversation_repo.message_refusal(
+                self.db,
+                message_id=self.source.message_id,
+                conversation_id=self.source.conversation_id,
+            )
         if refused is not False:
             raise GuardrailBlocked(
                 edge="input",
@@ -107,7 +111,12 @@ class ChatSourceGuard:
 
     async def keep_refusal(self, segment: RunSegment) -> None:
         """Commit the shared verdict with the agent's terminal refusal."""
-        if segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value and self.source is not None:
+        if (
+            segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
+            and self.source is not None
+            and self.source.message_id is not None
+            and self.source.conversation_id is not None
+        ):
             await conversation_repo.mark_message_refused(
                 self.db,
                 message_id=self.source.message_id,

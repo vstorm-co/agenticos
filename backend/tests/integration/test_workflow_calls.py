@@ -1148,13 +1148,18 @@ async def test_a_called_workflow_keeps_refusal_provenance_without_chat_delivery(
         await workflow_run_repo.update_run(
             db,
             run=seeded.run,
-            update_data={"source_conversation_id": chat.id, "source_message_id": message.id},
+            update_data={
+                "source_conversation_id": chat.id,
+                "source_message_id": message.id,
+                "has_chat_source": True,
+            },
         )
         await db.commit()
         conversation_id, message_id = chat.id, message.id
     await drive(seeded)
     child = await _called_run(seeded, step)
     assert child.run.reply_conversation_id is None
+    assert child.run.has_chat_source is True
     source = _chat_source(child.run)
     assert source is not None and (source.conversation_id, source.message_id) == (
         conversation_id,
