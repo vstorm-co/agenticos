@@ -1,5 +1,5 @@
 ---
-source_sha: "e6d13c516eed"
+source_sha: "0395199c4cc0"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2928,6 +2928,9 @@ búsqueda en conversaciones anteriores (`conversation_search`) omite los mensaje
 rechazados en coincidencias, fragmentos y lecturas de transcripciones. Estas
 herramientas no reciben el título de una conversación con un turno rechazado,
 incluso si el título ya estaba guardado.
+
+Los reintentos y los workflows llamados conservan este vínculo del rechazo con
+su origen. No heredan un destino de respuesta ni acceso al workspace del chat original.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

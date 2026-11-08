@@ -1,5 +1,5 @@
 ---
-source_sha: "e6d13c516eed"
+source_sha: "0395199c4cc0"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2854,6 +2854,9 @@ konkretną wiadomość źródłową z czatu. Wyszukiwanie w dawnych rozmowach
 (`conversation_search`) pomija odrzucone wiadomości w dopasowaniach, fragmentach
 i odczycie transkryptu. Narzędzia nie otrzymują tytułu rozmowy zawierającej
 odrzuconą turę, także gdy tytuł zapisano wcześniej.
+
+Ponowienia i wywołane workflow zachowują powiązanie odmowy z wiadomością. Nie
+dziedziczą miejsca dostarczenia odpowiedzi ani dostępu do workspace czatu źródłowego.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

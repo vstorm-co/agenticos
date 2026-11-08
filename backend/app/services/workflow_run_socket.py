@@ -169,11 +169,11 @@ class WorkflowRunSocket:
                 triggered_by=WorkflowRunTrigger.CHAT,
                 run_input={
                     "prompt": frame.message,
-                    "source_message_id": str(message.id),
                     "conversation_id": str(conversation.id),
                     "user_id": str(ctx.user_id),
                 },
                 reply_conversation_id=conversation.id,
+                source_message_id=message.id,
             )
 
     async def _follow(self, run_id: UUID, after: str | None) -> None:

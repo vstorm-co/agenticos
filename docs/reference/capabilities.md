@@ -2742,6 +2742,9 @@ matching, snippets and transcript reads. Conversation titles are withheld from
 these tools when the conversation contains a refused turn, including existing
 stored titles.
 
+Workflow retries and called workflows preserve this refusal provenance. They do
+not inherit a reply destination or access to the source chat’s workspace.
+
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is

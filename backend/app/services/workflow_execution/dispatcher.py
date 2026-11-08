@@ -196,23 +196,10 @@ ScopePath = list[dict[str, Any]]
 
 
 def _chat_source(run: WorkflowRun) -> context.ChatSource | None:
-    """Read only chat admission's server-written identity, never an API payload's.
-
-    Retrying preserves the frozen input but clears the delivery destination.
-    Keep refusal provenance without granting the retry a chat workspace or reply.
-    """
-    if run.triggered_by != WorkflowRunTrigger.CHAT.value and run.reply_conversation_id is None:
+    """Refusal provenance, never an input binding or a reply destination."""
+    if run.source_conversation_id is None or run.source_message_id is None:
         return None
-    message = run.input.get("source_message_id")
-    conversation = run.input.get("conversation_id")
-    if not isinstance(message, str):
-        return None
-    source = run.reply_conversation_id
-    if source is None:
-        if not isinstance(conversation, str):
-            return None
-        source = UUID(conversation)
-    return context.ChatSource(conversation_id=source, message_id=UUID(message))
+    return context.ChatSource(run.source_conversation_id, run.source_message_id)
 
 
 def _loop_of(scope_path: ScopePath) -> UUID | None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "e6d13c516eed"
+source_sha: "0395199c4cc0"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3070,6 +3070,9 @@ im Workflow markiert auch die genaue Quellnachricht im Chat. Die Suche in frühe
 Unterhaltungen (`conversation_search`) lässt abgelehnte Nachrichten bei Treffern,
 Ausschnitten und beim Lesen des Transkripts aus. Diese Tools erhalten keinen Titel
 einer Unterhaltung mit einem abgelehnten Zug, auch bei bereits gespeicherten Titeln.
+
+Wiederholungen und aufgerufene Workflows behalten diese Herkunft der Ablehnung.
+Sie erben weder ein Antwortziel noch Zugriff auf den Workspace des Quellchats.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

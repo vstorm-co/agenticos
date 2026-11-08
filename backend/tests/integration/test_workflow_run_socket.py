@@ -307,13 +307,16 @@ class TestTheChatsDoor:
             "chat",
             {
                 "prompt": "Summarise the leads",
-                "source_message_id": str(messages[0].id),
                 "conversation_id": str(conversation.id),
                 "user_id": str(owner.id),
             },
             conversation.id,
         )
         assert [(m.role, m.content) for m in messages] == [("user", "Summarise the leads")]
+        assert (run.source_conversation_id, run.source_message_id) == (
+            conversation.id,
+            messages[0].id,
+        )
 
     async def test_a_workflow_that_does_not_start_from_a_chat_message_is_refused(self, factory):
         owner, org, workflow = await _tenant(factory)

@@ -992,10 +992,11 @@ async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model
                 "reply_conversation_id": source.id,
                 "input": {
                     "q": prompt.content,
-                    "source_message_id": str(prompt.id),
                     "conversation_id": str(source.id),
                 },
                 "triggered_by": "chat",
+                "source_conversation_id": source.id,
+                "source_message_id": prompt.id,
                 "status": WorkflowRunStatus.CANCELLED.value if retry else stored.status,
             },
         )

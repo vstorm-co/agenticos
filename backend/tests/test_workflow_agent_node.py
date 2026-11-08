@@ -415,22 +415,20 @@ async def test_a_refused_chat_step_marks_only_its_admitted_source_turn(
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("trigger", ["api", "chat"])
-@pytest.mark.parametrize("identity", ["complete", "no-message", "no-conversation"])
-def test_only_chat_admission_can_supply_a_retry_source(trigger, identity):
+@pytest.mark.parametrize("identity", ["complete", "no-message", "no-conversation", "payload-only"])
+def test_a_retry_source_comes_only_from_the_admitted_provenance(identity):
     from app.db.models.workflow_run import WorkflowRun
     from app.services.workflow_execution.dispatcher import _chat_source
 
     conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
-    payload = {}
-    if identity != "no-message":
-        payload["source_message_id"] = str(message_id)
-    if identity != "no-conversation":
-        payload["conversation_id"] = str(conversation_id)
-    run = WorkflowRun(triggered_by=trigger, input=payload, reply_conversation_id=None)
-    source = _chat_source(run)
-    assert source == (
-        context.ChatSource(conversation_id, message_id)
-        if trigger == "chat" and identity == "complete"
-        else None
+    run = WorkflowRun(
+        input={"conversation_id": str(conversation_id), "source_message_id": str(message_id)},
+        reply_conversation_id=None,
+        source_conversation_id=conversation_id
+        if identity not in {"no-conversation", "payload-only"}
+        else None,
+        source_message_id=message_id if identity not in {"no-message", "payload-only"} else None,
+    )
+    assert _chat_source(run) == (
+        context.ChatSource(conversation_id, message_id) if identity == "complete" else None
     )

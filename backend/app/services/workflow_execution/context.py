@@ -109,7 +109,7 @@ class DispatchContext:
     source_conversation_id: UUID | None = None
     """The chat destination authorized at admission; never a payload-supplied id."""
     chat_source: ChatSource | None = None
-    """Server-written chat metadata, preserved in a retry's frozen input."""
+    """Server-written provenance, preserved across retries and called workflows."""
     test_chat_key: UUID | None = None
     """An opaque test-session token, namespaced by the workflow and principal."""
     nested: bool = False
