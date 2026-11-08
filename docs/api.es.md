@@ -1,5 +1,5 @@
 ---
-source_sha: "7fc9426e14bd"
+source_sha: "cc88ed3eb4e4"
 ---
 
 # La API HTTP { #the-http-api }
@@ -368,6 +368,14 @@ publicada concreta. Los contratos JSON Schema se devuelven sin cambios; los camp
 simples se representan como JSON Schema y las entradas sin tipado devuelven
 `{"type": "object"}`. Usa el contrato de la entrada deseada y pasa su
 `entry_node_id` al iniciar.
+
+Los campos simples `integer` existentes exigen además tokens enteros JSON:
+se acepta `1`, pero se rechazan `1.0` y `1e0`. El descubrimiento los marca con
+`x-agenticos-strict-integer: true`, también dentro de los campos opcionales
+que admiten null. JSON Schema ordinario no puede imponer esta distinción de
+representación, por lo que validar solo el esquema no basta para esos campos;
+la admisión del servidor es definitiva. Los contratos JSON Schema sin procesar
+usan la semántica estándar de integer.
 
 El [contrato de entrada JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
 opcional se comprueba antes de admitir el run. Una discrepancia responde

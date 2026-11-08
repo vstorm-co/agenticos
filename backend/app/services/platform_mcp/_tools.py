@@ -1210,7 +1210,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Returns workflow_id, version_id and entries with entry_node_id, trigger
         and input_schema (JSON Schema Draft 2020-12). Uses the current published
         version unless version_id selects an older one. References remain local
-        to each schema. Simple fields have equivalent schemas; untyped entries
+        to each schema. Legacy integer fields additionally require integer tokens,
+        marked by x-agenticos-strict-integer; ordinary schema validation alone
+        cannot enforce that representation. Untyped entries
         accept any JSON object.
         """
         return await api.request(

@@ -333,7 +333,8 @@ class WorkflowInputSchema(BaseSchema):
     """Version-pinned input discovery, in default-entry order.
 
     Each entry declares a JSON object using Draft 2020-12. Simple input fields
-    are represented by their equivalent schema; an untyped entry accepts any
+    are represented with a `x-agenticos-strict-integer` marker where legacy
+    integer fields additionally require integer tokens; an untyped entry accepts any
     object. Only triggers that accept caller-defined input are included.
     """
 

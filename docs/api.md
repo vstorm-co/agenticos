@@ -345,6 +345,13 @@ published version. JSON Schema contracts are returned unchanged; simple fields
 are represented as JSON Schema, and untyped entries return `{"type": "object"}`.
 Use the intended entry's contract and pass its `entry_node_id` when starting.
 
+Legacy simple `integer` fields additionally require JSON integer tokens: `1`
+is accepted, while `1.0` and `1e0` are refused. Discovery marks these fields with
+`x-agenticos-strict-integer: true`, including inside optional nullable fields.
+Ordinary JSON Schema cannot assert this token distinction, so schema validation
+alone is insufficient for those legacy fields; server admission remains authoritative.
+Raw JSON Schema contracts use standard integer semantics instead.
+
 The optional [JSON Schema input contract](reference/workflow-nodes.md#json-schema-input-contracts)
 is checked before admission. A mismatch answers `422 WORKFLOW_RUN_INPUT_INVALID`
 with field paths and messages in `error.details.fields`; no run is created.

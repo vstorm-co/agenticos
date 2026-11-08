@@ -977,3 +977,38 @@ def test_discovered_date_schema_matches_admission_without_format_assertions(
     payload = {"due": value}
     discovered = Draft202012Validator(effective_input_schema(config))
     assert discovered.is_valid(payload) == (input_problems(config, payload) == [])
+
+
+@pytest.mark.parametrize("branch", [{"type": "object"}, {}])
+def test_overlapping_unrestricted_oneof_branches_cannot_publish(
+    branch: dict[str, JsonValue],
+) -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema={"oneOf": [branch, branch]})
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={
+                "$defs": {"branch": branch},
+                "oneOf": [{"$ref": "#/$defs/branch"}, {"$ref": "#/$defs/branch"}],
+            }
+        )
+
+
+def test_discovery_marks_legacy_integer_token_validation_without_relaxing_admission() -> None:
+    config = TriggerInputConfig.model_validate(
+        {"fields": [{"name": "count", "type": "integer", "required": False}]}
+    )
+    schema = effective_input_schema(config)
+    assert schema["properties"]["count"]["anyOf"][0] == {
+        "type": "integer",
+        "x-agenticos-strict-integer": True,
+    }
+    # Ordinary JSON Schema cannot distinguish 1 from 1.0; the extension names
+    # the additional token-level rule, and server admission remains authoritative.
+    assert Draft202012Validator(schema).is_valid({"count": 1.0})
+    assert input_problems(config, {"count": 1.0}) == [
+        {"field": "count", "message": "Input should be a valid integer", "type": "int_type"}
+    ]
+    assert input_problems(config, {"count": 1}) == []
+    assert input_problems(config, {"count": None}) == []
+    assert input_problems(config, {}) == []

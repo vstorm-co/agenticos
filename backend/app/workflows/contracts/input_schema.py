@@ -230,7 +230,9 @@ def _object_possible(
             if keyword == "allOf":
                 if not all(compatibility):
                     return False
-            elif not any(compatibility):
+            elif not any(compatibility) or (
+                keyword == "oneOf" and sum(unrestricted[id(child)] for child in alternatives) > 1
+            ):
                 return False
     return True
 

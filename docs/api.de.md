@@ -1,5 +1,5 @@
 ---
-source_sha: "7fc9426e14bd"
+source_sha: "cc88ed3eb4e4"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -382,6 +382,14 @@ eine bestimmte veröffentlichte Version zu prüfen. JSON-Schema-Verträge werden
 unverändert zurückgegeben; einfache Felder werden als JSON Schema dargestellt,
 und untypisierte Eingänge liefern `{"type": "object"}`. Verwende den Vertrag des
 gewünschten Eingangs und übergib beim Start dessen `entry_node_id`.
+
+Bisherige einfache `integer`-Felder verlangen zusätzlich ganzzahlige JSON-Tokens:
+`1` wird angenommen, `1.0` und `1e0` werden abgelehnt. Die Erkennung markiert
+diese Felder mit `x-agenticos-strict-integer: true`, auch in optionalen Feldern,
+die null erlauben. Gewöhnliches JSON Schema kann diese Schreibweise nicht
+erzwingen; seine Validierung allein reicht für diese Felder nicht aus. Die
+Serverprüfung entscheidet. Rohe JSON-Schema-Verträge nutzen die standardmäßige
+Integer-Semantik.
 
 Der optionale [JSON-Schema-Eingabevertrag](reference/workflow-nodes.md#json-schema-input-contracts)
 wird vor dem Annehmen des Runs geprüft. Eine Abweichung liefert

@@ -1,5 +1,5 @@
 ---
-source_sha: "7fc9426e14bd"
+source_sha: "cc88ed3eb4e4"
 ---
 
 # API HTTP { #the-http-api }
@@ -352,6 +352,13 @@ API, Called by a workflow lub Form. Przekaż `version_id`, aby sprawdzić konkre
 opublikowaną wersję. Kontrakty JSON Schema są zwracane bez zmian; proste pola są
 przedstawiane jako JSON Schema, a nietypowane wejścia zwracają `{"type": "object"}`.
 Użyj kontraktu wybranego wejścia i przekaż jego `entry_node_id` przy uruchamianiu.
+
+Dotychczasowe proste pola `integer` wymagają dodatkowo tokenów całkowitych JSON:
+`1` jest przyjmowane, a `1.0` i `1e0` są odrzucane. Odkrywanie oznacza te pola
+przez `x-agenticos-strict-integer: true`, także wewnątrz opcjonalnych pól
+dopuszczających null. Zwykły JSON Schema nie potrafi wymusić tej różnicy zapisu,
+więc sama walidacja schematu nie wystarcza dla tych pól; rozstrzyga walidacja
+serwera. Surowe kontrakty JSON Schema stosują standardową semantykę integer.
 
 Opcjonalny [kontrakt wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
 jest sprawdzany przed przyjęciem runu. Niezgodność zwraca

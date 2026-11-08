@@ -159,7 +159,9 @@ def ports_for(config: BaseModel | None) -> tuple[Port, ...]:
 def effective_input_schema(config: TriggerInputConfig) -> dict[str, JsonValue]:
     """The portable input contract callers can inspect before execution.
 
-    Legacy fields retain their strict types, optional nulls and closed object.
+    Legacy fields retain optional nulls and a closed object. Their strict integer
+    token requirement is marked by `x-agenticos-strict-integer`, since ordinary
+    JSON Schema treats integral floating-point numbers as integers too.
     With neither contract, callers may submit any JSON object. Schema defaults
     are annotations; admission never inserts or coerces values.
     """
@@ -182,6 +184,8 @@ def effective_input_schema(config: TriggerInputConfig) -> dict[str, JsonValue]:
         value: InputSchema = {"type": types[field.type]}
         if field.type == "string_list":
             value["items"] = {"type": "string"}
+        elif field.type == "integer":
+            value["x-agenticos-strict-integer"] = True
         elif field.type == "choice":
             value["enum"] = list(field.options)
         elif field.type == "date":

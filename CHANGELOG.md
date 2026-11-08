@@ -31,6 +31,7 @@ Two things are versioned separately from this file and worth knowing about:
   diagnostics, with Linux address-space limits and native macOS support. Step tests use the contract of the entry that reaches the tested step.
   Publication rejects negations that exclude every object; discovered legacy
   date fields retain calendar validation without requiring format assertions.
+  Discovery marks the additional integer-token requirement of legacy simple fields.
 
 ## [1.56.4] - 2026-11-08
 
