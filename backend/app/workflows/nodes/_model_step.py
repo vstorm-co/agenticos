@@ -174,6 +174,7 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
                 version_id=version_id,
                 structured=answers,
                 on_run_open=source_guard.check,
+                check_model_request=source_guard.check_request,
                 on_segment=source_guard.keep_refusal,
                 run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
             )

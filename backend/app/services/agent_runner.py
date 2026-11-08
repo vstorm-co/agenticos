@@ -195,6 +195,7 @@ from app.agents.hand_off import CallWorker, HandOffSpend
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
 from app.agents.mcp import PLATFORM_MCP_PREFIX, McpSourceIdentity, unreachable_briefing
+from app.agents.model_context import ModelContextCheck, checking_model_context
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
@@ -328,7 +329,11 @@ from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
-from app.services.conversation import ConversationService, check_history_snapshot
+from app.services.conversation import (
+    ConversationService,
+    check_history_snapshot,
+    model_context_check,
+)
 from app.services.device_hub import LocalTarget
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
@@ -1565,6 +1570,7 @@ class PreparedRun:
     """
 
     channel_destination: ChannelDestination | None = None
+    model_context_check: ModelContextCheck | None = None
     channel_context: str = ""
     channel_author_context: str = ""
     channel_authors: dict[str, UUID] = field(default_factory=dict)
@@ -1711,6 +1717,7 @@ class PreparedRun:
         reason.
         """
         with (
+            checking_model_context(self.model_context_check),
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
             acting_for_no_person(self.built.deps.run_person is None),
@@ -1764,6 +1771,7 @@ class PreparedRun:
         outcome is taken from it there.
         """
         with (
+            checking_model_context(self.model_context_check),
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
             acting_for_no_person(self.built.deps.run_person is None),
@@ -6382,9 +6390,15 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         result_only: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
+
+        `check_model_request` validates additional trusted context before every
+        provider request, including nested models. It receives a fresh, short-lived
+        session and must not retain it or write through it.
+
 
         The non-streaming path, used by the API and chat channels. Surfaces that
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
@@ -6525,6 +6539,7 @@ class AgentRunnerService:
                 message_history=message_history,
                 deferred_tool_results=None,
                 on_run_open=on_run_open,
+                check_model_request=check_model_request,
                 on_segment=on_segment,
                 stream=stream,
             )
@@ -6654,6 +6669,7 @@ class AgentRunnerService:
         run_limit_usd: Decimal | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         live_surface: LiveRunSurface | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
@@ -6934,6 +6950,7 @@ class AgentRunnerService:
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
                     on_run_open=on_run_open,
+                    check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
                 if frames is not None and segment.message_id is not None:
@@ -7455,6 +7472,7 @@ class AgentRunnerService:
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
@@ -7526,6 +7544,9 @@ class AgentRunnerService:
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
+        prepared.model_context_check = model_context_check(
+            prepared.run.conversation_id, message_history, check_model_request
+        )
         try:
             if isinstance(message_history, ModelHistory):
                 await check_history_snapshot(self.db, prepared.run.conversation_id, message_history)

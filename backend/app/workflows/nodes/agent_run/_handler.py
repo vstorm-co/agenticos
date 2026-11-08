@@ -332,6 +332,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                         current.resumed_agent_run_id,
                         on_segment=source_guard.keep_refusal,
                         on_run_open=source_guard.check,
+                        check_model_request=source_guard.check_request,
                     )
                 else:
                     segment = await runner.resume(
@@ -340,6 +341,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                         run_limit_usd=before + current.budget_remaining,
                         on_segment=source_guard.keep_refusal,
                         on_run_open=source_guard.check,
+                        check_model_request=source_guard.check_request,
                     )
                 text, run, answer = segment.output, segment.run, segment.structured
             else:
@@ -371,6 +373,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     public_origin=current.public_origin,
                     on_segment=source_guard.keep_refusal,
                     on_run_open=source_guard.check,
+                    check_model_request=source_guard.check_request,
                 )
                 answer = answers[0] if answers else None
     except GuardrailBlocked as exc:

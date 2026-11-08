@@ -94,12 +94,16 @@ class ChatSourceGuard:
 
     async def check(self, _run: AgentRun | None = None) -> None:
         """Check admission and again at the runner's pre-model commit boundary."""
+        await self.check_request(self.db)
+
+    async def check_request(self, db: AsyncSession) -> None:
+        """Check the shared source using a request-local database session."""
         if self.source is None:
             return
         refused = None
         if self.source.message_id is not None and self.source.conversation_id is not None:
             refused = await conversation_repo.message_refusal(
-                self.db,
+                db,
                 message_id=self.source.message_id,
                 conversation_id=self.source.conversation_id,
             )

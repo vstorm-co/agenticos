@@ -9,7 +9,7 @@ member's request reaches.
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -33,6 +34,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
+from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
@@ -192,6 +194,26 @@ async def check_history_snapshot(
             edge="input",
             message="This run's conversation history is no longer valid. Start a new turn.",
         )
+
+
+def model_context_check(
+    conversation_id: UUID | None,
+    history: Sequence[ModelMessage] | None,
+    source_check: Callable[[AsyncSession], Awaitable[None]] | None = None,
+) -> ModelContextCheck | None:
+    """Check trusted context in a fresh transaction before each provider request."""
+    snapshot = history if isinstance(history, ModelHistory) else None
+    if snapshot is None and source_check is None:
+        return None
+
+    async def check() -> None:
+        async with get_db_context() as db:
+            if snapshot is not None:
+                await check_history_snapshot(db, conversation_id, snapshot)
+            if source_check is not None:
+                await source_check(db)
+
+    return check
 
 
 class ConversationService:

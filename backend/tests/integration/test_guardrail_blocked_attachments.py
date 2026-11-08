@@ -686,3 +686,83 @@ async def test_an_ordinary_turn_revalidates_history_loaded_before_a_refusal(
                 stream=AsyncMock(),
             )
     assert model_calls == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("streamed", [False, True])
+@pytest.mark.parametrize("workflow_source", [False, True])
+async def test_a_refusal_committed_during_a_tool_stops_the_next_provider_request(
+    db, monkeypatch, streamed, workflow_source
+):
+    from pydantic_ai import Agent as PydanticAgent
+    from pydantic_ai.messages import ToolCallPart
+    from pydantic_ai.models.function import DeltaToolCall
+
+    from app.db.session import get_db_context
+    from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+    from app.services.workflow_execution.context import ChatSource
+
+    ctx = await _owner(db)
+    agent = await _guarded_agent_without_a_workspace(db, ctx)
+    chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=f"Remember {BLOCKED}"
+    )
+    source_id, conversation_id = source.id, chat.id
+    history = (
+        [] if workflow_source else await ConversationService(db).model_history(chat.id, limit=20)
+    )
+    calls = 0
+
+    async def response(messages, info):
+        nonlocal calls
+        calls += 1
+        return ModelResponse(parts=[ToolCallPart("invalidate_context", {}, tool_call_id="mark-1")])
+
+    async def stream_response(messages, info):
+        nonlocal calls
+        calls += 1
+        yield {0: DeltaToolCall(name="invalidate_context", json_args="{}", tool_call_id="mark-1")}
+
+    monkeypatch.setattr(
+        ModelRequestSpec,
+        "build",
+        lambda self: FunctionModel(response, stream_function=stream_response),
+    )
+    runner = AgentRunnerService(db)
+    prepared = await runner.prepare(
+        ctx,
+        agent.id,
+        surface=RunSurface.WORKFLOW if workflow_source else RunSurface.API,
+        conversation_id=None if workflow_source else chat.id,
+    )
+
+    @prepared.built.agent.tool_plain
+    async def invalidate_context() -> str:
+        async with get_db_context() as own:
+            await conversation_repo.mark_message_refused(
+                own, message_id=source_id, conversation_id=conversation_id
+            )
+        return "done"
+
+    async def stream(run):
+        async for node in run:
+            if PydanticAgent.is_model_request_node(node) or PydanticAgent.is_call_tools_node(node):
+                async with node.stream(run.ctx) as events:
+                    async for _ in events:
+                        pass
+
+    source_guard = ChatSourceGuard(db, ChatSource(conversation_id, source_id))
+    segment = await runner._run(
+        prepared,
+        user_prompt="Continue",
+        said="Continue",
+        message_history=history,
+        deferred_tool_results=None,
+        stream=stream if streamed else None,
+        check_model_request=source_guard.check_request if workflow_source else None,
+    )
+    assert segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
+    assert calls == 1

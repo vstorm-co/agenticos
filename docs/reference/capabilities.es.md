@@ -1,5 +1,5 @@
 ---
-source_sha: "c99f29452027"
+source_sha: "afbac3a909fb"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2940,7 +2940,7 @@ Una compactación ya iniciada no puede devolver a la caché un turno rechazado
 después. La actualización reconstruye una vez los resúmenes guardados; los
 mensajes originales se conservan.
 
-Cada ejecución comprueba su historial antes de la primera petición al modelo. Los pasos de agente, modelo y decisión de un workflow también comprueban la fuente de chat compartida antes de empezar; los pasos en cola no pueden reutilizar una fuente rechazada o eliminada. Los resúmenes de voz y las nuevas sesiones realtime usan la misma comprobación de revisión.
+Cada ejecución comprueba su historial antes de cada petición al modelo, también después de llamadas a herramientas. Los pasos de agente, modelo y decisión de un workflow también comprueban la fuente de chat compartida antes de empezar; los pasos en cola no pueden reutilizar una fuente rechazada o eliminada. Los resúmenes de voz y las nuevas sesiones realtime usan la misma comprobación de revisión.
 
 Si se rechaza un turno anterior mientras un run espera aprobación o una respuesta,
 el run se detiene antes de volver a ejecutar herramientas o llamar a un modelo.

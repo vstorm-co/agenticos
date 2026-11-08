@@ -72,7 +72,7 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
-from app.services.conversation import check_history_snapshot
+from app.services.conversation import check_history_snapshot, model_context_check
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
 from app.services.message_history import ModelHistory
@@ -652,6 +652,7 @@ class ChatAgentRunner:
         finished_cleanly = False
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
+        prepared.model_context_check = model_context_check(conversation_id, message_history)
         try:
             if isinstance(message_history, ModelHistory):
                 await check_history_snapshot(self.db, conversation_id, message_history)
