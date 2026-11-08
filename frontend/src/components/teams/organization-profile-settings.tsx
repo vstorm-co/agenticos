@@ -12,6 +12,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { cn, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
+import styles from "./organization-profile-settings.module.css";
 export function OrganizationProfileSettings({
   org,
   onContinue,
@@ -74,11 +75,34 @@ export function OrganizationProfileSettings({
     }
   };
 
+  const colors = canManage && (
+    <div>
+      <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>
+      <AvatarColorPicker
+        value={org.avatar_color}
+        onChange={handleColorChange}
+        className={onContinue ? "justify-center" : undefined}
+      />
+    </div>
+  );
+
+  const heading = (
+    <div>
+      <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
+        {t("workspaceProfile")}
+      </p>
+      <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
+    </div>
+  );
+
   return (
     <section
       data-tour="org-profile"
       data-guided={!!onContinue}
-      className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6"
+      className={cn(
+        "border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6",
+        onContinue && styles.guided,
+      )}
     >
       <button
         type="button"
@@ -122,14 +146,8 @@ export function OrganizationProfileSettings({
         onChange={handleAvatarUpload}
       />
 
-      <div className="min-w-0 flex-1 space-y-3">
-        <div>
-          <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-            {t("workspaceProfile")}
-          </p>
-          <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
-        </div>
-
+      <div className={cn("min-w-0 flex-1 space-y-3", onContinue && styles.details)}>
+        {!onContinue && heading}
         {canManage && (
           <Button
             type="button"
@@ -145,6 +163,8 @@ export function OrganizationProfileSettings({
             {t("changeWorkspaceAvatar")}
           </Button>
         )}
+        {onContinue && colors}
+        {onContinue && heading}
         <div className="flex flex-wrap items-center gap-2">
           <Input
             aria-label={t("workspaceName")}
@@ -163,12 +183,7 @@ export function OrganizationProfileSettings({
           )}
         </div>
         {!canManage && <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>}
-        {canManage && (
-          <div>
-            <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>
-            <AvatarColorPicker value={org.avatar_color} onChange={handleColorChange} />
-          </div>
-        )}
+        {!onContinue && colors}
         {onContinue && (
           <Button
             data-continue

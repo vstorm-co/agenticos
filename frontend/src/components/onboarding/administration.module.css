@@ -478,13 +478,13 @@
   margin-bottom: 24px;
 }
 .stageStudio > section[data-guided="true"] > div:last-child {
-  align-self: stretch;
+  align-self: center;
   display: flex;
   flex-direction: column;
 }
 .stageStudio > section[data-guided="true"] [data-continue] {
-  margin-top: auto;
-  align-self: flex-start;
+  margin-top: 12px;
+  align-self: center;
 }
 
 .teamStage {

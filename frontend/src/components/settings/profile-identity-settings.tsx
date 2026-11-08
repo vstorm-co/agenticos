@@ -18,6 +18,7 @@ import type { User } from "@/types";
 import { useUploadAccountAvatar } from "@/hooks/use-account-profile";
 import { useChanged } from "@/hooks/use-changed";
 import { useLocale, useTranslations } from "next-intl";
+import styles from "./profile-identity-settings.module.css";
 
 export function ProfileIdentitySettings({
   onContinue,
@@ -125,12 +126,22 @@ export function ProfileIdentitySettings({
   const profileChanged = name !== (user.full_name ?? "") || email !== user.email;
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div
+      className={cn(
+        "flex flex-1 flex-col space-y-4",
+        onContinue && section === "identity" && styles.guided,
+      )}
+    >
       {section !== "context" && (
         <>
           <SectionCard title={t("avatar")} description={t("squareImagesLookBest")}>
-            <div className="grid items-center gap-4 md:grid-cols-2">
-              <div className="flex items-center gap-4">
+            <div
+              className={cn(
+                "grid items-center gap-4 md:grid-cols-2",
+                onContinue && styles.avatarEditor,
+              )}
+            >
+              <div className={cn("flex items-center gap-4", onContinue && styles.portraitControls)}>
                 <button
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
@@ -139,6 +150,7 @@ export function ProfileIdentitySettings({
                   className={cn(
                     "border-border hover:bg-accent group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
                     user.avatar_url && "bg-muted",
+                    onContinue && styles.portrait,
                   )}
                 >
                   {user.avatar_url ? (
@@ -194,7 +206,11 @@ export function ProfileIdentitySettings({
               <div>
                 <p className="text-foreground mb-2 text-sm font-medium">{t("avatarColour")}</p>
                 <p className="text-muted-foreground mb-3 text-xs">{t("avatarColourHint")}</p>
-                <AvatarColorPicker value={user.avatar_color ?? null} onChange={handleColorChange} />
+                <AvatarColorPicker
+                  value={user.avatar_color ?? null}
+                  onChange={handleColorChange}
+                  className={onContinue ? "justify-center" : undefined}
+                />
               </div>
             </div>
           </SectionCard>
