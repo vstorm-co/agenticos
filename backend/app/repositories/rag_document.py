@@ -1053,6 +1053,10 @@ class UnfiledProvenanceCounts:
     document: int
     legacy_unknown: int
     confirmable: int
+    tracked_operator: int = 0
+    tracked_document: int = 0
+    tracked_legacy_unknown: int = 0
+    tracked_confirmable: int = 0
 
 
 # A missing owner is never proof of an operator. A known tracking row also
@@ -1077,9 +1081,22 @@ async def unfiled_provenance_counts(
 ) -> UnfiledProvenanceCounts:
     """Audit a single operator-selected collection without needing an embedder."""
     validate_collection_name(collection_name, metadata=Base.metadata)
+    tracked = (
+        await db.execute(
+            select(
+                func.count().filter(RAGDocument.writer_kind == VectorWriterKind.OPERATOR),
+                func.count().filter(RAGDocument.writer_kind == VectorWriterKind.DOCUMENT),
+                func.count().filter(RAGDocument.writer_kind == VectorWriterKind.LEGACY_UNKNOWN),
+                func.count().filter(
+                    RAGDocument.writer_kind == VectorWriterKind.LEGACY_UNKNOWN,
+                    RAGDocument.initiated_by_user_id.is_(None),
+                ),
+            ).where(RAGDocument.collection_name == collection_name, _unfiled_of(None))
+        )
+    ).one()
     name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
     if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
-        return UnfiledProvenanceCounts(0, 0, 0, 0)
+        return UnfiledProvenanceCounts(0, 0, 0, 0, *tracked)
     result = await db.execute(
         text(
             f"""SELECT
@@ -1095,7 +1112,7 @@ async def unfiled_provenance_counts(
         {"collection": collection_name},
     )
     operator, document, unknown, confirmable = result.one()
-    return UnfiledProvenanceCounts(operator, document, unknown, confirmable)
+    return UnfiledProvenanceCounts(operator, document, unknown, confirmable, *tracked)
 
 
 async def confirm_operator_unfiled(db: AsyncSession, collection_name: str) -> int:

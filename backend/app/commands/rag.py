@@ -913,6 +913,10 @@ async def _unfiled_provenance(collection: str, *, confirm_operator: bool) -> Non
                 "document": counts.document,
                 "legacy_unknown": counts.legacy_unknown,
                 "confirmable": counts.confirmable,
+                "tracked_operator": counts.tracked_operator,
+                "tracked_document": counts.tracked_document,
+                "tracked_legacy_unknown": counts.tracked_legacy_unknown,
+                "tracked_confirmable": counts.tracked_confirmable,
             },
             sort_keys=True,
         )

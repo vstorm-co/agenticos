@@ -168,6 +168,9 @@ async def test_operator_confirmation_never_promotes_a_known_document(
         async with factory() as session:
             service = RAGDocumentService(session)
             before = await service.audit_unfiled_provenance(collection)
+            assert before.tracked_document == 1
+            assert before.tracked_legacy_unknown == 1
+            assert before.tracked_confirmable == 1
             assert before.confirmable == (2 if origin in (None, "legacy_unknown") else 0)
             assert await service.confirm_operator_unfiled(collection) == before.confirmable
             await session.commit()
@@ -267,7 +270,21 @@ async def test_empty_and_reserved_provenance_destinations(engine: AsyncEngine) -
             0,
             0,
         )
+        from app.db.models.rag_document import RAGDocument
+
+        session.add(
+            RAGDocument(
+                collection_name="missing_provenance",
+                filename="legacy.txt",
+                filetype="txt",
+                writer_kind="legacy_unknown",
+            )
+        )
+        await session.flush()
+        tracked = await service.audit_unfiled_provenance("missing_provenance")
+        assert tracked.tracked_legacy_unknown == tracked.tracked_confirmable == 1
         assert await service.confirm_operator_unfiled("missing_provenance") == 0
+        assert (await service.audit_unfiled_provenance("missing_provenance")).tracked_operator == 1
         with pytest.raises(BadRequestError):
             await service.audit_unfiled_provenance("documents")
         with pytest.raises(BadRequestError):
