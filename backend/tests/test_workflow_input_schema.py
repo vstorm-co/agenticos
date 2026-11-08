@@ -1051,12 +1051,16 @@ def test_form_catalog_schema_advertises_only_supported_input_contracts() -> None
 
 
 @pytest.mark.parametrize("inline", [False, True])
-def test_duplicate_restrictive_oneof_resolves_static_aliases(inline: bool) -> None:
+@pytest.mark.parametrize("metadata", [False, True])
+def test_duplicate_restrictive_oneof_resolves_static_aliases(inline: bool, metadata: bool) -> None:
     branch: dict[str, JsonValue] = {"required": ["x"]}
     schema: dict[str, JsonValue] = {
         "$defs": {"left": branch, "right": {"$ref": "#/$defs/left"}},
         "oneOf": [branch if inline else {"$ref": "#/$defs/left"}, {"$ref": "#/$defs/right"}],
     }
+    if metadata:
+        schema["oneOf"][0]["title"] = "A"
+        schema["oneOf"][1]["description"] = "B"
     with pytest.raises(ValidationError, match="must allow a JSON object"):
         TriggerInputConfig(input_schema=schema)
 
@@ -1108,3 +1112,62 @@ def test_schema_canonicalization_preserves_literal_and_positional_array_order(
 ) -> None:
     config = TriggerInputConfig(input_schema={"oneOf": [left, right]})
     assert input_problems(config, payload) == []
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        "title",
+        "description",
+        "$comment",
+        "default",
+        "examples",
+        "readOnly",
+        "writeOnly",
+        "deprecated",
+    ],
+)
+def test_metadata_annotations_do_not_make_duplicate_branches_unique(annotation: str) -> None:
+    values: tuple[JsonValue, JsonValue] = (
+        (True, False)
+        if annotation in {"readOnly", "writeOnly", "deprecated"}
+        else (["A"], ["B"])
+        if annotation == "examples"
+        else ("A", "B")
+    )
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={
+                "oneOf": [
+                    {"required": ["x"], annotation: values[0]},
+                    {"required": ["x"], annotation: values[1]},
+                ]
+            }
+        )
+
+
+def test_metadata_keys_inside_literal_values_remain_significant() -> None:
+    config = TriggerInputConfig(
+        input_schema={"oneOf": [{"const": {"title": "A"}}, {"const": {"title": "B"}}]}
+    )
+    assert input_problems(config, {"title": "A"}) == []
+    assert input_problems(config, {"title": "B"}) == []
+
+
+@pytest.mark.parametrize(
+    "annotation", ["format", "contentEncoding", "contentMediaType", "contentSchema"]
+)
+def test_nonasserting_format_and_content_annotations_do_not_distinguish_branches(
+    annotation: str,
+) -> None:
+    left: JsonValue = {"type": "string"} if annotation == "contentSchema" else "A"
+    right: JsonValue = {"type": "number"} if annotation == "contentSchema" else "B"
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={
+                "oneOf": [
+                    {"required": ["x"], annotation: left},
+                    {"required": ["x"], annotation: right},
+                ]
+            }
+        )

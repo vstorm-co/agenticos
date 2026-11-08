@@ -15,7 +15,7 @@ import pytest
 from app.core.exceptions import RateLimitError
 from app.services.workflow_execution import input_validation
 from app.services.workflow_execution.exceptions import WorkflowInputValidationUnavailableError
-from app.workflows.contracts import input_schema_worker
+from app.workflows.contracts import input_schema, input_schema_worker
 from app.workflows.contracts.input_schema import MAX_SCHEMA_BYTES, check_input_schema
 
 pytestmark = pytest.mark.anyio
@@ -285,3 +285,24 @@ async def test_exponential_reference_work_does_not_block_the_event_loop(
         finished.set()
     assert problems == input_schema_worker.validation_limit()
     assert alive > 1
+
+
+@pytest.mark.parametrize("stage", ["check_input_schema", "schema_input_problems", "encode"])
+def test_worker_memory_exhaustion_returns_a_preallocated_resource_refusal(
+    monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    request = json.dumps(
+        {"schema": {"type": "object"}, "input": {"secret": "private-input"}}
+    ).encode()
+
+    def exhaust(*args: object, **kwargs: object) -> None:
+        raise MemoryError("private allocator detail")
+
+    if stage == "encode":
+        monkeypatch.setattr(json, "dumps", exhaust)
+    else:
+        monkeypatch.setattr(input_schema, stage, exhaust)
+    output = io.BytesIO()
+    input_schema_worker.main(io.BytesIO(request), output)
+    assert json.loads(output.getvalue()) == input_schema_worker.validation_limit()
+    assert b"private" not in output.getvalue()

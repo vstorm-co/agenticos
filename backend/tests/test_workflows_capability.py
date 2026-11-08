@@ -1,14 +1,24 @@
 """The workflows capability's registration: what it builds from a binding, and what it refuses."""
 
+import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext, get
-from app.agents.capabilities.workflows import Workflows, WorkflowsConfig
-from app.agents.capabilities.workflows._toolset import _inputs
+from app.agents.capabilities.workflows import Workflows, WorkflowsConfig, _toolset
+from app.agents.capabilities.workflows._toolset import (
+    MAX_DISCOVERY_BYTES,
+    _inputs,
+    build_workflows_toolset,
+)
+from app.agents.deps import AgentDeps
+from app.db.models.workflow import Workflow, WorkflowStatus
 from app.services.access import acting_member
 
 
@@ -93,3 +103,73 @@ async def test_workflow_tool_discovery_keeps_untyped_workflows_open(missing: boo
         new=AsyncMock(return_value=version),
     ):
         assert await _inputs(MagicMock(), workflow, uuid.uuid4()) == ([], {"type": "object"})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("count", "character", "length"),
+    [
+        (1, "x", MAX_DISCOVERY_BYTES),
+        (1, "界", MAX_DISCOVERY_BYTES // 2),
+        (2, "x", MAX_DISCOVERY_BYTES // 2),
+    ],
+)
+async def test_tool_discovery_refuses_oversized_contracts_without_partial_output(
+    count: int, character: str, length: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    organization_id = uuid.uuid4()
+    workflows = [
+        Workflow(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            name="Published workflow",
+            status=WorkflowStatus.PUBLISHED.value,
+            current_version_id=uuid.uuid4(),
+            live_trigger="core.input",
+            live_triggers=["core.input"],
+        )
+        for _ in range(count)
+    ]
+    by_id = {workflow.id: workflow for workflow in workflows}
+
+    async def get_workflow(
+        db: object, workflow_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> Workflow | None:
+        return by_id.get(workflow_id)
+
+    entry_id = str(uuid.uuid4())
+    config = {"input_schema": {"description": character * length}}
+    version = MagicMock(
+        graph={
+            "entry_node_id": entry_id,
+            "nodes": [{"id": entry_id, "definition_id": "core.input", "config": config}],
+        }
+    )
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(return_value=MagicMock())
+    actor = MagicMock(organization_id=organization_id)
+    ctx = RunContext(
+        deps=AgentDeps(organization_id=organization_id, user_id=str(uuid.uuid4())),
+        model=TestModel(),
+        usage=RunUsage(),
+    )
+    toolset = build_workflows_toolset(workflow_ids=tuple(by_id), wait_seconds=0)
+    discover = toolset.tools["list_workflows"].function
+    with (
+        patch.object(_toolset, "get_db_context", return_value=context),
+        patch.object(_toolset, "acting_member", new=AsyncMock(return_value=actor)),
+        patch.object(_toolset.workflow_repo, "get", new=get_workflow),
+        patch.object(_toolset.workflow_repo, "get_version", new=AsyncMock(return_value=version)),
+        patch.object(_toolset, "resolve_access", new=AsyncMock(return_value=True)),
+    ):
+        refused = await discover(ctx)
+        assert "32 KiB allowance" in refused
+        assert len(refused.encode()) < MAX_DISCOVERY_BYTES
+        assert character * length not in refused
+        config["input_schema"] = {"type": "object"}
+        accepted = await discover(ctx)
+        assert len(json.loads(accepted)) == count
+        monkeypatch.setattr(_toolset, "MAX_DISCOVERY_BYTES", len(accepted.encode()))
+        assert await discover(ctx) == accepted
+        monkeypatch.setattr(_toolset, "MAX_DISCOVERY_BYTES", len(accepted.encode()) - 1)
+        assert "32 KiB allowance" in await discover(ctx)

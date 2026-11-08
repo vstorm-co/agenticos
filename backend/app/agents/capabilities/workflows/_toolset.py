@@ -45,6 +45,8 @@ from app.workflows.triggers import BY_HAND, DECLARES_FIELDS, WORKFLOW_CALL
 POLL_SECONDS = 1.0
 """How often a waiting `run_workflow` looks at the run again."""
 
+MAX_DISCOVERY_BYTES = 32 * 1024
+
 _STARTABLE = frozenset({*BY_HAND, WORKFLOW_CALL})
 """The live triggers an agent may start: by hand or the API, or published to be called."""
 
@@ -170,6 +172,8 @@ def build_workflows_toolset(
         """List the workflows this agent may start, with what each needs as input.
 
         Use first, to choose a workflow and inspect the input contract it validates.
+        Discovery exceeding 32 KiB is refused in full; ask for fewer workflows or
+        smaller contracts rather than retrying the same discovery.
 
         Returns:
             A JSON list of `{id, name, description, version_id, input_schema, input}`,
@@ -177,6 +181,7 @@ def build_workflows_toolset(
             field's `name`, `type`, whether it is `required`, and a choice's
             `options`. A workflow that is not published, archived, starts some other
             way, or that the member this agent acts for cannot run is left out.
+            Oversized discovery returns a refusal instead of partial output.
         """
 
         async def work(db: AsyncSession, auth: AuthContext) -> str:
@@ -205,7 +210,14 @@ def build_workflows_toolset(
                         "input": fields,
                     }
                 )
-            return _as_json(found)
+            encoded = _as_json(found)
+            if len(encoded.encode()) > MAX_DISCOVERY_BYTES:
+                raise _Refused(
+                    "Workflow discovery exceeds its 32 KiB allowance. Ask for fewer workflows "
+                    "or smaller input contracts in this agent's binding. The HTTP input-schema "
+                    "endpoint remains available outside the agent's tool context."
+                )
+            return encoded
 
         return await act(ctx, work)
 

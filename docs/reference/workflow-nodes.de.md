@@ -1,5 +1,5 @@
 ---
-source_sha: "e8b4fa1cb76d"
+source_sha: "5a8f2db06a79"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -163,7 +163,7 @@ Linux erzwingt zusätzlich ein Adressraumlimit von 256 MiB und ein CPU-Limit.
 Bei nativer Entwicklung unter macOS bleiben CPU- und Zeitlimits bestehen, aber
 kein Adressraumlimit, da Darwin `RLIMIT_AS` nicht unterstützt.
 
-Eine Zeitüberschreitung oder ein Größenlimit des Validierungsprotokolls lehnt
+Eine Zeitüberschreitung, Speichermangel im Validator oder ein Größenlimit des Validierungsprotokolls lehnt
 den Run mit `422 WORKFLOW_RUN_INPUT_INVALID` ab; `error.details.fields` nennt
 `input`, und der Problemtyp `type` im bisherigen Format ist `validation_limit`.
 Ein Fehler beim Starten des Validators, ein abnormaler Prozessabbruch (auch durch

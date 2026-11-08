@@ -1,5 +1,5 @@
 ---
-source_sha: "e8b4fa1cb76d"
+source_sha: "5a8f2db06a79"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -159,7 +159,7 @@ Linux impone además un límite de espacio de direcciones de 256 MiB y un límit
 de CPU. El desarrollo nativo en macOS conserva los límites de CPU y tiempo,
 pero no el de espacio de direcciones porque Darwin no admite `RLIMIT_AS`.
 
-Un tiempo de espera agotado o un límite de tamaño del protocolo de validación
+Un tiempo de espera agotado, memoria agotada en el validador o un límite de tamaño del protocolo de validación
 rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en
 `error.details.fields` y `validation_limit` como el `type` del problema en el
 formato existente. Un fallo al arrancar el validador, una terminación anormal

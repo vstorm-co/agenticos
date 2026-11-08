@@ -26,22 +26,29 @@ def validation_limit() -> list[dict[str, str]]:
     ]
 
 
+_RESOURCE_LIMIT_RESPONSE = json.dumps(validation_limit()).encode()
+
+
 def main(stdin: BinaryIO, stdout: BinaryIO) -> None:
     """Validate the parent's JSON request without emitting submitted values."""
-    from app.workflows.contracts.input_schema import check_input_schema, schema_input_problems
+    try:
+        from app.workflows.contracts.input_schema import check_input_schema, schema_input_problems
 
-    request_bytes = stdin.read(MAX_REQUEST_BYTES + 1)
-    if len(request_bytes) > MAX_REQUEST_BYTES:
-        problems = validation_limit()
-    else:
-        # Only the trusted parent writes this protocol. JSON values remain JSON
-        # values, including deep input the validator will refuse with a field error.
-        request = cast(ValidationRequest, json.loads(request_bytes))
-        check_input_schema(request["schema"])
-        problems = schema_input_problems(request["schema"], request["input"])
-    response = json.dumps(problems, ensure_ascii=False, separators=(",", ":")).encode()
-    if len(response) > MAX_RESPONSE_BYTES:
-        response = json.dumps(validation_limit()).encode()
+        request_bytes = stdin.read(MAX_REQUEST_BYTES + 1)
+        if len(request_bytes) > MAX_REQUEST_BYTES:
+            problems = validation_limit()
+        else:
+            # Only the trusted parent writes this protocol. JSON values remain JSON
+            # values, including deep input the validator will refuse with a field error.
+            request = cast(ValidationRequest, json.loads(request_bytes))
+            check_input_schema(request["schema"])
+            problems = schema_input_problems(request["schema"], request["input"])
+        response = json.dumps(problems, ensure_ascii=False, separators=(",", ":")).encode()
+        if len(response) > MAX_RESPONSE_BYTES:
+            response = _RESOURCE_LIMIT_RESPONSE
+    except MemoryError:
+        # Allocate the refusal before validation, when the child still has room.
+        response = _RESOURCE_LIMIT_RESPONSE
     stdout.write(response)
 
 

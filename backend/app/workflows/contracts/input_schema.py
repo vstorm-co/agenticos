@@ -43,29 +43,40 @@ _SCHEMA_MAPS = frozenset(
     {"$defs", "definitions", "dependentSchemas", "properties", "patternProperties"}
 )
 _SCHEMA_LISTS = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
-_OBJECT_UNRESTRICTED_KEYS = frozenset(
+_SCHEMA_ANNOTATIONS = frozenset(
     {
-        "$schema",
-        "$id",
-        "$anchor",
-        "$dynamicAnchor",
-        "$comment",
-        "$defs",
-        "definitions",
         "title",
         "description",
+        "$comment",
         "default",
         "examples",
-        "deprecated",
         "readOnly",
         "writeOnly",
-        "type",
-        "$ref",
-        "allOf",
-        "anyOf",
-        "oneOf",
-        "not",
+        "deprecated",
+        "format",
+        "contentEncoding",
+        "contentMediaType",
+        "contentSchema",
     }
+)
+_OBJECT_UNRESTRICTED_KEYS = (
+    frozenset(
+        {
+            "$schema",
+            "$id",
+            "$anchor",
+            "$dynamicAnchor",
+            "$defs",
+            "definitions",
+            "type",
+            "$ref",
+            "allOf",
+            "anyOf",
+            "oneOf",
+            "not",
+        }
+    )
+    | _SCHEMA_ANNOTATIONS
 )
 
 
@@ -261,8 +272,10 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
     """
     if not isinstance(schema, dict):
         return schema
-    result = dict(schema)
-    for keyword, value in schema.items():
+    result = {
+        keyword: value for keyword, value in schema.items() if keyword not in _SCHEMA_ANNOTATIONS
+    }
+    for keyword, value in result.items():
         if keyword in {"required", "type"} and isinstance(value, list):
             result[keyword] = sorted(value, key=lambda item: json.dumps(item, sort_keys=True))
         elif keyword == "dependentRequired" and isinstance(value, dict):
@@ -386,11 +399,13 @@ def check_input_schema(schema: InputSchema) -> None:
         for key in TopologicalSorter(connections).static_order():
             contents = checked[key]
             reference = references.get(key)
-            # A static reference with no siblings has exactly its target's
+            # A static reference with no assertion siblings has its target's
             # meaning. Reuse its identity without expanding reference paths.
             identities[key] = (
                 identities[reference]
-                if isinstance(contents, Mapping) and len(contents) == 1 and reference is not None
+                if isinstance(contents, Mapping)
+                and contents.keys() - _SCHEMA_ANNOTATIONS == {"$ref"}
+                and reference is not None
                 else json.dumps(
                     _canonical_schema(
                         dict(contents) if isinstance(contents, Mapping) else contents

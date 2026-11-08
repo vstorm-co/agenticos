@@ -2379,6 +2379,11 @@ Spec version 14 removes stored `virtual_tables` bindings when they load. Existin
 
 ## Workflows { #workflows }
 
+`list_workflows` discovery is limited to 32 KiB of encoded JSON, including
+input contracts. Larger responses return a refusal instead of a partial list.
+Choose fewer workflows or smaller contracts for the binding, or inspect the
+HTTP input-schema endpoint outside the agent context.
+
 Lets the agent start the published [workflows](../workflows.md) its binding names,
 and read how they went. The Builder's panel lists the organization's workflows, one
 row each, and a ticked row is one the agent may start. A workflow that is a draft,

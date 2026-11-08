@@ -1,5 +1,5 @@
 ---
-source_sha: "e8b4fa1cb76d"
+source_sha: "5a8f2db06a79"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -157,8 +157,8 @@ Linux wymusza dodatkowo limit przestrzeni adresowej 256 MiB i limit CPU.
 Przy natywnym uruchomieniu na macOS pozostają limity CPU i czasu, ale bez limitu
 przestrzeni adresowej, ponieważ Darwin nie obsługuje `RLIMIT_AS`.
 
-Przekroczenie czasu lub limitu rozmiaru protokołu walidacji odrzuca przyjęcie
-runu z `422 WORKFLOW_RUN_INPUT_INVALID`, wskazując `input` w `error.details.fields`
+Przekroczenie czasu lub limitu rozmiaru protokołu albo wyczerpanie pamięci
+walidatora odrzuca przyjęcie runu z `422 WORKFLOW_RUN_INPUT_INVALID`, wskazując `input` w `error.details.fields`
 i `validation_limit` jako `type` problemu w dotychczasowym formacie. Błąd startu
 walidatora, nieprawidłowe zakończenie procesu (także przez limit zasobów systemu
 operacyjnego) lub nieprawidłowa odpowiedź zwraca
