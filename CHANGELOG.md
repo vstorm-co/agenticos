@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.58.3] - 2026-11-08
+
 ### Fixed
 
 - Desktop and mobile native dependencies use an immutable GTK-compatible backport of the GLib string iterator soundness fix (RUSTSEC-2024-0429). The mobile build no longer enables the legacy HTML path that pulled vulnerable `rand` 0.7.3 (RUSTSEC-2026-0097).
@@ -20644,7 +20646,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...HEAD
+[1.58.3]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...v1.58.3
 [1.58.2]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...v1.58.2
 [1.58.1]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...v1.58.1
 [1.58.0]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...v1.58.0
