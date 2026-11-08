@@ -8,6 +8,7 @@ const env = vi.hoisted(() => ({
   orgAdmin: false,
   push: vi.fn(),
   save: vi.fn(),
+  finish: vi.fn(),
   refetch: vi.fn(),
   data: null as Onboarding | null,
   error: null as unknown,
@@ -44,7 +45,7 @@ vi.mock("@/hooks/use-start", () => ({
     isLoading: false,
     waitingForScope: false,
     refetch: env.refetch,
-    save: { mutateAsync: env.save, isPending: false, error: env.saveError },
+    save: { mutate: env.finish, mutateAsync: env.save, isPending: false, error: env.saveError },
   }),
 }));
 vi.mock("./start-language", () => ({ StartLanguage: () => null }));
@@ -71,6 +72,8 @@ beforeEach(() => {
     organization_name: "Acme",
     goal: null,
     dismissed: false,
+    completed: false,
+    snoozed_until: null,
     can_prepare: false,
     can_configure_model: false,
     support_email: "owner@example.com",
@@ -181,7 +184,9 @@ it("keeps the chosen demonstration if preferences fail", async () => {
   env.saveError = new Error("offline");
   view.rerender(<StartHub />);
   expect(screen.getByRole("table", { name: "Three offers, one that fits" })).toBeVisible();
-  expect(screen.getByRole("alert")).toHaveTextContent("Your choice wasn't saved");
+  expect(
+    within(screen.getByRole("region", { name: "Compare three offers" })).getByRole("alert"),
+  ).toHaveTextContent("Your choice wasn't saved");
   expect(screen.queryByText("Choice saved to this workspace")).not.toBeInTheDocument();
 });
 it("hands only an explicitly requested task to the selected runnable agent", async () => {
@@ -258,4 +263,11 @@ it("offers organization setup to a company administrator, without deployment aut
   render(<StartHub />);
   expect(screen.getByRole("heading", { name: "Organization setup" })).toBeVisible();
   expect(screen.queryByRole("heading", { name: "Application setup" })).not.toBeInTheDocument();
+});
+
+it("lets a member finish the walkthrough without configuring or running an agent", async () => {
+  render(<StartHub />);
+  await userEvent.click(screen.getByRole("button", { name: "Finish setup and open the app" }));
+  expect(env.finish).toHaveBeenCalledWith({ completed: true }, expect.any(Object));
+  expect(env.save).not.toHaveBeenCalled();
 });

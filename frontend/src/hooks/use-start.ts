@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   previewMemberStart,
@@ -24,6 +25,16 @@ export function useStart() {
     staleTime: 10_000,
     refetchOnWindowFocus: "always",
   });
+  const snoozedUntil = state.data?.snoozed_until;
+  const { refetch, dataUpdatedAt } = state;
+  useEffect(() => {
+    if (!snoozedUntil) return;
+    const timer = window.setTimeout(
+      () => void refetch(),
+      Math.min(86_400_000, Math.max(1000, Date.parse(snoozedUntil) - Date.now())),
+    );
+    return () => window.clearTimeout(timer);
+  }, [snoozedUntil, refetch, dataUpdatedAt]);
   const save = useMutation({
     mutationKey: [...key, "save"],
     mutationFn: async (data: StartUpdate) => ({ key, data: await saveOnboarding(data) }),

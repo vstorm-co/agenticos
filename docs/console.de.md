@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1ac51656d9"
+source_sha: "5602dba6c23b"
 ---
 
 # Die Konsole { #the-console }
@@ -1004,6 +1004,14 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 ## Ihre erste Aufgabe { #your-first-task }
 
+Das Schließen des Startbanners oder **Für 24 Stunden ausblenden** pausiert das Angebot für
+24 Stunden nach Serverzeit. Danach kann es wieder erscheinen, wenn die Einrichtung nicht
+abgeschlossen ist und der Workspace weiterhin einen ersten Einstieg benötigt. Nach den
+Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese
+Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Lauf sind
+nicht erforderlich. Der Abschluss der Einrichtung und eine erfolgreiche Aufgabe sind
+getrennte Zustände.
+
 Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
 Seitenhilfe. Auf dem Desktop liegt der Starthinweis als halbtransparente Ebene über
 der Konsole. Beide Navigationsspalten behalten ihre volle Höhe. Er bietet Administratoren die
@@ -1032,7 +1040,7 @@ Optionale Schritte können übersprungen werden. Das Abschließen blendet weiter
 Startangebote aus, ohne einen erfolgreichen Agentenlauf zu behaupten.
 
 Ein früher abgeschlossener Einstieg blendet Startangebote aus, gilt aber nicht als erfolgreicher Lauf.
-Bestehende Arbeit wird ohne Migration oder Zurücksetzen erkannt: Verfügbare
+Bestehende Arbeit wird ohne Zurücksetzen erkannt: Verfügbare
 veröffentlichte Agenten oder eigene Chats blenden automatische Startangebote aus.
 Benutzernachrichten in älteren oder fehlgeschlagenen Chats gelten als Aktivität,
 unabhängig vom Nachweis abgeschlossener Läufe. Willkommenslinks nach Registrierung

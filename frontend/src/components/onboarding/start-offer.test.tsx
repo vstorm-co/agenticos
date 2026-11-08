@@ -62,7 +62,7 @@ it("offers a shared start and saves only the decision to dismiss it", async () =
     "href",
     "/onboarding",
   );
-  await userEvent.click(screen.getByRole("button", { name: "Dismiss setup tip" }));
+  await userEvent.click(screen.getByRole("button", { name: "Hide for 24 hours" }));
   expect(env.save).toHaveBeenCalledWith({ dismissed: true });
 });
 it.each(["existing chat", "example", "dismissed", "completed", "dashboard"])(
@@ -99,7 +99,7 @@ it("keeps the notice available after a refused dismissal and blocks repeated pen
   env.pending = true;
   render(<StartOffer />);
   expect(screen.getByRole("alert")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Dismiss setup tip" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Hide for 24 hours" })).toBeDisabled();
   expect(screen.getByRole("link", { name: "Try an example" })).toBeVisible();
 });
 

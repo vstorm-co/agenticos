@@ -901,6 +901,12 @@ The administration organization directory shows the uploaded organization pictur
 
 ## Your first task
 
+Closing the start banner or choosing **Hide for 24 hours** snoozes the offer for 24 hours,
+using server time. It can return afterward if setup is unfinished and the workspace still
+needs a first start. After going through the questions, **Finish setup and open the app**
+records completion for this membership. Optional fields, invitations, a model, an agent
+and an AI run are not required. Completion and a successful task are separate states.
+
 Open **Get started** from the dashboard, the first-use offer or a page's help.
 On desktop, the chat start notice is a translucent overlay above the console.
 Both navigation columns retain their full height. It offers setup guidance to administrators
@@ -924,11 +930,11 @@ creation form. Company identity, personal identity and agent context are separat
 avatar, display name, role, work context, time zone and working hours. Each
 personal step advances only after its changes have saved.
 Deployment setup starts at access and accounts; **Save and continue** saves edits
-before moving on. Optional steps can be skipped. Finishing setup dismisses future
+before moving on. Optional steps can be skipped. Finishing setup permanently hides future
 start offers without claiming a successful agent run.
 
-A previous onboarding completion is respected as a dismissal, never as a successful run.
-Existing work is recognized without a migration or reset: available published
+A previous onboarding completion is respected as completion, never as a successful run.
+Existing work is recognized without a reset: available published
 agents or the person's own chat history hide automatic start offers. User messages
 in legacy or failed chats count as activity, independently of completed-run evidence.
 Registration and invitation welcome links take an already usable workspace to chat;

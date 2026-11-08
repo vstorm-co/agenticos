@@ -15,8 +15,32 @@ const env = vi.hoisted(() => ({
   local: false,
   error: null as unknown,
   deployment: vi.fn(),
+  finish: vi.fn(),
+  push: vi.fn(),
   profileCallbacks: new Map<string, () => void>(),
   permissionError: null as unknown,
+}));
+vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: env.push }) }));
+vi.mock("@/hooks/use-start", () => ({
+  useStart: () => ({
+    data: {
+      organization_id: env.activeId,
+      organization_name: "Northwind",
+      goal: null,
+      dismissed: false,
+      completed: false,
+      snoozed_until: null,
+      has_result: false,
+      has_activity: false,
+      agents: [],
+      can_prepare: false,
+      can_configure_model: false,
+      support_email: null,
+      latest_conversation_id: null,
+      latest_completed_at: null,
+    },
+    save: { mutate: env.finish, isPending: false, error: null },
+  }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizations: () => ({
@@ -344,4 +368,20 @@ it("removes the deployment step when application administration is revoked", asy
   view.rerender(<StartAdministration appAdmin={false} />);
   expect(screen.getByRole("heading", { name: "Where will your team work?" })).toBeVisible();
   expect(screen.queryByRole("textbox", { name: "Deployment name" })).not.toBeInTheDocument();
+});
+
+it("finishes after all questions while leaving optional setup empty", async () => {
+  env.orgs = [org("company")];
+  env.activeId = "company";
+  render(<StartAdministration appAdmin />);
+  await selectCompany();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue to the first agent" }));
+  expect(env.finish).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Finish setup and open the app" }));
+  expect(env.finish).toHaveBeenCalledWith({ completed: true }, expect.any(Object));
 });

@@ -13065,7 +13065,8 @@
       "memberTitle": "İlk görevinizi deneyelim",
       "memberHint": "Bir örnek seçin ve ajanın nasıl yardımcı olabileceğini görün.",
       "memberAction": "Bir örnek dene",
-      "dismiss": "Başlangıç ipucunu kapat"
-    }
+      "dismiss": "24 saat gizle"
+    },
+    "snooze": "24 saat gizle"
   }
 }

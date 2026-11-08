@@ -23,6 +23,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { StartAdministration } from "./start-administration";
 import { StartTasks } from "./start-tasks";
+import { StartFinish } from "./start-finish";
 
 export function StartHub() {
   const { activeOrg } = useOrganizations();
@@ -144,7 +145,10 @@ export function StartHub() {
             </Button>
           </div>
         ) : (
-          <StartTasks key={data.organization_id} data={data} />
+          <div className="space-y-6">
+            <StartTasks key={data.organization_id} data={data} />
+            <StartFinish key={data.organization_id} />
+          </div>
         )}
         {data.has_result && <StartNextSteps orgId={data.organization_id} />}
         <footer className={styles.footer}>

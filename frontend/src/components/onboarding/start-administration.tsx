@@ -3,7 +3,6 @@ import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
-import { useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -19,6 +18,7 @@ import { StartWorkspace } from "./start-workspace";
 import { StartInviteTeam } from "./start-invite-team";
 import { StartOrganizationSettings } from "./start-organization-settings";
 import { StartTasks } from "./start-tasks";
+import { StartFinish } from "./start-finish";
 import { StartLanguage } from "./start-language";
 import styles from "./administration.module.css";
 const DeploymentSettingsForm = dynamic(() =>
@@ -288,14 +288,6 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
 function AdminFirstTask({ orgId }: { orgId: string }) {
   const t = useTranslations("start");
   const state = useStart();
-  const router = useRouter();
-  const active = useRef(true);
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-    };
-  }, []);
   if (state.error)
     return (
       <ErrorState
@@ -308,25 +300,7 @@ function AdminFirstTask({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-6">
       <StartTasks data={state.data} />
-      <div className="flex flex-wrap items-center gap-3 border-t pt-5">
-        <Button
-          variant="outline"
-          disabled={state.save.isPending}
-          onClick={() =>
-            state.save.mutate(
-              { dismissed: true },
-              {
-                onSuccess: () => {
-                  if (active.current) router.push("/chat");
-                },
-              },
-            )
-          }
-        >
-          {t("administration.finishSetup")}
-        </Button>
-        {state.save.error && <p role="alert">{t("loadFailed")}</p>}
-      </div>
+      <StartFinish />
     </div>
   );
 }

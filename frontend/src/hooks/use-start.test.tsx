@@ -16,6 +16,8 @@ const sample: Onboarding = {
   organization_name: "Demo",
   goal: null,
   dismissed: false,
+  completed: false,
+  snoozed_until: null,
   can_prepare: true,
   can_configure_model: true,
   support_email: null,
@@ -175,4 +177,32 @@ it("invalidates the initiating workspace after delayed assistant preparation", a
   expect(invalidate).not.toHaveBeenCalledWith({
     queryKey: qk.onboarding.state("user", "another-org"),
   });
+});
+
+it("refreshes an open start offer when its one-day snooze expires", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-08T12:00:00Z"));
+  vi.mocked(readOnboarding)
+    .mockResolvedValueOnce({ ...sample, dismissed: true, snoozed_until: "2026-11-09T12:00:00Z" })
+    .mockResolvedValue(sample);
+  const view = mount();
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(view.result.current.data?.dismissed).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(86_400_001);
+    });
+    expect(readOnboarding).toHaveBeenCalledTimes(2);
+    expect(view.result.current.data?.dismissed).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(86_400_000);
+    });
+    expect(readOnboarding).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    view.client.clear();
+    vi.useRealTimers();
+  }
 });

@@ -285,6 +285,9 @@ class OrganizationMember(Base):
     onboarding_dismissed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # The first messages an empty chat with the starter agent offers this person
     # here, written in the background from what they did in this organization -
     # so on the membership, never the account, which every organization reads.

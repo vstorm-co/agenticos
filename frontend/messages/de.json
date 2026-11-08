@@ -13376,7 +13376,8 @@
       "memberTitle": "Probieren wir Ihre erste Aufgabe",
       "memberHint": "Wählen Sie ein Beispiel und sehen Sie, wie ein Agent helfen kann.",
       "memberAction": "Beispiel ausprobieren",
-      "dismiss": "Starthinweis ausblenden"
-    }
+      "dismiss": "Für 24 Stunden ausblenden"
+    },
+    "snooze": "Für 24 Stunden ausblenden"
   }
 }

@@ -10,6 +10,8 @@ const onboarding = z.object({
   organization_name: z.string(),
   goal: z.enum(START_GOALS).nullable(),
   dismissed: z.boolean(),
+  completed: z.boolean().default(false),
+  snoozed_until: z.iso.datetime({ offset: true }).nullable().default(null),
   can_prepare: z.boolean(),
   can_configure_model: z.boolean(),
   support_email: z.string().nullable(),
@@ -24,6 +26,7 @@ export type Onboarding = z.infer<typeof onboarding>;
 export interface StartUpdate {
   goal?: StartGoal | null;
   dismissed?: boolean;
+  completed?: true;
 }
 export const readOnboarding = async () =>
   onboarding.parse(await apiClient.get<unknown>("/me/onboarding"));
@@ -50,7 +53,13 @@ export async function previewMemberStart(userId: string): Promise<{ has_common_a
 
 /** Ready agents or existing work make the start optional, without inventing a completed run. */
 export function shouldOfferStart(
-  data: Pick<Onboarding, "dismissed" | "has_result" | "has_activity" | "agents">,
+  data: Pick<Onboarding, "dismissed" | "completed" | "has_result" | "has_activity" | "agents">,
 ): boolean {
-  return !data.dismissed && !data.has_result && !data.has_activity && data.agents.length === 0;
+  return (
+    !data.dismissed &&
+    !data.completed &&
+    !data.has_result &&
+    !data.has_activity &&
+    data.agents.length === 0
+  );
 }

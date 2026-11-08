@@ -13704,7 +13704,8 @@
       "memberTitle": "Let’s try your first task",
       "memberHint": "Pick an example and see how an agent can help.",
       "memberAction": "Try an example",
-      "dismiss": "Dismiss setup tip"
-    }
+      "dismiss": "Hide for 24 hours"
+    },
+    "snooze": "Hide for 24 hours"
   }
 }

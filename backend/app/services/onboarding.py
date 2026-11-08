@@ -1,5 +1,6 @@
 """One start contract for web, invitations and native clients; never calls a model."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,12 +71,23 @@ class OnboardingService:
         person = await user_repo.get_by_id(self.db, member.user_id)
         owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
         owner = await user_repo.get_by_id(self.db, owner_id) if owner_id is not None else None
+        completed = member.onboarding_completed_at is not None or (
+            person is not None and person.onboarding_completed_at is not None
+        )
+        snoozed_until = (
+            member.onboarding_dismissed_at + timedelta(days=1)
+            if member.onboarding_dismissed_at is not None
+            else None
+        )
+        if completed or (snoozed_until is not None and snoozed_until <= datetime.now(UTC)):
+            snoozed_until = None
         return OnboardingRead(
             organization_id=org.id,
             organization_name=org.name,
             goal=member.onboarding_goal,
-            dismissed=member.onboarding_dismissed_at is not None
-            or (person is not None and person.onboarding_completed_at is not None),
+            dismissed=completed or snoozed_until is not None,
+            completed=completed,
+            snoozed_until=snoozed_until,
             can_prepare=ctx.has(Perm.AGENTS_EDIT) and ctx.has(Perm.AGENTS_PUBLISH),
             can_configure_model=ctx.has(Perm.CONNECTIONS_MANAGE),
             support_email=owner.email if owner is not None else None,

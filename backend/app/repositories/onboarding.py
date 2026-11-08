@@ -17,6 +17,9 @@ async def save(db: AsyncSession, *, member: OrganizationMember, data: Onboarding
         member.onboarding_goal = data.goal
     if data.dismissed is not None:
         member.onboarding_dismissed_at = datetime.now(UTC) if data.dismissed else None
+    if data.completed:
+        member.onboarding_completed_at = member.onboarding_completed_at or datetime.now(UTC)
+        member.onboarding_dismissed_at = None
     await db.flush()
     await db.refresh(member)
 

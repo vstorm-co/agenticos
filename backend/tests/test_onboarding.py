@@ -1,6 +1,6 @@
 """Start readiness is personal, tenant-scoped and independent of tour/demo state."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -59,6 +59,8 @@ async def test_demo_goal_and_dismissal_do_not_claim_a_result(start: StartFixture
     ctx, member, db, service = start
     result = await service.update(ctx, OnboardingUpdate(goal="document", dismissed=True))
     assert result.goal == "document" and result.dismissed and not result.has_result
+    assert not result.completed
+    assert result.snoozed_until == member.onboarding_dismissed_at + timedelta(days=1)
     assert member.onboarding_dismissed_at.tzinfo is UTC
     db.flush.assert_awaited()
     await service.update(ctx, OnboardingUpdate(dismissed=False))
@@ -85,6 +87,7 @@ async def test_success_comes_only_from_a_completed_run_and_returns_its_location(
     monkeypatch.setattr(onboarding_repo, "latest_result", AsyncMock(return_value=run))
     result = await service.state(ctx)
     assert result.has_result and result.latest_conversation_id == run.conversation_id
+    assert not result.completed
     assert result.latest_completed_at == run.ended_at
     assert result.support_email == "owner@example.com"
 
@@ -363,4 +366,47 @@ async def test_legacy_onboarding_completion_is_respected_without_claiming_a_run(
     person = User(email="owner@example.com", onboarding_completed_at=datetime.now(UTC))
     monkeypatch.setattr(user_repo, "get_by_id", AsyncMock(return_value=person))
     result = await service.state(ctx)
-    assert result.dismissed and not result.has_result and not result.has_activity
+    assert (
+        result.dismissed and result.completed and not result.has_result and not result.has_activity
+    )
+
+
+@pytest.mark.parametrize(
+    "elapsed,hidden",
+    [
+        (timedelta(hours=23, minutes=59), True),
+        (timedelta(days=1), False),
+        (timedelta(days=2), False),
+    ],
+)
+async def test_closing_the_offer_only_snoozes_it_for_one_day(
+    start: StartFixture, elapsed: timedelta, hidden: bool
+) -> None:
+    ctx, member, _, service = start
+    member.onboarding_dismissed_at = datetime.now(UTC) - elapsed
+    result = await service.state(ctx)
+    assert result.dismissed is hidden
+    assert (result.snoozed_until is not None) is hidden
+    assert not result.completed and not result.has_result
+
+
+async def test_finishing_without_optional_settings_is_permanent_and_idempotent(
+    start: StartFixture,
+) -> None:
+    ctx, member, _, service = start
+    member.onboarding_dismissed_at = datetime.now(UTC) - timedelta(days=3)
+    result = await service.update(ctx, OnboardingUpdate(completed=True))
+    assert result.completed and result.dismissed and not result.has_result
+    assert not result.agents and result.goal is None
+    assert result.snoozed_until is None and member.onboarding_dismissed_at is None
+    timestamp = member.onboarding_completed_at
+    assert timestamp is not None
+    await service.update(ctx, OnboardingUpdate(completed=True))
+    assert member.onboarding_completed_at == timestamp
+    result = await service.update(ctx, OnboardingUpdate(dismissed=False))
+    assert result.completed and result.dismissed and result.snoozed_until is None
+
+
+def test_an_update_cannot_reset_completion() -> None:
+    with pytest.raises(ValidationError):
+        OnboardingUpdate(completed=False)

@@ -52,7 +52,7 @@ export function StartChecklist({ orgId, className }: { orgId: string; className?
       </div>
       <h2 className="font-semibold">{t("offerTitle")}</h2>
       <p className="text-muted-foreground text-sm">{t("offerHint")}</p>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Link
           href="/onboarding"
           className="bg-primary text-primary-foreground inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
@@ -66,7 +66,7 @@ export function StartChecklist({ orgId, className }: { orgId: string; className?
           disabled={state.save.isPending}
           onClick={() => state.save.mutate({ dismissed: true })}
         >
-          {t("later")}
+          {t("snooze")}
         </Button>
       </div>
       {state.save.isError && <p role="alert">{t("loadFailed")}</p>}

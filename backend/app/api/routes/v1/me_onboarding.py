@@ -25,7 +25,7 @@ async def read_onboarding(service: OnboardingSvc, ctx: Auth) -> Any:
 
 @router.patch("", response_model=OnboardingRead)
 async def update_onboarding(data: OnboardingUpdate, service: OnboardingSvc, ctx: Auth) -> Any:
-    """Save a goal or dismiss the start offer; neither records a successful task."""
+    """Save a goal, snooze the offer for 24 hours, or finish setup; none records a successful task."""
     return await service.update(ctx, data)
 
 

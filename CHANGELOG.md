@@ -28,6 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Snooze dismissed start offers for 24 hours. Record walkthrough completion
+  separately after the final step, without requiring optional settings or an AI run.
+
 - Make product tours opt-in, continue accepted invitations into the joined
   workspace's start, and sign in new password accounts without repeating the login
   form when possible. Keep the invitation destination if sign-in needs a retry.

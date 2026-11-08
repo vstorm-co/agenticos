@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1ac51656d9"
+source_sha: "5602dba6c23b"
 ---
 
 # La consola { #the-console }
@@ -957,6 +957,14 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 
 ## Tu primera tarea { #your-first-task }
 
+Cerrar el aviso inicial o elegir **Ocultar durante 24 horas** lo pausa durante 24 horas
+según la hora del servidor. Después puede reaparecer si la configuración no se ha
+completado y el espacio aún necesita el primer inicio. Tras recorrer las preguntas,
+**Finalizar la configuración y abrir la aplicación** registra la finalización para esta
+membresía. No son obligatorios los campos opcionales, las invitaciones, un modelo, un
+agente ni una ejecución de IA. Completar el onboarding y ejecutar una tarea correctamente
+son estados distintos.
+
 Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una página.
 En escritorio, el aviso del chat flota como una capa translúcida sobre la consola.
 Las dos columnas de navegación conservan toda su altura. Ofrece configuración
@@ -985,7 +993,7 @@ Los pasos opcionales se pueden omitir. Finalizar oculta futuras propuestas de in
 sin afirmar que se haya ejecutado correctamente un agente.
 
 Completar un onboarding anterior oculta las propuestas de inicio, sin contar como ejecución correcta.
-La actividad existente se reconoce sin migraciones ni reinicios: agentes publicados
+La actividad existente se reconoce sin reinicios: agentes publicados
 disponibles o conversaciones propias ocultan las propuestas automáticas. Los mensajes
 del usuario en chats antiguos o fallidos cuentan como actividad, independientemente
 de las ejecuciones completadas. Los enlaces de bienvenida de registro e invitación

@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1ac51656d9"
+source_sha: "5602dba6c23b"
 ---
 
 # Konsola { #the-console }
@@ -931,6 +931,13 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 ## Pierwsze zadanie { #your-first-task }
 
+Zamknięcie banera startowego lub wybranie **Ukryj na 24 godziny** wycisza propozycję na 24
+godziny według czasu serwera. Potem może wrócić, jeśli konfiguracja nie została ukończona,
+a workspace nadal wymaga pierwszego startu. Po przejściu pytań **Zakończ konfigurację i
+otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia,
+model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne
+stany.
+
 Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
 strony. Na desktopie baner startowy czatu jest półprzezroczystą nakładką nad konsolą.
 Oba panele nawigacji zachowują pełną wysokość. Administratorowi proponuje konfigurację, a członkowi
@@ -957,7 +964,7 @@ przejściem dalej. Kroki opcjonalne można pominąć. Zakończenie konfiguracji 
 kolejne propozycje startu, nie oznaczając udanego uruchomienia agenta.
 
 Ukończenie poprzedniego onboardingu wyłącza propozycję startu, nie oznaczając udanego runu.
-Istniejąca praca jest rozpoznawana bez migracji ani resetu: dostępni opublikowani
+Istniejąca praca jest rozpoznawana bez resetu: dostępni opublikowani
 agenci lub własna historia rozmów ukrywają automatyczne propozycje startu.
 Wiadomości użytkownika w starszych lub nieudanych rozmowach liczą się jako aktywność,
 niezależnie od dowodu udanego runu. Powitalne linki rejestracji i zaproszeń prowadzą

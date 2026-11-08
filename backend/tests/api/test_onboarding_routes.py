@@ -45,6 +45,12 @@ async def test_current_member_can_read_save_and_prepare_their_own_start(
     assert (
         await client.patch("/api/v1/me/onboarding", json={"goal": "meeting"})
     ).status_code == 200
+    response = await client.patch("/api/v1/me/onboarding", json={"completed": True})
+    assert response.status_code == 200
+    assert service.update.await_args.args[1].completed is True
+    assert (
+        await client.patch("/api/v1/me/onboarding", json={"completed": False})
+    ).status_code == 422
     model = uuid4()
     assert (
         await client.post("/api/v1/me/onboarding/starter", json={"model_profile_id": str(model)})

@@ -15,6 +15,7 @@ class OnboardingUpdate(BaseSchema):
     model_config = ConfigDict(extra="forbid")
     goal: StartGoal | None = None
     dismissed: bool | None = None
+    completed: Literal[True] | None = None
 
 
 class OnboardingAgent(BaseSchema):
@@ -26,7 +27,16 @@ class OnboardingRead(BaseSchema):
     organization_id: UUID
     organization_name: str
     goal: StartGoal | None
-    dismissed: bool
+    dismissed: bool = Field(
+        description="The start offer is hidden by completion or a current 24-hour snooze"
+    )
+    completed: bool = Field(
+        default=False,
+        description="The guided setup was finished, independently of optional configuration or a successful run",
+    )
+    snoozed_until: datetime | None = Field(
+        default=None, description="An unfinished start offer is hidden until this server timestamp"
+    )
     can_prepare: bool
     can_configure_model: bool
     support_email: str | None

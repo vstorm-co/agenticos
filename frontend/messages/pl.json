@@ -13479,7 +13479,8 @@
       "memberTitle": "Zróbmy Twoje pierwsze zadanie",
       "memberHint": "Wybierz przykład i zobacz, jak może pomóc Ci agent.",
       "memberAction": "Wypróbuj przykład",
-      "dismiss": "Ukryj wskazówkę startową"
-    }
+      "dismiss": "Ukryj na 24 godziny"
+    },
+    "snooze": "Ukryj na 24 godziny"
   }
 }

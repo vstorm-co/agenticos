@@ -27,7 +27,12 @@ const state = {
 beforeEach(() => vi.clearAllMocks());
 it("validates reads and never accepts a malformed readiness response", async () => {
   vi.mocked(apiClient.get).mockResolvedValue(state);
-  expect(await readOnboarding()).toEqual({ ...state, has_activity: false });
+  expect(await readOnboarding()).toEqual({
+    ...state,
+    has_activity: false,
+    completed: false,
+    snoozed_until: null,
+  });
   vi.mocked(apiClient.get).mockResolvedValue({ has_result: true });
   await expect(readOnboarding()).rejects.toThrow();
 });
@@ -57,11 +62,12 @@ it("validates a read-only teammate preview", async () => {
   expect(apiClient.get).toHaveBeenCalledWith(`/me/onboarding/members/${id}`);
 });
 
-it.each(["activity", "agent", "dismissed", "completed"])(
+it.each(["activity", "agent", "dismissed", "completed", "walkthrough"])(
   "does not offer repeated onboarding for %s",
   (reason) => {
     const data = {
       dismissed: false,
+      completed: false,
       has_result: false,
       has_activity: false,
       agents: new Array<{ id: string; name: string }>(),
@@ -71,6 +77,7 @@ it.each(["activity", "agent", "dismissed", "completed"])(
     if (reason === "agent") data.agents = [{ id, name: "Existing agent" }];
     if (reason === "dismissed") data.dismissed = true;
     if (reason === "completed") data.has_result = true;
+    if (reason === "walkthrough") data.completed = true;
     expect(shouldOfferStart(data)).toBe(false);
   },
 );

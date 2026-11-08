@@ -34,7 +34,7 @@ async def test_a_goal_is_scoped_to_both_person_and_organization(db: AsyncSession
     db.add_all(members)
     await db.flush()
     await onboarding_repo.save(
-        db, member=members[0], data=OnboardingUpdate(goal="meeting", dismissed=True)
+        db, member=members[0], data=OnboardingUpdate(goal="meeting", completed=True)
     )
     for index, member in enumerate(members):
         stored = await member_repo.get(
@@ -42,7 +42,8 @@ async def test_a_goal_is_scoped_to_both_person_and_organization(db: AsyncSession
         )
         assert stored is not None
         assert stored.onboarding_goal == ("meeting" if index == 0 else None)
-        assert (stored.onboarding_dismissed_at is not None) == (index == 0)
+        assert (stored.onboarding_completed_at is not None) == (index == 0)
+        assert stored.onboarding_dismissed_at is None
 
 
 async def test_the_database_refuses_unknown_start_goals(db: AsyncSession) -> None:
