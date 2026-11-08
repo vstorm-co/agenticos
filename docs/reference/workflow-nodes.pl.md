@@ -1,5 +1,5 @@
 ---
-source_sha: "cfa0e0add799"
+source_sha: "bfcc1d45a12b"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -166,6 +166,9 @@ operacyjnego) lub nieprawidłowa odpowiedź zwraca
 Diagnostyka ma limit 50 wpisów i 4 KiB JSON w UTF-8. Po osiągnięciu dowolnego
 limitu ostatni wpis podsumowuje ucięcie listy. Diagnostyka nigdy nie cytuje przesłanych
 wartości.
+
+Schematy lub wyrażenia regularne przekraczające limity zagnieżdżenia albo
+powtórzeń walidatora są odrzucane przy publikacji zamiast powodować błąd serwera.
 
 Wywołujący może sprawdzić efektywny kontrakt przed wykonaniem przez
 [API schematu wejścia workflow](../api.md#running-a-workflow) lub

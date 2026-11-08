@@ -87,6 +87,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_html_parse.py::test_a_matchs_markup_is_closed_where_its_node_budget_ends": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
     "tests/test_workflow_html_parse.py::test_a_string_over_the_budget_is_cut_inside_its_open_tags": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
     "tests/test_workflow_html_parse.py::test_a_string_that_exactly_fills_the_budget_ends_the_markup": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
+    "tests/test_workflow_input_schema.py::test_diagnostic_byte_budget_uses_utf8_and_reserves_its_marker": "'budget' names encoded diagnostic size and its truncation marker, not a spend cap or authorization refusal",
     "tests/test_workflow_mcp_call.py::TestIdempotencyKey::test_a_keyed_call_lists_the_tools_even_without_approval": "'approval' names a tool's approval flag in a listing, no gate is exercised",
     "tests/test_workflow_stats_window.py::test_an_approval_after_the_window_is_left_out_not_a_failure": "'approval' names the approval step whose outcomes are counted, a report and not a refusal",
     "tests/integration/test_artifact_data.py::TestTheDeadline::test_a_page_past_its_budget_answers_timeout_and_commits": "'budget' names a live page's read deadline, answered as a timeout, not a spend cap or a refusal",

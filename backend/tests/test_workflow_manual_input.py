@@ -225,6 +225,8 @@ class TestPublish:
             {"$id": 12},
             {"$ref": "#/$defs/missing"},
             {"type": "unknown"},
+            {"properties": {"email": {"pattern": "(" * 600 + "a" + ")" * 600}}},
+            {"properties": {"email": {"pattern": "a{4294967296}"}}},
             {"type": "array"},
             {
                 "$defs": {"rows": {"type": "array"}},

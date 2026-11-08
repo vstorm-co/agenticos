@@ -1,5 +1,5 @@
 ---
-source_sha: "cfa0e0add799"
+source_sha: "bfcc1d45a12b"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -172,6 +172,10 @@ ein Ressourcenlimit des Betriebssystems) oder eine ungültige Ausgabe liefert
 an. Diagnosen sind auf 50 Einträge und 4 KiB UTF-8-JSON begrenzt. Wird eine Grenze
 erreicht, fasst der letzte Eintrag die Kürzung zusammen. Diagnosen zitieren nie
 übermittelte Werte.
+
+Schemas oder reguläre Ausdrücke oberhalb der Verschachtelungs- oder
+Wiederholungsgrenzen des Validators werden bei der Veröffentlichung abgelehnt,
+anstatt einen Serverfehler auszulösen.
 
 Aufrufer können den wirksamen Vertrag vor der Ausführung über die
 [Workflow-Eingabeschema-API](../api.md#running-a-workflow) oder die

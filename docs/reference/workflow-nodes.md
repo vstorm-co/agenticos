@@ -155,6 +155,9 @@ returns `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Neither refusal creates a
 run. Diagnostics are limited to 50 entries and 4 KiB of UTF-8 JSON. When either
 limit is reached, the final entry summarizes truncation. Diagnostics never quote submitted values.
 
+Schemas or regular expressions exceeding validator nesting or repetition
+limits are refused at publication instead of producing a server error.
+
 Callers can inspect the effective contract before execution through the
 [workflow input-schema API](../api.md#running-a-workflow) or
 [MCP discovery](../mcp.md#workflow-and-table-tools). Existing simple-field

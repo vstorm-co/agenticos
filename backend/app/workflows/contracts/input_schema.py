@@ -207,6 +207,8 @@ def _checked_schema(contents: Schema) -> Mapping[str, JsonValue] | None:
         raise ValueError("Input schema must use JSON Schema Draft 2020-12")
     try:
         Draft202012Validator.check_schema(contents)
+    except RecursionError, OverflowError:
+        raise ValueError("Input schema exceeds validator complexity limits") from None
     except SchemaError as exc:
         path = "/".join(str(part) for part in exc.absolute_path)
         raise ValueError(f"Invalid Draft 2020-12 input schema at /{path}") from None
@@ -269,6 +271,17 @@ def _object_possible(
     return True
 
 
+def _canonical_literal(value: JsonValue) -> JsonValue:
+    """JSON Schema compares integral floats as integers, but keeps booleans distinct."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {key: _canonical_literal(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_canonical_literal(child) for child in value]
+    return value
+
+
 def _canonical_schema(schema: JsonValue) -> JsonValue:
     """Normalize unordered names, without treating literal data as schemas.
 
@@ -285,7 +298,10 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
     }
     for keyword, value in result.items():
         if keyword in {"required", "type", "enum"} and isinstance(value, list):
-            result[keyword] = sorted(value, key=lambda item: json.dumps(item, sort_keys=True))
+            result[keyword] = sorted(
+                [_canonical_literal(item) for item in value],
+                key=lambda item: json.dumps(item, sort_keys=True),
+            )
         elif keyword == "dependentRequired" and isinstance(value, dict):
             result[keyword] = {
                 name: sorted(
@@ -305,6 +321,8 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
                 if keyword == "prefixItems"
                 else sorted(branches, key=lambda item: json.dumps(item, sort_keys=True))
             )
+        else:
+            result[keyword] = _canonical_literal(value)
     return result
 
 
@@ -427,6 +445,7 @@ def check_input_schema(schema: InputSchema) -> None:
             reference = references.get(key)
             # A static reference with no assertion siblings has its target's
             # meaning. Reuse its identity without expanding reference paths.
+            # Digests bound retained identities even for deeply nested schemas.
             identities[key] = (
                 identities[reference]
                 if isinstance(contents, Mapping)

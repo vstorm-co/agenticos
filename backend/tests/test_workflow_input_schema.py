@@ -1267,3 +1267,41 @@ def test_nonasserting_content_schema_references_still_require_local_resolution(
 ) -> None:
     with pytest.raises(ValidationError, match=message):
         TriggerInputConfig(input_schema={"contentSchema": {"$ref": reference}})
+
+
+@pytest.mark.parametrize("keyword", ["const", "enum"])
+def test_integral_float_literals_do_not_make_duplicate_object_branches_unique(keyword: str) -> None:
+    left: dict[str, JsonValue] = {"rows": [{"x": 1, "zero": 0}]}
+    right: dict[str, JsonValue] = {"rows": [{"x": 1.0, "zero": -0.0}]}
+    schema: dict[str, JsonValue] = {
+        "oneOf": [
+            {keyword: [left] if keyword == "enum" else left},
+            {keyword: [right] if keyword == "enum" else right},
+        ]
+    }
+    original = deepcopy(schema)
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema=schema)
+    assert schema == original
+    assert isinstance(right["rows"][0]["x"], float)
+    accepted = TriggerInputConfig(input_schema={"const": right})
+    assert isinstance(effective_input_schema(accepted)["const"]["rows"][0]["x"], float)
+
+
+@pytest.mark.parametrize(
+    ("left", "right"), [(True, 1), (False, 0), (1.5, 2.5), ([1, 2], [2.0, 1.0])]
+)
+def test_literal_canonicalization_preserves_boolean_fractional_and_positional_differences(
+    left: JsonValue, right: JsonValue
+) -> None:
+    config = TriggerInputConfig(
+        input_schema={"oneOf": [{"const": {"x": left}}, {"const": {"x": right}}]}
+    )
+    assert input_problems(config, {"x": left}) == []
+    assert input_problems(config, {"x": right}) == []
+
+
+@pytest.mark.parametrize("pattern", ["(" * 600 + "a" + ")" * 600, "a{4294967296}"])
+def test_regex_compiler_limits_are_controlled_configuration_refusals(pattern: str) -> None:
+    with pytest.raises(ValidationError, match="validator complexity limits"):
+        TriggerInputConfig(input_schema={"properties": {"name": {"pattern": pattern}}})

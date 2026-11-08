@@ -1,5 +1,5 @@
 ---
-source_sha: "cfa0e0add799"
+source_sha: "bfcc1d45a12b"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -168,6 +168,10 @@ inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
 rechazos crea un run. Los diagnósticos se limitan a 50 entradas y 4 KiB de JSON UTF-8. Al alcanzar
 cualquiera de los límites, la última entrada resume el truncamiento. Los diagnósticos nunca citan los
 valores enviados.
+
+Los esquemas o expresiones regulares que superan los límites de anidamiento
+o repetición del validador se rechazan al publicar, en lugar de provocar un
+error del servidor.
 
 Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante la
 [API del esquema de entrada del workflow](../api.md#running-a-workflow) o el
