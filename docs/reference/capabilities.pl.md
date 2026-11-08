@@ -1,5 +1,5 @@
 ---
-source_sha: "90d0884ac72a"
+source_sha: "c99f29452027"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2866,7 +2866,7 @@ Trwająca już kompakcja nie może przywrócić do cache tury odrzuconej późni
 Aktualizacja jednorazowo odbudowuje istniejące podsumowania; oryginalne wiadomości
 pozostają.
 
-Każdy run sprawdza aktualność historii przed pierwszym żądaniem do modelu. Kroki agenta, modelu i decyzji w workflow sprawdzają też wspólne źródło czatu przed startem; zakolejkowany krok nie może użyć źródła odrzuconego ani usuniętego.
+Każdy run sprawdza aktualność historii przed pierwszym żądaniem do modelu. Kroki agenta, modelu i decyzji w workflow sprawdzają też wspólne źródło czatu przed startem; zakolejkowany krok nie może użyć źródła odrzuconego ani usuniętego. Podsumowania voice i nowe sesje realtime korzystają z tej samej kontroli wersji.
 
 Jeśli wcześniejsza tura zostanie odrzucona, gdy run czeka na akceptację lub
 odpowiedź, run zatrzyma się przed ponownym wykonaniem narzędzi lub wywołaniem

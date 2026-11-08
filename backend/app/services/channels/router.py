@@ -79,6 +79,7 @@ from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
+from app.services.message_history import ModelHistory
 from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -708,7 +709,8 @@ class ChannelMessageRouter:
         # everything before it is the history. The turn itself is written by the
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
-        history = thread_history + await self._load_history(db, session.conversation_id)
+        history = await self._load_history(db, session.conversation_id)
+        history[:0] = thread_history
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
@@ -2483,7 +2485,7 @@ class ChannelMessageRouter:
         return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
-    async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:
+    async def _load_history(db: AsyncSession, conversation_id: UUID | None) -> ModelHistory:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
@@ -2496,4 +2498,6 @@ class ChannelMessageRouter:
         Where a summary has run it starts from that instead, which is what stops
         a long-lived channel thread buying one on every message (#49).
         """
+        if conversation_id is None:
+            return ModelHistory([], revision=None)
         return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)

@@ -24,6 +24,7 @@ from pydantic_ai.messages import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
@@ -174,6 +175,23 @@ def _as_history(
             }
         )
     return history
+
+
+async def check_history_snapshot(
+    db: AsyncSession, conversation_id: UUID | None, history: ModelHistory
+) -> None:
+    """Refuse a superseded snapshot before replaying tools or calling a model."""
+    if conversation_id is None:
+        current_history = history.revision is None
+    else:
+        revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
+        expected = history.revision if history.revision is not None else 0
+        current_history = revision is not None and revision == expected
+    if not current_history:
+        raise GuardrailBlocked(
+            edge="input",
+            message="This run's conversation history is no longer valid. Start a new turn.",
+        )
 
 
 class ConversationService:

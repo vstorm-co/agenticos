@@ -67,12 +67,12 @@ from app.services.agent_runner import (
     PausedRunState,
     PersonalServiceGap,
     PreparedRun,
-    _check_history_snapshot,
     _classify_output,
     _outcome,
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.conversation import check_history_snapshot
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
 from app.services.message_history import ModelHistory
@@ -654,7 +654,7 @@ class ChatAgentRunner:
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
         try:
             if isinstance(message_history, ModelHistory):
-                await _check_history_snapshot(self.db, conversation_id, message_history)
+                await check_history_snapshot(self.db, conversation_id, message_history)
             await self.db.commit()
             await change_feed.publish_run(prepared.run, "created")
             # Stamped alive while the model works, as `AgentRunnerService._run`

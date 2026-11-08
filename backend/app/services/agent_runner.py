@@ -328,7 +328,7 @@ from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
-from app.services.conversation import ConversationService
+from app.services.conversation import ConversationService, check_history_snapshot
 from app.services.device_hub import LocalTarget
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
@@ -1869,23 +1869,6 @@ def _question_calls(state: PausedRunState) -> dict[str, ToolCallPart]:
         for part in message.parts
         if isinstance(part, ToolCallPart) and part.tool_call_id in wanted
     }
-
-
-async def _check_history_snapshot(
-    db: AsyncSession, conversation_id: UUID | None, history: ModelHistory
-) -> None:
-    """Refuse a superseded snapshot before replaying tools or calling a model."""
-    if conversation_id is None:
-        current_history = history.revision is None
-    else:
-        revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
-        expected = history.revision if history.revision is not None else 0
-        current_history = revision is not None and revision == expected
-    if not current_history:
-        raise GuardrailBlocked(
-            edge="input",
-            message="This run's conversation history is no longer valid. Start a new turn.",
-        )
 
 
 def _classify_output(
@@ -7545,9 +7528,7 @@ class AgentRunnerService:
         # (#12, #3).
         try:
             if isinstance(message_history, ModelHistory):
-                await _check_history_snapshot(
-                    self.db, prepared.run.conversation_id, message_history
-                )
+                await check_history_snapshot(self.db, prepared.run.conversation_id, message_history)
             if on_run_open is not None:
                 await on_run_open(prepared.run)
             await self.db.commit()
