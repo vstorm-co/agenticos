@@ -1,5 +1,5 @@
 ---
-source_sha: "8a536157d6dd"
+source_sha: "a5781c8c1ca2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3081,6 +3081,8 @@ gefilterte Liste, damit ihre Bezeichnungen keinem Modell abgelehnten Text wieder
 Eine bereits laufende Komprimierung kann einen später abgelehnten Zug nicht
 wieder im Cache speichern. Beim Upgrade werden vorhandene Zusammenfassungen
 einmal neu aufgebaut; die ursprünglichen Nachrichten bleiben erhalten.
+
+Jeder Run prüft seinen Verlaufsstand vor der ersten Modellanfrage. Agenten- und Modellschritte eines Workflows prüfen außerdem ihre gemeinsame Chatquelle vor dem Start; wartende Schritte dürfen eine bereits abgelehnte Quelle nicht wiederverwenden.
 
 Wird ein früherer Zug abgelehnt, während ein Run auf Freigabe oder eine Antwort
 wartet, stoppt der Run vor der Wiederholung von Tools oder einem Modellaufruf.

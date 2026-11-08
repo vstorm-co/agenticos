@@ -296,8 +296,12 @@ class TestKeepingASummary:
             )
         )
 
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
         with _runner(prepared):
-            turn = await _run(_db(), history=ModelHistory([], revision=7))
+            turn = await _run(
+                db, conversation_id=uuid.uuid4(), history=ModelHistory([], revision=7)
+            )
 
         assert turn.summarized_history is not None
         assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"

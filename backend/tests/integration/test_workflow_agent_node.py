@@ -1015,3 +1015,11 @@ async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model
         assert (await db.get(Message, good_id)).guardrail_refused is False
         history = str(await ConversationService(db).model_history(source_id, limit=20))
         assert "XYZZY" not in history and REFUSED_TURN in history
+        # A queued later attempt cannot ask a different agent to reconsider a
+        # source already refused, even before the dispatcher settles siblings.
+        retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+        await db.commit()
+        retry_row = await runs.get_run(db, retried.id, organization_id=seeded.org.id)
+        later = dataclasses.replace(seeded, run=retry_row)
+    assert (await drive(later)).status == WorkflowRunStatus.FAILED.value
+    assert recorder.prompts == []

@@ -67,6 +67,7 @@ from app.services.agent_runner import (
     PausedRunState,
     PersonalServiceGap,
     PreparedRun,
+    _check_history_snapshot,
     _classify_output,
     _outcome,
     input_screen_for,
@@ -651,9 +652,11 @@ class ChatAgentRunner:
         finished_cleanly = False
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
-        await self.db.commit()
-        await change_feed.publish_run(prepared.run, "created")
         try:
+            if isinstance(message_history, ModelHistory):
+                await _check_history_snapshot(self.db, conversation_id, message_history)
+            await self.db.commit()
+            await change_feed.publish_run(prepared.run, "created")
             # Stamped alive while the model works, as `AgentRunnerService._run`
             # does: a restart under this turn ends it in minutes, not hours.
             async with (

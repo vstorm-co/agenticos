@@ -628,3 +628,46 @@ async def test_a_parked_question_cannot_replay_history_refused_while_it_waited(
     )
     assert len(model_calls) == (0 if invalidated else 1)
     assert resumed.run.paused_state is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", ["api", "chat"])
+async def test_an_ordinary_turn_revalidates_history_loaded_before_a_refusal(
+    db, model_calls, surface
+):
+    ctx = await _owner(db)
+    agent = await _guarded_agent_without_a_workspace(db, ctx)
+    chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=f"Remember {BLOCKED}"
+    )
+    history = await ConversationService(db).model_history(chat.id, limit=20)
+    await conversation_repo.mark_message_refused(db, message_id=source.id, conversation_id=chat.id)
+    await db.commit()
+    if surface == "api":
+        _, run = await AgentRunnerService(db).execute(
+            ctx,
+            agent.id,
+            "Continue",
+            surface=RunSurface.API,
+            conversation_id=chat.id,
+            message_history=history,
+        )
+        assert run.status == RunStatus.GUARDRAIL_BLOCKED.value
+    else:
+        user = await db.get(User, ctx.user_id)
+        assert user is not None
+        with pytest.raises(GuardrailBlocked):
+            await ChatAgentRunner(db).run(
+                user=user,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                user_input="Continue",
+                message_history=history,
+                conversation_id=chat.id,
+                ask_user=AsyncMock(return_value=[]),
+                stream=AsyncMock(),
+            )
+    assert model_calls == []

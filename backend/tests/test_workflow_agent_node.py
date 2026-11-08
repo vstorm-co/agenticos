@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus
+from app.repositories import conversation as conversation_repo
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, Waiting
 from app.workflows.nodes.agent_run import AgentRunConfig, AgentRunInput
@@ -54,6 +55,7 @@ def _dispatch(resumed: uuid.UUID | None = None) -> context.DispatchContext:
 
 @pytest.fixture
 def runner(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    monkeypatch.setattr(conversation_repo, "message_refusal", AsyncMock(return_value=False))
     stub = MagicMock()
     stub.execute = AsyncMock()
     stub.resume = AsyncMock()
@@ -387,7 +389,7 @@ async def test_a_refused_chat_step_marks_only_its_admitted_source_turn(
     runner, monkeypatch, status, source
 ):
     mark = AsyncMock()
-    monkeypatch.setattr(agent_node.conversation_repo, "mark_message_refused", mark)
+    monkeypatch.setattr(conversation_repo, "mark_message_refused", mark)
     finished = _run(status)
 
     async def execute(*args, **kwargs):
@@ -432,3 +434,33 @@ def test_a_retry_source_comes_only_from_the_admitted_provenance(identity):
     assert _chat_source(run) == (
         context.ChatSource(conversation_id, message_id) if identity == "complete" else None
     )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.parametrize("late", [False, True])
+@pytest.mark.parametrize("verdict", [True, None])
+async def test_a_sibling_cannot_start_or_resume_after_the_shared_source_is_refused(
+    runner, monkeypatch, resumed, late, verdict
+):
+    read = AsyncMock(side_effect=[False, verdict] if late else [verdict])
+    monkeypatch.setattr(conversation_repo, "message_refusal", read)
+    monkeypatch.setattr(agent_node, "_cost_so_far", AsyncMock(return_value=Decimal(0)))
+    attempted = runner.resume if resumed else runner.execute
+
+    async def opening(*args, **kwargs):
+        await kwargs["on_run_open"](_run(RunStatus.RUNNING))
+        raise AssertionError("a refused source reached the agent")
+
+    attempted.side_effect = opening
+    current = dataclasses.replace(
+        _dispatch(uuid.uuid4() if resumed else None),
+        chat_source=context.ChatSource(uuid.uuid4(), uuid.uuid4()),
+    )
+    with context.dispatching_as(current):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="shared")
+        )
+    assert isinstance(result, Failed)
+    assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
+    assert attempted.await_count == (1 if late else 0)

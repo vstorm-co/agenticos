@@ -47,18 +47,18 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, checked_output_schema
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
 from app.repositories import agent_run as agent_run_repo
-from app.repositories import conversation as conversation_repo
 from app.services.agent_registry import AgentRegistryService
-from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context
-from app.services.workflow_execution.agent_conversations import for_agent_step
+from app.services.workflow_execution.agent_conversations import ChatSourceGuard, for_agent_step
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
@@ -317,19 +317,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
-
-            async def keep_refusal(segment: RunSegment) -> None:
-                # The mark commits with the refusal, even if the worker dies before
-                # the dispatcher settles the node or another branch completes.
-                if (
-                    segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
-                    and current.chat_source is not None
-                ):
-                    await conversation_repo.mark_message_refused(
-                        db,
-                        message_id=current.chat_source.message_id,
-                        conversation_id=current.chat_source.conversation_id,
-                    )
+            source_guard = ChatSourceGuard(db, current.chat_source)
+            await source_guard.check()
 
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:
@@ -338,14 +327,18 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 )
                 if current.budget_remaining is None:
                     segment = await runner.resume(
-                        current.auth, current.resumed_agent_run_id, on_segment=keep_refusal
+                        current.auth,
+                        current.resumed_agent_run_id,
+                        on_segment=source_guard.keep_refusal,
+                        on_run_open=source_guard.check,
                     )
                 else:
                     segment = await runner.resume(
                         current.auth,
                         current.resumed_agent_run_id,
                         run_limit_usd=before + current.budget_remaining,
-                        on_segment=keep_refusal,
+                        on_segment=source_guard.keep_refusal,
+                        on_run_open=source_guard.check,
                     )
                 text, run, answer = segment.output, segment.run, segment.structured
             else:
@@ -375,9 +368,14 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     structured=answers,
                     run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
                     public_origin=current.public_origin,
-                    on_segment=keep_refusal,
+                    on_segment=source_guard.keep_refusal,
+                    on_run_open=source_guard.check,
                 )
                 answer = answers[0] if answers else None
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except AppException as exc:
         return Failed(error=workflow_error(exc))
     except Exception:

@@ -1871,10 +1871,10 @@ def _question_calls(state: PausedRunState) -> dict[str, ToolCallPart]:
     }
 
 
-async def _check_parked_history(
+async def _check_history_snapshot(
     db: AsyncSession, conversation_id: UUID | None, history: ModelHistory
 ) -> None:
-    """Refuse a parked snapshot before replaying its approved tools or calling a model."""
+    """Refuse a superseded snapshot before replaying tools or calling a model."""
     if conversation_id is None:
         current_history = history.revision is None
     else:
@@ -1884,7 +1884,7 @@ async def _check_parked_history(
     if not current_history:
         raise GuardrailBlocked(
             edge="input",
-            message="This run's saved conversation history is no longer valid. Start a new turn.",
+            message="This run's conversation history is no longer valid. Start a new turn.",
         )
 
 
@@ -6670,6 +6670,7 @@ class AgentRunnerService:
         answers: Mapping[str, object] | None = None,
         run_limit_usd: Decimal | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
+        on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         live_surface: LiveRunSurface | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
@@ -6949,6 +6950,7 @@ class AgentRunnerService:
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
+                    on_run_open=on_run_open,
                     stream=frames.drive if frames is not None else None,
                 )
                 if frames is not None and segment.message_id is not None:
@@ -7542,8 +7544,10 @@ class AgentRunnerService:
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
         try:
-            if deferred_tool_results is not None and isinstance(message_history, ModelHistory):
-                await _check_parked_history(self.db, prepared.run.conversation_id, message_history)
+            if isinstance(message_history, ModelHistory):
+                await _check_history_snapshot(
+                    self.db, prepared.run.conversation_id, message_history
+                )
             if on_run_open is not None:
                 await on_run_open(prepared.run)
             await self.db.commit()

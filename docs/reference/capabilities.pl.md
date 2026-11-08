@@ -1,5 +1,5 @@
 ---
-source_sha: "8a536157d6dd"
+source_sha: "a5781c8c1ca2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2865,6 +2865,8 @@ powtarzały modelowi odrzuconej treści.
 Trwająca już kompakcja nie może przywrócić do cache tury odrzuconej później.
 Aktualizacja jednorazowo odbudowuje istniejące podsumowania; oryginalne wiadomości
 pozostają.
+
+Każdy run sprawdza aktualność historii przed pierwszym żądaniem do modelu. Kroki agenta i modelu w workflow sprawdzają też wspólne źródło czatu przed startem; zakolejkowany krok nie może użyć źródła już odrzuconego.
 
 Jeśli wcześniejsza tura zostanie odrzucona, gdy run czeka na akceptację lub
 odpowiedź, run zatrzyma się przed ponownym wykonaniem narzędzi lub wywołaniem

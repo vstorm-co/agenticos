@@ -1871,6 +1871,19 @@ async def mark_run_messages_refused(db: AsyncSession, *, run_id: UUID) -> None:
     await _mark_refused(db, Message.run_id == run_id)
 
 
+async def message_refusal(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID
+) -> bool | None:
+    """Read a source verdict freshly; None means the exact source no longer exists."""
+    return await db.scalar(
+        select(Message.guardrail_refused).where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+    )
+
+
 async def mark_message_refused(
     db: AsyncSession, *, message_id: UUID, conversation_id: UUID
 ) -> None:
