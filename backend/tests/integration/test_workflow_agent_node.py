@@ -948,13 +948,17 @@ async def test_test_chat_sessions_keep_context_but_cannot_attach_to_a_real_chat(
 
 
 @pytest.mark.security
-async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model):
+@pytest.mark.parametrize("retry", [False, True])
+async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model, retry):
+    import dataclasses
+
     from app.db.models.agent import AgentVersion
     from app.db.models.conversation import Message
     from app.repositories import conversation as conversations
     from app.repositories import workflow_run as runs
     from app.services.conversation import ConversationService
     from app.services.message_history import REFUSED_TURN
+    from app.services.workflow_execution import WorkflowExecutionService
 
     recorder = model("Should never answer")
     seeded = await _setup(engine, _graph)
@@ -986,11 +990,23 @@ async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model
             run=stored,
             update_data={
                 "reply_conversation_id": source.id,
-                "input": {"q": prompt.content, "source_message_id": str(prompt.id)},
+                "input": {
+                    "q": prompt.content,
+                    "source_message_id": str(prompt.id),
+                    "conversation_id": str(source.id),
+                },
+                "triggered_by": "chat",
+                "status": WorkflowRunStatus.CANCELLED.value if retry else stored.status,
             },
         )
         await db.commit()
         source_id, prompt_id, good_id = source.id, prompt.id, good.id
+        if retry:
+            retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            retry_row = await runs.get_run(db, retried.id, organization_id=seeded.org.id)
+            assert retry_row.reply_conversation_id is None
+            seeded = dataclasses.replace(seeded, run=retry_row)
     assert (await drive(seeded)).status == WorkflowRunStatus.FAILED.value
     assert recorder.prompts == []
     async with seeded.factory() as db:

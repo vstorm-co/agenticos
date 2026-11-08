@@ -1574,3 +1574,39 @@ async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
         db, organization_id=org.id, user_id=person.id, since=_NOW - timedelta(days=1), limit=10
     )
     assert all(request.message.id != message.id for request in requests)
+
+
+@pytest.mark.security
+async def test_retention_cannot_make_a_refused_routine_look_unfired(db):
+    person = await _person(db)
+    org = await _organization(db, person)
+    agent = await _agent(db, org, spec=_GUARDED)
+    refused = await _turn(db, org, agent, person, status=RunStatus.GUARDRAIL_BLOCKED)
+    trigger = AgentTrigger(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        created_by_user_id=person.id,
+        prompt=_BLOCKED,
+        trigger_type="schedule",
+        schedule_kind="interval",
+        interval_seconds=3600,
+        next_fire_at=_NOW + timedelta(hours=1),
+        last_run_id=refused.id,
+        last_fired_at=_NOW,
+    )
+    db.add(trigger)
+    await db.flush()
+    await db.delete(refused)
+    await db.flush()
+    await db.refresh(trigger)
+    assert trigger.last_run_id is None
+    version = await agent_repo.get_version(db, agent.current_version_id, organization_id=org.id)
+    version.spec = {**_GUARDED, "capabilities": []}
+    await db.flush()
+    look = NightlyLook(db)
+    look.thinker = thinker = MagicMock(
+        starter_agent=AsyncMock(return_value=agent), think=AsyncMock(return_value=None)
+    )
+    await look.look(org.id, person.id)
+    assert json.loads(thinker.think.await_args.kwargs["prompt"])["their_routines"] == []

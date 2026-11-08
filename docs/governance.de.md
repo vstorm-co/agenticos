@@ -1,5 +1,5 @@
 ---
-source_sha: "19c084601efb"
+source_sha: "4b2741023fcd"
 ---
 
 # Governance { #governance }
@@ -654,7 +654,9 @@ passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
 Routinen-Prompts werden mit der festgelegten Agent-Version, der Version der
 benannten Umgebung oder der aktuellen Agent-Version geprüft, wie beim Start
 der Routine. Ein fehlendes Ziel oder eine unlesbare Spec wird ausgelassen, ebenso
-eine Routine, deren letzter Lauf abgelehnt wurde.
+eine Routine, deren letzter Lauf abgelehnt wurde. Eine bereits gestartete Routine,
+deren letzter Run durch die Aufbewahrung gelöscht wurde, wird ebenfalls ausgelassen:
+Ein unbekanntes Ergebnis kann eine Ablehnung nicht aufheben.
 
 Ein Prompt, den ein Guardrail geschwärzt hat, passiert, und der Job liest ihn so,
 wie er gespeichert ist, also ungeschwärzt

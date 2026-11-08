@@ -569,6 +569,8 @@ because the proactivity model has no guardrails of its own:
 Routine prompts are screened with the pinned agent version, the named environment’s
 version or the agent’s current version, as the routine would run. A missing target
 or unreadable spec is left out, as is a routine whose latest fire was refused.
+A routine that fired but whose last run was pruned is also omitted: an unknown
+verdict cannot clear a refusal.
 
 A prompt a guardrail redacted passes, and the job reads it as stored, unredacted
 ([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).

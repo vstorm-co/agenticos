@@ -49,6 +49,14 @@ class ClaimState:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatSource:
+    """The exact turn the socket wrote, independent of the run's reply destination."""
+
+    conversation_id: UUID
+    message_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
 class DispatchContext:
     """Everything a node handler may need to know about where it is running."""
 
@@ -100,6 +108,8 @@ class DispatchContext:
     agent step under it runs with no person behind it."""
     source_conversation_id: UUID | None = None
     """The chat destination authorized at admission; never a payload-supplied id."""
+    chat_source: ChatSource | None = None
+    """Server-written chat metadata, preserved in a retry's frozen input."""
     test_chat_key: UUID | None = None
     """An opaque test-session token, namespaced by the workflow and principal."""
     nested: bool = False

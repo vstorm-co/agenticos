@@ -195,6 +195,26 @@ _REPORTS: dict[str, Callable[[dict[str, Any]], None]] = {
 ScopePath = list[dict[str, Any]]
 
 
+def _chat_source(run: WorkflowRun) -> context.ChatSource | None:
+    """Read only chat admission's server-written identity, never an API payload's.
+
+    Retrying preserves the frozen input but clears the delivery destination.
+    Keep refusal provenance without granting the retry a chat workspace or reply.
+    """
+    if run.triggered_by != WorkflowRunTrigger.CHAT.value and run.reply_conversation_id is None:
+        return None
+    message = run.input.get("source_message_id")
+    conversation = run.input.get("conversation_id")
+    if not isinstance(message, str):
+        return None
+    source = run.reply_conversation_id
+    if source is None:
+        if not isinstance(conversation, str):
+            return None
+        source = UUID(conversation)
+    return context.ChatSource(conversation_id=source, message_id=UUID(message))
+
+
 def _loop_of(scope_path: ScopePath) -> UUID | None:
     """The loop whose iteration `scope_path` names - `None` at the top level."""
     return UUID(scope_path[-1]["loop_node_id"]) if scope_path else None
@@ -1060,6 +1080,7 @@ async def begin_attempt(
         # admitted by code older than the column.
         public_origin=run.public_origin or run.triggered_by in PUBLIC_TRIGGERS,
         source_conversation_id=run.reply_conversation_id,
+        chat_source=_chat_source(run),
         test_chat_key=_test_chat_key(run, call.graph),
         nested=bool(node_run.scope_path),
         impersonated=run.impersonated,

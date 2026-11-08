@@ -177,7 +177,9 @@ async def routine_prompts_for_screening(
 
     A named environment must resolve, rather than falling back to a different
     agent version. A routine whose latest fire was refused stays out even if
-    the current input screen would now accept its prompt.
+    the current input screen would now accept its prompt. Once retention removes
+    the last run, a fire timestamp still distinguishes an unknown verdict from
+    a routine that has never fired; an unknown verdict is left out too.
     """
     target = func.coalesce(
         AgentTrigger.pinned_version_id,
@@ -203,6 +205,7 @@ async def routine_prompts_for_screening(
             AgentTrigger.organization_id == organization_id,
             AgentTrigger.created_by_user_id == user_id,
             or_(AgentTrigger.environment_id.is_(None), AgentEnvironment.id.is_not(None)),
+            or_(AgentRun.id.is_not(None), AgentTrigger.last_fired_at.is_(None)),
             or_(AgentRun.id.is_(None), AgentRun.status != RunStatus.GUARDRAIL_BLOCKED.value),
         )
     )

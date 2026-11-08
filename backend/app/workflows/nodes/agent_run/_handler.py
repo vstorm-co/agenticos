@@ -323,15 +323,13 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 # the dispatcher settles the node or another branch completes.
                 if (
                     segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
-                    and current.source_conversation_id is not None
+                    and current.chat_source is not None
                 ):
-                    source_message = current.run_input.get("source_message_id")
-                    if isinstance(source_message, str):
-                        await conversation_repo.mark_message_refused(
-                            db,
-                            message_id=UUID(source_message),
-                            conversation_id=current.source_conversation_id,
-                        )
+                    await conversation_repo.mark_message_refused(
+                        db,
+                        message_id=current.chat_source.message_id,
+                        conversation_id=current.chat_source.conversation_id,
+                    )
 
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:

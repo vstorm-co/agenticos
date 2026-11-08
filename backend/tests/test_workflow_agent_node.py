@@ -399,7 +399,7 @@ async def test_a_refused_chat_step_marks_only_its_admitted_source_turn(
     current = dataclasses.replace(
         _dispatch(),
         source_conversation_id=None if source == "api" else conversation_id,
-        run_input={} if source == "legacy" else {"source_message_id": str(message_id)},
+        chat_source=context.ChatSource(conversation_id, message_id) if source == "chat" else None,
     )
     with context.dispatching_as(current):
         await agent_node.handle(
@@ -412,3 +412,25 @@ async def test_a_refused_chat_step_marks_only_its_admitted_source_turn(
         }
     else:
         mark.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("trigger", ["api", "chat"])
+@pytest.mark.parametrize("identity", ["complete", "no-message", "no-conversation"])
+def test_only_chat_admission_can_supply_a_retry_source(trigger, identity):
+    from app.db.models.workflow_run import WorkflowRun
+    from app.services.workflow_execution.dispatcher import _chat_source
+
+    conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+    payload = {}
+    if identity != "no-message":
+        payload["source_message_id"] = str(message_id)
+    if identity != "no-conversation":
+        payload["conversation_id"] = str(conversation_id)
+    run = WorkflowRun(triggered_by=trigger, input=payload, reply_conversation_id=None)
+    source = _chat_source(run)
+    assert source == (
+        context.ChatSource(conversation_id, message_id)
+        if trigger == "chat" and identity == "complete"
+        else None
+    )
