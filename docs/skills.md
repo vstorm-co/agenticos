@@ -692,6 +692,11 @@ like, from main and forks alike, to see their descriptions, instructions and fil
 side by side. Drag to move the diagram, and zoom with the wheel or the buttons, as
 on an agent's map.
 
+The first version picked is the **Reference**. Every other column marks what it
+says differently from it, word by word as History's diffs do, and its files as
+added, removed or changed. **Compare against this** makes another column the
+reference, and **Only the differences** folds the parts that say the same.
+
 **Edit** saves a new version on the line on screen. On main, the agents following
 main get it at once; pinned agents and forks keep their version. A changed text is
 not saved at the first press: the dialog names the agents it reaches on their next

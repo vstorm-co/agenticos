@@ -1,5 +1,5 @@
 ---
-source_sha: "547f15ce451b"
+source_sha: "d06fb01d13f1"
 ---
 
 # Skills { #skills }
@@ -773,6 +773,11 @@ Vergleich unter dem Diagramm. Wählen Sie beliebig viele Versionen aus main und
 Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen. Das
 Diagramm lässt sich ziehen und mit dem Mausrad oder den Schaltflächen zoomen, wie die
 Karte eines Agents.
+
+Die zuerst gewählte Version ist die **Referenz**. Jede andere Spalte markiert, was
+sie anders sagt als diese, Wort für Wort wie die Diffs im Verlauf, und ihre Dateien
+als hinzugefügt, entfernt oder geändert. **Damit vergleichen** macht eine andere
+Spalte zur Referenz, und **Nur Unterschiede** klappt die Teile zu, die dasselbe sagen.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
