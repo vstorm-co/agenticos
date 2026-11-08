@@ -39,13 +39,12 @@ from app.schemas.workflow_run import WorkflowRunRead
 from app.services import rate_limit
 from app.services.access import WORKFLOW, acting_member, resolve_access
 from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, effective_input_schema
 from app.workflows.triggers import BY_HAND, DECLARES_FIELDS, WORKFLOW_CALL
 
 POLL_SECONDS = 1.0
 """How often a waiting `run_workflow` looks at the run again."""
-
-MAX_DISCOVERY_BYTES = 32 * 1024
 
 _STARTABLE = frozenset({*BY_HAND, WORKFLOW_CALL})
 """The live triggers an agent may start: by hand or the API, or published to be called."""

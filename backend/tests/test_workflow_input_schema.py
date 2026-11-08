@@ -1171,3 +1171,23 @@ def test_nonasserting_format_and_content_annotations_do_not_distinguish_branches
                 ]
             }
         )
+
+
+@pytest.mark.parametrize("keyword", ["allOf", "anyOf", "oneOf"])
+def test_applicator_order_cannot_make_equivalent_branches_unique(keyword: str) -> None:
+    left: dict[str, JsonValue] = {keyword: [{"required": ["x"]}, {"required": ["y"]}]}
+    right: dict[str, JsonValue] = {keyword: [{"required": ["y"]}, {"required": ["x"]}]}
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema={"oneOf": [left, right]})
+
+
+def test_enum_alternative_order_is_unordered_while_literal_array_values_keep_order() -> None:
+    first: dict[str, JsonValue] = {"items": ["x", "y"]}
+    second: dict[str, JsonValue] = {"items": ["y", "x"]}
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={"oneOf": [{"enum": [first, second]}, {"enum": [second, first]}]}
+        )
+    config = TriggerInputConfig(input_schema={"oneOf": [{"enum": [first]}, {"enum": [second]}]})
+    assert input_problems(config, first) == []
+    assert input_problems(config, second) == []

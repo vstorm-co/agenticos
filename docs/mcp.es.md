@@ -1,5 +1,5 @@
 ---
-source_sha: "3d25fd63e335"
+source_sha: "3acef7aca063"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1378,6 +1378,10 @@ opcional y devuelve los mismos contratos `input_schema` por entrada que el
 Draft 2020-12, los campos simples existentes y las entradas sin tipado comparten
 este formato de descubrimiento; la admisión valida contra el contrato de la
 versión admitida para el run.
+
+`get_workflow_input_schema` rechaza respuestas de más de 32 KiB de JSON
+codificado, incluidas todas las entradas devueltas. Nunca devuelve un contrato
+parcial. Consulta contratos mayores por HTTP fuera del contexto del modelo.
 
 Para registros operativos usa `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` y `update_virtual_table_record`. Las modificaciones de esquemas y registros conservan la comprobación de revisiones. Todas las herramientas utilizan la organización, permisos y concesiones del solicitante; las escrituras conservan la aprobación MCP de la plataforma. Los skills de Architect workflow-builder y virtual-tables explican la selección de triggers, cómo envolver una API HTTP documentada cuando falta la integración en la galería MCP y cómo ofrecer un workflow publicado e invocable como herramienta de un agente. Las credenciales se configuran en la bóveda, nunca en grafos o respuestas al modelo.
 

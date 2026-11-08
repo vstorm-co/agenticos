@@ -27,6 +27,7 @@ DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 MAX_NESTING = 64
 MAX_PROBLEMS = 100
 MAX_SCHEMA_BYTES = 262_144
+MAX_DISCOVERY_BYTES = 32 * 1024
 
 _SAME_VALUE = frozenset({"not", "if", "then", "else", "contentSchema"})
 _CHILD_VALUE = frozenset(
@@ -265,7 +266,8 @@ def _object_possible(
 def _canonical_schema(schema: JsonValue) -> JsonValue:
     """Normalize unordered names, without treating literal data as schemas.
 
-    `required`, type unions and dependent-required names have set semantics.
+    Required names, type unions, enum alternatives and applicator branches
+    have set semantics; duplicate applicator branches retain their counts.
     The document has already passed its meta-schema. Literal arrays and
     positional schema arrays retain their original order,
     including data that a local JSON Pointer may also use as a schema target.
@@ -276,7 +278,7 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
         keyword: value for keyword, value in schema.items() if keyword not in _SCHEMA_ANNOTATIONS
     }
     for keyword, value in result.items():
-        if keyword in {"required", "type"} and isinstance(value, list):
+        if keyword in {"required", "type", "enum"} and isinstance(value, list):
             result[keyword] = sorted(value, key=lambda item: json.dumps(item, sort_keys=True))
         elif keyword == "dependentRequired" and isinstance(value, dict):
             result[keyword] = {
@@ -291,7 +293,12 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
         elif keyword in _SCHEMA_MAPS and isinstance(value, dict):
             result[keyword] = {name: _canonical_schema(child) for name, child in value.items()}
         elif keyword in _SCHEMA_LISTS and isinstance(value, list):
-            result[keyword] = [_canonical_schema(child) for child in value]
+            branches = [_canonical_schema(child) for child in value]
+            result[keyword] = (
+                branches
+                if keyword == "prefixItems"
+                else sorted(branches, key=lambda item: json.dumps(item, sort_keys=True))
+            )
     return result
 
 

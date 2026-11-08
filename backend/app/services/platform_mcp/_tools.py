@@ -37,6 +37,8 @@ from app.schemas.virtual_table import (
 from app.schemas.workflow import NodeCatalog, WorkflowPreparationCreate
 from app.services.platform_mcp._api import PlatformApi
 from app.services.workflow_execution import context as workflow_context
+from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
+from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 from app.workflows.graph.model import WorkflowGraph
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
@@ -1214,12 +1216,23 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         marked by x-agenticos-strict-integer; ordinary schema validation alone
         cannot enforce that representation. Untyped entries
         accept any JSON object.
+        Responses above 32 KiB of encoded JSON are refused in full; inspect larger
+        contracts through the HTTP endpoint outside the model context.
         """
-        return await api.request(
+        response = await api.request(
             "GET",
             f"/workflows/{workflow_id}/input-schema",
             params={} if version_id is None else {"version_id": str(version_id)},
         )
+        try:
+            json_byte_size(response, limit=MAX_DISCOVERY_BYTES)
+        except PayloadTooLarge:
+            return api.refuse(
+                "Workflow input-schema discovery exceeds its 32 KiB allowance. "
+                "Inspect larger contracts through the HTTP input-schema endpoint "
+                "outside the model context. No partial contract was returned."
+            )
+        return response
 
     async def list_workflow_nodes() -> dict[str, JsonValue]:
         """Discover available workflow steps before choosing an automation design. Needs `workflows:view`.

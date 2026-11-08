@@ -1,13 +1,16 @@
 """The Architect builds workflows and table state through the scoped public API."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
 import pytest
 
 from app.schemas.virtual_table import ColumnInput, RecordQuery, RecordUpdate, SchemaUpdate
+from app.services.platform_mcp import _tools
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._tools import platform_tools
+from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
@@ -190,3 +193,39 @@ async def test_the_catalog_is_discovered_before_full_step_schemas_are_read() -> 
         "error": "Missing"
     }
     api.refuse.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("count", "character", "length"),
+    [(1, "x", MAX_DISCOVERY_BYTES), (1, "界", MAX_DISCOVERY_BYTES // 2), (50, "x", 1024)],
+)
+async def test_mcp_schema_discovery_refuses_oversized_results_instead_of_partial_contracts(
+    count: int, character: str, length: int
+) -> None:
+    response = {
+        "entries": [{"input_schema": {"description": character * length}} for _ in range(count)]
+    }
+    api = MagicMock(spec=PlatformApi)
+    api.request = AsyncMock(return_value=response)
+    api.refuse.return_value = {"error": "bounded refusal"}
+    tool = {tool.name: tool for tool in platform_tools(api)}["get_workflow_input_schema"]
+    assert await tool.function(workflow_id=ID) == {"error": "bounded refusal"}
+    api.refuse.assert_called_once()
+    assert "32 KiB allowance" in api.refuse.call_args.args[0]
+    assert "No partial contract" in api.refuse.call_args.args[0]
+
+
+async def test_mcp_schema_discovery_preserves_the_exact_utf8_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = {"entries": [{"input_schema": {"description": "界"}}]}
+    size = len(json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode())
+    api = MagicMock(spec=PlatformApi)
+    api.request = AsyncMock(return_value=response)
+    api.refuse.return_value = {"error": "bounded refusal"}
+    tool = {tool.name: tool for tool in platform_tools(api)}["get_workflow_input_schema"]
+    monkeypatch.setattr(_tools, "MAX_DISCOVERY_BYTES", size)
+    assert await tool.function(workflow_id=ID) is response
+    api.refuse.assert_not_called()
+    monkeypatch.setattr(_tools, "MAX_DISCOVERY_BYTES", size - 1)
+    assert await tool.function(workflow_id=ID) == {"error": "bounded refusal"}

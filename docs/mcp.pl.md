@@ -1,5 +1,5 @@
 ---
-source_sha: "3d25fd63e335"
+source_sha: "3acef7aca063"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1336,6 +1336,10 @@ wejść co [endpoint odkrywania HTTP](api.md#running-a-workflow). Wybierz właś
 `entry_node_id` i wyślij zgodne `fields`. Kontrakty JSON Schema Draft 2020-12,
 dotychczasowe proste pola i nietypowane wejścia używają tego samego formatu
 odkrywania; przyjęcie runu sprawdza kontrakt wersji przyjętej dla runu.
+
+`get_workflow_input_schema` odmawia odpowiedzi większych niż 32 KiB zakodowanego
+JSON, wliczając wszystkie zwracane wejścia. Nigdy nie zwraca części kontraktu.
+Większe kontrakty sprawdzaj przez endpoint HTTP poza kontekstem modelu.
 
 Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
 

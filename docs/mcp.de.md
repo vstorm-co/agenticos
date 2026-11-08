@@ -1,5 +1,5 @@
 ---
-source_sha: "3d25fd63e335"
+source_sha: "3acef7aca063"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1396,6 +1396,10 @@ gewünschte `entry_node_id` und sende passende `fields`. Verträge nach JSON Sch
 Draft 2020-12, bisherige einfache Felder und untypisierte Eingaben verwenden dieses
 gemeinsame Abfrageformat; beim Annehmen eines Runs wird gegen den Vertrag der
 für den Run angenommenen Version geprüft.
+
+`get_workflow_input_schema` lehnt Antworten über 32 KiB kodiertem JSON ab,
+einschließlich aller zurückgegebenen Eingänge. Es liefert nie einen Teilvertrag.
+Prüfe größere Verträge über den HTTP-Endpunkt außerhalb des Modellkontexts.
 
 Für operative Datensätze dienen `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` und `update_virtual_table_record`. Schema- und Datensatzänderungen behalten Revisionsprüfungen bei. Alle Werkzeuge nutzen Organisation, Rechte und Ressourcenzugriffe des Aufrufenden; Schreibwerkzeuge behalten die Plattform-MCP-Freigabe bei. Die Architect-Skills workflow-builder und virtual-tables erklären Triggerauswahl, das Kapseln einer dokumentierten HTTP-API ohne passenden MCP-Katalogeintrag und das Anbinden veröffentlichter aufrufbarer Workflows als Agentenwerkzeuge. Zugangsdaten werden im Tresor eingerichtet, niemals in Graphen oder Modellausgaben.
 

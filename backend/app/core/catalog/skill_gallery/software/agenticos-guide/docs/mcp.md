@@ -1292,6 +1292,10 @@ input contract without executing it. It accepts `workflow_id` and an optional
 legacy simple fields and untyped inputs share this discovery format; admission
 validates against the version admitted for the run.
 
+`get_workflow_input_schema` refuses responses above 32 KiB of encoded JSON,
+including all returned entries. It never returns a partial contract. Inspect
+larger contracts through the HTTP endpoint outside the model context.
+
 For operational records use `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`. Schema and record writes preserve revision checks. All tools use the caller's organization, permissions and resource grants; write tools retain the platform MCP approval gate. Architect's workflow-builder and virtual-tables skills explain choosing triggers, wrapping a documented HTTP API when the MCP gallery lacks an integration, and binding a published callable workflow to an agent. Credentials are configured in the vault UI, never embedded in graphs or model output.
 
 
