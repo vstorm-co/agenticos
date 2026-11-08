@@ -1,5 +1,5 @@
 ---
-source_sha: "5602dba6c23b"
+source_sha: "e097ecd4e8b3"
 ---
 
 # La consola { #the-console }
@@ -956,6 +956,8 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 **Chat controls → Tools & files** muestra la cuenta de coding que necesita un agente cuando su Coding agent se ejecuta como **Private cloud task with my account**: solo ese harness, con su logotipo y el estado del consentimiento. Conéctala o gestiónala sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.
 
 ## Tu primera tarea { #your-first-task }
+
+En un workspace nuevo se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
 
 Cerrar el aviso inicial o elegir **Ocultar durante 24 horas** lo pausa durante 24 horas
 según la hora del servidor. Después puede reaparecer si la configuración no se ha

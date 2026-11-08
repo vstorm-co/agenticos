@@ -2381,6 +2381,18 @@
       "cancel": "Not now",
       "agentUnavailable": "The selected agent could not be loaded. Try again.",
       "failed": "Could not set up access on this computer"
+    },
+    "modelSetup": {
+      "eyebrow": "One step closer to your first answer",
+      "title": "Give me a model to work with",
+      "description": "Connect the AI you want to use. Your workspace and this conversation stay right here.",
+      "provider": "Choose a provider and a chat model",
+      "key": "Add its API key, if required",
+      "publish": "Publish AgenticOS and return to this chat",
+      "action": "Connect my AI model",
+      "notice": "Setup response · No AI model was called and no provider usage was charged.",
+      "ownerHint": "Your workspace administrator can connect AI for the team. You do not need to provide your own key.",
+      "contact": "Contact your administrator"
     }
   },
   "common": {

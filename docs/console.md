@@ -901,6 +901,8 @@ The administration organization directory shows the uploaded organization pictur
 
 ## Your first task
 
+In a new workspace, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
+
 Closing the start banner or choosing **Hide for 24 hours** snoozes the offer for 24 hours,
 using server time. It can return afterward if setup is unfinished and the workspace still
 needs a first start. After going through the questions, **Finish setup and open the app**

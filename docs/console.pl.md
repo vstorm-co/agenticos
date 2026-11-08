@@ -1,5 +1,5 @@
 ---
-source_sha: "5602dba6c23b"
+source_sha: "e097ecd4e8b3"
 ---
 
 # Konsola { #the-console }
@@ -930,6 +930,8 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 **Chat controls → Tools & files** pokazuje konto coding, którego agent potrzebuje, gdy jego Coding agent działa jako **Private cloud task with my account**: tylko ten harness, z logotypem i stanem zgody. Możesz je podłączyć lub nim zarządzać bez wychodzenia z chatu; wszystkie konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.
 
 ## Pierwsze zadanie { #your-first-task }
+
+W nowym workspace domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
 
 Zamknięcie banera startowego lub wybranie **Ukryj na 24 godziny** wycisza propozycję na 24
 godziny według czasu serwera. Potem może wrócić, jeśli konfiguracja nie została ukończona,

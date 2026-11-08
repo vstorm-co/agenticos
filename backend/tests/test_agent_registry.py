@@ -525,12 +525,13 @@ class TestList:
             yield
 
     @pytest.mark.anyio
-    async def test_a_published_agents_starters_ride_the_listing_and_a_drafts_do_not(self):
+    @pytest.mark.parametrize("shipped", [False, True])
+    async def test_a_published_agents_starters_ride_the_listing_and_a_drafts_do_not(self, shipped):
         """What an empty chat offers - the published version's, never the draft's."""
         ctx = _ctx(OrgRoleName.OWNER)
         version_id = uuid.uuid4()
         published = _agent(ctx, current_version_id=version_id)
-        draft = _agent(ctx)
+        draft = _agent(ctx, shipped_template={"key": "general/agenticos"} if shipped else None)
 
         with (
             patch(
@@ -597,6 +598,9 @@ class TestList:
         assert rows[0].personal_coding_harness is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
+        assert rows[1].is_starter is shipped
+        assert rows[1].setup_required is shipped
+        assert rows[0].setup_required is False
         assert rows[1].starters == []
         assert rows[0].starter_icons == {"What can you do?": "compass"}
         assert rows[1].starter_icons == {}

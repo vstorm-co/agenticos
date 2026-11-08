@@ -9717,6 +9717,18 @@
       "cancel": "Şimdi değil",
       "agentUnavailable": "Seçilen ajan yüklenemedi. Tekrar deneyin.",
       "failed": "Bu bilgisayarda erişim ayarlanamadı"
+    },
+    "modelSetup": {
+      "eyebrow": "İlk yanıtına bir adım daha yakın",
+      "title": "Çalışmam için bir model bağla",
+      "description": "Kullanmak istediğin AI modelini bağla. Çalışma alanın ve bu sohbet burada kalır.",
+      "provider": "Sağlayıcı ve sohbet modeli seç",
+      "key": "Gerekiyorsa API anahtarı ekle",
+      "publish": "AgenticOS’u yayımla ve bu sohbete dön",
+      "action": "AI modelimi bağla",
+      "notice": "Kurulum yanıtı · AI modeli çağrılmadı ve sağlayıcı kullanım ücreti oluşmadı.",
+      "ownerHint": "Çalışma alanı yöneticin ekip için AI bağlayabilir. Kendi anahtarını sağlaman gerekmez.",
+      "contact": "Yöneticinle iletişime geç"
     }
   },
   "admin": {

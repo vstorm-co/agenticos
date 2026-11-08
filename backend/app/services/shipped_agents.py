@@ -32,6 +32,22 @@ class ShippedAgentService:
         self.db = db
         self.registry = AgentRegistryService(db)
 
+    async def setup_candidate(self, ctx: AuthContext, agent_id: UUID | None) -> Agent | None:
+        """A first-use setup reply is allowed only for the authentic shipped starter.
+
+        This grants no draft execution. Ordinary, renamed lookalikes, archived or
+        published agents always take the normal publication and run checks.
+        """
+        agent = await agent_repo.get_shipped_starter(self.db, organization_id=ctx.organization_id)
+        if (
+            agent is None
+            or (agent_id is not None and agent.id != agent_id)
+            or agent.status != AgentStatus.DRAFT.value
+            or agent.current_version_id is not None
+        ):
+            return None
+        return await self.registry.get(ctx, agent.id, perm=Perm.AGENTS_RUN)
+
     async def ensure_skills(self, organization_id: UUID) -> None:
         """Seed deployment-owned know-how without borrowing the current member's rights."""
         await organization_assistant_repo.lock_for_install(self.db, organization_id)

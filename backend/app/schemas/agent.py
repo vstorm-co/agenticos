@@ -146,6 +146,13 @@ class AgentRead(BaseSchema):
     id: UUID
     slug: str
     name: str
+    is_starter: bool = Field(
+        default=False, description="Listing marker for the authentic shipped AgenticOS starter."
+    )
+    setup_required: bool = Field(
+        default=False,
+        description="Listing marker for a never-published starter draft eligible for setup guidance, not execution.",
+    )
     description: str | None = None
     status: str
     visibility: str

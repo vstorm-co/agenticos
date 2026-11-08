@@ -110,6 +110,7 @@ from app.agents.subagent_runtime import (
 from app.agents.visual_reports import VisualReport, VisualReports
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
@@ -4014,3 +4015,66 @@ async def test_a_closed_surface_returns_no_answers_without_opening_a_live_prompt
     session._closed = True
     assert await session._ask_user([{"question": "Still there?"}]) == []
     assert _sent_events(session) == []
+
+
+class TestStarterSetupReply:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "locale, greeting", [("pl", "Cześć"), ("de", "Hallo"), ("tr", "Merhaba"), ("fr", "Hi")]
+    )
+    @pytest.mark.parametrize("saved", ["saved", None])
+    async def test_first_message_gets_a_persisted_setup_card_without_running_a_draft(
+        self, locale, greeting, saved
+    ):
+        session = _session()
+        session.user.locale = locale
+        session.organization_id = uuid4()
+        agent_id = uuid4()
+        conversation_id = str(uuid4())
+        ctx = AuthContext(
+            user_id=session.user.id,
+            organization_id=session.organization_id,
+            role=OrgRoleName.MEMBER,
+        )
+        prompt = SimpleNamespace(
+            conversation_id=conversation_id, newly_created=True, message_id=uuid4()
+        )
+
+        @contextlib.asynccontextmanager
+        async def db_context():
+            yield MagicMock()
+
+        with (
+            patch("app.services.agent_session.get_db_context", db_context),
+            patch.object(session, "_chat_context", AsyncMock(return_value=ctx)),
+            patch(
+                "app.services.agent_session.ShippedAgentService.setup_candidate",
+                AsyncMock(return_value=SimpleNamespace(id=agent_id)),
+            ),
+            patch(
+                "app.services.agent_session.persist_user_turn", AsyncMock(return_value=prompt)
+            ) as user_turn,
+            patch(
+                "app.services.agent_session.persist_assistant_turn", AsyncMock(return_value=saved)
+            ) as reply,
+            patch("app.services.agent_session.ChatAgentRunner.run", AsyncMock()) as run,
+        ):
+            await session.process_message({"message": "siema", "allow_setup_reply": True})
+        assert user_turn.await_count == 1
+        assert reply.await_args.kwargs["agent_id"] == agent_id
+        assert [part.type for part in reply.await_args.kwargs["parts"]] == ["text", "model_setup"]
+        assert reply.await_args.kwargs["parts"][1].setup_agent_id == agent_id
+        assert reply.await_args.args[2] is None
+        assert "run_id" not in reply.await_args.kwargs
+        run.assert_not_awaited()
+        events = _sent_events(session)
+        assert [kind for kind, _ in events] == [
+            "conversation_created",
+            "user_prompt",
+            "model_setup_required",
+            "message_saved" if saved else "error",
+            "complete",
+        ]
+        assert greeting in events[2][1]["text"]
+        if saved is None:
+            assert events[3][1]["code"] == "message_save_failed"

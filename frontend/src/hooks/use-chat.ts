@@ -136,6 +136,7 @@ const TYPING_SHOWN_MS = 6000;
 
 /** What a running turn streams - drawn only into a turn this tab writes or follows. */
 const TURN_FRAMES: ReadonlySet<string> = new Set([
+  "model_setup_required",
   "model_request_start",
   "part_start",
   "tool_call_delta",
@@ -943,6 +944,32 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "model_setup_required": {
+          const data = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("agent_id" in data) ||
+            !("text" in data) ||
+            typeof data.agent_id !== "string" ||
+            typeof data.text !== "string"
+          )
+            break;
+          const agentId = data.agent_id;
+          const text = data.text;
+          turnAgentIdRef.current = agentId;
+          const id = createNewMessage(text);
+          updateMessage(id, (message) => ({
+            ...message,
+            parts: [
+              { id: `${id}-text`, type: "text", content: text },
+              { id: `${id}-setup`, type: "model_setup", setupAgentId: agentId },
+            ],
+            isStreaming: false,
+          }));
+          break;
+        }
+
         case "model_request_start": {
           // One bubble per turn, not per model request.
           //
@@ -1723,6 +1750,7 @@ export function useChat(options: UseChatOptions = {}) {
       processingRef.current = true;
       const payload: Record<string, unknown> = {
         message: content,
+        allow_setup_reply: true,
         client_message_id: userMessageId,
         conversation_id: conversationId || null,
       };
@@ -1800,10 +1828,9 @@ export function useChat(options: UseChatOptions = {}) {
       }
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
-      // when it actually leaves. The picker keeps a published agent selected
-      // whenever the organization has one, so a frame without an `agent_id`
-      // only happens when nothing is published at all - and the backend
-      // refuses it with the message that says to publish one.
+      // when it actually leaves. The picker also offers the trusted starter for
+      // setup guidance before publication; the backend resolves that mode
+      // separately from execution and checks resource access.
       const agentId = selectionApi.getState().selectedAgentId;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;

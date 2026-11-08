@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageItem } from "./message-item";
 import { draftsAsText, draftsOf } from "@/lib/drafts";
 import * as motion from "@/lib/motion";
-import { foldWork, runsOf } from "./turn-parts";
+import { foldWork, runsOf, TurnParts } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useWorkingStore } from "@/stores/working-store";
@@ -1700,4 +1700,31 @@ it("keeps a successful watch write visible as an authorized management reference
     ],
   });
   expect(screen.getByText(`Manage watch ${id}`)).toBeInTheDocument();
+});
+
+vi.mock("./model-setup-card", () => ({
+  ModelSetupCard: ({ interactive = false }: { interactive?: boolean }) => (
+    <div data-testid="model-setup" data-interactive={String(interactive)} />
+  ),
+}));
+
+it("offers setup actions in the main chat without a secondary chat scope", () => {
+  render(
+    <MessageItem
+      message={message({ parts: [{ id: "setup", type: "model_setup", setupAgentId: "starter" }] })}
+    />,
+  );
+  expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "true");
+});
+
+it("keeps shared turn parts free of private setup actions by default", () => {
+  render(
+    <TurnParts
+      parts={[{ id: "setup", type: "model_setup", setupAgentId: "starter" }]}
+      isStreaming={false}
+      isUser={false}
+      mcpServers={[]}
+    />,
+  );
+  expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "false");
 });

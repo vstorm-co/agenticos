@@ -1529,6 +1529,18 @@
       "cancel": "Nie teraz",
       "agentUnavailable": "Nie udało się wczytać wybranego agenta. Spróbuj ponownie.",
       "failed": "Nie udało się ustawić dostępu na tym komputerze"
+    },
+    "modelSetup": {
+      "eyebrow": "Krok bliżej pierwszej odpowiedzi",
+      "title": "Daj mi model do pracy",
+      "description": "Podłącz AI, z którego chcesz korzystać. Twój workspace i ta rozmowa zostają tutaj.",
+      "provider": "Wybierz dostawcę i model do rozmów",
+      "key": "Dodaj klucz API, jeśli jest wymagany",
+      "publish": "Opublikuj AgenticOS i wróć do tej rozmowy",
+      "action": "Podłącz mój model AI",
+      "notice": "Odpowiedź konfiguracyjna · Bez wywołania modelu AI i kosztu użycia dostawcy.",
+      "ownerHint": "Administrator workspace może podłączyć AI dla całego zespołu. Nie musisz podawać własnego klucza.",
+      "contact": "Skontaktuj się z administratorem"
     }
   },
   "errors": {

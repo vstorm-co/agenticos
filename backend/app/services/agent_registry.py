@@ -1380,6 +1380,16 @@ class AgentRegistryService:
                 categories=agent.categories,
                 tags=agent.tags,
                 can_run=agent.id in runnable,
+                is_starter=bool(
+                    agent.shipped_template
+                    and agent.shipped_template.get("key") == agent_templates.STARTER_TEMPLATE
+                ),
+                setup_required=bool(
+                    agent.shipped_template
+                    and agent.shipped_template.get("key") == agent_templates.STARTER_TEMPLATE
+                    and agent.status == AgentStatus.DRAFT.value
+                    and agent.current_version_id is None
+                ),
                 shared_user_count=shared_counts.get(agent.id, 0),
                 shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),

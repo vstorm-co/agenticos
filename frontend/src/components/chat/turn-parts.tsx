@@ -25,6 +25,7 @@ import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
 import { ToolGroup } from "./tool-group";
 import { PhoneCallCard } from "@/components/phone/phone-call-card";
+import { ModelSetupCard } from "./model-setup-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
@@ -65,7 +66,10 @@ export function TurnParts({
   durationMs,
   stopped = false,
   waitingFor,
+  allowSetupActions = false,
 }: {
+  /** Private configuration actions are opt-in; shared transcripts remain read-only. */
+  allowSetupActions?: boolean;
   parts: MessagePart[];
   isStreaming: boolean;
   isUser: boolean;
@@ -138,6 +142,12 @@ export function TurnParts({
         // turn: the orb marks where the thinking is arriving, and a turn
         // that thought twice would otherwise show two of them.
         isStreaming={isStreaming && run.isLast}
+      />
+    ) : run.part.type === "model_setup" ? (
+      <ModelSetupCard
+        key={run.part.id}
+        agentId={run.part.setupAgentId}
+        interactive={allowSetupActions}
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
@@ -443,7 +453,12 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user" || part.type === "workflow_run" || part.type === "phone_call") {
+    if (
+      part.type === "ask_user" ||
+      part.type === "workflow_run" ||
+      part.type === "phone_call" ||
+      part.type === "model_setup"
+    ) {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }

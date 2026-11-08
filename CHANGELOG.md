@@ -28,6 +28,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Select the shipped AgenticOS before publication and answer first-use chat messages
+  with a persistent model-setup card. Guide builders to configuration and members
+  to their administrator without executing a draft or charging a model call.
+
 - Snooze dismissed start offers for 24 hours. Record walkthrough completion
   separately after the final step, without requiring optional settings or an AI run.
 

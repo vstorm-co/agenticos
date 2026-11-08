@@ -642,6 +642,7 @@ function MessageBody({
         /* Ordered timeline: each part in arrival order, with runs of tool
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
+          allowSetupActions
           parts={parts}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}

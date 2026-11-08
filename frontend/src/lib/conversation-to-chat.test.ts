@@ -497,3 +497,20 @@ it("preserves the parent run start instead of using the segment save time", () =
   });
   expect(converted.runStartedAt?.toISOString()).toBe("2026-11-05T18:11:13.000Z");
 });
+
+it("replays a persisted setup reply with its original agent and configuration card", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      agent_id: "starter",
+      content: "Connect a model.",
+      parts: [
+        { type: "text", text: "Connect a model." },
+        { type: "model_setup", setup_agent_id: "starter" },
+      ],
+    }),
+  );
+  expect(message.agentId).toBe("starter");
+  expect(message.runId).toBeUndefined();
+  expect(message.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
+  expect(message.parts?.[1]?.setupAgentId).toBe("starter");
+});
