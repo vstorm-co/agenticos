@@ -1,10 +1,37 @@
 ---
-source_sha: "8e9c61803442"
+source_sha: "7bc9680c19e3"
 ---
 
 # Revisión automatizada de pull requests { #automated-pull-request-review }
 
-!!! warning "El revisor está apagado en las pull requests — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
+## CodeRabbit (requiere instalación) { #coderabbit-requires-installation }
+
+El archivo `.coderabbit.yaml` propone ajustes de revisión; fusionarlo no instala
+ni autoriza CodeRabbit. Un mantenedor con los permisos necesarios en la
+organización debe instalar o aprobar la aplicación de GitHub para este
+repositorio. Consulta la [guía de configuración de GitHub](https://docs.coderabbit.ai/platforms/github-com).
+
+Una vez instalada y habilitada la aplicación, las pull requests elegibles dirigidas
+a la rama predeterminada reciben revisiones automáticas si no son borradores.
+Los borradores se omiten. La configuración usa comentarios equilibrados (`chill`)
+y desactiva las aprobaciones automáticas, las solicitudes de cambios y los poemas.
+
+Las revisiones incrementales automáticas tras nuevos pushes están desactivadas.
+Después de subir correcciones, comenta `@coderabbitai review` para una revisión
+incremental o `@coderabbitai full review` para revisar de nuevo toda la pull
+request. Consulta los [controles de revisión automática](https://docs.coderabbit.ai/configuration/auto-review).
+
+Los hallazgos en línea crean hilos de revisión. El ruleset actual de `main` exige
+resolverlos antes de fusionar; responder no los resuelve. Esta configuración no
+añade ningún status check obligatorio ni cambia la protección de ramas.
+
+CodeRabbit y la integración de Codex con GitHub son independientes del workflow
+personalizado de GitHub Actions descrito a continuación. Esta configuración no
+activa ni desactiva ninguno de los revisores existentes.
+
+## Workflow de revisión personalizado { #custom-review-workflow }
+
+!!! warning "El workflow personalizado está apagado en las pull requests — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
 
     Desde la tarde del 2026-08-05, cada ejecución moría unos doce segundos
     después de entrar en `Review the diff` (`codex exited with code 1`), concluía
@@ -23,8 +50,10 @@ source_sha: "8e9c61803442"
     configured enforced spend limit`, que es un ajuste del proyecto de OpenAI, no
     de este repositorio.
 
-    Hasta que vuelva el disparador, la revisión previa a un merge es humana, más
-    el comando local `/review` de `.claude/commands/review.md`.
+    Este workflow personalizado no revisa automáticamente las pull requests
+    hasta que se restaure su disparador. La revisión humana y el comando local
+    `/review` de `.claude/commands/review.md` siguen disponibles; las
+    integraciones de GitHub instaladas por separado funcionan de forma independiente.
 
 Una GitHub Action revisa las pull requests contra **el estándar propio de este
 repositorio**. No es un linter con un modelo de lenguaje pegado: el prompt de
@@ -61,7 +90,7 @@ es la segunda mitad de esta página.
 
 | Disparador | Quién | Nota |
 |---|---|---|
-| `workflow_dispatch` con un número de pull request | acceso de escritura | Manual, para pruebas. **El único disparador vivo hoy** |
+| `workflow_dispatch` con un número de pull request | acceso de escritura | Manual, para pruebas. **El único disparador activo de este workflow hoy** |
 | Se abre, se reabre o se marca como lista una pull request | automático | Los borradores se omiten. Retirado por [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 | Se añade la etiqueta `ai-review` | cualquiera con acceso de escritura | Bajo demanda. Retirado por [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 

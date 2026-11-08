@@ -219,7 +219,7 @@ class NightlyLook:
             owner_key=person_owner_key(user_id),
             limit=MAX_NOTES,
         )
-        routines = await agent_trigger_repo.prompts_created_by(
+        routines = await agent_trigger_repo.routine_prompts_for_screening(
             self.db, organization_id=organization_id, user_id=user_id
         )
         connections, _ = await mcp_connection_repo.list_for_user(
@@ -236,7 +236,11 @@ class NightlyLook:
                 }
                 for note in notes
             ],
-            "their_routines": [prompt[:_CLIP] for prompt in routines],
+            "their_routines": [
+                routine.prompt[:_CLIP]
+                for routine in routines
+                if _passes(routine.spec, routine.prompt)
+            ],
             "connected_services": sorted({connection.name for connection in connections}),
             "role_packs": [
                 {"id": pack.id, "name": pack.name, "description": pack.description}

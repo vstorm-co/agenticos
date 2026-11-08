@@ -16,6 +16,7 @@ from fastapi import WebSocketDisconnect
 from pydantic import SecretStr
 from pydantic_ai.usage import RunUsage
 
+from app.agents.deps import AgentDeps
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent_run import RunStatus
@@ -115,9 +116,10 @@ def _started(
         ),
         realtime=MagicMock(return_value=MagicMock()),
         built=SimpleNamespace(
+            deps=AgentDeps(),
             budget=SimpleNamespace(
                 can_afford_next_request=AsyncMock(return_value=True), refresh_baselines=MagicMock()
-            )
+            ),
         ),
         hand_off=None,
     )
@@ -1644,3 +1646,35 @@ def test_a_visitor_is_told_a_budget_notice_as_calls_being_unavailable():
     assert isinstance(shown, NoticeFrame) and shown.kind == VISITOR_REASON
     guardrail = _visible(NoticeFrame(type="notice", kind="guardrail"), frozenset())
     assert isinstance(guardrail, NoticeFrame) and guardrail.kind == "guardrail"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("during_seed", [False, True])
+async def test_a_refused_voice_snapshot_never_opens_the_provider(during_seed):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.services.message_history import ModelHistory
+
+    started = _started(FakeRealtime())
+    blocked = GuardrailBlocked(edge="input", message="Conversation history changed.")
+    seed = (
+        AsyncMock(side_effect=blocked)
+        if during_seed
+        else AsyncMock(return_value=ModelHistory([], revision=0))
+    )
+    with patch(f"{_M}.check_history_snapshot", AsyncMock(side_effect=blocked)):
+        _, repo = await _run(FakeSocket([_START]), started, seed=seed)
+    started.prepared.realtime.assert_not_called()
+    started.prepared.answer_offer.assert_not_awaited()
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.GUARDRAIL
+    assert started.runner.finish.await_args.kwargs["status"] is RunStatus.GUARDRAIL_BLOCKED
+
+
+async def test_a_current_voice_snapshot_opens_the_provider():
+    from app.services.message_history import ModelHistory
+
+    started = _started(FakeRealtime())
+    history = ModelHistory([], revision=7)
+    with patch(f"{_M}.check_history_snapshot", AsyncMock()) as check:
+        await _run(FakeSocket([_START]), started, seed=AsyncMock(return_value=history))
+    assert check.await_args.args[1:] == (started.conversation_id, history)
+    assert started.prepared.realtime.call_args.kwargs["message_history"] is history

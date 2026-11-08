@@ -189,3 +189,54 @@ class TestTheIndex:
             await visual_repo.get(db, row.id, organization_id=conversation.organization_id)
         ).thumbnail_path == "media/x"
         assert await visual_repo.get(db, row.id, organization_id=uuid.uuid4()) is None
+
+
+async def test_renamed_visuals_keep_their_identity_and_external_names_stay_generic(db) -> None:
+    _, message = await _thread(db)
+    for call_id, name, tool_id, presentation in [
+        ("legacy", "draw", None, None),
+        ("renamed", "sketch", "draw", None),
+        ("external", "draw", None, "generic"),
+    ]:
+        row = await conversation_repo.create_tool_call(
+            db,
+            message_id=message.id,
+            tool_call_id=call_id,
+            tool_name=name,
+            tool_id=tool_id,
+            presentation_kind=presentation,
+            args={"title": call_id},
+            started_at=datetime.now(UTC),
+        )
+        await conversation_repo.complete_tool_call(
+            db, db_tool_call=row, result="Drew it.", completed_at=datetime.now(UTC)
+        )
+    calls = await conversation_repo.tool_calls_named(
+        db,
+        conversation_id=message.conversation_id,
+        names=NAMES,
+        result_prefixes=DREW,
+        limit=10,
+    )
+    assert [(call.tool_call_id, call.tool_name) for call in calls] == [
+        ("legacy", "draw"),
+        ("renamed", "draw"),
+    ]
+    renamed = await conversation_repo.tool_call_in_conversation(
+        db,
+        conversation_id=message.conversation_id,
+        tool_call_id="renamed",
+        names=NAMES,
+        result_prefixes=DREW,
+    )
+    assert renamed is not None and renamed.tool_name == "draw"
+    assert (
+        await conversation_repo.tool_call_in_conversation(
+            db,
+            conversation_id=message.conversation_id,
+            tool_call_id="external",
+            names=NAMES,
+            result_prefixes=DREW,
+        )
+        is None
+    )

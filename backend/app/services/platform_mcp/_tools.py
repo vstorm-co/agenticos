@@ -401,12 +401,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         What was asked and answered, oldest first, with the tools each turn called
         and what they returned - for making a skill of how something was done, or
         picking up where a conversation left off. Another member's conversation is
-        not found.
+        not found. Guardrail-refused turns and quoted reply excerpts are omitted.
         """
         return await api.request(
             "GET",
             f"/conversations/{conversation_id}/transcript",
-            params={"limit": limit, "skip": skip},
+            params={"limit": limit, "skip": skip, "for_model": True},
         )
 
     async def test_my_connection(connection_id: UUID) -> dict[str, Any]:
@@ -428,9 +428,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Find a chat by title - for example the one a routine should answer in -
         before opening another. Only ids, titles and dates are returned; read one
-        with read_conversation.
+        with read_conversation. Conversations containing guardrail-refused turns
+        are omitted so a stored title cannot repeat their text.
         """
-        params: dict[str, str | int] = {"limit": limit}
+        params: dict[str, str | int] = {"limit": limit, "for_model": True}
         if search is not None:
             params["search"] = search
         listing = await api.request("GET", "/conversations", params=params)

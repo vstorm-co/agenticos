@@ -1,5 +1,5 @@
 ---
-source_sha: "2e39e79df097"
+source_sha: "3d25fd63e335"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1269,6 +1269,11 @@ Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb warte
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers; ein Schlüssel braucht `agents:run` für `test_my_connection`) |
 | `list_watches`, `delete_watch` | eigene Beobachtungen des Aufrufers |
 | `create_watch`, `update_watch` | die Person selbst - angemeldet, über einen von ihr ausgestellten Schlüssel oder ein MCP-Token oder in ihrem privaten Chat; `agents:run` bei der Agentenwahl |
+
+Das Plattform-Tool `read_conversation` lässt durch Guardrails abgelehnte Züge
+und zitierte Antwortauszüge aus. `list_conversations` lässt Unterhaltungen mit
+abgelehnten Zügen aus, damit ein erzeugter Titel deren Text keinem Modell
+wiedergibt. Die Konsole behält das vollständige Transkript für berechtigte Leser.
 
 Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen.
 `get_project` liest die Anweisungen und Konfiguration eines ausgewählten Projekts.

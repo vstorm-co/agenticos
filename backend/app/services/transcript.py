@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
 
 from app.agents.ask_user import parked_status
 from app.agents.ephemeral_media import describe_binary
+from app.core.tool_identity import PresentationKind, ToolIdentity
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -73,6 +74,12 @@ class RecordedToolCall:
     tool_name: str
     args: dict[str, Any]
     result: str | None = None
+    tool_id: str | None = None
+    presentation_kind: PresentationKind | None = None
+
+    @property
+    def renderer_name(self) -> str | None:
+        return None if self.presentation_kind == "generic" else self.tool_id or self.tool_name
 
 
 def tool_failure_notice(part: ToolReturnPart) -> str:
@@ -150,7 +157,12 @@ def _result_text(part: ToolReturnPart) -> str:
     return tool_result_text(part.content)
 
 
-def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
+def tool_calls_in(
+    messages: Sequence[ModelMessage],
+    *,
+    identities: Mapping[str, ToolIdentity] | None = None,
+    definitions: Mapping[str, ToolIdentity] | None = None,
+) -> list[RecordedToolCall]:
     """Every tool call in these messages, each paired with what it returned.
 
     Pass `result.new_messages()`, never `all_messages()`. A resumed run is handed
@@ -175,10 +187,15 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     for message in messages:
         for part in message.parts:
             if isinstance(part, ToolCallPart):
+                identity = (identities or {}).get(
+                    part.tool_call_id, (definitions or {}).get(part.tool_name, ToolIdentity())
+                )
                 calls[part.tool_call_id] = RecordedToolCall(
                     tool_call_id=part.tool_call_id,
                     tool_name=part.tool_name,
                     args=part.args_as_dict(raise_if_invalid=False),
+                    tool_id=identity.tool_id,
+                    presentation_kind=identity.presentation_kind,
                 )
             elif isinstance(part, ToolReturnPart) and part.tool_call_id in calls:
                 results[part.tool_call_id] = _result_text(part)
@@ -188,6 +205,8 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
             tool_name=call.tool_name,
             args=call.args,
             result=results.get(call.tool_call_id),
+            tool_id=call.tool_id,
+            presentation_kind=call.presentation_kind,
         )
         for call in calls.values()
     ]
@@ -509,7 +528,9 @@ class TranscriptService:
                     else "running"
                 ),
                 mcp_connection_id=mcp_origins.get(call.tool_name),
-                presentation_kind="draft" if call.tool_name in draft_tools else None,
+                tool_id=call.tool_id,
+                presentation_kind=call.presentation_kind
+                or ("draft" if call.tool_name in draft_tools else None),
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

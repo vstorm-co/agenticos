@@ -1560,7 +1560,11 @@ class AgentSession:
         async with get_db_context() as db:
             conversations = ConversationService(db)
             if turn.summarized_history is not None:
-                await conversations.keep_summary(conversation_id, turn.summarized_history)
+                await conversations.keep_summary(
+                    conversation_id,
+                    turn.summarized_history,
+                    expected_revision=turn.history_revision,
+                )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 

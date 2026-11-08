@@ -331,6 +331,9 @@ async def get_conversation_transcript(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    for_model: bool = Query(
+        False, description="Omit guardrail-refused turns and quoted reply excerpts"
+    ),
 ) -> Any:
     """One of the caller's own conversations, turn by turn (#2122).
 
@@ -348,6 +351,7 @@ async def get_conversation_transcript(
         organization_id=ctx.organization_id,
         user_id=ctx.subject_id,
         ctx=ctx,
+        for_model=for_model,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 

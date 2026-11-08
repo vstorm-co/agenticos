@@ -17,7 +17,8 @@ import type {
 export interface RawToolCall {
   tool_call_id: string;
   tool_name: string;
-  presentation_kind?: "draft" | null;
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   args: Record<string, unknown>;
   result?: unknown;
   status: string;
@@ -209,6 +210,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   const toolCalls: ToolCall[] | undefined = msg.tool_calls?.map((tc) => ({
     id: tc.tool_call_id,
     name: tc.tool_name,
+    tool_id: tc.tool_id,
     presentation_kind: tc.presentation_kind,
     args: tc.args,
     result: tc.result,

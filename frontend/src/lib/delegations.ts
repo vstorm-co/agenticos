@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 /**
  * The frames of a delegation, folded into the panels a reader sees.
  *
@@ -367,7 +368,7 @@ export function taskOutcome(call: ToolCall, calls: readonly ToolCall[]): TaskOut
   const taskId = started[1];
   const checks = calls.filter(
     (other) =>
-      other.name === "check_task" &&
+      toolLookupName(other) === "check_task" &&
       other.args.task_id === taskId &&
       typeof other.result === "string",
   );

@@ -118,7 +118,12 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
         patch(
             "app.services.embed_session.conversation_repo.get_conversation_by_id",
             new=AsyncMock(
-                return_value=MagicMock(summary_messages=None, summary_ordinal=None, project_id=None)
+                return_value=MagicMock(
+                    summary_messages=None,
+                    summary_ordinal=None,
+                    guardrail_revision=0,
+                    project_id=None,
+                )
             ),
         ),
         patch(

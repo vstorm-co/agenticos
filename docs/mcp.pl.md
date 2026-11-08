@@ -1,5 +1,5 @@
 ---
-source_sha: "2e39e79df097"
+source_sha: "3d25fd63e335"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1215,6 +1215,11 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego; klucz wymaga `agents:run` dla `test_my_connection`) |
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
 | `create_watch`, `update_watch` | sama osoba - zalogowana, przez wydany przez nią klucz lub token MCP albo w jej prywatnym czacie; `agents:run` przy wyborze agenta |
+
+Narzędzie platformy `read_conversation` pomija tury odrzucone przez guardrail
+i cytaty odpowiedzi. `list_conversations` pomija rozmowy zawierające odrzucone
+tury, aby wygenerowany tytuł nie powtórzył ich treści modelowi. Konsola zachowuje
+pełny transkrypt dla uprawnionej osoby.
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów.
 Instrukcje i konfigurację wybranego projektu odczytuje `get_project`.

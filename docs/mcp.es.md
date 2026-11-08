@@ -1,5 +1,5 @@
 ---
-source_sha: "2e39e79df097"
+source_sha: "3d25fd63e335"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1250,6 +1250,12 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama; una clave necesita `agents:run` para `test_my_connection`) |
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
 | `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
+
+La herramienta de la plataforma `read_conversation` omite los turnos rechazados
+por guardrails y los fragmentos citados de respuestas. `list_conversations` omite
+conversaciones con turnos rechazados para que un título generado no repita su
+texto a un modelo. La consola conserva la transcripción completa para la persona
+autorizada.
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres.
 `get_project` lee las instrucciones y la configuración de un proyecto elegido.

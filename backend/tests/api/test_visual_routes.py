@@ -119,6 +119,8 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
             SimpleNamespace(
                 tool_call_id="d",
                 tool_name="draw",
+                tool_id=None,
+                presentation_kind=None,
                 args={"title": "Flow", "kind": "svg", "content": "<svg/>", "secret": "x"},
                 status="completed",
                 result="Drew 'Flow' as visual `d`.",

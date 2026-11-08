@@ -47,6 +47,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, checked_output_schema
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
@@ -57,7 +58,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context
-from app.services.workflow_execution.agent_conversations import for_agent_step
+from app.services.workflow_execution.agent_conversations import ChatSourceGuard, for_agent_step
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
@@ -316,18 +317,31 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
+            source_guard = ChatSourceGuard(db, current.chat_source)
+            if current.resumed_agent_run_id is None:
+                await source_guard.check()
+
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:
                 before = await _cost_so_far(
                     db, current.resumed_agent_run_id, current.organization_id
                 )
                 if current.budget_remaining is None:
-                    segment = await runner.resume(current.auth, current.resumed_agent_run_id)
+                    segment = await runner.resume(
+                        current.auth,
+                        current.resumed_agent_run_id,
+                        on_segment=source_guard.keep_refusal,
+                        on_run_open=source_guard.check,
+                        check_model_request=source_guard.check_request,
+                    )
                 else:
                     segment = await runner.resume(
                         current.auth,
                         current.resumed_agent_run_id,
                         run_limit_usd=before + current.budget_remaining,
+                        on_segment=source_guard.keep_refusal,
+                        on_run_open=source_guard.check,
+                        check_model_request=source_guard.check_request,
                     )
                 text, run, answer = segment.output, segment.run, segment.structured
             else:
@@ -357,8 +371,15 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     structured=answers,
                     run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
                     public_origin=current.public_origin,
+                    on_segment=source_guard.keep_refusal,
+                    on_run_open=source_guard.check,
+                    check_model_request=source_guard.check_request,
                 )
                 answer = answers[0] if answers else None
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except AppException as exc:
         return Failed(error=workflow_error(exc))
     except Exception:

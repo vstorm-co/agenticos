@@ -9,7 +9,7 @@ member's request reaches.
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -24,7 +24,9 @@ from pydantic_ai.messages import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -32,6 +34,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
+from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
@@ -63,7 +66,12 @@ from app.services.access import AGENT, PROJECT, resolve_access, visible_resource
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
-from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
+from app.services.message_history import (
+    REFUSED_TURN,
+    HistoryMessage,
+    ModelHistory,
+    build_message_history,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -171,13 +179,50 @@ def _as_history(
     return history
 
 
+async def check_history_snapshot(
+    db: AsyncSession, conversation_id: UUID | None, history: ModelHistory
+) -> None:
+    """Refuse a superseded snapshot before replaying tools or calling a model."""
+    if conversation_id is None:
+        current_history = history.revision is None
+    else:
+        revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
+        expected = history.revision if history.revision is not None else 0
+        current_history = revision is not None and revision == expected
+    if not current_history:
+        raise GuardrailBlocked(
+            edge="input",
+            message="This run's conversation history is no longer valid. Start a new turn.",
+        )
+
+
+def model_context_check(
+    conversation_id: UUID | None,
+    history: Sequence[ModelMessage] | None,
+    source_check: Callable[[AsyncSession], Awaitable[None]] | None = None,
+) -> ModelContextCheck | None:
+    """Check trusted context in a fresh transaction before each provider request."""
+    snapshot = history if isinstance(history, ModelHistory) else None
+    if snapshot is None and source_check is None:
+        return None
+
+    async def check() -> None:
+        async with get_db_context() as db:
+            if snapshot is not None:
+                await check_history_snapshot(db, conversation_id, snapshot)
+            if source_check is not None:
+                await source_check(db)
+
+    return check
+
+
 class ConversationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def model_history(
         self, conversation_id: UUID, *, limit: int, exclude_message_id: UUID | None = None
-    ) -> list[ModelMessage]:
+    ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
         Two halves where a summary has run: the history it reduced the older
@@ -195,12 +240,16 @@ class ConversationService:
         this reads - and left in, the model is asked the same question twice.
         """
         conversation = await conversation_repo.get_conversation_by_id(
-            self.db, conversation_id, include_summary=True
+            self.db, conversation_id, include_summary=True, fresh=True
         )
+        revision = None if conversation is None else conversation.guardrail_revision
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
-            return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+            return ModelHistory(
+                await self._from_transcript(
+                    conversation_id, limit, exclude_message_id, conversation
+                ),
+                revision=revision,
             )
         # Re-inline whatever the stored history references before it is parsed
         # (#55). Unconditional: offloading is the `media` capability's decision,
@@ -226,8 +275,11 @@ class ConversationService:
             logger.exception(
                 "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
-            return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+            return ModelHistory(
+                await self._from_transcript(
+                    conversation_id, limit, exclude_message_id, conversation
+                ),
+                revision=revision,
             )
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
@@ -237,7 +289,10 @@ class ConversationService:
             *replayed,
             *build_message_history(_as_history(since, exclude_message_id, spoken)),
         ]
-        return await self._restore_capability_loads(history, since, exclude_message_id)
+        return ModelHistory(
+            await self._restore_capability_loads(history, since, exclude_message_id),
+            revision=revision,
+        )
 
     async def _from_transcript(
         self,
@@ -413,22 +468,41 @@ class ConversationService:
             return
         await conversation_repo.set_plan(self.db, db_conversation=conversation, items=items)
 
-    async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
+    async def keep_summary(
+        self,
+        conversation_id: UUID,
+        messages: list[dict[str, Any]],
+        *,
+        expected_revision: int | None,
+    ) -> None:
         """Write down the history a summary reduced this conversation to.
 
         Called once a turn's rows are written, so the ordinal it records covers
         the answer as well as the question - which is what stops the next turn
-        replaying the summary *and* the turn already inside it.
+        replaying the summary *and* the turn already inside it. `expected_revision`
+        comes from the history read before the model call; absent or superseded
+        provenance cannot replace the cache with potentially refused text.
         """
+        if expected_revision is None:
+            logger.info(
+                "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
+            )
+            return
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
             return
-        await conversation_repo.set_summary(
+        stored = await conversation_repo.set_summary(
             self.db,
             db_conversation=conversation,
             messages=messages,
             ordinal=await conversation_repo.last_ordinal(self.db, conversation_id),
+            expected_revision=expected_revision,
         )
+
+        if not stored:
+            logger.info(
+                "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
+            )
 
     async def get_conversation(
         self,
@@ -884,6 +958,7 @@ class ConversationService:
         hide_channels: bool = False,
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
+        for_model: bool = False,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -940,6 +1015,7 @@ class ConversationService:
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
+            for_model=for_model,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -954,6 +1030,7 @@ class ConversationService:
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
+            for_model=for_model,
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
@@ -1362,6 +1439,7 @@ class ConversationService:
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
+        for_model: bool = False,
     ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
         """One conversation's messages and its cost, for a reader allowed to see them.
 
@@ -1378,6 +1456,9 @@ class ConversationService:
         The page and the cost share one authorization: on a channel thread each
         `get_conversation` can ask the platform whether the reader is still in
         the room.
+
+        `for_model` omits refused turns before pagination and removes quoted
+        reply excerpts; the console keeps its complete transcript.
 
         The cost is summed over every turn, not over the page asked for, and is
         `None` where nothing in the thread was ever measured.
@@ -1397,9 +1478,22 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
             latest=latest,
             before=before,
+            for_model=for_model,
+            fresh=for_model,
         )
-        total = await conversation_repo.count_messages(self.db, conversation_id)
+        total = await conversation_repo.count_messages(
+            self.db, conversation_id, for_model=for_model
+        )
         await self._attach_senders(items, conversation)
+        if for_model:
+            return (
+                [
+                    MessageRead.model_validate(msg).model_copy(update={"reply_to": None})
+                    for msg in items
+                ],
+                total,
+                await self._cost(conversation_id),
+            )
         await self._attach_replies(items)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
@@ -1596,7 +1690,8 @@ class ConversationService:
         parked: bool = False,
         awaiting_answer: bool = False,
         mcp_connection_id: UUID | None = None,
-        presentation_kind: Literal["draft"] | None = None,
+        tool_id: str | None = None,
+        presentation_kind: Literal["draft", "generic", "platform"] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -1619,6 +1714,7 @@ class ConversationService:
             if parked
             else "running",
             mcp_connection_id=mcp_connection_id,
+            tool_id=tool_id,
             presentation_kind=presentation_kind,
         )
 
