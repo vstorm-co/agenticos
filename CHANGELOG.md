@@ -41,8 +41,8 @@ Two things are versioned separately from this file and worth knowing about:
   Use actual workspace avatars, equal-height adjacent cards, directional transitions
   and transient field highlights that respect Motion preferences. Give the chat
   start notice role-aware guidance, blobby, a clear primary action and a dismiss
-  control that fits desktop and phone layouts. Place it above the entire console
-  so application navigation, conversation navigation and chat remain aligned. Keep personal workspaces optional and enforce
+  control that fits desktop and phone layouts. Float it over the desktop console
+  with a translucent surface, preserving both sidebars at full viewport height. Keep personal workspaces optional and enforce
   effective permissions.
 - Give onboarding the console's controls, animated blobby and violet workspace
   preview that follows the entered name. Present member examples in a split view

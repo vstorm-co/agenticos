@@ -51,13 +51,14 @@ describe("the dashboard's scroll container", () => {
   });
 });
 
-it("puts the start notice above the shared app row, outside both navigation and main", () => {
+it("anchors the start overlay to the shell outside navigation and main", () => {
   const tree = DashboardLayout({ children: null });
   const shell = find(
     tree,
     (el) => el.props.className?.includes("h-[calc(var(--app-height") === true,
   );
   if (!shell) throw new Error("Missing app shell");
+  expect(shell.props.className?.split(" ")).toContain("relative");
   const children = Array.isArray(shell.props.children)
     ? shell.props.children
     : [shell.props.children];
