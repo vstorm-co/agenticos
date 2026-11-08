@@ -13052,6 +13052,15 @@
     "previewHint": "Bu kontrol ekip üyesi olarak oturum açmaz ve modeli çağırmaz. Gerçek görev sağlayıcıyı ve gereksinimleri doğrular.",
     "invite": "Ekip üyesi davet edin",
     "loadHint": "Bağlantıyı kontrol edin veya üyesi olduğunuz başka bir alan seçin. Başarısız kontrol verilerinizi silmez.",
-    "choiceNotSaved": "Seçiminiz kaydedilemedi. Lütfen yeniden deneyin."
+    "choiceNotSaved": "Seçiminiz kaydedilemedi. Lütfen yeniden deneyin.",
+    "offer": {
+      "adminTitle": "Ekibinizin çalışma alanını kurun",
+      "adminHint": "Organizasyon, ekip ve AI — adım adım.",
+      "adminAction": "Kuruluma devam et",
+      "memberTitle": "İlk görevinizi deneyelim",
+      "memberHint": "Bir örnek seçin ve ajanın nasıl yardımcı olabileceğini görün.",
+      "memberAction": "Bir örnek dene",
+      "dismiss": "Başlangıç ipucunu kapat"
+    }
   }
 }

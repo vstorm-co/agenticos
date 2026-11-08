@@ -64,6 +64,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}
+          <Suspense fallback={null}>
+            <StartOffer />
+          </Suspense>
           <MobileHeader />
           <ImpersonationBanner />
           <OfflineBanner />
@@ -103,12 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     menu, because the administrator who has to end it reaches the
                     settings page through them. */}
               <DeploymentGate>
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <Suspense fallback={null}>
-                    <StartOffer />
-                  </Suspense>
-                  <PageTransition>{children}</PageTransition>
-                </div>
+                <PageTransition>{children}</PageTransition>
               </DeploymentGate>
             </MainViewport>
           </div>

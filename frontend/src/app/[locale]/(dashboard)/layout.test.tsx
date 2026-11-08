@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import DashboardLayout from "./layout";
+import { StartOffer } from "@/components/onboarding/start-offer";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import { MainViewport } from "@/components/layout/main-viewport";
 
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -47,4 +49,26 @@ describe("the dashboard's scroll container", () => {
     render(<MainViewport>Content</MainViewport>);
     expect(screen.getByRole("main").className).not.toMatch(/(^|\s|:)pb-/);
   });
+});
+
+it("puts the start notice above the shared app row, outside both navigation and main", () => {
+  const tree = DashboardLayout({ children: null });
+  const shell = find(
+    tree,
+    (el) => el.props.className?.includes("h-[calc(var(--app-height") === true,
+  );
+  if (!shell) throw new Error("Missing app shell");
+  const children = Array.isArray(shell.props.children)
+    ? shell.props.children
+    : [shell.props.children];
+  const noticeIndex = children.findIndex(
+    (child) => find(child, (el) => el.type === StartOffer) !== null,
+  );
+  const appIndex = children.findIndex(
+    (child) => find(child, (el) => el.type === AppSidebar) !== null,
+  );
+  expect(noticeIndex).toBeGreaterThanOrEqual(0);
+  expect(appIndex).toBeGreaterThan(noticeIndex);
+  const viewport = find(tree, (el) => el.type === MainViewport);
+  expect(find(viewport, (el) => el.type === StartOffer)).toBeNull();
 });

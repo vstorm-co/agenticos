@@ -1,5 +1,5 @@
 ---
-source_sha: "03785bc080ff"
+source_sha: "2ce7bdbca489"
 ---
 
 # Konsola { #the-console }
@@ -932,7 +932,9 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 ## Pierwsze zadanie { #your-first-task }
 
 Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
-strony. Przyjęte zaproszenie otwiera ten sam start w organizacji, do której
+strony. Baner startowy czatu jest nad całą konsolą, więc nawigacja aplikacji i lista
+rozmów pozostają wyrównane. Administratorowi proponuje konfigurację, a członkowi
+przykład; można go zamknąć. Przyjęte zaproszenie otwiera ten sam start w organizacji, do której
 właśnie dołączasz. Rejestracja próbuje od razu zalogować konto; gdy sesja się nie
 powiedzie, formularz logowania zachowuje cel i już utworzone konto.
 

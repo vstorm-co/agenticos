@@ -1,5 +1,5 @@
 ---
-source_sha: "03785bc080ff"
+source_sha: "2ce7bdbca489"
 ---
 
 # Die Konsole { #the-console }
@@ -1005,7 +1005,9 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 ## Ihre erste Aufgabe { #your-first-task }
 
 Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
-Seitenhilfe. Eine angenommene Einladung öffnet denselben Start in der beigetretenen
+Seitenhilfe. Der Starthinweis steht über der gesamten Konsole, sodass Anwendungs-
+und Gesprächsnavigation ausgerichtet bleiben. Er bietet Administratoren die
+Einrichtung und Mitgliedern ein Beispiel und lässt sich schließen. Eine angenommene Einladung öffnet denselben Start in der beigetretenen
 Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
 fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
 

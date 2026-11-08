@@ -902,6 +902,9 @@ The administration organization directory shows the uploaded organization pictur
 ## Your first task
 
 Open **Get started** from the dashboard, the first-use offer or a page's help.
+The chat start notice sits above the entire console, keeping application navigation
+and conversation navigation aligned. It offers setup guidance to administrators
+and an example to members, and can be dismissed.
 An accepted organization invitation opens this same start in the organization
 you joined. Registration tries to sign you in immediately; if that session
 fails, the sign-in form keeps the destination and the account already created.

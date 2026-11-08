@@ -13466,6 +13466,15 @@
     "previewHint": "Sprawdzamy wspólny dostęp bez logowania jako inna osoba i bez wywołania modelu. Prawdziwe zadanie nadal sprawdza dostawcę i wymagania.",
     "invite": "Zaproś osobę do zespołu",
     "loadHint": "Sprawdź połączenie albo wybierz inną przestrzeń, do której należysz. Błąd sprawdzania nie usuwa Twoich danych.",
-    "choiceNotSaved": "Nie udało się zapisać wyboru. Spróbuj ponownie."
+    "choiceNotSaved": "Nie udało się zapisać wyboru. Spróbuj ponownie.",
+    "offer": {
+      "adminTitle": "Przygotuj workspace dla zespołu",
+      "adminHint": "Organizacja, ludzie i AI — krok po kroku.",
+      "adminAction": "Kontynuuj konfigurację",
+      "memberTitle": "Zróbmy Twoje pierwsze zadanie",
+      "memberHint": "Wybierz przykład i zobacz, jak może pomóc Ci agent.",
+      "memberAction": "Wypróbuj przykład",
+      "dismiss": "Ukryj wskazówkę startową"
+    }
   }
 }

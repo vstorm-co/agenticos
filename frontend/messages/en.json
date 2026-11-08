@@ -13691,6 +13691,15 @@
     "previewHint": "This checks shared access, without signing in as your teammate or calling the model. A real task still verifies the provider and task requirements.",
     "invite": "Invite a teammate",
     "loadHint": "Check the connection or choose another workspace you belong to. A failed check does not remove your data.",
-    "choiceNotSaved": "Your choice wasn't saved. Please try again."
+    "choiceNotSaved": "Your choice wasn't saved. Please try again.",
+    "offer": {
+      "adminTitle": "Set up your team’s workspace",
+      "adminHint": "Organization, teammates and AI — one step at a time.",
+      "adminAction": "Continue setup",
+      "memberTitle": "Let’s try your first task",
+      "memberHint": "Pick an example and see how an agent can help.",
+      "memberAction": "Try an example",
+      "dismiss": "Dismiss setup tip"
+    }
   }
 }

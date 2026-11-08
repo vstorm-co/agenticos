@@ -1,5 +1,5 @@
 ---
-source_sha: "03785bc080ff"
+source_sha: "2ce7bdbca489"
 ---
 
 # La consola { #the-console }
@@ -958,6 +958,9 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 ## Tu primera tarea { #your-first-task }
 
 Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una página.
+El aviso de inicio del chat aparece sobre toda la consola y mantiene alineadas
+la navegación de la aplicación y la lista de conversaciones. Ofrece configuración
+a administradores y un ejemplo a miembros; se puede cerrar.
 Aceptar una invitación abre este mismo inicio en la organización correspondiente.
 El registro intenta iniciar sesión directamente; si falla, el formulario de acceso
 conserva el destino y la cuenta ya creada.

@@ -39,7 +39,10 @@ Two things are versioned separately from this file and worth knowing about:
   forms. A sequential wizard replaces the settings sidebar, with separate company
   logo, user identity and agent-context questions, Back and save-and-continue actions.
   Use actual workspace avatars, equal-height adjacent cards, directional transitions
-  and transient field highlights that respect Motion preferences. Keep personal workspaces optional and enforce
+  and transient field highlights that respect Motion preferences. Give the chat
+  start notice role-aware guidance, blobby, a clear primary action and a dismiss
+  control that fits desktop and phone layouts. Place it above the entire console
+  so application navigation, conversation navigation and chat remain aligned. Keep personal workspaces optional and enforce
   effective permissions.
 - Give onboarding the console's controls, animated blobby and violet workspace
   preview that follows the entered name. Present member examples in a split view

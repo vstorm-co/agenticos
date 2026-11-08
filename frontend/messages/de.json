@@ -13363,6 +13363,15 @@
     "previewHint": "Die Prüfung erfolgt ohne Anmeldung als Teammitglied und ohne Modellaufruf. Erst eine echte Aufgabe prüft Anbieter und Anforderungen.",
     "invite": "Teammitglied einladen",
     "loadHint": "Prüfen Sie die Verbindung oder wählen Sie einen anderen Arbeitsbereich, dem Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten.",
-    "choiceNotSaved": "Ihre Auswahl wurde nicht gespeichert. Bitte versuchen Sie es erneut."
+    "choiceNotSaved": "Ihre Auswahl wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
+    "offer": {
+      "adminTitle": "Richten Sie den Workspace für Ihr Team ein",
+      "adminHint": "Organisation, Team und KI — Schritt für Schritt.",
+      "adminAction": "Einrichtung fortsetzen",
+      "memberTitle": "Probieren wir Ihre erste Aufgabe",
+      "memberHint": "Wählen Sie ein Beispiel und sehen Sie, wie ein Agent helfen kann.",
+      "memberAction": "Beispiel ausprobieren",
+      "dismiss": "Starthinweis ausblenden"
+    }
   }
 }
