@@ -19,7 +19,7 @@ from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
-from app.repositories import agent_repo, skill_repo
+from app.repositories import agent_repo, skill_repo, skill_version_repo
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import ReturnToMain, SkillForkCreate, SkillVersionRestore
 from app.services.skill_catch_up import SkillCatchUpService
@@ -410,3 +410,50 @@ class TestReturningBesideADecision:
             moved = await reading.get(Agent, desk.id)
             assert moved is not None
             assert AgentSpec.model_validate(moved.draft_spec).skill_bindings == []
+
+    async def test_a_publish_reading_the_fork_lets_the_return_wait_its_turn(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """A publish locks its agent and then holds the forks it reads; returning the
+        fork's agents holds the fork the same shared way until it archives it, so the
+        two take turns on the agent rather than deadlocking."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        desk = await _serving(
+            db, ctx, "Desk", await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        )
+        await _following(db, desk)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def returning() -> None:
+            async with factory() as session:
+                await SkillCatchUpService(session).return_to_main(
+                    ctx, skill.id, fork.id, ReturnToMain()
+                )
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as publishing:
+            try:
+                await agent_repo.get(
+                    publishing, desk.id, organization_id=ctx.organization_id, for_update=True
+                )
+                task = asyncio.create_task(returning())
+                await _waiting_for_a_lock(factory, task)
+
+                await asyncio.wait_for(
+                    skill_version_repo.hold_forks(
+                        publishing, [fork.id], organization_id=ctx.organization_id
+                    ),
+                    5,
+                )
+                await publishing.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task

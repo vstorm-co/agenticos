@@ -204,11 +204,16 @@ class SkillCatchUpService:
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         # The skill, the fork and then each agent by id: the order a decision on the fork's
-        # check takes, and the one archiving the fork needs afterwards.
+        # check takes. The fork is held shared, as a publish reading it holds it, so such a
+        # publish takes its turn on its agent; archiving locks it for update at the end.
         await skill_repo.lock(self.db, skill.id)
-        fork = await skill_version_repo.get_fork(
-            self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id, lock=True
-        )
+        fork = (
+            await skill_version_repo.hold_forks(
+                self.db, [fork_id], organization_id=ctx.organization_id
+            )
+        ).get(fork_id)
+        if fork is not None and fork.skill_id != skill.id:
+            fork = None
         if fork is None:
             raise NotFoundError(message="Fork not found", details={"fork_id": fork_id})
         readers = sorted(await self.agents.fork_users(skill, fork.id), key=lambda agent: agent.id)
