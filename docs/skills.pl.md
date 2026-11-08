@@ -1,5 +1,5 @@
 ---
-source_sha: "547f15ce451b"
+source_sha: "d06fb01d13f1"
 ---
 
 # Skille { #skills }
@@ -711,6 +711,11 @@ jednego pola. **Porównaj** przy wersji dodaje ją do porównania pod diagramem.
 Wybierz dowolnie wiele wersji, z main i z forków, żeby zobaczyć obok siebie ich
 opisy, instrukcje i pliki. Diagram przesuwa się przeciągnięciem i przybliża kółkiem
 albo przyciskami, tak jak mapa agenta.
+
+Pierwsza wybrana wersja jest **wzorcem**. Każda inna kolumna zaznacza, co mówi
+inaczej niż on, słowo po słowie, tak jak diffy w historii, a jej pliki jako dodane,
+usunięte albo zmienione. **Porównuj z tą** robi wzorcem inną kolumnę, a **Tylko
+różnice** zwija części, które mówią to samo.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
 main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji.

@@ -8599,7 +8599,16 @@
         "files": "Files",
         "noFiles": "No files.",
         "unreadable": "Couldn't load this version.",
-        "retry": "Retry"
+        "retry": "Retry",
+        "reference": "Reference",
+        "compareAgainst": "Compare against this",
+        "onlyDifferences": "Only the differences",
+        "sameAsReference": "same as the reference",
+        "file": {
+          "added": "added",
+          "removed": "removed",
+          "changed": "changed"
+        }
       },
       "edit": {
         "saved": "Saved as v{number}.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "547f15ce451b"
+source_sha: "d06fb01d13f1"
 ---
 
 # Skills { #skills }
@@ -733,6 +733,11 @@ ocho versiones o más, los tramos que ningún agent usa se pliegan en una sola c
 tantas versiones como quieras, de main y de forks, para ver lado a lado sus
 descripciones, instrucciones y archivos. El diagrama se arrastra y se acerca con la
 rueda o los botones, como el mapa de un agent.
+
+La primera versión elegida es la **Referencia**. Cada otra columna marca lo que dice
+distinto de ella, palabra por palabra como los diffs del historial, y sus archivos
+como añadidos, eliminados o cambiados. **Comparar con esta** hace referencia a otra
+columna, y **Solo las diferencias** pliega las partes que dicen lo mismo.
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su

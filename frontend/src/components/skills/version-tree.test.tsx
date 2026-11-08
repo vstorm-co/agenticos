@@ -147,13 +147,71 @@ describe("VersionTree", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Compare v1" }));
     expect(screen.getByText("2 versions")).toBeVisible();
-    expect(
-      await within(screen.getByRole("region", { name: "v1" })).findByText("No files."),
-    ).toBeVisible();
+    const first = screen.getByRole("region", { name: "v1" });
+    expect(await within(first).findByText("policy.md")).toBeVisible();
+    expect(within(first).getByText("policy.md").tagName).toBe("DEL");
     await userEvent.click(screen.getByRole("button", { name: "Remove v1 from the comparison" }));
     expect(screen.getByText("1 version")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Compare v25" }));
     expect(screen.queryByText("Comparison")).toBeNull();
+  });
+
+  it("marks what each version says differently from the reference, and lets another be it", async () => {
+    const versions: Record<string, object> = {
+      m3: {
+        id: "m3",
+        number: 3,
+        description: "Refunds by the book",
+        content: "Answer from the policy.\nBe brief.",
+        resources: [
+          { name: "policy.md", description: null, size_bytes: 1, digest: "a" },
+          { name: "old.md", description: null, size_bytes: 1, digest: "o" },
+        ],
+      },
+      m2: {
+        id: "m2",
+        number: 2,
+        description: "Refunds by the book",
+        content: "Answer from the handbook.\nBe brief.",
+        resources: [
+          { name: "policy.md", description: null, size_bytes: 1, digest: "b" },
+          { name: "new.md", description: null, size_bytes: 1, digest: "n" },
+        ],
+      },
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) =>
+      url.includes("/versions?")
+        ? {
+            items: [
+              { id: "m3", number: 3 },
+              { id: "m2", number: 2 },
+            ],
+            total: 3,
+          }
+        : versions[url.split("/").pop()!],
+    );
+    render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare v3" }));
+    await userEvent.click(screen.getByRole("button", { name: "Compare v2" }));
+    const reference = await screen.findByRole("region", { name: "v3" });
+    const other = screen.getByRole("region", { name: "v2" });
+    expect(within(reference).getByText("Reference")).toBeVisible();
+
+    expect(await within(other).findByText("handbook", { selector: "ins" })).toBeVisible();
+    expect(within(other).getByText("policy", { selector: "del" })).toBeVisible();
+    expect(within(other).getByText("same as the reference")).toBeVisible();
+    expect(within(other).getByText("new.md").closest("li")).toHaveTextContent("added");
+    expect(within(other).getByText("policy.md").closest("li")).toHaveTextContent("changed");
+    expect(within(other).getByText("old.md").tagName).toBe("DEL");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Only the differences" }));
+    expect(within(other).queryByText("Refunds by the book")).toBeNull();
+    expect(within(reference).getByText("Refunds by the book")).toBeVisible();
+
+    await userEvent.click(within(other).getByRole("button", { name: "Compare against this" }));
+    expect(within(other).getByText("Reference")).toBeVisible();
+    expect(within(reference).getByText("new.md").tagName).toBe("DEL");
   });
 
   it("says when a compared version cannot be read, and clears the comparison", async () => {
