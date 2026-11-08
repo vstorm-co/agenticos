@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.58.1] - 2026-11-08
+
 ### Fixed
 
 - Nightly proactivity uses its own look attempts rather than watches to decide when someone is due. Successful looks remember which prompts they read, so deferred prompts survive intervening watches and a settled approval or question wait does not cause an extra model call. Watches still count toward personal spending limits. Existing recent messages may receive one catch-up look after upgrading (#2777).
@@ -20632,7 +20634,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...HEAD
+[1.58.1]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...v1.58.1
 [1.58.0]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
 [1.56.4]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...v1.56.4
