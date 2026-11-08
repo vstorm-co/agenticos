@@ -694,7 +694,7 @@ on an agent's map.
 
 The first version picked is the **Reference**. Every other column marks what it
 says differently from it, word by word as History's diffs do, and its files as
-added, removed or changed. **Compare against this** makes another column the
+added, removed or changed. **Set as reference** makes another column the
 reference, and **Only the differences** folds the parts that say the same.
 
 **Edit** saves a new version on the line on screen. On main, the agents following

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Crosshair, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DiffView } from "@/components/authoring/diff-view";
@@ -147,7 +147,8 @@ function Column({
             <Badge variant="outline">{t("reference")}</Badge>
           ) : (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onReference}>
-              {t("compareAgainst")}
+              <Crosshair className="size-3.5" aria-hidden />
+              {t("setReference")}
             </Button>
           )}
           <button

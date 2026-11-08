@@ -1,5 +1,5 @@
 ---
-source_sha: "d06fb01d13f1"
+source_sha: "df3692303c1d"
 ---
 
 # Skille { #skills }
@@ -714,7 +714,7 @@ albo przyciskami, tak jak mapa agenta.
 
 Pierwsza wybrana wersja jest **wzorcem**. Każda inna kolumna zaznacza, co mówi
 inaczej niż on, słowo po słowie, tak jak diffy w historii, a jej pliki jako dodane,
-usunięte albo zmienione. **Porównuj z tą** robi wzorcem inną kolumnę, a **Tylko
+usunięte albo zmienione. **Ustaw jako wzorzec** robi wzorcem inną kolumnę, a **Tylko
 różnice** zwija części, które mówią to samo.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za

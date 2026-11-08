@@ -8479,7 +8479,7 @@
         "unreadable": "Diese Version konnte nicht geladen werden.",
         "retry": "Erneut versuchen",
         "reference": "Referenz",
-        "compareAgainst": "Damit vergleichen",
+        "setReference": "Als Referenz setzen",
         "onlyDifferences": "Nur Unterschiede",
         "sameAsReference": "wie die Referenz",
         "file": {

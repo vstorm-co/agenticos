@@ -8361,7 +8361,7 @@
         "unreadable": "Nie udało się wczytać tej wersji.",
         "retry": "Spróbuj ponownie",
         "reference": "Wzorzec",
-        "compareAgainst": "Porównuj z tą",
+        "setReference": "Ustaw jako wzorzec",
         "onlyDifferences": "Tylko różnice",
         "sameAsReference": "tak samo jak wzorzec",
         "file": {

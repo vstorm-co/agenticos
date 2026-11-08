@@ -209,7 +209,7 @@ describe("VersionTree", () => {
     expect(within(other).queryByText("Refunds by the book")).toBeNull();
     expect(within(reference).getByText("Refunds by the book")).toBeVisible();
 
-    await userEvent.click(within(other).getByRole("button", { name: "Compare against this" }));
+    await userEvent.click(within(other).getByRole("button", { name: "Set as reference" }));
     expect(within(other).getByText("Reference")).toBeVisible();
     expect(within(reference).getByText("new.md").tagName).toBe("DEL");
   });
