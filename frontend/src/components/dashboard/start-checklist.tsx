@@ -6,8 +6,9 @@ import { shouldOfferStart } from "@/lib/onboarding-api";
 import { useStart } from "@/hooks/use-start";
 import { Button } from "@/components/ui";
 import { LoadingState } from "@/components/states";
-import { StartTaskArtwork } from "@/components/onboarding/start-task-artwork";
-import { ArrowRight, RotateCw } from "lucide-react";
+import { StartCompanions } from "@/components/onboarding/start-companions";
+import styles from "./start-checklist.module.css";
+import { ArrowRight, NotebookPen, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** The dashboard links to the same start as invitations and native apps. */
@@ -41,9 +42,13 @@ export function StartChecklist({ orgId, className }: { orgId: string; className?
   if (!state.data || state.data.organization_id !== orgId || !shouldOfferStart(state.data))
     return null;
   return (
-    <section aria-label={t("offerTitle")} className={frame}>
-      <div className="hidden lg:block">
-        <StartTaskArtwork goal="meeting" />
+    <section aria-label={t("offerTitle")} className={cn(frame, "h-auto")}>
+      <div className={styles.artwork} aria-hidden="true">
+        <span className={styles.orbit} />
+        <span className={styles.task}>
+          <NotebookPen size={30} strokeWidth={1.5} />
+        </span>
+        <StartCompanions members={["pebble", "mochi", "byte"]} />
       </div>
       <h2 className="font-semibold">{t("offerTitle")}</h2>
       <p className="text-muted-foreground text-sm">{t("offerHint")}</p>
