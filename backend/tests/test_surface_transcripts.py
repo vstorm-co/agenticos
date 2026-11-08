@@ -614,7 +614,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
     one, over a history one turn longer each time (#49)."""
 
     async def test_a_summary_is_written_to_the_conversation_it_summarised(self) -> None:
-        session = _widget_session(_db())
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
+        session = _widget_session(db)
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
         with (
