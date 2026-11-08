@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "e11965a39f9f"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -505,6 +505,11 @@ flowchart TD
     Schritte laufen in einer Hintergrundaufgabe mit einer eigenen Session - und
     deshalb antwortet ein Upload mit `202 {"status": "processing"}`, statt zu
     warten.
+
+Gleichzeitige erste Schreibvorgänge in dieselbe Sammlung warten darauf, dass
+ihre Tabelle und Indizes in einer Transaktion erstellt werden. Schlägt dies
+fehl, wird die Transaktion zurückgerollt und ein wartender Schreibvorgang
+kann die Tabelle erstellen.
 
 Es gibt zwei Adressen, an denen ein Upload ankommen kann —
 `POST /rag/collections/{name}/ingest` und `POST /kb/{kb_id}/documents` — und

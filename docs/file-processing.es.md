@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "e11965a39f9f"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -485,6 +485,10 @@ flowchart TD
     La fila `RAGDocument` se escribe **primero** y los cuatro pasos intermedios
     se ejecutan en una tarea en segundo plano con una sesión propia - por eso una
     subida responde `202 {"status": "processing"}` en vez de esperar.
+
+Las primeras escrituras simultáneas en una misma colección esperan a que
+su tabla e índices se creen en una sola transacción. Si la creación falla,
+la transacción se revierte y una escritura en espera puede crear la tabla.
 
 Hay dos direcciones a las que puede llegar una subida —
 `POST /rag/collections/{name}/ingest` y `POST /kb/{kb_id}/documents` — y las dos

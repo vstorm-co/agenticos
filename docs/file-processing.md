@@ -445,6 +445,10 @@ flowchart TD
     background task with a session of their own - which is why an upload answers
     `202 {"status": "processing"}` rather than waiting.
 
+Concurrent first writes to the same collection wait for its table and indexes
+to be created in one transaction. If creation fails, that transaction rolls
+back and a waiting write can create the table.
+
 There are two addresses an upload can arrive at —
 `POST /rag/collections/{name}/ingest` and `POST /kb/{kb_id}/documents` — and both
 answer **202** with the same `RAGIngestResponse`, every field of it,
