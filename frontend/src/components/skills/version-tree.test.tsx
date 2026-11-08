@@ -245,6 +245,93 @@ describe("VersionTree", () => {
     expect(order()).toEqual(["v1", "v3", "v2"]);
   });
 
+  it("keeps the previous reference readable after a version on another line is set", async () => {
+    const marketplace = {
+      id: "f9",
+      skill_id: "s1",
+      name: "Marketplace",
+      base: { id: "m1", number: 1 },
+      started_from: { id: "m1", number: 1 },
+      latest: { id: "x1", number: 1 },
+      changes: 1,
+      behind_main: 1,
+      agents: 0,
+      archive_candidate: false,
+      archived_at: null,
+      created_at: "2026-11-01T10:00:00Z",
+    };
+    const bodies: Record<string, object> = {
+      x1: {
+        id: "x1",
+        number: 1,
+        description: "Marketplace rules",
+        content: "Sell.",
+        resources: [],
+      },
+      m2: { id: "m2", number: 2, description: "Shop rules", content: "Sell.", resources: [] },
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url.includes("/versions?")) {
+        const query = new URLSearchParams(url.split("?")[1]);
+        // The API refuses a negative skip, as the real one does.
+        if (Number(query.get("skip")) < 0) throw new Error("skip must be at least 0");
+        return query.get("fork_id") === "f9"
+          ? { items: [{ id: "x1", number: 1 }], total: 1 }
+          : {
+              items: [
+                { id: "m2", number: 2 },
+                { id: "m1", number: 1 },
+              ],
+              total: 2,
+            };
+      }
+      return bodies[url.split("/").pop()!];
+    });
+    render(
+      <VersionTree skillId="s1" mainLatest={2} forks={[marketplace]} agents={[]} error={null} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare Marketplace v1" }));
+    await userEvent.click(screen.getByRole("button", { name: "Compare v2" }));
+    await within(screen.getByRole("region", { name: "v2" })).findByText("Shop", {
+      selector: "ins",
+    });
+    await userEvent.click(
+      within(screen.getByRole("region", { name: "v2" })).getByRole("button", {
+        name: "Set as reference",
+      }),
+    );
+
+    const previous = screen.getByRole("region", { name: "Marketplace v1" });
+    expect(await within(previous).findByText("Marketplace", { selector: "ins" })).toBeVisible();
+    expect(within(previous).queryByLabelText("Loading the version…")).toBeNull();
+    expect(screen.getByRole("region", { name: "v2" })).toHaveClass("border-primary");
+    expect(previous).not.toHaveClass("border-primary");
+  });
+
+  it("says a column cannot be marked when its reference cannot be read", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url.includes("/versions?")) {
+        return {
+          items: [
+            { id: "m3", number: 3 },
+            { id: "m2", number: 2 },
+          ],
+          total: 3,
+        };
+      }
+      if (url.endsWith("/m3")) throw new Error("Reference is down");
+      return { id: "m2", number: 2, description: "Two", content: "Two.", resources: [] };
+    });
+    render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare v3" }));
+    await userEvent.click(screen.getByRole("button", { name: "Compare v2" }));
+
+    const other = screen.getByRole("region", { name: "v2" });
+    expect(await within(other).findByText(/Reference is down/)).toBeVisible();
+  });
+
   it("says when a compared version cannot be read, and clears the comparison", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Versions are down"));
     render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
