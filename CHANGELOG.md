@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Add optional CodeRabbit review preferences and document installation and review triggers; the GitHub App must be installed separately (#2812).
+
 ## [1.56.3] - 2026-11-08
 
 ### Fixed
