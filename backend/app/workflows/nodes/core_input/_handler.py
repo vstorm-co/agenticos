@@ -48,6 +48,16 @@ from app.workflows.contracts.results import Completed, NodeResult
 MAX_FIELDS = 50
 
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Draft 2020-12 `format` is an annotation for ordinary validators. Preserve the
+# legacy calendar assertion without requiring clients to opt into format checks.
+_CALENDAR_DATE_PATTERN = (
+    r"^(?:(?!0000)[0-9]{4}-(?:"
+    r"(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|"
+    r"(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|"
+    r"02-(?:0[1-9]|1[0-9]|2[0-8]))|"
+    r"(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|"
+    r"(?:0[48]|[2468][048]|[13579][26])00)-02-29)$"
+)
 
 STATIC_PORTS = (Port(id="out", label="Out", kind="output", schema=WorkflowInputPayload),)
 
@@ -176,6 +186,8 @@ def effective_input_schema(config: TriggerInputConfig) -> dict[str, JsonValue]:
             value["enum"] = list(field.options)
         elif field.type == "date":
             value["format"] = "date"
+            value["pattern"] = _CALENDAR_DATE_PATTERN
+            value["maxLength"] = 10
         if not field.required:
             value = {"anyOf": [value, {"type": "null"}]}
         else:

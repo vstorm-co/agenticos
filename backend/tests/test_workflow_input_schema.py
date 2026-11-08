@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 import pytest
+from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import JsonValue, ValidationError
 
@@ -14,6 +15,7 @@ from app.workflows.contracts.input_schema import (
     schema_input_problems,
 )
 from app.workflows.nodes.core_input._handler import (
+    _CALENDAR_DATE_PATTERN,
     STATIC_PORTS,
     TriggerInputConfig,
     effective_input_schema,
@@ -398,7 +400,15 @@ def test_discovery_keeps_legacy_fields_and_untyped_contracts() -> None:
             "devices": {"type": "array", "items": {"type": "string"}, "title": "devices"},
             "plan": {"type": "string", "enum": ["basic", "pro"], "title": "plan"},
             "date": {
-                "anyOf": [{"type": "string", "format": "date"}, {"type": "null"}],
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "format": "date",
+                        "pattern": _CALENDAR_DATE_PATTERN,
+                        "maxLength": 10,
+                    },
+                    {"type": "null"},
+                ],
                 "title": "date",
             },
         },
@@ -885,3 +895,85 @@ def test_nested_dynamic_refs_keep_resolver_context_with_an_explicit_dialect() ->
     assert input_problems(config, {"children": [{"extra": "private-value"}]}) == [
         {"field": "children.0.extra", "message": "Must be of type integer", "type": "type"}
     ]
+
+
+@pytest.mark.parametrize(
+    "negated",
+    [
+        True,
+        {},
+        {"type": "object"},
+        {"type": ["object", "null"], "description": "Any object"},
+        {"allOf": [True, {"type": "object"}]},
+        {"anyOf": [{"type": "array"}, {"type": "object"}]},
+        {"oneOf": [{"type": "array"}, {"type": "object"}]},
+        {"not": {"type": "array"}},
+    ],
+)
+def test_negations_that_exclude_every_object_are_refused(negated: JsonValue) -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema={"not": negated})
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={"$defs": {"excluded": negated}, "not": {"$ref": "#/$defs/excluded"}}
+        )
+
+
+@pytest.mark.parametrize(
+    "negated",
+    [
+        False,
+        {"type": "string"},
+        {"required": ["blocked"]},
+        {"$defs": {"value": {"required": ["blocked"]}}, "$ref": "#/not/$defs/value"},
+        {"allOf": [{"required": ["blocked"]}]},
+        {"anyOf": [{"required": ["blocked"]}, {"type": "array"}]},
+        {"oneOf": [{"type": "object"}, {"type": "object"}]},
+        {"oneOf": [{"type": "object"}, {"required": ["blocked"]}]},
+        {"not": {"type": "object"}},
+    ],
+)
+def test_negations_do_not_reject_usable_object_contracts(negated: JsonValue) -> None:
+    config = TriggerInputConfig(input_schema={"not": negated})
+    assert any(input_problems(config, payload) == [] for payload in ({}, {"blocked": True}))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-02-30",
+        "2026-02-29",
+        "1900-02-29",
+        "2100-02-29",
+        "2026-04-31",
+        "0000-01-01",
+        "0000-02-29",
+        "2026-13-01",
+        "2026-00-01",
+        "2026-01-00",
+        "2026-01-32",
+        "2026-1-01",
+        "2026-01-01\n",
+        "٢٠٢٦-01-01",
+        "",
+        "0001-01-01",
+        "0004-02-29",
+        "0400-02-29",
+        "2000-02-29",
+        "2024-02-29",
+        "2026-02-28",
+        "2026-04-30",
+        "2026-12-31",
+        "9999-12-31",
+        None,
+    ],
+)
+def test_discovered_date_schema_matches_admission_without_format_assertions(
+    value: JsonValue,
+) -> None:
+    config = TriggerInputConfig.model_validate(
+        {"fields": [{"name": "due", "type": "date", "required": False}]}
+    )
+    payload = {"due": value}
+    discovered = Draft202012Validator(effective_input_schema(config))
+    assert discovered.is_valid(payload) == (input_problems(config, payload) == [])

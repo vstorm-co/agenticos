@@ -41,6 +41,30 @@ _SCHEMA_MAPS = frozenset(
     {"$defs", "definitions", "dependentSchemas", "properties", "patternProperties"}
 )
 _SCHEMA_LISTS = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
+_OBJECT_UNRESTRICTED_KEYS = frozenset(
+    {
+        "$schema",
+        "$id",
+        "$anchor",
+        "$dynamicAnchor",
+        "$comment",
+        "$defs",
+        "definitions",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "type",
+        "$ref",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "not",
+    }
+)
 
 
 def _too_deep(value: JsonValue) -> bool:
@@ -173,6 +197,7 @@ def _object_possible(
     schema: Mapping[str, JsonValue] | bool,
     possible: Mapping[int, bool],
     reference: int | None,
+    unrestricted: Mapping[int, bool],
 ) -> bool:
     """Conservative object compatibility from already classified dependencies.
 
@@ -195,6 +220,9 @@ def _object_possible(
         return False
     if reference is not None and not possible[reference]:
         return False
+    negated = schema.get("not")
+    if isinstance(negated, (dict, bool)) and unrestricted[id(negated)]:
+        return False
     for keyword in ("allOf", "anyOf", "oneOf"):
         alternatives = schema.get(keyword)
         if isinstance(alternatives, list):
@@ -204,6 +232,49 @@ def _object_possible(
                     return False
             elif not any(compatibility):
                 return False
+    return True
+
+
+def _every_object_matches(
+    schema: Mapping[str, JsonValue] | bool,
+    possible: Mapping[int, bool],
+    unrestricted: Mapping[int, bool],
+    reference: int | None,
+) -> bool:
+    """Prove universal object acceptance only for known non-restricting keywords.
+
+    An unknown or value-specific constraint stays undecided, so its negation
+    cannot accidentally reject a usable contract. Dependencies are classified
+    once in topological order, including references and nested negations.
+    """
+    if isinstance(schema, bool):
+        return schema
+    if schema.keys() - _OBJECT_UNRESTRICTED_KEYS:
+        return False
+    if not _object_possible(schema, possible, reference, unrestricted):
+        return False
+    if reference is not None and not unrestricted[reference]:
+        return False
+    negated = schema.get("not")
+    if isinstance(negated, (dict, bool)) and possible[id(negated)]:
+        return False
+    for keyword in ("allOf", "anyOf", "oneOf"):
+        alternatives = schema.get(keyword)
+        if not isinstance(alternatives, list):
+            continue
+        universal = [unrestricted[id(child)] for child in alternatives]
+        if keyword == "allOf":
+            if not all(universal):
+                return False
+        elif keyword == "anyOf":
+            if not any(universal):
+                return False
+        elif sum(universal) != 1 or any(
+            possible[id(child)]
+            for child, accepts_all in zip(alternatives, universal, strict=True)
+            if not accepts_all
+        ):
+            return False
     return True
 
 
@@ -261,9 +332,15 @@ def check_input_schema(schema: InputSchema) -> None:
                 connections[key].add(id(child))
             pending.append((child_resource, current_resolver.in_subresource(child_resource)))
     possible: dict[int, bool] = {}
+    unrestricted: dict[int, bool] = {}
     try:
         for key in TopologicalSorter(connections).static_order():
-            possible[key] = _object_possible(checked[key], possible, references.get(key))
+            possible[key] = _object_possible(
+                checked[key], possible, references.get(key), unrestricted
+            )
+            unrestricted[key] = _every_object_matches(
+                checked[key], possible, unrestricted, references.get(key)
+            )
     except CycleError:
         raise ValueError(
             "Input schema contains a reference cycle that does not descend into input"
