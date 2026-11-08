@@ -1176,6 +1176,11 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | `list_watches`, `delete_watch` | the caller’s own watches |
 | `create_watch`, `update_watch` | the person themselves - signed in, through a key or MCP token they issued, or in their private chat; `agents:run` when selecting an agent |
 
+The platform’s `read_conversation` tool omits guardrail-refused turns and quoted
+reply excerpts. `list_conversations` omits conversations containing refused turns,
+so a generated title cannot repeat their text to a model. The console keeps the
+complete transcript for its authorized reader.
+
 Project discovery with `list_projects` returns only project ids and names.
 Read a selected project's instructions and configuration with `get_project`.
 This is a read-only operation and runs without approval under `writes`, subject

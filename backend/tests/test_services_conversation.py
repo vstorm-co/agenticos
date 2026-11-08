@@ -63,6 +63,7 @@ class MockConversation:
         self.messages: list[Any] = []
         self.summary_messages: list[dict[str, Any]] | None = None
         self.summary_ordinal: int | None = None
+        self.guardrail_revision = 0
         self.overhead_tokens: int | None = None
         self.reminder_state: dict[str, Any] | None = None
         self.plan_items: list[dict[str, Any]] | None = None
@@ -2536,7 +2537,9 @@ class TestTheThreadAModelIsGivenBack:
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
-        await ConversationService(AsyncMock()).keep_summary(conversation.id, [{"kind": "request"}])
+        await ConversationService(AsyncMock()).keep_summary(
+            conversation.id, [{"kind": "request"}], expected_revision=0
+        )
 
         assert stored.await_args.kwargs["ordinal"] == 9
         assert stored.await_args.kwargs["messages"] == [{"kind": "request"}]
@@ -2550,7 +2553,9 @@ class TestTheThreadAModelIsGivenBack:
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
-        await ConversationService(AsyncMock()).keep_summary(uuid4(), [{"kind": "request"}])
+        await ConversationService(AsyncMock()).keep_summary(
+            uuid4(), [{"kind": "request"}], expected_revision=0
+        )
 
         stored.assert_not_awaited()
 
@@ -3146,3 +3151,12 @@ async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
         pytest.raises(BadRequestError),
     ):
         await service.add_message(conversation.id, data, organization_id=TEST_ORG_ID)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_an_unversioned_summary_cannot_replace_the_guarded_cache(monkeypatch):
+    stored = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "set_summary", stored)
+    await ConversationService(AsyncMock()).keep_summary(uuid4(), [], expected_revision=None)
+    stored.assert_not_awaited()

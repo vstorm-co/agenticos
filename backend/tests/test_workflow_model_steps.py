@@ -463,6 +463,23 @@ class TestTheRequest:
         assert isinstance(refused, Failed) and refused.error.message == "No model selected"
         assert isinstance(broken, Failed) and "sk-123" not in broken.error.message
 
+    @pytest.mark.security
+    async def test_a_refused_chat_source_stops_a_model_step(self, runner, monkeypatch):
+        from app.repositories import conversation_repo
+
+        monkeypatch.setattr(conversation_repo, "message_refusal", AsyncMock(return_value=True))
+        current = replace(_dispatch(), chat_source=context.ChatSource(uuid.uuid4(), uuid.uuid4()))
+        with context.dispatching_as(current):
+            result = await _model_step.ask(
+                _model_step.ModelStepConfig(model_profile_id=MODEL),
+                AgentSpec(name="Model step"),
+                "blocked source",
+            )
+        assert isinstance(result, Failed)
+        assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
+        assert result.error.bypassable is False
+        runner.execute.assert_not_awaited()
+
     async def test_outside_a_workflow_it_refuses(self, runner):
         with context.dispatching_as(_dispatch(in_workflow=False)):
             answer = await _model_step.ask(

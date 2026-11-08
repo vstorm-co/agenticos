@@ -517,7 +517,7 @@ class TestTheNightlyLook:
                 ),
                 patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
                 patch(
-                    f"{NIGHTLY}.agent_trigger_repo.prompts_created_by",
+                    f"{NIGHTLY}.agent_trigger_repo.routine_prompts_for_screening",
                     new=AsyncMock(return_value=[]),
                 ),
                 patch(

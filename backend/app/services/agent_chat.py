@@ -72,8 +72,10 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.conversation import check_history_snapshot, model_context_check
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
+from app.services.message_history import ModelHistory
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
@@ -368,6 +370,9 @@ class ChatTurn:
     and answering them continues the run, including after a reload (#2064).
     """
 
+    history_revision: int | None = None
+    """The input snapshot's refusal revision; absent for unversioned caller histories."""
+
     summarized_history: list[dict[str, Any]] | None = None
     """The history a summary reduced this turn to, or `None` if none ran.
 
@@ -647,9 +652,12 @@ class ChatAgentRunner:
         finished_cleanly = False
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
-        await self.db.commit()
-        await change_feed.publish_run(prepared.run, "created")
+        prepared.model_context_check = model_context_check(conversation_id, message_history)
         try:
+            if isinstance(message_history, ModelHistory):
+                await check_history_snapshot(self.db, conversation_id, message_history)
+            await self.db.commit()
+            await change_feed.publish_run(prepared.run, "created")
             # Stamped alive while the model works, as `AgentRunnerService._run`
             # does: a restart under this turn ends it in minutes, not hours.
             async with (
@@ -668,7 +676,11 @@ class ChatAgentRunner:
                     dump_messages(result.all_messages()),
                 )
             status, output, _structured, paused = _classify_output(
-                result, parked=prepared.approvals.parked
+                result,
+                parked=prepared.approvals.parked,
+                history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
             )
             if paused is not None:
                 paused.tool_identities = dict(prepared.built.deps.tool_identities)
@@ -760,6 +772,9 @@ class ChatAgentRunner:
             draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
+            history_revision=message_history.revision
+            if isinstance(message_history, ModelHistory)
+            else None,
             overhead_tokens=prepared.built.context.overhead,
         )
 

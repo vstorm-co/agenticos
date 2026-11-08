@@ -10,6 +10,7 @@ way they refuse, before or instead of asking.
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -402,3 +403,20 @@ async def test_cancelling_a_decision_preserves_cancellation_and_marks_unknown_fe
     with context.dispatching_as(_dispatch()) as scope, pytest.raises(asyncio.CancelledError):
         await yes_no(DecisionConfig.model_validate(BASE), TEXT)
     assert scope.cost == 0 and scope.cost_is_partial
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_decision_checks_the_shared_source_before_calling_typesafe(jev, monkeypatch, late):
+    from app.repositories import conversation_repo
+
+    model = jev(True)
+    read = AsyncMock(side_effect=[False, True] if late else [True])
+    monkeypatch.setattr(conversation_repo, "message_refusal", read)
+    current = replace(_dispatch(), chat_source=context.ChatSource(uuid.uuid4(), uuid.uuid4()))
+    with context.dispatching_as(current):
+        result = await yes_no(DecisionConfig.model_validate(BASE), TEXT)
+    assert isinstance(result, Failed)
+    assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
+    assert result.error.bypassable is False
+    assert model.texts == []

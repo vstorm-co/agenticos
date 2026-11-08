@@ -195,6 +195,7 @@ from app.agents.hand_off import CallWorker, HandOffSpend
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
 from app.agents.mcp import PLATFORM_MCP_PREFIX, McpSourceIdentity, unreachable_briefing
+from app.agents.model_context import ModelContextCheck, checking_model_context
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
@@ -328,7 +329,11 @@ from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
-from app.services.conversation import ConversationService
+from app.services.conversation import (
+    ConversationService,
+    check_history_snapshot,
+    model_context_check,
+)
 from app.services.device_hub import LocalTarget
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
@@ -342,6 +347,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
+from app.services.message_history import ModelHistory
 from app.services.mirage_mounts import MirageMountService
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService, reaches_a_sign_in
@@ -924,6 +930,9 @@ class PausedRunState(BaseModel):
     )
     tool_call_ids: dict[str, str] = Field(
         description="Approval id -> the tool call it parked, so a decision can be replayed"
+    )
+    guardrail_revision: int | None = Field(
+        default=None, ge=0, exclude_if=lambda value: value is None
     )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
     channel_destination: ChannelDestination | None = None
@@ -1561,6 +1570,7 @@ class PreparedRun:
     """
 
     channel_destination: ChannelDestination | None = None
+    model_context_check: ModelContextCheck | None = None
     channel_context: str = ""
     channel_author_context: str = ""
     channel_authors: dict[str, UUID] = field(default_factory=dict)
@@ -1707,6 +1717,7 @@ class PreparedRun:
         reason.
         """
         with (
+            checking_model_context(self.model_context_check),
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
             acting_for_no_person(self.built.deps.run_person is None),
@@ -1760,6 +1771,7 @@ class PreparedRun:
         outcome is taken from it there.
         """
         with (
+            checking_model_context(self.model_context_check),
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
             acting_for_no_person(self.built.deps.run_person is None),
@@ -1868,7 +1880,10 @@ def _question_calls(state: PausedRunState) -> dict[str, ToolCallPart]:
 
 
 def _classify_output(
-    result: AgentRunResult[AgentOutput], *, parked: dict[str, str]
+    result: AgentRunResult[AgentOutput],
+    *,
+    parked: dict[str, str],
+    history_revision: int | None = None,
 ) -> tuple[RunStatus, str, dict[str, Any] | None, PausedRunState | None]:
     """The terminal status a finished run reaches, and what it carries there.
 
@@ -1892,6 +1907,7 @@ def _classify_output(
             messages=dump_messages(result.all_messages()),
             tool_call_ids=parked,
             questions=questions,
+            guardrail_revision=history_revision,
         )
         # Waiting on a decision outranks waiting on an answer: the approval queue
         # is where somebody can release it, and a question in the same step is
@@ -6374,11 +6390,20 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         result_only: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
+        `check_model_request` validates additional trusted context before every
+        provider request, including nested models. It receives a fresh, short-lived
+        session and must not retain it or write through it.
+
+
         The non-streaming path, used by the API and chat channels. Surfaces that
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
+        `on_segment` writes required handback in the terminal transaction, before
+        it commits, just as on :meth:`resume`.
 
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it. `version_id` runs
@@ -6514,6 +6539,8 @@ class AgentRunnerService:
                 message_history=message_history,
                 deferred_tool_results=None,
                 on_run_open=on_run_open,
+                check_model_request=check_model_request,
+                on_segment=on_segment,
                 stream=stream,
             )
         except Exception as exc:
@@ -6641,6 +6668,8 @@ class AgentRunnerService:
         answers: Mapping[str, object] | None = None,
         run_limit_usd: Decimal | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
+        on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         live_surface: LiveRunSurface | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
@@ -6914,9 +6943,14 @@ class AgentRunnerService:
                     # A resume continues the approved call without another user turn.
                     user_prompt=None,
                     said=None,
-                    message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+                    message_history=ModelHistory(
+                        ModelMessagesTypeAdapter.validate_python(state.messages),
+                        revision=state.guardrail_revision,
+                    ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
+                    on_run_open=on_run_open,
+                    check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
                 if frames is not None and segment.message_id is not None:
@@ -7438,6 +7472,7 @@ class AgentRunnerService:
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
@@ -7509,7 +7544,12 @@ class AgentRunnerService:
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
+        prepared.model_context_check = model_context_check(
+            prepared.run.conversation_id, message_history, check_model_request
+        )
         try:
+            if isinstance(message_history, ModelHistory):
+                await check_history_snapshot(self.db, prepared.run.conversation_id, message_history)
             if on_run_open is not None:
                 await on_run_open(prepared.run)
             await self.db.commit()
@@ -7558,7 +7598,11 @@ class AgentRunnerService:
             # output anywhere (agenticos#506).
             settled = settled_calls_in(new_messages)
             status, output, structured, paused = _classify_output(
-                result, parked=prepared.approvals.parked
+                result,
+                parked=prepared.approvals.parked,
+                history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
             )
             if paused is not None:
                 paused.tool_identities = {
@@ -7664,7 +7708,13 @@ class AgentRunnerService:
                 if prepared.run.conversation_id is not None:
                     conversations = ConversationService(self.db)
                     if summarized is not None:
-                        await conversations.keep_summary(prepared.run.conversation_id, summarized)
+                        await conversations.keep_summary(
+                            prepared.run.conversation_id,
+                            summarized,
+                            expected_revision=message_history.revision
+                            if isinstance(message_history, ModelHistory)
+                            else None,
+                        )
                     # On every turn, not only a summarising one: it is what the
                     # *next* turn needs before it has a response of its own.
                     if prepared.built.context.overhead is not None:
