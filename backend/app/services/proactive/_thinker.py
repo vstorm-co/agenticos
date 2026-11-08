@@ -221,7 +221,7 @@ class ProactiveThinker:
         )
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and
-        # `last_proactive_run_at` never learn the call was made.
+        # `last_nightly_run_at` never learn the call was made.
         await self.db.commit()
         usage = RunUsage()
         ledger = SpendLedger(run_id=run.id, agent_id=agent.id, organization_id=ctx.organization_id)

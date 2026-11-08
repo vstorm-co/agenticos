@@ -1,5 +1,5 @@
 ---
-source_sha: "4b2741023fcd"
+source_sha: "1276ed684962"
 ---
 
 # Governance { #governance }
@@ -596,6 +596,21 @@ que la organización eligió al activarla (no hay uno por defecto:
 como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
+
+La mirada nocturna vence 20 horas después de su propio último intento. Las
+vigilancias y el mantenimiento de memoria no cambian ese momento. Las
+vigilancias siguen contando para el límite personal de gasto en proactividad.
+
+Una mirada completada guarda la persona y un hash de cada prompt leído, sin
+copiar el texto. Finalizar una pausa de aprobación o pregunta ya leída no
+provoca otra llamada de pago al modelo. Un prompt aplazado sigue sin leer
+hasta que una mirada posterior lo incluya; el texto modificado vuelve a ser
+nuevo. Las llamadas fallidas al modelo no marcan prompts como leídos.
+
+Tras actualizar, los runs antiguos de fondo sin rol no aplazan la siguiente
+mirada. Los mensajes existentes no tienen comprobante de lectura, por lo que
+los prompts recientes elegibles pueden incluirse una vez para ponerse al día,
+con los interruptores y presupuestos habituales.
 
 La tarea nocturna solo lee un prompt que pasó el
 [guardrail](reference/capabilities.md#guardrails) de entrada del agent al que se

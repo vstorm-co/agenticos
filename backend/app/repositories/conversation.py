@@ -1,6 +1,6 @@
 """Conversation repository."""
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
@@ -1195,18 +1195,6 @@ class PersonRequest(NamedTuple):
     message: Message
     run: AgentRun | None
 
-    @property
-    def decided_at(self) -> datetime:
-        """When its verdict was in: its run's end, or its own writing where that is later.
-
-        A prompt can be written before a look and finish after it. Its age alone
-        then says the look saw it, when the look left it out. A parked run ends
-        again when it settles, so a prompt a look read while parked counts as new
-        once more: one look too many, in the direction that loses nothing.
-        """
-        ended = None if self.run is None else self.run.ended_at
-        return self.message.created_at if ended is None else max(self.message.created_at, ended)
-
 
 async def person_requests_since(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
@@ -1294,6 +1282,47 @@ async def person_requests_since(
         .limit(limit)
     )
     return [PersonRequest(message, run) for message, run in result.tuples().all()]
+
+
+async def mark_nightly_reads(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    content_hashes: Mapping[UUID, str],
+) -> None:
+    """Remember the source snapshots read by a successful look in this transaction.
+
+    Recheck ownership and refusal after the model call. A changed message keeps
+    its old digest, so its new content remains unread. Sorted row locks keep
+    overlapping batches from taking the message locks in opposite orders.
+    """
+    if not content_hashes:
+        return
+    owned = (
+        select(Message.id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.role == "user",
+            Message.guardrail_refused.is_(False),
+            or_(
+                Message.author_user_id == user_id,
+                and_(Message.author_user_id.is_(None), Conversation.user_id == user_id),
+            ),
+        )
+    )
+    for message_id in sorted(content_hashes):
+        await db.execute(
+            sql_update(Message)
+            .where(Message.id == message_id, Message.id.in_(owned))
+            .values(
+                nightly_read_by_user_id=user_id,
+                nightly_read_content_hash=content_hashes[message_id],
+            )
+            .execution_options(synchronize_session="fetch")
+        )
+    await db.flush()
 
 
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:

@@ -425,6 +425,18 @@ class Message(Base, TimestampMixin):
     then reached the model on the next turn. Set on every row of the run when it
     ends `guardrail_blocked`, and on a row written for such a run afterwards."""
 
+    nightly_read_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    """A successful nightly read, independent of run settlement and retention.
+
+    The digest detects changed text without copying it. Keeping the person's id
+    prevents a reassigned or newly unattributed message inheriting another
+    person's receipt; the foreign key clears that association on account deletion.
+    Missing receipts are deliberately unread after upgrade.
+    """
+    nightly_read_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list[ToolCall]] = relationship(
         "ToolCall",

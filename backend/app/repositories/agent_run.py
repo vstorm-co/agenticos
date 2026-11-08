@@ -45,6 +45,7 @@ from app.db.models.conversation import Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.system_agent_profile import DAILY_BRIEFING
 from app.db.models.user import User
 from app.db.models.voice_call import VoiceCall
 from app.repositories.conversation import mark_run_messages_refused
@@ -784,16 +785,20 @@ async def recent_role_runs(
     return list(result.scalars().all())
 
 
-async def last_proactive_run_at(
+async def last_nightly_run_at(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID
 ) -> datetime | None:
-    """When the platform last thought about this person here - their last background run."""
+    """The last nightly look attempt, excluding watches and unclassified legacy runs.
+
+    Legacy NULL roles cannot distinguish a watch from a look. They still count
+    toward spending, but cannot postpone a person's next nightly look.
+    """
     result = await db.execute(
         select(func.max(AgentRun.started_at)).where(
             AgentRun.organization_id == organization_id,
             AgentRun.user_id == user_id,
             AgentRun.surface == RunSurface.PROACTIVE.value,
-            _in_proactivity_limit(),
+            AgentRun.system_role == DAILY_BRIEFING,
         )
     )
     return result.scalar_one_or_none()
