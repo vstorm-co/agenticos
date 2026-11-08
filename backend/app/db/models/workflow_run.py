@@ -367,10 +367,16 @@ class WorkflowRun(Base, TimestampMixin):
     # Refusal provenance survives retries and called workflows without giving
     # either a delivery destination or access to the source chat's workspace.
     source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     # The page a member started this run from (`triggered_by = 'app'`) and the
     # version of it they were looking at: a number, not a key, as the version may

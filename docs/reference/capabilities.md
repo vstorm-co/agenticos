@@ -2743,7 +2743,9 @@ these tools when the conversation contains a refused turn, including existing
 stored titles.
 
 Workflow retries and called workflows preserve this refusal provenance. They do
-not inherit a reply destination or access to the source chat’s workspace.
+not inherit a reply destination or access to the source chat’s workspace. If a newly
+refused turn was already compacted, the stored summary covering it is discarded
+so later history rebuilds with the refusal note.
 
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and

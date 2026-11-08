@@ -1,5 +1,5 @@
 ---
-source_sha: "0395199c4cc0"
+source_sha: "d6c76df1dfb6"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3073,6 +3073,9 @@ einer Unterhaltung mit einem abgelehnten Zug, auch bei bereits gespeicherten Tit
 
 Wiederholungen und aufgerufene Workflows behalten diese Herkunft der Ablehnung.
 Sie erben weder ein Antwortziel noch Zugriff auf den Workspace des Quellchats.
+War ein neu abgelehnter Zug bereits komprimiert, wird die gespeicherte
+Zusammenfassung, die ihn enthält, verworfen. Der spätere Verlauf wird mit dem
+Ablehnungshinweis neu aufgebaut.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

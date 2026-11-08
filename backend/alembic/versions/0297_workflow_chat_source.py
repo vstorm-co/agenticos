@@ -35,8 +35,14 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
+    op.create_index(
+        "workflow_runs_source_conversation_id_idx", "workflow_runs", ["source_conversation_id"]
+    )
+    op.create_index("workflow_runs_source_message_id_idx", "workflow_runs", ["source_message_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("workflow_runs_source_message_id_idx", table_name="workflow_runs")
+    op.drop_index("workflow_runs_source_conversation_id_idx", table_name="workflow_runs")
     op.drop_column("workflow_runs", "source_message_id")
     op.drop_column("workflow_runs", "source_conversation_id")

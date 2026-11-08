@@ -1,5 +1,5 @@
 ---
-source_sha: "0395199c4cc0"
+source_sha: "d6c76df1dfb6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2931,6 +2931,8 @@ incluso si el título ya estaba guardado.
 
 Los reintentos y los workflows llamados conservan este vínculo del rechazo con
 su origen. No heredan un destino de respuesta ni acceso al workspace del chat original.
+Si un turno recién rechazado ya estaba compactado, se descarta el resumen guardado
+que lo incluye para reconstruir el historial posterior con la nota de rechazo.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

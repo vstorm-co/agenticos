@@ -279,6 +279,7 @@ def _list_filters(
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
+    for_model: bool = False,
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -302,6 +303,13 @@ def _list_filters(
     nothing rather than confirming the agent exists.
     """
     filters: list[ColumnElement[bool]] = [Conversation.origin.is_distinct_from("workflow")]
+    if for_model:
+        filters.append(
+            ~select(Message.id)
+            .where(Message.conversation_id == Conversation.id, Message.guardrail_refused.is_(True))
+            .correlate(Conversation)
+            .exists()
+        )
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
     if hide_api:
@@ -765,6 +773,7 @@ async def get_conversations_by_user(
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
+    for_model: bool = False,
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -803,6 +812,7 @@ async def get_conversations_by_user(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        for_model=for_model,
     ):
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
@@ -882,6 +892,7 @@ async def count_conversations(
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
+    for_model: bool = False,
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -905,6 +916,7 @@ async def count_conversations(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        for_model=for_model,
     ):
         query = query.where(condition)
     result = await db.execute(query)
@@ -1291,6 +1303,7 @@ async def get_messages_by_conversation(
     include_tool_calls: bool = False,
     latest: bool = False,
     before: UUID | None = None,
+    for_model: bool = False,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -1305,6 +1318,8 @@ async def get_messages_by_conversation(
     planner felt like it. See `Message.ordinal`.
     """
     query = select(Message).where(Message.conversation_id == conversation_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(
@@ -1324,9 +1339,13 @@ async def get_messages_by_conversation(
     return list(reversed(items)) if latest else items
 
 
-async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
+async def count_messages(
+    db: AsyncSession, conversation_id: UUID, *, for_model: bool = False
+) -> int:
     """Count messages in a conversation."""
     query = select(func.count(Message.id)).where(Message.conversation_id == conversation_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     result = await db.execute(query)
     return result.scalar() or 0
 
@@ -1799,7 +1818,7 @@ async def link_message_to_run(
 async def mark_message_refused(
     db: AsyncSession, *, message_id: UUID, conversation_id: UUID
 ) -> None:
-    """Record a workflow step's refusal on its exact source turn, without replacing run provenance."""
+    """Record a workflow refusal on its exact source and discard any summary covering it."""
     await db.execute(
         sql_update(Message)
         .where(
@@ -1808,6 +1827,21 @@ async def mark_message_refused(
             Message.role == "user",
         )
         .values(guardrail_refused=True, attachment_context=None)
+    )
+
+    ordinal = (
+        select(Message.ordinal)
+        .where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+        .scalar_subquery()
+    )
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id, Conversation.summary_ordinal >= ordinal)
+        .values(summary_messages=None, summary_ordinal=None)
     )
 
 

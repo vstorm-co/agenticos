@@ -884,6 +884,7 @@ class ConversationService:
         hide_channels: bool = False,
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
+        for_model: bool = False,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -940,6 +941,7 @@ class ConversationService:
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
+            for_model=for_model,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -954,6 +956,7 @@ class ConversationService:
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
+            for_model=for_model,
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
@@ -1362,6 +1365,7 @@ class ConversationService:
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
+        for_model: bool = False,
     ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
         """One conversation's messages and its cost, for a reader allowed to see them.
 
@@ -1378,6 +1382,9 @@ class ConversationService:
         The page and the cost share one authorization: on a channel thread each
         `get_conversation` can ask the platform whether the reader is still in
         the room.
+
+        `for_model` omits refused turns before pagination and removes quoted
+        reply excerpts; the console keeps its complete transcript.
 
         The cost is summed over every turn, not over the page asked for, and is
         `None` where nothing in the thread was ever measured.
@@ -1397,9 +1404,21 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
             latest=latest,
             before=before,
+            for_model=for_model,
         )
-        total = await conversation_repo.count_messages(self.db, conversation_id)
+        total = await conversation_repo.count_messages(
+            self.db, conversation_id, for_model=for_model
+        )
         await self._attach_senders(items, conversation)
+        if for_model:
+            return (
+                [
+                    MessageRead.model_validate(msg).model_copy(update={"reply_to": None})
+                    for msg in items
+                ],
+                total,
+                await self._cost(conversation_id),
+            )
         await self._attach_replies(items)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}

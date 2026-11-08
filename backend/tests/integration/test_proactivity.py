@@ -1553,6 +1553,13 @@ async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
     good = Message(id=uuid.uuid4(), conversation_id=first.id, role="user", content=_CLEAN)
     db.add_all([message, good])
     await db.flush()
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart
+
+    first.summary_messages = ModelMessagesTypeAdapter.dump_python(
+        [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+    )
+    first.summary_ordinal = message.ordinal
+    await db.flush()
     await conversation_repo.mark_message_refused(
         db, message_id=message.id, conversation_id=other.id
     )
@@ -1565,6 +1572,8 @@ async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
     await db.refresh(good)
     assert message.guardrail_refused is True
     assert good.guardrail_refused is False
+    await db.refresh(first)
+    assert first.summary_messages is None and first.summary_ordinal is None
     from app.services.message_history import REFUSED_TURN
 
     history = await ConversationService(db).model_history(first.id, limit=20)
@@ -1610,3 +1619,25 @@ async def test_retention_cannot_make_a_refused_routine_look_unfired(db):
     )
     await look.look(org.id, person.id)
     assert json.loads(thinker.think.await_args.kwargs["prompt"])["their_routines"] == []
+
+
+@pytest.mark.security
+async def test_a_refusal_after_the_compacted_prefix_keeps_that_summary(db):
+    person = await _person(db)
+    org = await _organization(db, person)
+    chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    db.add(chat)
+    await db.flush()
+    before = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=_CLEAN
+    )
+    refused = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=_BLOCKED
+    )
+    chat.summary_messages = [{"accepted": "prior prefix"}]
+    chat.summary_ordinal = before.ordinal
+    await db.flush()
+    await conversation_repo.mark_message_refused(db, message_id=refused.id, conversation_id=chat.id)
+    await db.refresh(chat)
+    assert chat.summary_messages == [{"accepted": "prior prefix"}]
+    assert chat.summary_ordinal == before.ordinal

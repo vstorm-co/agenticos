@@ -39,6 +39,20 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
                 getattr(migration, direction)()
 
         await connection.run_sync(change, "upgrade")
+        indexes = set(
+            (
+                await connection.execute(
+                    text(
+                        "SELECT indexname FROM pg_indexes WHERE schemaname = :schema AND tablename = 'workflow_runs'"
+                    ),
+                    {"schema": schema},
+                )
+            ).scalars()
+        )
+        assert {
+            "workflow_runs_source_conversation_id_idx",
+            "workflow_runs_source_message_id_idx",
+        } <= indexes
         legacy = (
             await connection.execute(
                 text("SELECT source_conversation_id, source_message_id FROM workflow_runs")

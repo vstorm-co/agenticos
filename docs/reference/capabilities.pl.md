@@ -1,5 +1,5 @@
 ---
-source_sha: "0395199c4cc0"
+source_sha: "d6c76df1dfb6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2857,6 +2857,8 @@ odrzuconą turę, także gdy tytuł zapisano wcześniej.
 
 Ponowienia i wywołane workflow zachowują powiązanie odmowy z wiadomością. Nie
 dziedziczą miejsca dostarczenia odpowiedzi ani dostępu do workspace czatu źródłowego.
+Jeśli nowo odrzucona tura była już skompaktowana, zapisane podsumowanie, które ją
+obejmuje, jest usuwane, aby kolejna historia odbudowała się z notką o odmowie.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
