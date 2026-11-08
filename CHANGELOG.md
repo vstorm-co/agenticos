@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.58.0] - 2026-11-08
+
 ### Added
 
 - Workflow agent steps can use the existing Ask Question tool to wait for a user and resume the same conversation. Questions remain available in the originating chat and workflow run view after reload; answers are saved before the workflow worker continues under its current budget. Question cards honor current workflow grants and retain newer questions when polling overlaps a delayed answer response. Completed answers remain in agent context after chat compaction, and question waits do not stall shared mailbox polling.
@@ -20626,7 +20628,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...HEAD
+[1.58.0]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
 [1.56.4]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...v1.56.4
 [1.56.3]: https://github.com/vstorm-co/agenticos/compare/v1.56.2...v1.56.3
