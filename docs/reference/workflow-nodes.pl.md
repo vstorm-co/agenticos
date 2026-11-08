@@ -1,5 +1,5 @@
 ---
-source_sha: "bfcc1d45a12b"
+source_sha: "c3d2c064ea18"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -174,6 +174,8 @@ Wywołujący może sprawdzić efektywny kontrakt przed wykonaniem przez
 [API schematu wejścia workflow](../api.md#running-a-workflow) lub
 [odkrywanie MCP](../mcp.md#workflow-and-table-tools). Istniejące kontrakty prostych
 pól są również udostępniane jako JSON Schema.
+
+Odkrywanie przez HTTP udostępnia tylko pierwsze wejście **Called by a workflow**, z wejściem domyślnym na początku, ponieważ wywołania podrzędnego workflow nie pozwalają wybrać innego wejścia. Odkrywanie przez platformowy MCP udostępnia tylko wejścia Manual/API obsługiwane przez jego narzędzie uruchamiania.
 
 ### trigger.manual { #trigger-manual }
 

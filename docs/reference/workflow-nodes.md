@@ -163,6 +163,8 @@ Callers can inspect the effective contract before execution through the
 [MCP discovery](../mcp.md#workflow-and-table-tools). Existing simple-field
 contracts are also exposed as JSON Schema.
 
+HTTP discovery exposes only the first **Called by a workflow** entry, with the default entry first, because child-workflow calls cannot select another entry. Platform MCP discovery exposes only Manual/API entries supported by its run tool.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its

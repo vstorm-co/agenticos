@@ -126,6 +126,52 @@ class TestNodeCatalog:
 
 
 class TestInputSchemaDiscovery:
+    @pytest.mark.parametrize("default_call", [False, True])
+    async def test_only_the_call_entry_selected_by_child_admission_is_advertised(
+        self, default_call: bool
+    ) -> None:
+        ctx = _ctx()
+        workflow = _workflow(ctx, current_version_id=uuid.uuid4())
+        manual = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="trigger.manual",
+            definition_version=1,
+            config={},
+            layout=NodePosition(x=0, y=0),
+        )
+        first = manual.model_copy(
+            update={
+                "id": uuid.uuid4(),
+                "definition_id": "trigger.workflow_call",
+                "config": {"input_schema": {"required": ["first"]}},
+            }
+        )
+        second = first.model_copy(
+            update={"id": uuid.uuid4(), "config": {"input_schema": {"required": ["second"]}}}
+        )
+        graph = WorkflowGraph(
+            entry_node_id=second.id if default_call else manual.id,
+            nodes=(manual, first, second),
+        )
+        version = MagicMock(
+            id=workflow.current_version_id,
+            workflow_id=workflow.id,
+            graph=graph.model_dump(mode="json"),
+        )
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)
+            ),
+        ):
+            result = await WorkflowRegistryService(_db()).input_schema(ctx, workflow.id)
+        selected = second if default_call else first
+        call_entries = [item for item in result.entries if item.trigger == "trigger.workflow_call"]
+        assert len(call_entries) == 1
+        assert call_entries[0].entry_node_id == selected.id
+        assert call_entries[0].input_schema["required"] == ["second" if default_call else "first"]
+        assert manual.id in [item.entry_node_id for item in result.entries]
+
     @pytest.mark.parametrize("explicit_version", [False, True])
     async def test_discovery_reads_the_frozen_contract_instead_of_the_draft(
         self, explicit_version: bool

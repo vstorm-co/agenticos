@@ -1,5 +1,5 @@
 ---
-source_sha: "bfcc1d45a12b"
+source_sha: "c3d2c064ea18"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -177,6 +177,8 @@ Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante l
 [API del esquema de entrada del workflow](../api.md#running-a-workflow) o el
 [descubrimiento MCP](../mcp.md#workflow-and-table-tools). Los contratos existentes de
 campos simples también se exponen como JSON Schema.
+
+El descubrimiento por HTTP expone únicamente la primera entrada **Called by a workflow**, con la entrada predeterminada primero, porque las llamadas a workflows secundarios no permiten seleccionar otra entrada. El descubrimiento del MCP de la plataforma expone solo las entradas Manual/API admitidas por su herramienta de ejecución.
 
 ### trigger.manual { #trigger-manual }
 

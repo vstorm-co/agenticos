@@ -1391,3 +1391,14 @@ def test_references_into_extension_keywords_keep_their_assertions() -> None:
     )
     assert input_problems(config, {"x": 1}) == []
     assert input_problems(config, {})[0]["field"] == "x"
+
+
+@pytest.mark.parametrize("required", [False, True])
+def test_scalar_and_singleton_type_arrays_do_not_distinguish_branches(required: bool) -> None:
+    left: dict[str, JsonValue] = {"type": "object"}
+    right: dict[str, JsonValue] = {"type": ["object"]}
+    if required:
+        left["required"] = ["x"]
+        right["required"] = ["x"]
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema={"oneOf": [left, right]})

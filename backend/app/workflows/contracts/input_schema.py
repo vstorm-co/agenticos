@@ -301,7 +301,9 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
         keyword: value for keyword, value in schema.items() if keyword in _SCHEMA_IDENTITY_KEYS
     }
     for keyword, value in result.items():
-        if keyword in {"required", "type", "enum"} and isinstance(value, list):
+        if keyword == "type" and isinstance(value, str):
+            result[keyword] = [value]
+        elif keyword in {"required", "type", "enum"} and isinstance(value, list):
             result[keyword] = sorted(
                 [_canonical_literal(item) for item in value],
                 key=lambda item: json.dumps(item, sort_keys=True),

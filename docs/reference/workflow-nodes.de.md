@@ -1,5 +1,5 @@
 ---
-source_sha: "bfcc1d45a12b"
+source_sha: "c3d2c064ea18"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -181,6 +181,8 @@ Aufrufer können den wirksamen Vertrag vor der Ausführung über die
 [Workflow-Eingabeschema-API](../api.md#running-a-workflow) oder die
 [MCP-Suche](../mcp.md#workflow-and-table-tools) prüfen. Auch bestehende Verträge mit
 einfachen Feldern werden als JSON Schema bereitgestellt.
+
+Die HTTP-Erkennung zeigt nur den ersten Einstieg **Called by a workflow**, wobei der Standardeinstieg zuerst kommt, da Aufrufe untergeordneter Workflows keinen anderen Einstieg auswählen können. Die Plattform-MCP-Erkennung zeigt nur die Manual/API-Einstiege, die ihr Ausführungswerkzeug unterstützt.
 
 ### trigger.manual { #trigger-manual }
 
