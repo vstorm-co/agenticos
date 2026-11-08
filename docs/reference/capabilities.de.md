@@ -1,5 +1,5 @@
 ---
-source_sha: "2df47d0679d0"
+source_sha: "e6d13c516eed"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3065,8 +3065,11 @@ Zugs die Nachricht eines `guardrail_blocked`-Runs nicht erneut ab, gleich welche
 Prüfung ihn gestoppt hat. An ihrer Stelle liest das Modell einen kurzen Hinweis,
 dass ein Guardrail diesen Zug gestoppt hat, ohne den Text der Nachricht und ohne
 das, was die mit ihr gesendeten Dateien hinzugefügt haben. Die Unterhaltung zeigt
-der Person weiterhin, was sie eingegeben hat. Die Suche in früheren Unterhaltungen
-(`conversation_search`) filtert diese Nachrichten noch nicht.
+der Person weiterhin, was sie eingegeben hat. Die Ablehnung eines Agent-Schritts
+im Workflow markiert auch die genaue Quellnachricht im Chat. Die Suche in früheren
+Unterhaltungen (`conversation_search`) lässt abgelehnte Nachrichten bei Treffern,
+Ausschnitten und beim Lesen des Transkripts aus. Diese Tools erhalten keinen Titel
+einer Unterhaltung mit einem abgelehnten Zug, auch bei bereits gespeicherten Titeln.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

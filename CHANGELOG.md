@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep guardrail-refused workflow prompts, routine prompts, conversation search results and transcript titles out of later model inputs (#2767).
+
 ## [1.56.2] - 2026-11-07
 
 ### Fixed

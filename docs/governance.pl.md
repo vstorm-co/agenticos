@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "19c084601efb"
 ---
 
 # Governance { #governance }
@@ -606,6 +606,11 @@ bo model proaktywności nie ma własnych guardraili:
   odmowa wejściowego guardraila, która nie zostawiła odpowiedzi, pozostaje poza
   odczytem. Tura mówiona nie zapisuje modelu, więc jest pomijana, gdy nie ma już
   jej runu.
+
+Prompty rutyn przechodzą sprawdzenie według przypiętej wersji agenta, wersji
+nazwanego środowiska lub bieżącej wersji agenta, zgodnie z konfiguracją rutyny.
+Brak celu lub nieczytelna specyfikacja oznacza pominięcie rutyny. Pomijana jest
+też rutyna, której ostatnie uruchomienie zostało odrzucone.
 
 Prompt zredagowany przez guardrail przechodzi, a zadanie czyta go tak, jak jest
 zapisany, bez redakcji

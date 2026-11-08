@@ -6374,11 +6374,14 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         result_only: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
         The non-streaming path, used by the API and chat channels. Surfaces that
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
+        `on_segment` writes required handback in the terminal transaction, before
+        it commits, just as on :meth:`resume`.
 
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it. `version_id` runs
@@ -6514,6 +6517,7 @@ class AgentRunnerService:
                 message_history=message_history,
                 deferred_tool_results=None,
                 on_run_open=on_run_open,
+                on_segment=on_segment,
                 stream=stream,
             )
         except Exception as exc:

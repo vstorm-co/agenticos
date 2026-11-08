@@ -307,6 +307,7 @@ class TestTheChatsDoor:
             "chat",
             {
                 "prompt": "Summarise the leads",
+                "source_message_id": str(messages[0].id),
                 "conversation_id": str(conversation.id),
                 "user_id": str(owner.id),
             },

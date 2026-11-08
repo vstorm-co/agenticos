@@ -1,5 +1,5 @@
 ---
-source_sha: "2df47d0679d0"
+source_sha: "e6d13c516eed"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2922,8 +2922,12 @@ lo nuevo de su propio turno, así que el historial de un turno posterior no repr
 el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
 En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
 el texto del mensaje ni lo que añadieron los archivos enviados con él. La
-conversación sigue mostrando a la persona lo que escribió. La búsqueda en
-conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
+conversación sigue mostrando a la persona lo que escribió. El rechazo de un paso
+de agent en un workflow también marca el mensaje exacto del chat de origen. La
+búsqueda en conversaciones anteriores (`conversation_search`) omite los mensajes
+rechazados en coincidencias, fragmentos y lecturas de transcripciones. Estas
+herramientas no reciben el título de una conversación con un turno rechazado,
+incluso si el título ya estaba guardado.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

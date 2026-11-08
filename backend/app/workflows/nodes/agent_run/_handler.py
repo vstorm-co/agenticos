@@ -53,8 +53,9 @@ from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import conversation as conversation_repo
 from app.services.agent_registry import AgentRegistryService
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AgentRunnerService, RunSegment
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context
 from app.services.workflow_execution.agent_conversations import for_agent_step
@@ -316,18 +317,37 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
+
+            async def keep_refusal(segment: RunSegment) -> None:
+                # The mark commits with the refusal, even if the worker dies before
+                # the dispatcher settles the node or another branch completes.
+                if (
+                    segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
+                    and current.source_conversation_id is not None
+                ):
+                    source_message = current.run_input.get("source_message_id")
+                    if isinstance(source_message, str):
+                        await conversation_repo.mark_message_refused(
+                            db,
+                            message_id=UUID(source_message),
+                            conversation_id=current.source_conversation_id,
+                        )
+
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:
                 before = await _cost_so_far(
                     db, current.resumed_agent_run_id, current.organization_id
                 )
                 if current.budget_remaining is None:
-                    segment = await runner.resume(current.auth, current.resumed_agent_run_id)
+                    segment = await runner.resume(
+                        current.auth, current.resumed_agent_run_id, on_segment=keep_refusal
+                    )
                 else:
                     segment = await runner.resume(
                         current.auth,
                         current.resumed_agent_run_id,
                         run_limit_usd=before + current.budget_remaining,
+                        on_segment=keep_refusal,
                     )
                 text, run, answer = segment.output, segment.run, segment.structured
             else:
@@ -357,6 +377,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     structured=answers,
                     run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
                     public_origin=current.public_origin,
+                    on_segment=keep_refusal,
                 )
                 answer = answers[0] if answers else None
     except AppException as exc:

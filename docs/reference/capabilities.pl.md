@@ -1,5 +1,5 @@
 ---
-source_sha: "2df47d0679d0"
+source_sha: "e6d13c516eed"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2849,8 +2849,11 @@ tylko to, co nowe w jego własnej turze, więc historia kolejnej tury nie odtwar
 wiadomości z runa `guardrail_blocked`, niezależnie od tego, które sprawdzenie go
 zatrzymało. W jej miejscu model czyta krótką notkę, że guardrail zatrzymał tę turę,
 bez treści wiadomości i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
-pokazuje osobie to, co wpisała. Wyszukiwanie w dawnych rozmowach
-(`conversation_search`) jeszcze nie pomija tych wiadomości.
+pokazuje osobie to, co wpisała. Odmowa kroku agenta w workflow oznacza też
+konkretną wiadomość źródłową z czatu. Wyszukiwanie w dawnych rozmowach
+(`conversation_search`) pomija odrzucone wiadomości w dopasowaniach, fragmentach
+i odczycie transkryptu. Narzędzia nie otrzymują tytułu rozmowy zawierającej
+odrzuconą turę, także gdy tytuł zapisano wcześniej.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

@@ -378,3 +378,37 @@ async def test_a_resumed_agent_uses_only_the_current_workflow_headroom(runner, m
         )
     assert isinstance(result, Completed)
     assert runner.resume.await_args.kwargs["run_limit_usd"] == Decimal("3")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("status", [RunStatus.GUARDRAIL_BLOCKED, RunStatus.COMPLETED])
+@pytest.mark.parametrize("source", ["chat", "api", "legacy"])
+async def test_a_refused_chat_step_marks_only_its_admitted_source_turn(
+    runner, monkeypatch, status, source
+):
+    mark = AsyncMock()
+    monkeypatch.setattr(agent_node.conversation_repo, "mark_message_refused", mark)
+    finished = _run(status)
+
+    async def execute(*args, **kwargs):
+        await kwargs["on_segment"](SimpleNamespace(run=finished))
+        return "", finished
+
+    runner.execute.side_effect = execute
+    conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+    current = dataclasses.replace(
+        _dispatch(),
+        source_conversation_id=None if source == "api" else conversation_id,
+        run_input={} if source == "legacy" else {"source_message_id": str(message_id)},
+    )
+    with context.dispatching_as(current):
+        await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="secret")
+        )
+    if status is RunStatus.GUARDRAIL_BLOCKED and source == "chat":
+        assert mark.await_args.kwargs == {
+            "message_id": message_id,
+            "conversation_id": conversation_id,
+        }
+    else:
+        mark.assert_not_awaited()

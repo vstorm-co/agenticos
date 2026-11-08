@@ -1478,3 +1478,99 @@ async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
             if not task.done():
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("target", ["default", "pinned", "environment"])
+async def test_nightly_screens_routines_with_the_version_they_fire(db, target):
+    from app.db.models.agent_environment import AgentEnvironment
+
+    person = await _person(db)
+    colleague = await _person(db)
+    org = await _organization(db, person)
+    plain = {**_GUARDED, "capabilities": []}
+    agent = await _agent(db, org, spec=_GUARDED if target == "default" else plain)
+    guarded = AgentVersion(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        version=2,
+        spec=_GUARDED,
+    )
+    db.add(guarded)
+    await db.flush()
+    environment = AgentEnvironment(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        name="guarded",
+        version_id=guarded.id,
+    )
+    db.add(environment)
+    await db.flush()
+    refused = await _turn(db, org, agent, person, status=RunStatus.GUARDRAIL_BLOCKED)
+    for creator, prompt, last in (
+        (person, _BLOCKED, None),
+        (person, _CLEAN, None),
+        (colleague, "colleague private", None),
+        (person, "last fire refused", refused.id),
+    ):
+        db.add(
+            AgentTrigger(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                agent_id=agent.id,
+                created_by_user_id=creator.id,
+                prompt=prompt,
+                trigger_type="schedule",
+                schedule_kind="interval",
+                interval_seconds=3600,
+                next_fire_at=_NOW + timedelta(hours=1),
+                last_run_id=last,
+                pinned_version_id=guarded.id if target == "pinned" else None,
+                environment_id=environment.id if target == "environment" else None,
+            )
+        )
+    await db.flush()
+    look = NightlyLook(db)
+    look.thinker = thinker = MagicMock(
+        starter_agent=AsyncMock(return_value=agent), think=AsyncMock(return_value=None)
+    )
+    await look.look(org.id, person.id)
+    material = json.loads(thinker.think.await_args.kwargs["prompt"])
+    assert material["their_routines"] == [_CLEAN]
+
+
+@pytest.mark.security
+async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
+    person = await _person(db)
+    org = await _organization(db, person)
+    first = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    other = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    db.add_all([first, other])
+    await db.flush()
+    message = Message(id=uuid.uuid4(), conversation_id=first.id, role="user", content=_BLOCKED)
+    good = Message(id=uuid.uuid4(), conversation_id=first.id, role="user", content=_CLEAN)
+    db.add_all([message, good])
+    await db.flush()
+    await conversation_repo.mark_message_refused(
+        db, message_id=message.id, conversation_id=other.id
+    )
+    await db.refresh(message)
+    assert message.guardrail_refused is False
+    await conversation_repo.mark_message_refused(
+        db, message_id=message.id, conversation_id=first.id
+    )
+    await db.refresh(message)
+    await db.refresh(good)
+    assert message.guardrail_refused is True
+    assert good.guardrail_refused is False
+    from app.services.message_history import REFUSED_TURN
+
+    history = await ConversationService(db).model_history(first.id, limit=20)
+    rendered = str(history)
+    assert _BLOCKED not in rendered and REFUSED_TURN in rendered and _CLEAN in rendered
+    requests = await conversation_repo.person_requests_since(
+        db, organization_id=org.id, user_id=person.id, since=_NOW - timedelta(days=1), limit=10
+    )
+    assert all(request.message.id != message.id for request in requests)

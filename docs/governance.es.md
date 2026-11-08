@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "19c084601efb"
 ---
 
 # Governance { #governance }
@@ -616,6 +616,11 @@ envió, porque el modelo de proactividad no tiene guardrails propios:
   que el rechazo de un guardrail de entrada, que no dejó respuesta, queda fuera.
   Un turno hablado no registra el modelo, así que queda fuera cuando ya no existe
   su run.
+
+Los prompts de rutinas se comprueban con la versión fijada del agent, la versión
+del entorno indicado o la versión actual del agent, como al ejecutar la rutina.
+Se omiten los destinos ausentes y las specs ilegibles, así como una rutina cuya
+última ejecución fue rechazada.
 
 Un prompt que un guardrail redactó pasa, y la tarea lo lee tal como está guardado,
 sin redactar ([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).

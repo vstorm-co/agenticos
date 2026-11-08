@@ -945,3 +945,56 @@ async def test_test_chat_sessions_keep_context_but_cannot_attach_to_a_real_chat(
         )
     assert recorder.prompts.count("First test message") == 2
     assert recorder.prompts.count("New chat message") == 1
+
+
+@pytest.mark.security
+async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model):
+    from app.db.models.agent import AgentVersion
+    from app.db.models.conversation import Message
+    from app.repositories import conversation as conversations
+    from app.repositories import workflow_run as runs
+    from app.services.conversation import ConversationService
+    from app.services.message_history import REFUSED_TURN
+
+    recorder = model("Should never answer")
+    seeded = await _setup(engine, _graph)
+    async with seeded.factory() as db:
+        source = await conversations.create_conversation(
+            db, organization_id=seeded.org.id, user_id=seeded.principal.id
+        )
+        prompt = await conversations.create_message(
+            db, conversation_id=source.id, role="user", content="XYZZY classified"
+        )
+        good = await conversations.create_message(
+            db, conversation_id=source.id, role="user", content="Hello"
+        )
+        version = (
+            await db.execute(
+                select(AgentVersion).where(
+                    AgentVersion.agent_id
+                    == uuid.UUID(seeded.graph.nodes[1].config["agent"]["agent_id"])
+                )
+            )
+        ).scalar_one()
+        version.spec = {
+            **version.spec,
+            "capabilities": [{"id": "guardrails", "config": {"blocked_keywords_in": "XYZZY"}}],
+        }
+        stored = await runs.get_run(db, seeded.run.id, organization_id=seeded.org.id)
+        await runs.update_run(
+            db,
+            run=stored,
+            update_data={
+                "reply_conversation_id": source.id,
+                "input": {"q": prompt.content, "source_message_id": str(prompt.id)},
+            },
+        )
+        await db.commit()
+        source_id, prompt_id, good_id = source.id, prompt.id, good.id
+    assert (await drive(seeded)).status == WorkflowRunStatus.FAILED.value
+    assert recorder.prompts == []
+    async with seeded.factory() as db:
+        assert (await db.get(Message, prompt_id)).guardrail_refused is True
+        assert (await db.get(Message, good_id)).guardrail_refused is False
+        history = str(await ConversationService(db).model_history(source_id, limit=20))
+        assert "XYZZY" not in history and REFUSED_TURN in history

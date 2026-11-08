@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "19c084601efb"
 ---
 
 # Governance { #governance }
@@ -650,6 +650,11 @@ passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
   genauso gelesen, also bleibt die Ablehnung eines Eingabe-Guardrails draußen,
   denn sie hat keine Antwort hinterlassen. Ein gesprochener Turn zeichnet kein
   Model auf, also bleibt er draußen, sobald sein Run weg ist.
+
+Routinen-Prompts werden mit der festgelegten Agent-Version, der Version der
+benannten Umgebung oder der aktuellen Agent-Version geprüft, wie beim Start
+der Routine. Ein fehlendes Ziel oder eine unlesbare Spec wird ausgelassen, ebenso
+eine Routine, deren letzter Lauf abgelehnt wurde.
 
 Ein Prompt, den ein Guardrail geschwärzt hat, passiert, und der Job liest ihn so,
 wie er gespeichert ist, also ungeschwärzt

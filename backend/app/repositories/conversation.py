@@ -1796,6 +1796,21 @@ async def link_message_to_run(
     )
 
 
+async def mark_message_refused(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID
+) -> None:
+    """Record a workflow step's refusal on its exact source turn, without replacing run provenance."""
+    await db.execute(
+        sql_update(Message)
+        .where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+        .values(guardrail_refused=True, attachment_context=None)
+    )
+
+
 async def set_attachment_context(
     db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str | None
 ) -> None:
