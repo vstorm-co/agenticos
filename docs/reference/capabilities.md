@@ -2748,6 +2748,9 @@ refused turn was already compacted, the stored summary covering it is discarded
 so later history rebuilds with the refusal note. Conversation mentions use the
 same filtered listing, so their labels cannot repeat a refused turn to a model.
 
+A compaction already in flight cannot restore a later refused turn to the cache.
+Upgrading rebuilds existing cached summaries once; the original messages remain.
+
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is

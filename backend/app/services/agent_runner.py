@@ -342,6 +342,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
+from app.services.message_history import ModelHistory
 from app.services.mirage_mounts import MirageMountService
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService, reaches_a_sign_in
@@ -7668,7 +7669,13 @@ class AgentRunnerService:
                 if prepared.run.conversation_id is not None:
                     conversations = ConversationService(self.db)
                     if summarized is not None:
-                        await conversations.keep_summary(prepared.run.conversation_id, summarized)
+                        await conversations.keep_summary(
+                            prepared.run.conversation_id,
+                            summarized,
+                            expected_revision=message_history.revision
+                            if isinstance(message_history, ModelHistory)
+                            else None,
+                        )
                     # On every turn, not only a summarising one: it is what the
                     # *next* turn needs before it has a response of its own.
                     if prepared.built.context.overhead is not None:

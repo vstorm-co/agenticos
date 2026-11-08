@@ -107,6 +107,11 @@ class Conversation(Base, TimestampMixin):
     Null until a summary has run, which for most conversations is for ever.
     """
 
+    guardrail_revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    """Fences summaries built before a turn became refused, including in-flight compaction."""
+
     summary_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """The last transcript row `summary_messages` accounts for.
 

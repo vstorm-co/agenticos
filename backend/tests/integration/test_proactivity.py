@@ -1641,3 +1641,62 @@ async def test_a_refusal_after_the_compacted_prefix_keeps_that_summary(db):
     await db.refresh(chat)
     assert chat.summary_messages == [{"accepted": "prior prefix"}]
     assert chat.summary_ordinal == before.ordinal
+
+
+@pytest.mark.security
+async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engine):
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart
+
+    person = await _person(db)
+    org = await _organization(db, person)
+    chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=_BLOCKED
+    )
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    loaded, finish = asyncio.Event(), asyncio.Event()
+    unsafe = ModelMessagesTypeAdapter.dump_python(
+        [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+    )
+
+    async def compact() -> None:
+        async with factory() as writer:
+            history = await ConversationService(writer).model_history(chat.id, limit=20)
+            assert history.revision == 0 and _BLOCKED in str(history)
+            await writer.commit()
+            loaded.set()
+            await finish.wait()
+            await ConversationService(writer).keep_summary(
+                chat.id, unsafe, expected_revision=history.revision
+            )
+            await writer.commit()
+
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(compact())
+        await asyncio.wait_for(loaded.wait(), 5)
+        async with factory() as refuser:
+            await conversation_repo.mark_message_refused(
+                refuser, message_id=source.id, conversation_id=chat.id
+            )
+            await refuser.commit()
+        finish.set()
+    await db.refresh(chat)
+    assert chat.summary_messages is None and chat.summary_ordinal is None
+    assert chat.guardrail_revision == 1
+    safe_history = await ConversationService(db).model_history(chat.id, limit=20)
+    assert safe_history.revision == 1 and _BLOCKED not in str(safe_history)
+    safe_summary = ModelMessagesTypeAdapter.dump_python(
+        [ModelRequest(parts=[UserPromptPart(content="An accepted summary after the refusal")])],
+        mode="json",
+    )
+    await ConversationService(db).keep_summary(
+        chat.id, safe_summary, expected_revision=safe_history.revision
+    )
+    await db.refresh(chat)
+    assert chat.summary_messages == safe_summary
+    assert "An accepted summary after the refusal" in str(
+        await ConversationService(db).model_history(chat.id, limit=20)
+    )

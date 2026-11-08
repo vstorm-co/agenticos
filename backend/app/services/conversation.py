@@ -63,7 +63,12 @@ from app.services.access import AGENT, PROJECT, resolve_access, visible_resource
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
-from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
+from app.services.message_history import (
+    REFUSED_TURN,
+    HistoryMessage,
+    ModelHistory,
+    build_message_history,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +182,7 @@ class ConversationService:
 
     async def model_history(
         self, conversation_id: UUID, *, limit: int, exclude_message_id: UUID | None = None
-    ) -> list[ModelMessage]:
+    ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
         Two halves where a summary has run: the history it reduced the older
@@ -195,12 +200,16 @@ class ConversationService:
         this reads - and left in, the model is asked the same question twice.
         """
         conversation = await conversation_repo.get_conversation_by_id(
-            self.db, conversation_id, include_summary=True
+            self.db, conversation_id, include_summary=True, fresh=True
         )
+        revision = None if conversation is None else conversation.guardrail_revision
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
-            return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+            return ModelHistory(
+                await self._from_transcript(
+                    conversation_id, limit, exclude_message_id, conversation
+                ),
+                revision=revision,
             )
         # Re-inline whatever the stored history references before it is parsed
         # (#55). Unconditional: offloading is the `media` capability's decision,
@@ -226,8 +235,11 @@ class ConversationService:
             logger.exception(
                 "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
-            return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+            return ModelHistory(
+                await self._from_transcript(
+                    conversation_id, limit, exclude_message_id, conversation
+                ),
+                revision=revision,
             )
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
@@ -237,7 +249,10 @@ class ConversationService:
             *replayed,
             *build_message_history(_as_history(since, exclude_message_id, spoken)),
         ]
-        return await self._restore_capability_loads(history, since, exclude_message_id)
+        return ModelHistory(
+            await self._restore_capability_loads(history, since, exclude_message_id),
+            revision=revision,
+        )
 
     async def _from_transcript(
         self,
@@ -413,22 +428,41 @@ class ConversationService:
             return
         await conversation_repo.set_plan(self.db, db_conversation=conversation, items=items)
 
-    async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
+    async def keep_summary(
+        self,
+        conversation_id: UUID,
+        messages: list[dict[str, Any]],
+        *,
+        expected_revision: int | None,
+    ) -> None:
         """Write down the history a summary reduced this conversation to.
 
         Called once a turn's rows are written, so the ordinal it records covers
         the answer as well as the question - which is what stops the next turn
-        replaying the summary *and* the turn already inside it.
+        replaying the summary *and* the turn already inside it. `expected_revision`
+        comes from the history read before the model call; absent or superseded
+        provenance cannot replace the cache with potentially refused text.
         """
+        if expected_revision is None:
+            logger.info(
+                "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
+            )
+            return
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
             return
-        await conversation_repo.set_summary(
+        stored = await conversation_repo.set_summary(
             self.db,
             db_conversation=conversation,
             messages=messages,
             ordinal=await conversation_repo.last_ordinal(self.db, conversation_id),
+            expected_revision=expected_revision,
         )
+
+        if not stored:
+            logger.info(
+                "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
+            )
 
     async def get_conversation(
         self,
@@ -1405,6 +1439,7 @@ class ConversationService:
             latest=latest,
             before=before,
             for_model=for_model,
+            fresh=for_model,
         )
         total = await conversation_repo.count_messages(
             self.db, conversation_id, for_model=for_model

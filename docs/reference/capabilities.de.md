@@ -1,5 +1,5 @@
 ---
-source_sha: "b6ff12892aff"
+source_sha: "d8906b9824ea"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3077,6 +3077,10 @@ War ein neu abgelehnter Zug bereits komprimiert, wird die gespeicherte
 Zusammenfassung, die ihn enthält, verworfen. Der spätere Verlauf wird mit dem
 Ablehnungshinweis neu aufgebaut. Gesprächserwähnungen verwenden dieselbe
 gefilterte Liste, damit ihre Bezeichnungen keinem Modell abgelehnten Text wiedergeben.
+
+Eine bereits laufende Komprimierung kann einen später abgelehnten Zug nicht
+wieder im Cache speichern. Beim Upgrade werden vorhandene Zusammenfassungen
+einmal neu aufgebaut; die ursprünglichen Nachrichten bleiben erhalten.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

@@ -74,6 +74,7 @@ from app.services.agent_runner import (
 from app.services.attachments import AttachmentRouter
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
+from app.services.message_history import ModelHistory
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
@@ -367,6 +368,9 @@ class ChatTurn:
     Their steps are stored waiting before the surface offers the question card,
     and answering them continues the run, including after a reload (#2064).
     """
+
+    history_revision: int | None = None
+    """The input snapshot's refusal revision; absent for unversioned caller histories."""
 
     summarized_history: list[dict[str, Any]] | None = None
     """The history a summary reduced this turn to, or `None` if none ran.
@@ -760,6 +764,9 @@ class ChatAgentRunner:
             draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
+            history_revision=message_history.revision
+            if isinstance(message_history, ModelHistory)
+            else None,
             overhead_tokens=prepared.built.context.overhead,
         )
 

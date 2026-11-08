@@ -4,6 +4,8 @@ A retry must not send another reply to the original chat, and a called workflow
 has its own input. Both still need to mark the exact source turn if an agent
 refuses it. Nullable references preserve that identity without retaining deleted
 conversations or messages. Existing runs without a known source remain unlinked.
+A refusal revision fences concurrent compactors; pre-existing cached summaries
+are rebuilt once because they predate that fence. The transcript is retained.
 """
 
 import sqlalchemy as sa
@@ -17,6 +19,14 @@ depends_on: None = None
 
 
 def upgrade() -> None:
+    op.add_column(
+        "conversations",
+        sa.Column("guardrail_revision", sa.Integer(), nullable=False, server_default="0"),
+    )
+    # Older summaries have no refusal revision; rebuild them from guarded rows.
+    op.execute(
+        "UPDATE conversations SET summary_messages = NULL, summary_ordinal = NULL WHERE summary_messages IS NOT NULL OR summary_ordinal IS NOT NULL"
+    )
     op.add_column("workflow_runs", sa.Column("source_conversation_id", sa.UUID(), nullable=True))
     op.add_column("workflow_runs", sa.Column("source_message_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
@@ -46,3 +56,4 @@ def downgrade() -> None:
     op.drop_index("workflow_runs_source_conversation_id_idx", table_name="workflow_runs")
     op.drop_column("workflow_runs", "source_message_id")
     op.drop_column("workflow_runs", "source_conversation_id")
+    op.drop_column("conversations", "guardrail_revision")

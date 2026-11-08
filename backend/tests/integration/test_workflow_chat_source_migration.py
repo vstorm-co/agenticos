@@ -26,12 +26,17 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
     async with engine.begin() as connection:
         await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
         await connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
-        for table, statement in (
-            ("conversations", "INSERT INTO conversations VALUES (:id)"),
-            ("messages", "INSERT INTO messages VALUES (:id)"),
-            ("workflow_runs", "INSERT INTO workflow_runs VALUES (:id)"),
+        for statement in (
+            "CREATE TABLE conversations (id uuid PRIMARY KEY, summary_messages jsonb, summary_ordinal integer)",
+            "CREATE TABLE messages (id uuid PRIMARY KEY)",
+            "CREATE TABLE workflow_runs (id uuid PRIMARY KEY)",
         ):
-            await connection.execute(text(f"CREATE TABLE {table} (id uuid PRIMARY KEY)"))
+            await connection.execute(text(statement))
+        for statement in (
+            "INSERT INTO conversations (id, summary_messages, summary_ordinal) VALUES (:id, '[]', 3)",
+            "INSERT INTO messages VALUES (:id)",
+            "INSERT INTO workflow_runs VALUES (:id)",
+        ):
             await connection.execute(text(statement), {"id": uuid4()})
 
         def change(sync_connection: Connection, direction: str) -> None:
@@ -39,6 +44,14 @@ async def test_chat_source_migration_preserves_runs_and_releases_deleted_sources
                 getattr(migration, direction)()
 
         await connection.run_sync(change, "upgrade")
+        cache = (
+            await connection.execute(
+                text(
+                    "SELECT summary_messages, summary_ordinal, guardrail_revision FROM conversations"
+                )
+            )
+        ).one()
+        assert tuple(cache) == (None, None, 0)
         indexes = set(
             (
                 await connection.execute(

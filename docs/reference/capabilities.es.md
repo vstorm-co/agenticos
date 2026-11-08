@@ -1,5 +1,5 @@
 ---
-source_sha: "b6ff12892aff"
+source_sha: "d8906b9824ea"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2935,6 +2935,10 @@ Si un turno recién rechazado ya estaba compactado, se descarta el resumen guard
 que lo incluye para reconstruir el historial posterior con la nota de rechazo.
 Las menciones de conversaciones usan la misma lista filtrada para que sus etiquetas
 no repitan a un modelo el texto de un turno rechazado.
+
+Una compactación ya iniciada no puede devolver a la caché un turno rechazado
+después. La actualización reconstruye una vez los resúmenes guardados; los
+mensajes originales se conservan.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

@@ -1304,6 +1304,7 @@ async def get_messages_by_conversation(
     latest: bool = False,
     before: UUID | None = None,
     for_model: bool = False,
+    fresh: bool = False,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -1334,7 +1335,7 @@ async def get_messages_by_conversation(
         query = query.where(Message.ordinal < boundary)
     order = Message.ordinal.desc() if latest else Message.ordinal.asc()
     query = query.order_by(order).offset(skip).limit(limit)
-    result = await db.execute(query)
+    result = await db.execute(query.execution_options(populate_existing=fresh))
     items = list(result.scalars().all())
     return list(reversed(items)) if latest else items
 
@@ -1499,7 +1500,7 @@ async def get_recent_messages(
     """
     total = await count_messages(db, conversation_id)
     return await get_messages_by_conversation(
-        db, conversation_id, skip=max(0, total - limit), limit=limit
+        db, conversation_id, skip=max(0, total - limit), limit=limit, fresh=True
     )
 
 
@@ -1530,7 +1531,7 @@ async def get_messages_after(
         .offset(max(0, (total or 0) - limit))
         .limit(limit)
     )
-    result = await db.execute(query)
+    result = await db.execute(query.execution_options(populate_existing=True))
     return list(result.scalars().all())
 
 
@@ -1563,18 +1564,26 @@ async def set_summary(
     db_conversation: Conversation,
     messages: list[dict[str, Any]],
     ordinal: int,
-) -> Conversation:
+    expected_revision: int,
+) -> bool:
     """Record the history a summary reduced this conversation to.
 
     One row per conversation rather than a log of them: the newest summary is
     written over the last, because it was produced *from* it and the older one
     describes a thread that no longer exists.
     """
-    db_conversation.summary_messages = messages
-    db_conversation.summary_ordinal = ordinal
+    updated = await db.scalar(
+        sql_update(Conversation)
+        .where(
+            Conversation.id == db_conversation.id,
+            Conversation.guardrail_revision == expected_revision,
+        )
+        .values(summary_messages=messages, summary_ordinal=ordinal)
+        .returning(Conversation.id)
+    )
     await db.flush()
     await db.refresh(db_conversation)
-    return db_conversation
+    return updated is not None
 
 
 async def set_overhead(
@@ -1737,6 +1746,8 @@ async def create_message(
         .values(updated_at=message.created_at)
     )
 
+    if message.guardrail_refused:
+        await _invalidate_refused_history(db, conversation_id, message.ordinal)
     return message
 
 
@@ -1807,41 +1818,61 @@ async def link_message_to_run(
     await db.execute(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
+        .values(run_id=run_id)
+    )
+    await _mark_refused(
+        db,
+        and_(
+            Message.id == message_id, Message.conversation_id == conversation_id, _refused(run_id)
+        ),
+    )
+
+
+async def _invalidate_refused_history(
+    db: AsyncSession, conversation_id: UUID, ordinal: int
+) -> None:
+    covered = Conversation.summary_ordinal >= ordinal
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
         .values(
-            run_id=run_id,
-            # Kept if already set: a refusal is never taken back by a relink.
-            guardrail_refused=Message.guardrail_refused | _refused(run_id),
+            guardrail_revision=Conversation.guardrail_revision + 1,
+            summary_messages=case((covered, None), else_=Conversation.summary_messages),
+            summary_ordinal=case((covered, None), else_=Conversation.summary_ordinal),
         )
     )
+
+
+async def _mark_refused(db: AsyncSession, predicate: ColumnElement[bool]) -> None:
+    rows = await db.execute(
+        sql_update(Message)
+        .where(predicate, Message.guardrail_refused.is_(False))
+        .values(guardrail_refused=True, attachment_context=None)
+        .returning(Message.conversation_id, Message.ordinal)
+    )
+    earliest: dict[UUID, int] = {}
+    for conversation_id, ordinal in rows.all():
+        earliest[conversation_id] = min(earliest.get(conversation_id, ordinal), ordinal)
+    for conversation_id, ordinal in earliest.items():
+        await _invalidate_refused_history(db, conversation_id, ordinal)
+
+
+async def mark_run_messages_refused(db: AsyncSession, *, run_id: UUID) -> None:
+    """Mark the run's rows and fence summaries built before its verdict."""
+    await _mark_refused(db, Message.run_id == run_id)
 
 
 async def mark_message_refused(
     db: AsyncSession, *, message_id: UUID, conversation_id: UUID
 ) -> None:
-    """Record a workflow refusal on its exact source and discard any summary covering it."""
-    await db.execute(
-        sql_update(Message)
-        .where(
+    """Record a workflow refusal on its exact source and fence summaries covering it."""
+    await _mark_refused(
+        db,
+        and_(
             Message.id == message_id,
             Message.conversation_id == conversation_id,
             Message.role == "user",
-        )
-        .values(guardrail_refused=True, attachment_context=None)
-    )
-
-    ordinal = (
-        select(Message.ordinal)
-        .where(
-            Message.id == message_id,
-            Message.conversation_id == conversation_id,
-            Message.role == "user",
-        )
-        .scalar_subquery()
-    )
-    await db.execute(
-        sql_update(Conversation)
-        .where(Conversation.id == conversation_id, Conversation.summary_ordinal >= ordinal)
-        .values(summary_messages=None, summary_ordinal=None)
+        ),
     )
 
 
