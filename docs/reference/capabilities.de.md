@@ -1,5 +1,5 @@
 ---
-source_sha: "d6c76df1dfb6"
+source_sha: "b6ff12892aff"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3075,7 +3075,8 @@ Wiederholungen und aufgerufene Workflows behalten diese Herkunft der Ablehnung.
 Sie erben weder ein Antwortziel noch Zugriff auf den Workspace des Quellchats.
 War ein neu abgelehnter Zug bereits komprimiert, wird die gespeicherte
 Zusammenfassung, die ihn enthält, verworfen. Der spätere Verlauf wird mit dem
-Ablehnungshinweis neu aufgebaut.
+Ablehnungshinweis neu aufgebaut. Gesprächserwähnungen verwenden dieselbe
+gefilterte Liste, damit ihre Bezeichnungen keinem Modell abgelehnten Text wiedergeben.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

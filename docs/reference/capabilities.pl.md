@@ -1,5 +1,5 @@
 ---
-source_sha: "d6c76df1dfb6"
+source_sha: "b6ff12892aff"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2859,6 +2859,8 @@ Ponowienia i wywołane workflow zachowują powiązanie odmowy z wiadomością. N
 dziedziczą miejsca dostarczenia odpowiedzi ani dostępu do workspace czatu źródłowego.
 Jeśli nowo odrzucona tura była już skompaktowana, zapisane podsumowanie, które ją
 obejmuje, jest usuwane, aby kolejna historia odbudowała się z notką o odmowie.
+Wzmianki rozmów korzystają z tej samej filtrowanej listy, aby ich etykiety nie
+powtarzały modelowi odrzuconej treści.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

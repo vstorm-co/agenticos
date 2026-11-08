@@ -965,6 +965,19 @@ async def test_mcp_never_reads_refused_turns_quotes_or_conversation_titles(
     )
     db.add(approved)
     await db.commit()
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+    from app.services.mentions import MentionService
+
+    offers = await MentionService(db)._conversations(
+        AuthContext(user_id=org.created_by_user_id, organization_id=org.id, role="owner"),
+        AgentSpec(
+            name="Reader",
+            model_profile_id=uuid.uuid4(),
+            capabilities=[CapabilityBindingSpec(id="conversation_search")],
+        ),
+    )
+    assert [offer.id for offer in offers] == [str(clean.id)]
+    assert "XYZZY" not in str(offers)
     async with _connected(key) as session:
         listing = _content(await session.call_tool("list_conversations", {}))
         assert listing["total"] == 1
