@@ -15,7 +15,13 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks/use-start", () => ({
   useStart: () => ({
-    data: { organization_name: "Demo", dismissed: env.dismissed, has_result: env.hasResult },
+    data: {
+      organization_name: "Demo",
+      dismissed: env.dismissed,
+      has_result: env.hasResult,
+      has_activity: false,
+      agents: [],
+    },
     save: { mutate: env.save },
   }),
 }));

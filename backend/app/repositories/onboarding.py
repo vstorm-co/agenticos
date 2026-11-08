@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.db.models.conversation import Conversation
+from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import OrganizationMember
 from app.schemas.onboarding import OnboardingUpdate
 
@@ -42,3 +42,24 @@ async def latest_result(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def has_activity(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> bool:
+    """Recognize existing personal chat use, including history predating agent runs.
+
+    A user's message counts even if its run failed. Empty chats, other people's
+    chats and activity in another organization do not establish this membership.
+    This is a reason to stop offering onboarding, never evidence of a successful run.
+    """
+    statement = select(
+        select(Conversation.id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Conversation.user_id == user_id,
+            select(Message.id)
+            .where(Message.conversation_id == Conversation.id, Message.role == "user")
+            .exists(),
+        )
+        .exists()
+    )
+    return bool(await db.scalar(statement))

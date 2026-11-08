@@ -3,7 +3,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StartChecklist } from "./start-checklist";
 const state = vi.hoisted(() => ({
-  data: { organization_id: "org", dismissed: false, has_result: false },
+  data: {
+    organization_id: "org",
+    dismissed: false,
+    has_result: false,
+    has_activity: false,
+    agents: [],
+  },
   error: null as unknown,
   isLoading: false,
   waitingForScope: false,
@@ -12,7 +18,13 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-start", () => ({ useStart: () => state }));
 beforeEach(() => {
-  state.data = { organization_id: "org", dismissed: false, has_result: false };
+  state.data = {
+    organization_id: "org",
+    dismissed: false,
+    has_result: false,
+    has_activity: false,
+    agents: [],
+  };
   state.error = null;
   state.isLoading = false;
   state.waitingForScope = false;

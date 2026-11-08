@@ -1,5 +1,5 @@
 ---
-source_sha: "2fe45c383dab"
+source_sha: "03785bc080ff"
 ---
 
 # Die Konsole { #the-console }
@@ -1009,7 +1009,42 @@ Seitenhilfe. Eine angenommene Einladung öffnet denselben Start in der beigetret
 Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
 fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
 
-Aufgezeichnete Beispiele öffnen sich in einem Dialog. Schließen Sie ihn mit der Schaltfläche ×, Escape oder der Zurück-Schaltfläche; der Tastaturfokus kehrt zur Aufgabenkarte zurück.
+Anwendungsadministratoren erstellen zuerst einen Firmen-Workspace oder wählen
+einen bestehenden ausdrücklich aus. Persönliche Workspaces sind optional. Danach
+folgen Einladungen, Deployment-Einstellungen, Organisationseinstellungen und ein
+erster Agent. Organisationsadministratoren sehen die Organisationsschritte;
+Deployment-Einstellungen bleiben Anwendungsadministratoren vorbehalten. Es sind
+dieselben Formulare, Berechtigungen und Speicherregeln wie in der Administration.
+Die Deployment-Einstellungen umfassen persönliche Workspaces für neue Konten,
+Standardorganisation und Rolle sowie Registrierung. Bestehende Konten werden nicht
+entfernt oder verschoben.
+
+Ein sequenzieller Assistent zeigt jeweils eine Frage mit Fortschritt oben und
+Zurück- und Weiter-Aktionen. Bestehende Firmen-Workspaces erscheinen vor dem
+Erstellen eines neuen. Firmenidentität, persönliche Identität und Agentenkontext
+sind getrennte Schritte. Nach der Wahl
+des Workspace können Sie Logo, Avatar, Anzeigename, Rolle, Arbeitskontext, Zeitzone
+und Arbeitszeiten ergänzen. Jeder Profilschritt führt erst nach erfolgreichem Speichern seiner Änderungen weiter. Die Deployment-Einrichtung startet mit
+Zugang und Konten; **Speichern und weiter** speichert Änderungen vor dem Wechsel.
+Optionale Schritte können übersprungen werden. Das Abschließen blendet weitere
+Startangebote aus, ohne einen erfolgreichen Agentenlauf zu behaupten.
+
+Ein früher abgeschlossener Einstieg blendet Startangebote aus, gilt aber nicht als erfolgreicher Lauf.
+Bestehende Arbeit wird ohne Migration oder Zurücksetzen erkannt: Verfügbare
+veröffentlichte Agenten oder eigene Chats blenden automatische Startangebote aus.
+Benutzernachrichten in älteren oder fehlgeschlagenen Chats gelten als Aktivität,
+unabhängig vom Nachweis abgeschlossener Läufe. Willkommenslinks nach Registrierung
+und Einladung führen nutzbare Workspaces zum Chat; manuell geöffnete Erste Schritte
+bleiben verfügbar. Normale Anmeldung öffnet weiterhin Chat oder den gewünschten Link.
+
+Der Workspace-Name aktualisiert vor dem Erstellen eine gekennzeichnete Vorschau.
+Bestehende Organisationen zeigen ihr Logo oder den eingestellten Ersatzavatar.
+Benachbarte Desktop-Karten sind gleich hoch. Übergänge und Feldhervorhebungen
+beachten die Bewegungseinstellungen.
+Mitglieder wählen aufgezeichnete Beispiele mit getrennten Antwort- und Quell-Tabs.
+Beim Wechsel bleibt die Vorschau auf der Seite. Die KI-Einrichtung öffnet einen
+schließbaren Dialog mit Escape und Fokuswiederherstellung. Die Beispielwahl ruft
+kein Modell auf.
 
 Wählen Sie eine fiktive Besprechungsnotiz, eine Richtlinienfrage oder einen
 Angebotsvergleich. Prüfen oder bearbeiten Sie den Text vor **Aufgabe starten**.
@@ -1017,7 +1052,7 @@ Die Ausführung verwendet das Modell und die Ausgabenlimits des gewählten Agent
 und kann Anbieterkosten verursachen. Diese Textbeispiele benötigen weder Bildschirm,
 Mikrofon, Sandbox noch ein externes Konto.
 
-Ohne verfügbaren Agenten zeigt **Beispiel ansehen** ein aufgezeichnetes Ergebnis.
+Die Beispielvorschau bleibt auch ohne Agenten verfügbar.
 Es ruft kein Modell auf, verarbeitet keine Änderungen und zählt nicht als
 erfolgreicher Lauf. Berechtigte Builder können einen gemeinsamen Textassistenten
 auf einem bewusst gewählten gemeinsamen Chatmodell vorbereiten. Sein monatliches

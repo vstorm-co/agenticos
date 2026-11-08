@@ -128,3 +128,38 @@ describe("AgentContextSettings", () => {
     expect(save.mock.calls[0]?.[0].working_hours).toBeNull();
   });
 });
+
+it("advances guided setup only after profile and context saves succeed", async () => {
+  const beforeSave = vi.fn().mockResolvedValue(false);
+  const onSaved = vi.fn();
+  save.mockResolvedValue(user());
+  render(
+    <AgentContextSettings
+      user={user()}
+      beforeSave={beforeSave}
+      onSaved={onSaved}
+      saveLabel="Save and continue"
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(save).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+  beforeSave.mockResolvedValue(true);
+  save.mockRejectedValueOnce(new Error("offline"));
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(onSaved).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(onSaved).toHaveBeenCalledOnce();
+});
+
+it("highlights the next empty context field without treating it as an error", async () => {
+  render(<AgentContextSettings user={user()} onSaved={() => {}} saveLabel="Continue" />);
+  const role = screen.getByRole("textbox", { name: "Your role" });
+  expect(role).toHaveAttribute("data-guidance", "true");
+  await userEvent.type(role, "Engineer");
+  expect(role).not.toHaveAttribute("data-guidance");
+  expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveAttribute(
+    "data-guidance",
+    "true",
+  );
+});

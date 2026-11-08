@@ -906,14 +906,45 @@ An accepted organization invitation opens this same start in the organization
 you joined. Registration tries to sign you in immediately; if that session
 fails, the sign-in form keeps the destination and the account already created.
 
-Recorded examples open in a dialog. Close it with the × button, Escape or the return button; keyboard focus returns to the task card.
+Application administrators start by creating a company workspace or explicitly
+choosing an existing one. Personal workspaces are optional. The next steps offer
+team invitations, deployment settings, organization settings and a first agent.
+Organization administrators see the organization steps; deployment settings remain
+restricted to application administrators. These are the same forms as in the admin
+panels, with the same permissions and save behavior. Deployment settings include
+personal workspaces for future accounts, the default company organization and role,
+and registration policy. Existing accounts are not removed or moved.
+
+A sequential wizard presents one question at a time, with progress at the top and
+Back and continue actions. Existing company workspaces are offered before another
+creation form. Company identity, personal identity and agent context are separate steps. After choosing a workspace, add its logo and your
+avatar, display name, role, work context, time zone and working hours. Each
+personal step advances only after its changes have saved.
+Deployment setup starts at access and accounts; **Save and continue** saves edits
+before moving on. Optional steps can be skipped. Finishing setup dismisses future
+start offers without claiming a successful agent run.
+
+A previous onboarding completion is respected as a dismissal, never as a successful run.
+Existing work is recognized without a migration or reset: available published
+agents or the person's own chat history hide automatic start offers. User messages
+in legacy or failed chats count as activity, independently of completed-run evidence.
+Registration and invitation welcome links take an already usable workspace to chat;
+explicitly opening Get started keeps the configuration available. Ordinary sign-in
+continues to open chat or the requested deep link.
+
+The workspace name updates a labelled preview before creation. Existing organizations
+use their uploaded logo or configured fallback avatar. Adjacent desktop cards share
+a height. Step transitions and transient field highlights respect Motion preferences. Members choose a
+recorded example in a split view with separate answer and source tabs. Switching
+examples keeps the preview on the page. AI setup opens a dismissible dialog with
+Escape support and focus restoration; no example selection calls a model.
 
 Choose a fictional meeting note, a policy question or an offer comparison.
 Review or edit the text before **Run this task**. Execution uses the selected
 agent's model and normal spending limits, and may incur provider charges. No
 screen, microphone, sandbox or external account is required by these text examples.
 
-Without an available agent, **View example** shows a recorded result. It makes
+The example preview remains available without an agent. It makes
 no model call, does not process your edits and does not count as a successful
 run. A permitted builder can prepare a shared text assistant on a deliberately
 selected shared chat model. Its monthly agent limit is $5, within the workspace

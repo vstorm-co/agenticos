@@ -84,7 +84,7 @@ export function RegisterForm() {
       // The invitation is not accepted by registering - that needs a session - so a
       // person who arrived through one is sent back to it after signing in.
       try {
-        await login({ email, password }, returnTo || ROUTES.ONBOARDING);
+        await login({ email, password }, returnTo || `${ROUTES.ONBOARDING}?welcome=1`);
       } catch {
         // Account creation succeeded. A failed session must lead to sign-in,
         // not invite the person to register the same account a second time.

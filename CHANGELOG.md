@@ -34,15 +34,25 @@ Two things are versioned separately from this file and worth knowing about:
 - Localize native desktop setup in English, Polish, German and Turkish, reduce
   required workspace fields, and keep system permissions optional. Explain local
   data versus remote AI processing and warn about loopback invitation links.
-- Give the first-task hub illustrated task cards, clearer primary actions,
-  responsive layouts, contextual icons and motion that respects reduced-motion
-  preferences. Move focus to explicitly opened recorded examples.
+- Start administrator onboarding with company workspace creation and immediate
+  team invitations, followed by the existing deployment and organization settings
+  forms. A sequential wizard replaces the settings sidebar, with separate company
+  logo, user identity and agent-context questions, Back and save-and-continue actions.
+  Use actual workspace avatars, equal-height adjacent cards, directional transitions
+  and transient field highlights that respect Motion preferences. Keep personal workspaces optional and enforce
+  effective permissions.
+- Give onboarding the console's controls, animated blobby and violet workspace
+  preview that follows the entered name. Present member examples in a split view
+  with source and result tabs; motion respects reduced-motion preferences.
 
 ### Fixed
 
-- Keep recorded first-task examples in a dismissible dialog with visible close
-  controls, Escape support and focus restoration. Compact the start page and
-  separate demonstration material from its recorded result.
+- Recognize existing agents and personal chat activity, including legacy and
+  failed chats, so automatic welcome links and start offers do not repeat setup.
+  Keep manually opened setup available without resetting existing data.
+- Keep example navigation on the start page and AI setup in a dismissible dialog
+  with Escape support and focus restoration. Separate demonstration material
+  from its recorded result.
 - Keep recorded examples available while a preference save is pending or fails,
   restore keyboard focus on return, and avoid late chat navigation after leaving
   the start. Scope pending start operations to their initiating membership.

@@ -1,5 +1,5 @@
 ---
-source_sha: "2fe45c383dab"
+source_sha: "03785bc080ff"
 ---
 
 # Konsola { #the-console }
@@ -936,14 +936,45 @@ strony. Przyjęte zaproszenie otwiera ten sam start w organizacji, do której
 właśnie dołączasz. Rejestracja próbuje od razu zalogować konto; gdy sesja się nie
 powiedzie, formularz logowania zachowuje cel i już utworzone konto.
 
-Zapisane przykłady otwierają się w oknie. Zamknij je przyciskiem ×, klawiszem Escape lub przyciskiem powrotu; fokus klawiatury wraca do karty zadania.
+Administrator aplikacji zaczyna od utworzenia organizacji firmy lub świadomego
+wybrania istniejącej. Workspace osobisty jest opcjonalny. Kolejne etapy obejmują
+zaproszenia, ustawienia wdrożenia, ustawienia organizacji i pierwszego agenta.
+Administrator organizacji widzi etapy organizacji; ustawienia wdrożenia są dostępne
+wyłącznie dla administratora aplikacji. To te same formularze, uprawnienia i zasady
+zapisu co w panelach administracyjnych. Ustawienia wdrożenia obejmują Personal dla
+nowych kont, domyślną organizację firmy i rolę oraz rejestrację. Istniejące konta
+nie są usuwane ani przenoszone.
+
+Sekwencyjny kreator pokazuje jedno pytanie naraz, postęp u góry oraz przyciski
+Wstecz i kontynuacji. Istniejące organizacje firmy są proponowane przed utworzeniem
+nowej. Logo organizacji, tożsamość użytkownika i kontekst agentów to osobne kroki. Po wybraniu workspace dodaj jego logo oraz swój
+awatar, nazwę, stanowisko, kontekst pracy, strefę czasową i godziny pracy. Każdy krok
+profilu prowadzi dalej dopiero po zapisaniu jego zmian. Konfiguracja
+wdrożenia zaczyna od dostępu i kont; **Zapisz i kontynuuj** zapisuje zmiany przed
+przejściem dalej. Kroki opcjonalne można pominąć. Zakończenie konfiguracji wyłącza
+kolejne propozycje startu, nie oznaczając udanego uruchomienia agenta.
+
+Ukończenie poprzedniego onboardingu wyłącza propozycję startu, nie oznaczając udanego runu.
+Istniejąca praca jest rozpoznawana bez migracji ani resetu: dostępni opublikowani
+agenci lub własna historia rozmów ukrywają automatyczne propozycje startu.
+Wiadomości użytkownika w starszych lub nieudanych rozmowach liczą się jako aktywność,
+niezależnie od dowodu udanego runu. Powitalne linki rejestracji i zaproszeń prowadzą
+gotowy workspace do chatu; ręczne otwarcie Pierwszych kroków nadal daje dostęp do
+konfiguracji. Zwykłe logowanie nadal otwiera chat lub żądany link.
+
+Nazwa workspace aktualizuje oznaczony podgląd przed utworzeniem. Istniejące organizacje
+pokazują wgrane logo albo ustawiony awatar zastępczy. Sąsiednie karty na desktopie
+mają równą wysokość. Przejścia i podświetlenia pól respektują ustawienia ruchu. Członkowie wybierają
+zapisany przykład w widoku z osobnymi zakładkami odpowiedzi i materiału. Zmiana
+przykładu pozostawia podgląd na stronie. Konfiguracja AI otwiera zamykane okno
+z obsługą Escape i przywracaniem fokusu. Wybór przykładu nie wywołuje modelu.
 
 Wybierz fikcyjną notatkę, pytanie o politykę albo porównanie ofert. Przejrzyj lub
 zmień tekst przed **Uruchom zadanie**. Wykonanie korzysta z modelu agenta i zwykłych
 limitów wydatków; może wiązać się z opłatą dostawcy. Te przykłady tekstowe nie
 wymagają ekranu, mikrofonu, sandboxu ani zewnętrznego konta.
 
-Bez dostępnego agenta **Zobacz przykład** pokazuje zapisany wynik. Nie wywołuje
+Podgląd przykładu pozostaje dostępny bez agenta. Nie wywołuje
 modelu, nie przetwarza zmian i nie liczy się jako udane wykonanie. Uprawniony
 builder może przygotować wspólnego asystenta tekstowego na świadomie wybranym
 wspólnym modelu. Jego miesięczny limit to 5 USD w ramach budżetu przestrzeni.

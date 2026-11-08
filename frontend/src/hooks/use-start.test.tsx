@@ -23,6 +23,7 @@ const sample: Onboarding = {
   latest_conversation_id: null,
   latest_completed_at: null,
   has_result: false,
+  has_activity: false,
 };
 const scope = vi.hoisted(() => ({ user: "user" as string | null, org: "org" as string | null }));
 vi.mock("@/stores", () => ({

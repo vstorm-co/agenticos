@@ -33,6 +33,10 @@ class OnboardingRead(BaseSchema):
     agents: list[OnboardingAgent]
     latest_conversation_id: UUID | None
     latest_completed_at: datetime | None
+    has_activity: bool = Field(
+        default=False,
+        description="Existing personal chat activity in this organization, including legacy or failed runs; not proof of success",
+    )
     has_result: bool = Field(
         description="A real completed chat run by this person here, never a demo or a tour dismissal"
     )

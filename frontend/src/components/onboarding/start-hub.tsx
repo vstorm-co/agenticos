@@ -1,20 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowRight,
-  Building2,
-  Check,
-  CheckCircle2,
-  ChevronRight,
-  Compass,
-  MessageSquare,
-  MousePointer2,
-  PencilLine,
-  Play,
-} from "lucide-react";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
+import { AvatarFace } from "@/components/ui/avatar-face";
+import { ArrowRight, Building2, CheckCircle2, Compass, ArrowUpRight } from "lucide-react";
 import { BrandMark } from "@/components/branding/brand-mark";
-import styles from "./start.module.css";
+import styles from "./workbench.module.css";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/lib/locale-navigation";
 import { Button } from "@/components/ui";
@@ -25,16 +18,42 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useBranding } from "@/components/branding/branding-provider";
 import { StartLanguage } from "./start-language";
 import { StartNextSteps } from "./start-next-steps";
+import { useAuthStore } from "@/stores/auth-store";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
+import { StartAdministration } from "./start-administration";
 import { StartTasks } from "./start-tasks";
 
 export function StartHub() {
-  useOrganizations();
+  const { activeOrg } = useOrganizations();
+  const appAdmin = useAuthStore((state) => state.user?.is_app_admin === true);
+  const permissions = usePermissions();
   const organizations = useOrganizationList();
   const state = useStart();
   const t = useTranslations("start");
+  const tAdmin = useTranslations("start.administration");
+  const automatic = useSearchParams().get("welcome") === "1";
+  const [profileOrg, setProfileOrg] = useState<string | null>(null);
   const { appName } = useBranding();
   const router = useRouter();
   const openTour = useOnboardingStore((s) => s.openTour);
+  if (
+    appAdmin ||
+    (activeOrg &&
+      !activeOrg.is_personal &&
+      permissions.isLoaded &&
+      permissions.can(Perm.orgSettings))
+  )
+    return <StartAdministration appAdmin={appAdmin} />;
+  if (activeOrg && !activeOrg.is_personal && permissions.error)
+    return (
+      <ErrorState
+        title={t("loadFailed")}
+        cta={{ label: t("retry"), onClick: () => void permissions.refetch() }}
+      />
+    );
+  if (activeOrg && !activeOrg.is_personal && !permissions.isLoaded && !permissions.error)
+    return <LoadingState variant="skeleton-cards" />;
   if (organizations.error)
     return (
       <ErrorState
@@ -70,66 +89,67 @@ export function StartHub() {
       </section>
     );
   const data = state.data;
+  const showProfile =
+    automatic && profileOrg !== data.organization_id && !data.has_activity && !data.has_result;
   return (
     <div className={styles.shell}>
       <div className={styles.frame}>
         <nav className={styles.topbar} aria-label={appName}>
-          <Link href="/chat" className={styles.brand}>
-            <BrandMark size={32} />
-            {appName}
-          </Link>
-          <StartLanguage />
+          <div className={styles.identity}>
+            <Link href="/chat" className={styles.brand}>
+              <BrandMark size={28} />
+              {appName}
+            </Link>
+            <span className={styles.workspace}>
+              <Building2 size={14} aria-hidden />
+              {data.organization_name}
+            </span>
+          </div>
+          <div className={styles.topActions}>
+            <StartLanguage />
+            <Link href="/chat" className={styles.openApp}>
+              {t("workbench.openApp")}
+              <ArrowUpRight size={15} aria-hidden />
+            </Link>
+          </div>
         </nav>
-        <header className={styles.hero}>
-          <p className={styles.workspace}>
-            <Building2 size={14} aria-hidden />
-            {data.organization_name}
-          </p>
-          <h1 className={styles.title}>{t(data.has_result ? "returnTitle" : "title")}</h1>
-          <p className={styles.intro}>{t("intro")}</p>
-          {data.agents.length > 0 && (
-            <div className={styles.path}>
-              <span>
-                <MousePointer2 size={13} aria-hidden />
-                {t("chooseStep")}
-              </span>
-              <ChevronRight size={12} aria-hidden />
-              <span>
-                <PencilLine size={13} aria-hidden />
-                {t("editStep")}
-              </span>
-              <ChevronRight size={12} aria-hidden />
-              <span>
-                <Play size={13} aria-hidden />
-                {t("runStep")}
-              </span>
-            </div>
-          )}
+        <header className={styles.intro}>
+          <div className={styles.titleRow}>
+            <span className={styles.welcomeMark} aria-hidden="true">
+              <AvatarFace seed="agenticos" background={false} />
+            </span>
+            <h1>
+              {showProfile
+                ? tAdmin("memberProfileTitle")
+                : t(data.has_result ? "returnTitle" : "workbench.title")}
+            </h1>
+          </div>
+          <p>{showProfile ? tAdmin("memberProfileHint") : t("workbench.intro")}</p>
         </header>
         {data.has_result && data.latest_conversation_id && (
-          <Link className={styles.result} href={`/chat?id=${data.latest_conversation_id}`}>
-            <span className="flex items-center gap-3">
-              <CheckCircle2 size={20} aria-hidden />
-              {t("lastResult")}
-            </span>
+          <Link className={styles.lastResult} href={`/chat?id=${data.latest_conversation_id}`}>
+            <CheckCircle2 size={18} aria-hidden />
+            <span>{t("lastResult")}</span>
             <ArrowRight size={16} aria-hidden />
           </Link>
         )}
-        <StartTasks key={data.organization_id} data={data} />
-        {data.goal && (
-          <p className={styles.saved}>
-            <Check size={14} aria-hidden />
-            {t("progressSaved", { task: t(`examples.${data.goal}.title`) })}
-          </p>
+        {showProfile ? (
+          <div className="mx-auto max-w-3xl space-y-5">
+            <ProfileIdentitySettings
+              onContinue={() => setProfileOrg(data.organization_id)}
+              saveLabel={tAdmin("saveContinue")}
+            />
+            <Button variant="ghost" onClick={() => setProfileOrg(data.organization_id)}>
+              {tAdmin("skipOptional")}
+            </Button>
+          </div>
+        ) : (
+          <StartTasks key={data.organization_id} data={data} />
         )}
         {data.has_result && <StartNextSteps orgId={data.organization_id} />}
         <footer className={styles.footer}>
-          <Link href="/chat">
-            <MessageSquare size={15} aria-hidden />
-            {t("ownTask")}
-          </Link>
           <Link href="/orgs">
-            <Building2 size={15} aria-hidden />
+            <Building2 size={14} aria-hidden />
             {t("organizations")}
           </Link>
           <Button
@@ -140,7 +160,7 @@ export function StartHub() {
               openTour();
             }}
           >
-            <Compass size={15} aria-hidden />
+            <Compass size={14} aria-hidden />
             {t("tour")}
           </Button>
         </footer>

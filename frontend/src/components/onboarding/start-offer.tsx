@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
+import { shouldOfferStart } from "@/lib/onboarding-api";
 import { useStart } from "@/hooks/use-start";
 import { stripLocale } from "@/lib/active-route";
 
@@ -18,8 +19,7 @@ export function StartOffer() {
     params.has("example") ||
     !state.data ||
     state.error ||
-    state.data.dismissed ||
-    state.data.has_result ||
+    !shouldOfferStart(state.data) ||
     path !== "/chat"
   )
     return null;

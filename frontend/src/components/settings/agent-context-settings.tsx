@@ -21,7 +21,17 @@ const ZONES = Intl.supportedValuesOf("timeZone");
  * what they work on, and the time zone "every Monday at 9" is read in. Each
  * agent reads it at the start of every run, so nobody repeats it per chat.
  */
-export function AgentContextSettings({ user }: { user: User }) {
+export function AgentContextSettings({
+  user,
+  beforeSave,
+  onSaved,
+  saveLabel,
+}: {
+  user: User;
+  beforeSave?: () => Promise<boolean>;
+  onSaved?: () => void;
+  saveLabel?: string;
+}) {
   const t = useTranslations("pages.settings.agentContext");
   const tErrors = useTranslations("errors");
   const save = useSaveAgentContext();
@@ -42,6 +52,7 @@ export function AgentContextSettings({ user }: { user: User }) {
   const submit = async () => {
     setSaving(true);
     try {
+      if (beforeSave && !(await beforeSave())) return;
       await save({
         job_title: role.trim() || null,
         about: about.trim() || null,
@@ -49,6 +60,7 @@ export function AgentContextSettings({ user }: { user: User }) {
         working_hours: hours,
       });
       toast.success(t("saved"));
+      onSaved?.();
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors));
     } finally {
@@ -61,15 +73,18 @@ export function AgentContextSettings({ user }: { user: User }) {
       title={t("title")}
       description={t("description")}
       action={
-        <Button onClick={submit} disabled={saving} size="sm">
-          {t("save")}
-        </Button>
+        !onSaved && (
+          <Button onClick={submit} disabled={saving} size="sm">
+            {saveLabel ?? t("save")}
+          </Button>
+        )
       }
     >
       <div className="space-y-4">
         <FormField label={t("role")} htmlFor="agent-context-role">
           <Input
             id="agent-context-role"
+            data-guidance={(!!onSaved && !role.trim()) || undefined}
             value={role}
             maxLength={120}
             placeholder={t("rolePlaceholder")}
@@ -89,6 +104,7 @@ export function AgentContextSettings({ user }: { user: User }) {
         <FormField label={t("timeZone")} htmlFor="agent-context-zone">
           <Input
             id="agent-context-zone"
+            data-guidance={(!!onSaved && !!role.trim() && !zone) || undefined}
             list="agent-context-zones"
             value={zone}
             onChange={(event) => setZone(event.target.value)}
@@ -106,6 +122,11 @@ export function AgentContextSettings({ user }: { user: User }) {
         >
           <WorkingHoursField value={hours} onChange={setHours} />
         </FormField>
+        {onSaved && (
+          <Button onClick={submit} disabled={saving}>
+            {saveLabel ?? t("save")}
+          </Button>
+        )}
       </div>
     </SectionCard>
   );

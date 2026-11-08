@@ -27,6 +27,8 @@ const SECTIONS = [
 type Section = (typeof SECTIONS)[number]["id"];
 
 type Props = Record<Section, ReactNode> & {
+  guided?: boolean;
+  onContinue?: () => void;
   dirty: boolean;
   pending: boolean;
   onSave: () => void;
@@ -34,10 +36,19 @@ type Props = Record<Section, ReactNode> & {
 };
 
 /** Keep drafts mounted across sections, including independently saved credentials. */
-export function DeploymentSettingsLayout({ dirty, pending, onSave, onDiscard, ...content }: Props) {
+export function DeploymentSettingsLayout({
+  dirty,
+  pending,
+  onSave,
+  onDiscard,
+  guided,
+  onContinue,
+  ...content
+}: Props) {
   const t = useTranslations("pages.adminSettingsLayout");
   const tc = useTranslations("common");
-  const [active, setActive] = useState<Section>("identity");
+  const tStart = useTranslations("start.administration");
+  const [active, setActive] = useState<Section>(guided ? "access" : "identity");
 
   return (
     <div className="space-y-5 pb-6">
@@ -54,16 +65,24 @@ export function DeploymentSettingsLayout({ dirty, pending, onSave, onDiscard, ..
               {t("discard")}
             </Button>
           )}
-          <Button onClick={onSave} disabled={pending || !dirty}>
+          <Button
+            onClick={dirty ? onSave : onContinue}
+            disabled={pending || (!dirty && !onContinue)}
+          >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            {tc("save")}
+            {onContinue ? tStart("saveContinue") : tc("save")}
           </Button>
         </div>
       </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[190px_minmax(0,1fr)]">
+      <div
+        className={cn("grid items-start gap-5", !guided && "lg:grid-cols-[190px_minmax(0,1fr)]")}
+      >
         <nav
           aria-label={t("title")}
-          className="bg-card flex gap-1 overflow-x-auto rounded-xl p-2 lg:sticky lg:top-24 lg:flex-col"
+          className={cn(
+            "bg-card flex gap-1 overflow-x-auto rounded-xl p-2",
+            !guided && "lg:sticky lg:top-24 lg:flex-col",
+          )}
         >
           {SECTIONS.map(({ id, icon: Icon }) => (
             <button

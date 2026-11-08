@@ -67,13 +67,15 @@ class OnboardingService:
         result = await onboarding_repo.latest_result(
             self.db, organization_id=ctx.organization_id, user_id=member.user_id
         )
+        person = await user_repo.get_by_id(self.db, member.user_id)
         owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
         owner = await user_repo.get_by_id(self.db, owner_id) if owner_id is not None else None
         return OnboardingRead(
             organization_id=org.id,
             organization_name=org.name,
             goal=member.onboarding_goal,
-            dismissed=member.onboarding_dismissed_at is not None,
+            dismissed=member.onboarding_dismissed_at is not None
+            or (person is not None and person.onboarding_completed_at is not None),
             can_prepare=ctx.has(Perm.AGENTS_EDIT) and ctx.has(Perm.AGENTS_PUBLISH),
             can_configure_model=ctx.has(Perm.CONNECTIONS_MANAGE),
             support_email=owner.email if owner is not None else None,
@@ -81,6 +83,10 @@ class OnboardingService:
             latest_conversation_id=result.conversation_id if result is not None else None,
             latest_completed_at=result.ended_at if result is not None else None,
             has_result=result is not None,
+            has_activity=result is not None
+            or await onboarding_repo.has_activity(
+                self.db, organization_id=ctx.organization_id, user_id=member.user_id
+            ),
         )
 
     async def _agents(self, ctx: AuthContext) -> list[OnboardingAgent]:

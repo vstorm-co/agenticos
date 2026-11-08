@@ -33,7 +33,7 @@ it("signs in a new account and opens the shared start", async () => {
   await waitFor(() =>
     expect(env.login).toHaveBeenCalledWith(
       { email: "person@example.com", password: "ValidPassword123!" },
-      "/onboarding",
+      "/onboarding?welcome=1",
     ),
   );
   expect(env.push).not.toHaveBeenCalled();

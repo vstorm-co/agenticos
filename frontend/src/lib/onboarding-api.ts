@@ -17,6 +17,8 @@ const onboarding = z.object({
   latest_conversation_id: z.uuid().nullable(),
   latest_completed_at: z.string().nullable(),
   has_result: z.boolean(),
+  // Older API processes during a rolling upgrade have no activity signal yet.
+  has_activity: z.boolean().default(false),
 });
 export type Onboarding = z.infer<typeof onboarding>;
 export interface StartUpdate {
@@ -44,4 +46,11 @@ export async function previewMemberStart(userId: string): Promise<{ has_common_a
   return z
     .object({ has_common_agent: z.boolean() })
     .parse(await apiClient.get<unknown>(`/me/onboarding/members/${encodeURIComponent(userId)}`));
+}
+
+/** Ready agents or existing work make the start optional, without inventing a completed run. */
+export function shouldOfferStart(
+  data: Pick<Onboarding, "dismissed" | "has_result" | "has_activity" | "agents">,
+): boolean {
+  return !data.dismissed && !data.has_result && !data.has_activity && data.agents.length === 0;
 }

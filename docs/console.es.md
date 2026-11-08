@@ -1,5 +1,5 @@
 ---
-source_sha: "2fe45c383dab"
+source_sha: "03785bc080ff"
 ---
 
 # La consola { #the-console }
@@ -962,14 +962,48 @@ Aceptar una invitación abre este mismo inicio en la organización correspondien
 El registro intenta iniciar sesión directamente; si falla, el formulario de acceso
 conserva el destino y la cuenta ya creada.
 
-Los ejemplos grabados se abren en un diálogo. Ciérrelo con el botón ×, Escape o el botón de volver; el foco del teclado regresa a la tarjeta de la tarea.
+Los administradores de la aplicación empiezan creando un espacio de empresa o
+eligiendo uno existente explícitamente. Los espacios personales son opcionales.
+Después aparecen invitaciones, ajustes del despliegue, ajustes de la organización
+y el primer agente. Los administradores de organización ven sus pasos; los ajustes
+del despliegue quedan reservados al administrador de la aplicación. Se reutilizan
+los formularios, permisos y reglas de guardado de los paneles administrativos.
+El despliegue permite configurar espacios personales para cuentas futuras,
+organización y rol predeterminados y registro. Las cuentas existentes no se borran
+ni se trasladan.
+
+Un asistente secuencial muestra una pregunta cada vez, con progreso arriba y
+acciones para volver y continuar. Los espacios de empresa existentes aparecen
+antes de crear otro. La identidad de empresa, la identidad personal y el contexto
+de agentes son pasos separados. Tras elegir el espacio puedes añadir logo,
+avatar, nombre, puesto, contexto laboral, zona horaria y horario. Cada paso de perfil avanza solo después de guardar sus cambios. El despliegue empieza
+por acceso y cuentas; **Guardar y continuar** guarda los cambios antes de avanzar.
+Los pasos opcionales se pueden omitir. Finalizar oculta futuras propuestas de inicio
+sin afirmar que se haya ejecutado correctamente un agente.
+
+Completar un onboarding anterior oculta las propuestas de inicio, sin contar como ejecución correcta.
+La actividad existente se reconoce sin migraciones ni reinicios: agentes publicados
+disponibles o conversaciones propias ocultan las propuestas automáticas. Los mensajes
+del usuario en chats antiguos o fallidos cuentan como actividad, independientemente
+de las ejecuciones completadas. Los enlaces de bienvenida de registro e invitación
+llevan los espacios utilizables al chat; abrir Get started manualmente mantiene la
+configuración accesible. El acceso normal sigue abriendo el chat o el enlace solicitado.
+
+El nombre actualiza una vista previa identificada antes de crear el espacio.
+Las organizaciones existentes muestran su logo o avatar alternativo configurado.
+Las tarjetas contiguas de escritorio tienen la misma altura. Las transiciones
+y los campos destacados respetan las preferencias de movimiento.
+Los miembros eligen ejemplos grabados con pestañas de respuesta y material.
+Cambiar de ejemplo mantiene la vista previa en la página. La configuración de IA
+abre un diálogo que admite Escape y restaura el foco. Elegir un ejemplo no llama
+al modelo.
 
 Elige una nota de reunión ficticia, una pregunta sobre una política o una comparación
 de ofertas. Revisa o edita el texto antes de **Run this task**. La ejecución usa
 el modelo y los límites de gasto del agente seleccionado y puede generar cargos
 del proveedor. Estos ejemplos no necesitan pantalla, micrófono, sandbox ni cuenta externa.
 
-Sin agente disponible, **View example** muestra un resultado grabado. No llama
+La vista previa del ejemplo sigue disponible sin agente. No llama
 al modelo, no procesa las modificaciones y no cuenta como ejecución correcta.
 Un builder autorizado puede preparar un asistente de texto compartido con un modelo
 de chat compartido elegido explícitamente. Tiene un límite mensual de 5 USD dentro

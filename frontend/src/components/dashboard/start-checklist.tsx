@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { shouldOfferStart } from "@/lib/onboarding-api";
 import { useStart } from "@/hooks/use-start";
 import { Button } from "@/components/ui";
 import { LoadingState } from "@/components/states";
@@ -37,12 +38,7 @@ export function StartChecklist({ orgId, className }: { orgId: string; className?
         </Button>
       </section>
     );
-  if (
-    !state.data ||
-    state.data.organization_id !== orgId ||
-    state.data.dismissed ||
-    state.data.has_result
-  )
+  if (!state.data || state.data.organization_id !== orgId || !shouldOfferStart(state.data))
     return null;
   return (
     <section aria-label={t("offerTitle")} className={frame}>

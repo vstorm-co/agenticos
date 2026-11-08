@@ -50,6 +50,7 @@ def start(monkeypatch: pytest.MonkeyPatch) -> StartFixture:
         user_repo, "get_by_id", AsyncMock(return_value=User(email="owner@example.com"))
     )
     monkeypatch.setattr(onboarding_repo, "latest_result", AsyncMock(return_value=None))
+    monkeypatch.setattr(onboarding_repo, "has_activity", AsyncMock(return_value=False))
     monkeypatch.setattr(AgentRegistryService, "list_agents", AsyncMock(return_value=([], 0)))
     return ctx, member, db, OnboardingService(db)
 
@@ -326,3 +327,40 @@ async def test_repeated_preparation_cannot_claim_to_change_an_existing_model(
     )
     with pytest.raises(BadRequestError, match="another model"):
         await service.prepare(ctx, profile.id)
+
+
+async def test_existing_chat_activity_suppresses_a_new_start_without_claiming_success(
+    start: StartFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, service = start
+    activity = AsyncMock(return_value=True)
+    monkeypatch.setattr(onboarding_repo, "has_activity", activity)
+    result = await service.state(ctx)
+    assert result.has_activity and not result.has_result
+    assert result.latest_conversation_id is None
+    activity.assert_awaited_once_with(
+        service.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+    )
+
+
+@pytest.mark.parametrize("present", [False, True])
+async def test_activity_query_is_personal_and_tenant_scoped(present: bool) -> None:
+    db = AsyncMock()
+    db.scalar.return_value = present
+    org, user = uuid4(), uuid4()
+    assert await onboarding_repo.has_activity(db, organization_id=org, user_id=user) is present
+    compiled = db.scalar.await_args.args[0].compile(dialect=postgresql.dialect())
+    assert org in compiled.params.values() and user in compiled.params.values()
+    assert "user" in compiled.params.values()
+    assert "messages.conversation_id = conversations.id" in str(compiled)
+    assert "conversations.organization_id" in str(compiled)
+
+
+async def test_legacy_onboarding_completion_is_respected_without_claiming_a_run(
+    start: StartFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, service = start
+    person = User(email="owner@example.com", onboarding_completed_at=datetime.now(UTC))
+    monkeypatch.setattr(user_repo, "get_by_id", AsyncMock(return_value=person))
+    result = await service.state(ctx)
+    assert result.dismissed and not result.has_result and not result.has_activity
