@@ -3,6 +3,7 @@
 import json
 from collections.abc import Iterator
 from copy import deepcopy
+from itertools import permutations
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -1501,3 +1502,85 @@ def test_executed_conditional_references_still_refuse_same_value_cycles(
 def test_inactive_conditional_branches_still_require_supplied_references() -> None:
     with pytest.raises(ValidationError, match="within the supplied document"):
         TriggerInputConfig(input_schema={"if": False, "then": {"$ref": "https://outside.test"}})
+
+
+@pytest.mark.parametrize("order", list(permutations(("base", "wrapper", "use"))))
+def test_rebound_dynamic_anchor_cycles_are_refused_in_every_definition_order(
+    order: tuple[str, ...],
+) -> None:
+    definitions: dict[str, JsonValue] = {
+        "base": {"$id": "base", "$dynamicAnchor": "x"},
+        "wrapper": {"$id": "wrapper", "$dynamicAnchor": "x", "$ref": "use"},
+        "use": {"$id": "use", "$dynamicRef": "base#x"},
+    }
+    with pytest.raises(ValidationError, match="reference cycle"):
+        TriggerInputConfig(
+            input_schema={
+                "$id": "https://example.com/root",
+                "$defs": {name: definitions[name] for name in order},
+                "$ref": "wrapper",
+            }
+        )
+
+
+def test_rebound_dynamic_anchors_can_recurse_through_child_input() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$id": "https://example.com/root",
+            "$defs": {
+                "base": {
+                    "$id": "base",
+                    "$dynamicAnchor": "x",
+                    "type": "object",
+                    "properties": {"child": {"$dynamicRef": "base#x"}},
+                },
+                "wrapper": {
+                    "$id": "wrapper",
+                    "$dynamicAnchor": "x",
+                    "$ref": "base",
+                    "required": ["tag"],
+                },
+            },
+            "$ref": "wrapper",
+        }
+    )
+    assert input_problems(config, {"tag": "root", "child": {"tag": "child"}}) == []
+    assert input_problems(config, {"tag": "root", "child": {}})[0]["field"] == "child.tag"
+
+
+@pytest.mark.parametrize("limit", ["MAX_DYNAMIC_CONTEXTS", "MAX_DYNAMIC_SCOPE"])
+def test_dynamic_reference_analysis_has_explicit_context_limits(
+    limit: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(input_schema, limit, 0)
+    with pytest.raises(ValidationError, match="dynamic reference context limits"):
+        TriggerInputConfig(
+            input_schema={
+                "$id": "https://example.com/root",
+                "properties": {"child": {"$dynamicRef": "https://example.com/root"}},
+            }
+        )
+
+
+def test_dynamic_rebinding_can_enter_an_otherwise_nonasserting_schema() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$id": "https://example.com/root",
+            "$defs": {
+                "base": {"$id": "base", "$dynamicAnchor": "x"},
+                "wrapper": {
+                    "$id": "wrapper",
+                    "$ref": "use",
+                    "contentSchema": {"$dynamicAnchor": "x", "allOf": [True]},
+                },
+                "use": {"$id": "use", "$dynamicRef": "base#x"},
+            },
+            "$ref": "wrapper",
+        }
+    )
+    assert input_problems(config, {}) == []
+
+
+def test_context_cycle_analysis_reports_unresolved_references() -> None:
+    with pytest.raises(ValueError, match="unresolved local reference"):
+        input_schema._check_dynamic_cycles({"$dynamicRef": "https://outside.test"}, {})

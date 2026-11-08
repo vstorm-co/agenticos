@@ -1,5 +1,5 @@
 ---
-source_sha: "4e584683df83"
+source_sha: "34e8bf8372e8"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -184,6 +184,11 @@ El descubrimiento por HTTP expone únicamente la primera entrada **Called by a w
 Las ramas `then`/`else` independientes y las excluidas por un valor booleano
 literal en `if` se comprueban para asegurar referencias seguras, pero no crean
 aristas de recursión durante la evaluación.
+
+Los contratos con `$dynamicRef` se limitan durante la comprobación de
+publicación a 2048 contextos del resolver y 64 recursos distintos en un ámbito
+dinámico. Superar cualquiera de los límites provoca un rechazo explícito de la
+configuración.
 
 ### trigger.manual { #trigger-manual }
 

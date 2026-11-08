@@ -29,6 +29,10 @@ MAX_PROBLEMS = 50
 MAX_DIAGNOSTIC_BYTES = 4096
 MAX_SCHEMA_BYTES = 262_144
 MAX_DISCOVERY_BYTES = 32 * 1024
+MAX_DYNAMIC_CONTEXTS = 2048
+MAX_DYNAMIC_SCOPE = 64
+
+type _SchemaVisit = tuple[int, str, tuple[str, ...]]
 
 _SAME_VALUE = frozenset({"not", "if", "then", "else"})
 _CHILD_VALUE = frozenset(
@@ -398,6 +402,64 @@ def _schema_resolver(schema: InputSchema) -> Resolver[Schema]:
     return Registry().with_resource(base, resource).crawl().resolver(base)
 
 
+def _schema_visit(contents: Schema, resolver: Resolver[Schema]) -> _SchemaVisit:
+    # The pinned resolver exposes its base URI only through this private field.
+    # Dynamic anchors prefer the outermost matching scope: repeated URIs closer
+    # to the current resource cannot change resolution and need no extra state.
+    scope = tuple(dict.fromkeys(uri for uri, _ in reversed(list(resolver.dynamic_scope()))))
+    if len(scope) > MAX_DYNAMIC_SCOPE:
+        raise ValueError("Input schema exceeds dynamic reference context limits")
+    return id(contents), resolver._base_uri, scope
+
+
+def _check_dynamic_cycles(
+    schema: InputSchema, checked: dict[int, Mapping[str, JsonValue] | bool]
+) -> None:
+    """Check same-input cycles in each reachable, bounded resolver context."""
+    resolver = _schema_resolver(schema)
+    pending = [(DRAFT202012.create_resource(schema), resolver)]
+    connections: dict[_SchemaVisit, set[_SchemaVisit]] = {}
+    while pending:
+        resource, current_resolver = pending.pop()
+        contents = resource.contents
+        key = _schema_visit(contents, current_resolver)
+        if key in connections:
+            continue
+        if len(connections) >= MAX_DYNAMIC_CONTEXTS:
+            raise ValueError("Input schema exceeds dynamic reference context limits")
+        connections[key] = set()
+        if id(contents) not in checked:
+            validated = _checked_schema(contents)
+            checked[id(contents)] = validated if validated is not None else bool(contents)
+        contents = checked[id(contents)]
+        if isinstance(contents, bool):
+            continue
+        for keyword in ("$ref", "$dynamicRef"):
+            reference = contents.get(keyword)
+            if not isinstance(reference, str):
+                continue
+            try:
+                resolved = current_resolver.lookup(reference)
+            except Unresolvable:
+                raise ValueError("Input schema contains an unresolved local reference") from None
+            connections[key].add(_schema_visit(resolved.contents, resolved.resolver))
+            pending.append((DRAFT202012.create_resource(resolved.contents), resolved.resolver))
+        for child, same_value, unevaluated in _subschemas(contents):
+            if unevaluated:
+                continue
+            child_resource = DRAFT202012.create_resource(child)
+            child_resolver = current_resolver.in_subresource(child_resource)
+            if same_value:
+                connections[key].add(_schema_visit(child, child_resolver))
+            pending.append((child_resource, child_resolver))
+    try:
+        TopologicalSorter(connections).prepare()
+    except CycleError:
+        raise ValueError(
+            "Input schema contains a reference cycle that does not descend into input"
+        ) from None
+
+
 def check_input_schema(schema: InputSchema) -> None:
     """Refuse invalid dialects, unresolved/external references and endless ref loops.
 
@@ -449,10 +511,9 @@ def check_input_schema(schema: InputSchema) -> None:
                         "Input schema references must stay within the supplied document"
                     ) from None
                 raise ValueError("Input schema contains an unresolved local reference") from None
-            if not annotation_only:
+            if not annotation_only and keyword == "$ref":
                 connections[key].add(id(resolved.contents))
-                if keyword == "$ref":
-                    references[key] = id(resolved.contents)
+                references[key] = id(resolved.contents)
             pending.append(
                 (DRAFT202012.create_resource(resolved.contents), resolved.resolver, annotation_only)
             )
@@ -467,6 +528,10 @@ def check_input_schema(schema: InputSchema) -> None:
                     annotation_only or annotation,
                 )
             )
+    if any(
+        isinstance(contents, Mapping) and "$dynamicRef" in contents for contents in checked.values()
+    ):
+        _check_dynamic_cycles(schema, dict(checked))
     possible: dict[int, bool] = {}
     unrestricted: dict[int, bool] = {}
     identities: dict[int, str] = {}

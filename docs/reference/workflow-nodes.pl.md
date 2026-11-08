@@ -1,5 +1,5 @@
 ---
-source_sha: "4e584683df83"
+source_sha: "34e8bf8372e8"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -181,6 +181,10 @@ Odkrywanie przez HTTP udostępnia tylko pierwsze wejście **Called by a workflow
 Samodzielne gałęzie `then`/`else` oraz gałęzie wykluczone przez literalny warunek
 logiczny `if` są sprawdzane pod kątem bezpieczeństwa referencji, ale nie tworzą
 krawędzi rekurencji wykonywanej przy walidacji.
+
+Kontrakty używające `$dynamicRef` mają podczas kontroli publikacji limit
+2048 kontekstów resolvera i 64 różnych zasobów w zakresie dynamicznym.
+Przekroczenie dowolnego limitu powoduje jawną odmowę przyjęcia konfiguracji.
 
 ### trigger.manual { #trigger-manual }
 

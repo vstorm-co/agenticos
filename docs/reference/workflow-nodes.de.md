@@ -1,5 +1,5 @@
 ---
-source_sha: "4e584683df83"
+source_sha: "34e8bf8372e8"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -189,6 +189,11 @@ Die HTTP-Erkennung zeigt nur den ersten Einstieg **Called by a workflow**, wobei
 Eigenständige `then`/`else`-Zweige und Zweige, die ein boolescher Literalwert
 für `if` ausschließt, werden auf sichere Referenzen geprüft, erzeugen aber keine
 Rekursionskanten für die Auswertung.
+
+Verträge mit `$dynamicRef` sind bei der Veröffentlichungsprüfung auf
+2048 Resolver-Kontexte und 64 verschiedene Ressourcen in einem dynamischen
+Gültigkeitsbereich begrenzt. Das Überschreiten eines Limits führt zu einer
+ausdrücklichen Ablehnung der Konfiguration.
 
 ### trigger.manual { #trigger-manual }
 

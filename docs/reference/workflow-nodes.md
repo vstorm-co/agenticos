@@ -169,6 +169,10 @@ HTTP discovery exposes only the first **Called by a workflow** entry, with the d
 Standalone `then`/`else` branches and branches excluded by a literal boolean
 `if` are checked for reference safety but do not create runtime recursion edges.
 
+Contracts using `$dynamicRef` are limited to 2048 resolver contexts and
+64 distinct resources in a dynamic scope during publication checks. Exceeding
+either limit produces an explicit configuration refusal.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its
