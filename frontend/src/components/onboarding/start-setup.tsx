@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import type { Onboarding } from "@/lib/onboarding-api";
 import { useStart } from "@/hooks/use-start";
+import { StartCompanions } from "./start-companions";
 import { StartModel } from "./start-model";
 
 export function StartSetup({
@@ -36,6 +37,7 @@ export function StartSetup({
           onReturnFocus();
         }}
       >
+        <StartCompanions members={["byte", "nimbus", "sunny"]} />
         <DialogHeader>
           <DialogTitle>{t(data.can_prepare ? "connectTitle" : "askOwner")}</DialogTitle>
           <DialogDescription>

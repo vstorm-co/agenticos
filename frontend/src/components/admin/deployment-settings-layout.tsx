@@ -81,7 +81,7 @@ export function DeploymentSettingsLayout({
           aria-label={t("title")}
           className={cn(
             "bg-card flex gap-1 overflow-x-auto rounded-xl p-2",
-            !guided && "lg:sticky lg:top-24 lg:flex-col",
+            guided ? "flex-wrap" : "lg:sticky lg:top-24 lg:flex-col",
           )}
         >
           {SECTIONS.map(({ id, icon: Icon }) => (
@@ -110,7 +110,16 @@ export function DeploymentSettingsLayout({
               <p className="text-muted-foreground mb-4 max-w-2xl text-sm leading-6">
                 {t(`${id}Hint`)}
               </p>
-              <div className="space-y-5">{content[id]}</div>
+              <div
+                className={cn(
+                  "gap-5",
+                  guided && (id === "access" || id === "identity")
+                    ? "grid md:grid-cols-2 [&>*]:min-w-0"
+                    : "space-y-5",
+                )}
+              >
+                {content[id]}
+              </div>
             </section>
           ))}
         </div>

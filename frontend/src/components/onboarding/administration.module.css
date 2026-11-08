@@ -413,61 +413,12 @@
   border-top: 1px solid #ad8eeb;
   margin-top: auto;
 }
-.stageDrawing {
-  flex-shrink: 0;
-  height: 180px;
-  position: relative;
-  margin-bottom: 24px;
-}
-.drawingOrbit {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 150px;
-  height: 150px;
-  transform: translate(-50%, -50%);
-  border: 1px solid #bca0f7;
-  border-radius: 50%;
-}
-.drawingCenter {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: grid;
-  place-items: center;
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  background: #faf7ff;
-  color: #5934b7;
-}
-.drawingFace {
-  position: absolute;
-  bottom: 8px;
-  right: 2px;
-}
-.drawingSatellite {
-  position: absolute;
-  top: 14px;
-  left: 5px;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  background: #5b34bb;
-  border-radius: 50%;
-}
 :global(html:not([data-motion="reduce"])) .stageArtwork {
   animation: admin-arrive 240ms ease-out both;
 }
 @media (max-width: 1100px) {
   .stageStudio {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .stageArtwork {
-    position: static;
-    display: none;
   }
 }
 
@@ -576,5 +527,213 @@
   }
   .wizardMeta > span {
     flex-shrink: 0;
+  }
+}
+
+/* A compact cast scene stays useful on phones instead of disappearing. */
+.stageDrawing {
+  position: relative;
+  flex-shrink: 0;
+  height: 190px;
+  margin-bottom: 20px;
+}
+.stageDrawing > div {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.drawingCenter {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  background: #faf7ff;
+  color: #5934b7;
+  top: 40%;
+  width: 70px;
+  height: 70px;
+  border-radius: 18px;
+  box-shadow: 0 6px 0 #4f29ae;
+}
+.drawingOrbit {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed #bca0f7;
+  border-radius: 50%;
+  top: 42%;
+  width: 156px;
+  height: 156px;
+  border-style: dashed;
+}
+.stageArtwork[data-stage="profile"] {
+  background: #4852b9;
+}
+.stageArtwork[data-stage="context"] {
+  background: #34675f;
+}
+.stageArtwork[data-stage="team"] {
+  background: #704a93;
+}
+.stageArtwork[data-stage="deployment"] {
+  background: #3e526f;
+}
+.stageArtwork[data-stage="organization"] {
+  background: #5d49a4;
+}
+.artworkCopy {
+  min-width: 0;
+}
+.artworkCopy p {
+  margin-bottom: 24px;
+}
+.profileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+}
+.profileCard > button {
+  align-self: flex-start;
+}
+.profileCard > div > section {
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+}
+.profileCard > div > section > header {
+  padding: 0 0 12px;
+  border: 0;
+}
+.profileCard > div > section > div:last-child {
+  padding: 12px 0 20px;
+}
+.profileCard > div > button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+.wideStage {
+  display: grid;
+  gap: 24px;
+}
+.wideStage > .stageArtwork {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 28px;
+  padding: 20px 28px;
+}
+.wideStage .stageDrawing {
+  height: 150px;
+  margin: 0;
+  grid-row: span 2;
+}
+.wideStage .artworkCopy p {
+  margin-bottom: 0;
+}
+.wideStage .artworkFootnote {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.wideStage .orgSettings {
+  margin-top: 0;
+}
+.previewFace {
+  width: 110px;
+  background: transparent;
+}
+.previewFace > div {
+  transform: scale(0.62);
+}
+@media (max-width: 1100px) {
+  .stageArtwork,
+  .wideStage > .stageArtwork {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px;
+    order: -1;
+  }
+  .stageDrawing,
+  .wideStage .stageDrawing {
+    height: 112px;
+    margin: 0;
+    grid-row: auto;
+  }
+  .stageDrawing > div {
+    transform: translateX(-50%) scale(0.55);
+    bottom: -8px;
+  }
+  .drawingCenter {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  .drawingCenter svg {
+    width: 24px;
+    height: 24px;
+  }
+  .drawingOrbit {
+    width: 96px;
+    height: 96px;
+  }
+  .stageArtwork h3 {
+    font-size: 20px;
+  }
+  .stageArtwork p {
+    margin: 8px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .stageArtwork .artworkFootnote {
+    display: none;
+  }
+  .profileCard {
+    padding: 20px;
+  }
+}
+@media (max-width: 480px) {
+  .stageArtwork,
+  .wideStage > .stageArtwork {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .stageDrawing > div {
+    transform: translateX(-50%) scale(0.46);
+  }
+  .drawingOrbit {
+    width: 80px;
+    height: 80px;
+  }
+  .stageArtwork h3 {
+    font-size: 18px;
+  }
+  .teamStage {
+    padding: 20px;
+    gap: 20px;
+  }
+  .stageHint {
+    line-height: 1.6;
+  }
+}
+
+.governanceGrid {
+  display: grid;
+  gap: 20px;
+}
+.governanceGrid > .settingsLinks {
+  grid-column: 1 / -1;
+}
+@media (min-width: 1000px) {
+  .governanceGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

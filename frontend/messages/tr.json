@@ -12921,7 +12921,12 @@
       "createInstead": "Yeni çalışma alanı oluştur",
       "chooseExisting": "Mevcut çalışma alanını seç",
       "identityBenefitTitle": "Çalışma alanınız. Kimliğiniz.",
-      "identityBenefitBody": "Logonuz, ekibinizin sohbetlerde ve ortak kaynaklarda doğru çalışma alanını tanımasına yardımcı olur."
+      "identityBenefitBody": "Logonuz, ekibinizin sohbetlerde ve ortak kaynaklarda doğru çalışma alanını tanımasına yardımcı olur.",
+      "identityProfileTitle": "Profilini kişiselleştir",
+      "identityProfileHint": "Fotoğrafını ve ekibinin göreceği adını ekle. Rolünü ve çalışma saatlerini sonraki adımda doldurabilirsin.",
+      "identityProfileBenefitTitle": "Her çalışma alanında tanıdık bir yüz",
+      "identityProfileBenefitBody": "Fotoğrafın ve görünen adın, ekip arkadaşlarının ortak sohbetlerde seni tanımasını sağlar.",
+      "teamHint": "Ekibini çalışma alanına davet et. Bunu şimdi yapabilir veya devam edip daha sonra dönebilirsin."
     },
     "workbench": {
       "memberHint": "Workspace sahibi sizinle bir agent paylaşabilir. Kendi API anahtarınıza ihtiyacınız yoktur.",

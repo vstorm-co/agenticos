@@ -4,8 +4,7 @@ import type { Organization } from "@/types";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { Building2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Face } from "@/components/desktop/blobby-pickers";
-import { faceOf } from "@/lib/desktop/blobby-cast";
+import { StartCompanions } from "./start-companions";
 import styles from "./administration.module.css";
 
 /** A live illustration of the workspace being named, before anything is created. */
@@ -58,7 +57,7 @@ export function StartWorkspacePreview({
         </div>
         <div className={styles.previewAgents}>
           <span className={styles.previewFace} aria-hidden="true">
-            <Face face={faceOf({ kind: "cast", id: "nimbus" })} size={52} />
+            <StartCompanions members={["nimbus", "byte", "sunny"]} />
           </span>
           <span>{t("previewAgents")}</span>
         </div>

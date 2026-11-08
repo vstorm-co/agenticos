@@ -13232,7 +13232,12 @@
       "createInstead": "Neuen Workspace erstellen",
       "chooseExisting": "Bestehenden Workspace wählen",
       "identityBenefitTitle": "Ihr Workspace. Ihre Identität.",
-      "identityBenefitBody": "Ihr Logo hilft Ihrem Team, den richtigen Workspace in Chats und gemeinsamen Ressourcen zu erkennen."
+      "identityBenefitBody": "Ihr Logo hilft Ihrem Team, den richtigen Workspace in Chats und gemeinsamen Ressourcen zu erkennen.",
+      "identityProfileTitle": "Mach es zu deinem Profil",
+      "identityProfileHint": "Füge dein Foto und den Namen hinzu, den dein Team sieht. Rolle und Arbeitszeiten folgen im nächsten Schritt.",
+      "identityProfileBenefitTitle": "Ein vertrautes Gesicht in jedem Workspace",
+      "identityProfileBenefitBody": "Dein Foto und Anzeigename helfen dem Team, dich in gemeinsamen Gesprächen zu erkennen.",
+      "teamHint": "Hole dein Team in den Workspace. Lade es jetzt ein oder fahre fort und komme später zurück."
     },
     "workbench": {
       "memberHint": "Der Workspace-Eigentümer kann einen Agenten für Sie freigeben. Sie benötigen keinen eigenen API-Schlüssel.",

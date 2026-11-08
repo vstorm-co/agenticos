@@ -13335,7 +13335,12 @@
       "createInstead": "Utwórz nowy workspace",
       "chooseExisting": "Wybierz istniejący workspace",
       "identityBenefitTitle": "Twój workspace. Twój znak.",
-      "identityBenefitBody": "Logo pozwoli zespołowi rozpoznać właściwy workspace w czatach i przy wspólnych zasobach."
+      "identityBenefitBody": "Logo pozwoli zespołowi rozpoznać właściwy workspace w czatach i przy wspólnych zasobach.",
+      "identityProfileTitle": "Pokaż, że to Ty",
+      "identityProfileHint": "Dodaj zdjęcie i nazwę widoczną dla zespołu. W następnym kroku uzupełnisz rolę i godziny pracy.",
+      "identityProfileBenefitTitle": "Znajoma twarz w każdym workspace",
+      "identityProfileBenefitBody": "Zdjęcie i nazwa pomagają zespołowi rozpoznać Cię we wspólnych rozmowach.",
+      "teamHint": "Zaproś swoich ludzi do workspace. Możesz zrobić to teraz albo kontynuować i wrócić tu później."
     },
     "workbench": {
       "memberHint": "Właściciel workspace może udostępnić Ci agenta. Nie potrzebujesz własnego klucza API.",

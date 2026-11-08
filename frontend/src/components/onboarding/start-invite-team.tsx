@@ -69,7 +69,7 @@ export function StartInviteTeam({
           <Link href={`/orgs/${org.id}/groups`}>{t("manageGroups")}</Link>
         )}
       </div>
-      <Button variant="outline" onClick={onContinue}>
+      <Button onClick={onContinue}>
         {t("continueSetup")}
         <ArrowRight size={15} aria-hidden />
       </Button>

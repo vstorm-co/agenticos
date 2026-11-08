@@ -37,7 +37,7 @@ export function StartOrganizationSettings({ org }: { org: Organization }) {
         <TabsTrigger value="services">{t("services")}</TabsTrigger>
         {can(Perm.orgSettings) && <TabsTrigger value="voice">{t("voice")}</TabsTrigger>}
       </TabsList>
-      <TabsContent value="governance" className="space-y-5">
+      <TabsContent value="governance" className={styles.governanceGrid}>
         {can(Perm.budgetsManage) && <OrgSpendingLimit org={org} />}
         {can(Perm.approvalsDecide) && <OrgApprovalWaiver org={org} />}
         {can(Perm.orgSettings) && <OrgPublicLiveData org={org} />}

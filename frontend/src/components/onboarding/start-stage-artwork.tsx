@@ -1,39 +1,43 @@
 "use client";
-import { Building2, Users, ShieldCheck, SlidersHorizontal } from "lucide-react";
+
+import {
+  Building2,
+  Users,
+  ShieldCheck,
+  SlidersHorizontal,
+  Fingerprint,
+  Globe2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Face } from "@/components/desktop/blobby-pickers";
-import { faceOf } from "@/lib/desktop/blobby-cast";
+import { StartCompanions } from "./start-companions";
 import styles from "./administration.module.css";
 
-export function StartStageArtwork({
-  stage,
-}: {
-  stage: "team" | "deployment" | "organization" | "profile" | "identity";
-}) {
+const STAGES = {
+  identity: { icon: Building2, cast: ["nimbus", "sunny", "byte"] },
+  team: { icon: Users, cast: ["mochi", "pebble", "sprig"] },
+  deployment: { icon: ShieldCheck, cast: ["byte", "nimbus", "sunny"] },
+  organization: { icon: SlidersHorizontal, cast: ["sprig", "mochi", "byte"] },
+  profile: { icon: Fingerprint, cast: ["pebble", "sunny", "mochi"] },
+  context: { icon: Globe2, cast: ["sunny", "byte", "nimbus"] },
+} as const;
+
+export function StartStageArtwork({ stage }: { stage: keyof typeof STAGES }) {
   const t = useTranslations("start.administration");
-  const Icon = {
-    identity: Building2,
-    team: Users,
-    deployment: Building2,
-    organization: ShieldCheck,
-    profile: SlidersHorizontal,
-  }[stage];
+  const { icon: Icon, cast } = STAGES[stage];
+  const copy = stage === "context" ? "profile" : stage === "profile" ? "identityProfile" : stage;
   return (
-    <aside className={styles.stageArtwork} aria-label={t(`${stage}BenefitTitle`)}>
+    <aside className={styles.stageArtwork} data-stage={stage} aria-label={t(`${copy}BenefitTitle`)}>
       <div className={styles.stageDrawing} aria-hidden="true">
         <span className={styles.drawingOrbit} />
         <span className={styles.drawingCenter}>
-          <Icon size={38} strokeWidth={1.4} />
+          <Icon size={34} strokeWidth={1.4} />
         </span>
-        <span className={styles.drawingFace}>
-          <Face face={faceOf({ kind: "cast", id: "nimbus" })} size={56} />
-        </span>
-        <span className={styles.drawingSatellite}>
-          <Users size={23} />
-        </span>
+        <StartCompanions members={cast} />
       </div>
-      <h3>{t(`${stage}BenefitTitle`)}</h3>
-      <p>{t(`${stage}BenefitBody`)}</p>
+      <div className={styles.artworkCopy}>
+        <h3>{t(`${copy}BenefitTitle`)}</h3>
+        <p>{t(`${copy}BenefitBody`)}</p>
+      </div>
       <p className={styles.artworkFootnote}>{t("changeLater")}</p>
     </aside>
   );

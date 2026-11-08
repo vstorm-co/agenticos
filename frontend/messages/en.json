@@ -13560,7 +13560,12 @@
       "createInstead": "Create a new workspace instead",
       "chooseExisting": "Choose an existing workspace",
       "identityBenefitTitle": "Your workspace. Your identity.",
-      "identityBenefitBody": "Your logo helps people recognize the right workspace in every chat and shared resource."
+      "identityBenefitBody": "Your logo helps people recognize the right workspace in every chat and shared resource.",
+      "identityProfileTitle": "Make yourself at home",
+      "identityProfileHint": "Add your photo and the name your teammates will see. Your role and working hours come next.",
+      "identityProfileBenefitTitle": "A familiar face in every workspace",
+      "identityProfileBenefitBody": "Your photo and display name help teammates recognize you in shared conversations.",
+      "teamHint": "Bring your people into the workspace. You can invite them now or continue and come back later."
     },
     "workbench": {
       "memberHint": "Your workspace owner can share an agent with you. You do not need your own API key.",

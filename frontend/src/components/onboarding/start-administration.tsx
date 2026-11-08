@@ -190,10 +190,10 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               hidden={step !== "profile"}
               aria-label={t("profile")}
             >
-              <h1 tabIndex={-1}>{t("memberProfileTitle")}</h1>
-              <p className={styles.stageHint}>{t("memberProfileHint")}</p>
+              <h1 tabIndex={-1}>{t("identityProfileTitle")}</h1>
+              <p className={styles.stageHint}>{t("identityProfileHint")}</p>
               <div className={styles.stageStudio}>
-                <div className="min-w-0 space-y-4">
+                <div className={styles.profileCard}>
                   <ProfileIdentitySettings
                     section="identity"
                     onContinue={() => advance("profile", "context")}
@@ -216,7 +216,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               <h1 tabIndex={-1}>{t("contextTitle")}</h1>
               <p className={styles.stageHint}>{t("contextHint")}</p>
               <div className={styles.stageStudio}>
-                <div className="min-w-0 space-y-4">
+                <div className={styles.profileCard}>
                   <ProfileIdentitySettings
                     section="context"
                     onContinue={() => advance("context", "team")}
@@ -226,14 +226,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                     {t("skipOptional")}
                   </Button>
                 </div>
-                <StartStageArtwork stage="profile" />
+                <StartStageArtwork stage="context" />
               </div>
             </section>
           )}
           {org && visited.includes("team") && (
             <section key={`team-${org.id}`} hidden={step !== "team"} aria-label={t("team")}>
               <h1 tabIndex={-1}>{t("teamTitle")}</h1>
-              <p className={styles.stageHint}>{t("teamBenefitBody")}</p>
+              <p className={styles.stageHint}>{t("teamHint")}</p>
               <div className={styles.stageStudio}>
                 <StartInviteTeam
                   org={org}
@@ -247,9 +247,9 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             <section hidden={step !== "deployment"} aria-label={t("deployment")}>
               <h1 tabIndex={-1}>{t("deploymentTitle")}</h1>
               <p className={styles.stageHint}>{t("deploymentHint")}</p>
-              <div className={styles.stageStudio}>
-                <DeploymentSettingsForm onContinue={() => advance("deployment", "organization")} />
+              <div className={styles.wideStage}>
                 <StartStageArtwork stage="deployment" />
+                <DeploymentSettingsForm onContinue={() => advance("deployment", "organization")} />
               </div>
             </section>
           )}
@@ -261,7 +261,8 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             >
               <h1 tabIndex={-1}>{t("organizationTitle", { workspace: org.name })}</h1>
               <p className={styles.stageHint}>{t("organizationHint")}</p>
-              <div className={styles.stageStudio}>
+              <div className={styles.wideStage}>
+                <StartStageArtwork stage="organization" />
                 <div>
                   <StartOrganizationSettings org={org} />
                   <Button className="mt-6" onClick={() => go("task")}>
@@ -269,7 +270,6 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                     <ArrowRight size={15} aria-hidden />
                   </Button>
                 </div>
-                <StartStageArtwork stage="organization" />
               </div>
             </section>
           )}

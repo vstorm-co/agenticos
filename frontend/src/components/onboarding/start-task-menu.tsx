@@ -4,6 +4,7 @@ import { LoaderCircle, NotebookPen, FileText, Columns3, Check } from "lucide-rea
 import { useTranslations } from "next-intl";
 import { Label } from "@/components/ui";
 import { START_GOALS, type StartGoal } from "@/lib/onboarding-api";
+import { StartCompanions } from "./start-companions";
 import styles from "./workbench.module.css";
 
 const ICONS = { meeting: NotebookPen, document: FileText, compare: Columns3 };
@@ -71,6 +72,7 @@ export function StartTaskMenu({
           </>
         ) : null}
       </p>
+      <StartCompanions />
       <p className={styles.menuHint}>{t("workbench.menuHint")}</p>
     </aside>
   );
