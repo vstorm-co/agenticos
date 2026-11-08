@@ -1305,3 +1305,89 @@ def test_literal_canonicalization_preserves_boolean_fractional_and_positional_di
 def test_regex_compiler_limits_are_controlled_configuration_refusals(pattern: str) -> None:
     with pytest.raises(ValidationError, match="validator complexity limits"):
         TriggerInputConfig(input_schema={"properties": {"name": {"pattern": pattern}}})
+
+
+@pytest.mark.parametrize("keyword", ["x-note", "customValidation", "minimumLength"])
+def test_unsupported_keywords_do_not_make_equivalent_branches_unique(keyword: str) -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={
+                "oneOf": [
+                    {"required": ["x"], keyword: "A"},
+                    {"required": ["x"], keyword: "B"},
+                ]
+            }
+        )
+
+
+def test_unsupported_keywords_do_not_restrict_universal_object_branches() -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(input_schema={"not": {"type": "object", "x-note": "A"}})
+
+
+def test_unsupported_keyword_names_inside_literal_objects_remain_significant() -> None:
+    config = TriggerInputConfig(
+        input_schema={"oneOf": [{"const": {"x-note": "A"}}, {"const": {"x-note": "B"}}]}
+    )
+    assert input_problems(config, {"x-note": "A"}) == []
+    assert input_problems(config, {"x-note": "B"}) == []
+
+
+@pytest.mark.parametrize("keyword", ["allOf", "anyOf"])
+def test_idempotent_applicator_duplicates_do_not_distinguish_outer_branches(keyword: str) -> None:
+    with pytest.raises(ValidationError, match="must allow a JSON object"):
+        TriggerInputConfig(
+            input_schema={
+                "oneOf": [
+                    {keyword: [{"required": ["x"]}]},
+                    {keyword: [{"required": ["x"]}, {"required": ["x"]}]},
+                ]
+            }
+        )
+
+
+def test_oneof_duplicate_multiplicity_remains_significant() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "oneOf": [
+                {"oneOf": [{"required": ["x"]}, {"required": ["y"]}]},
+                {
+                    "oneOf": [
+                        {"required": ["x"]},
+                        {"required": ["x"]},
+                        {"required": ["y"]},
+                    ]
+                },
+            ]
+        }
+    )
+    assert input_problems(config, {"x": 1}) == []
+
+
+@pytest.mark.parametrize("nested_resource", [False, True])
+def test_empty_reference_recurses_within_the_current_resource(nested_resource: bool) -> None:
+    node: dict[str, JsonValue] = {
+        "$id": "https://example.com/node",
+        "type": "object",
+        "properties": {"label": {"type": "string"}, "child": {"$ref": ""}},
+    }
+    schema: dict[str, JsonValue] = {"properties": {"node": node}} if nested_resource else node
+    config = TriggerInputConfig(input_schema=schema)
+    valid: dict[str, JsonValue] = {"child": {"child": {"label": "leaf"}}}
+    invalid: dict[str, JsonValue] = {"child": {"label": False}}
+    assert input_problems(config, {"node": valid} if nested_resource else valid) == []
+    problems = input_problems(config, {"node": invalid} if nested_resource else invalid)
+    assert problems[0]["field"] == ("node.child.label" if nested_resource else "child.label")
+
+
+def test_empty_reference_to_the_same_value_still_refuses_cycles() -> None:
+    with pytest.raises(ValidationError, match="reference cycle"):
+        TriggerInputConfig(input_schema={"$ref": ""})
+
+
+def test_references_into_extension_keywords_keep_their_assertions() -> None:
+    config = TriggerInputConfig(
+        input_schema={"x-contract": {"required": ["x"]}, "$ref": "#/x-contract"}
+    )
+    assert input_problems(config, {"x": 1}) == []
+    assert input_problems(config, {})[0]["field"] == "x"

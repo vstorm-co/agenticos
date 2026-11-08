@@ -62,6 +62,10 @@ _SCHEMA_ANNOTATIONS = frozenset(
         "contentSchema",
     }
 )
+_SCHEMA_IDENTITY_KEYS = (
+    frozenset(Draft202012Validator.VALIDATORS)
+    | {"$schema", "$id", "$anchor", "$dynamicAnchor", "$defs", "definitions"}
+) - _SCHEMA_ANNOTATIONS
 _OBJECT_UNRESTRICTED_KEYS = (
     frozenset(
         {
@@ -286,7 +290,7 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
     """Normalize unordered names, without treating literal data as schemas.
 
     Required names, type unions, enum alternatives and applicator branches
-    have no meaningful order; duplicate applicator branches retain their counts.
+    have no meaningful order; only oneOf retains duplicate branch counts.
     The document has already passed its meta-schema. Literal arrays and
     positional schema arrays retain their original order,
     including data that a local JSON Pointer may also use as a schema target.
@@ -294,7 +298,7 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
     if not isinstance(schema, dict):
         return schema
     result = {
-        keyword: value for keyword, value in schema.items() if keyword not in _SCHEMA_ANNOTATIONS
+        keyword: value for keyword, value in schema.items() if keyword in _SCHEMA_IDENTITY_KEYS
     }
     for keyword, value in result.items():
         if keyword in {"required", "type", "enum"} and isinstance(value, list):
@@ -316,6 +320,10 @@ def _canonical_schema(schema: JsonValue) -> JsonValue:
             result[keyword] = {name: _canonical_schema(child) for name, child in value.items()}
         elif keyword in _SCHEMA_LISTS and isinstance(value, list):
             branches = [_canonical_schema(child) for child in value]
+            if keyword in {"allOf", "anyOf"}:
+                branches = list(
+                    {json.dumps(child, sort_keys=True): child for child in branches}.values()
+                )
             result[keyword] = (
                 branches
                 if keyword == "prefixItems"
@@ -341,7 +349,7 @@ def _every_object_matches(
     """
     if isinstance(schema, bool):
         return schema
-    if schema.keys() - _OBJECT_UNRESTRICTED_KEYS:
+    if schema.keys() & _SCHEMA_IDENTITY_KEYS - _OBJECT_UNRESTRICTED_KEYS:
         return False
     if not _object_possible(schema, possible, reference, unrestricted, identities):
         return False
@@ -412,7 +420,7 @@ def check_input_schema(schema: InputSchema) -> None:
             reference = contents.get(keyword)
             if not isinstance(reference, str):
                 continue
-            if not reference.startswith("#"):
+            if reference and not reference.startswith("#"):
                 raise ValueError("Input schema references must stay within the supplied document")
             try:
                 resolved = current_resolver.lookup(reference)
@@ -445,11 +453,10 @@ def check_input_schema(schema: InputSchema) -> None:
             reference = references.get(key)
             # A static reference with no assertion siblings has its target's
             # meaning. Reuse its identity without expanding reference paths.
-            # Digests bound retained identities even for deeply nested schemas.
             identities[key] = (
                 identities[reference]
                 if isinstance(contents, Mapping)
-                and contents.keys() - _SCHEMA_ANNOTATIONS == {"$ref"}
+                and contents.keys() & _SCHEMA_IDENTITY_KEYS == {"$ref"}
                 and reference is not None
                 else json.dumps(
                     _canonical_schema(
