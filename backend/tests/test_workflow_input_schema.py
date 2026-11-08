@@ -1402,3 +1402,38 @@ def test_scalar_and_singleton_type_arrays_do_not_distinguish_branches(required: 
         right["required"] = ["x"]
     with pytest.raises(ValidationError, match="must allow a JSON object"):
         TriggerInputConfig(input_schema={"oneOf": [left, right]})
+
+
+@pytest.mark.parametrize("keyword", ["$ref", "$dynamicRef"])
+@pytest.mark.parametrize("reference", ["https://example.com/node", "node", "/node"])
+def test_resource_uri_references_recurse_without_external_retrieval(
+    keyword: str, reference: str
+) -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$id": "https://example.com/node",
+            "type": "object",
+            "properties": {"label": {"type": "string"}, "child": {keyword: reference}},
+        }
+    )
+    assert input_problems(config, {"child": {"child": {"label": "leaf"}}}) == []
+    assert input_problems(config, {"child": {"label": 7}})[0]["field"] == "child.label"
+
+
+def test_resource_uri_references_can_resolve_supplied_subresources() -> None:
+    config = TriggerInputConfig(
+        input_schema={
+            "$id": "https://example.com/root",
+            "$defs": {"part": {"$id": "part", "type": "string"}},
+            "properties": {"value": {"$ref": "part"}},
+        }
+    )
+    assert input_problems(config, {"value": "local"}) == []
+    assert input_problems(config, {"value": 3})[0]["field"] == "value"
+
+
+def test_resource_uri_references_still_refuse_same_value_cycles() -> None:
+    with pytest.raises(ValidationError, match="reference cycle"):
+        TriggerInputConfig(
+            input_schema={"$id": "https://example.com/root", "$ref": "https://example.com/root"}
+        )

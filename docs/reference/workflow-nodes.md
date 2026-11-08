@@ -75,7 +75,8 @@ The contract supports nested objects, arrays of objects, `enum`, `required`,
 string lengths (`minLength` and `maxLength`), array lengths (`minItems` and
 `maxItems`) and `additionalProperties`. Reuse definitions with `$defs` and local
 `$ref` references. References must resolve inside the same document; external
-references are refused and never fetched. No user-defined Python model or caller
+references are refused and never fetched. An absolute or relative URI is allowed
+when it resolves to a resource already supplied in the document. No user-defined Python model or caller
 framework is needed.
 
 Workflow input is always a JSON object. Publication rejects a contract when its

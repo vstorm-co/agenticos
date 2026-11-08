@@ -1,5 +1,5 @@
 ---
-source_sha: "c3d2c064ea18"
+source_sha: "ee4fc0273506"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -84,7 +84,8 @@ El contrato admite objetos anidados, arrays de objetos, `enum`, `required`,
 longitudes de cadenas (`minLength` y `maxLength`), longitudes de arrays (`minItems`
 y `maxItems`) y `additionalProperties`. Reutiliza definiciones con `$defs` y
 referencias `$ref` locales. Las referencias deben resolverse dentro del mismo
-documento; las referencias externas se rechazan y nunca se descargan. No se
+documento; las referencias externas se rechazan y nunca se descargan. Se permite
+un URI absoluto o relativo si resuelve un recurso ya incluido en el documento. No se
 requieren modelos Python definidos por el usuario ni un framework concreto para
 quien llama.
 

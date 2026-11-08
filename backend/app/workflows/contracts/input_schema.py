@@ -383,7 +383,8 @@ def _every_object_matches(
 def check_input_schema(schema: InputSchema) -> None:
     """Refuse invalid dialects, unresolved/external references and endless ref loops.
 
-    References may use JSON Pointers or anchors within the supplied document.
+    References may use JSON Pointers, anchors or resource URIs within the supplied
+    document. The registry has no retrieval callback for external resources.
     Recursive object/array definitions are supported; a reference cycle that
     evaluates the same input value indefinitely is refused before publication.
     Root constraints that explicitly exclude JSON objects are refused through
@@ -422,11 +423,13 @@ def check_input_schema(schema: InputSchema) -> None:
             reference = contents.get(keyword)
             if not isinstance(reference, str):
                 continue
-            if reference and not reference.startswith("#"):
-                raise ValueError("Input schema references must stay within the supplied document")
             try:
                 resolved = current_resolver.lookup(reference)
             except Unresolvable:
+                if reference and not reference.startswith("#"):
+                    raise ValueError(
+                        "Input schema references must stay within the supplied document"
+                    ) from None
                 raise ValueError("Input schema contains an unresolved local reference") from None
             if not annotation_only:
                 connections[key].add(id(resolved.contents))

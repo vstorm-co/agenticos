@@ -1,5 +1,5 @@
 ---
-source_sha: "c3d2c064ea18"
+source_sha: "ee4fc0273506"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -88,6 +88,8 @@ Der Vertrag unterstützt verschachtelte Objekte, Arrays aus Objekten, `enum`,
 (`minItems` und `maxItems`) und `additionalProperties`. Verwende Definitionen mit
 `$defs` und lokalen `$ref`-Referenzen erneut. Referenzen müssen innerhalb desselben
 Dokuments aufgelöst werden; externe Referenzen werden abgelehnt und nie abgerufen.
+Ein absoluter oder relativer URI ist erlaubt, wenn er auf eine bereits im Dokument
+enthaltene Ressource verweist.
 Ein benutzerdefiniertes Python-Modell oder ein bestimmtes Framework des Aufrufers
 ist nicht erforderlich.
 

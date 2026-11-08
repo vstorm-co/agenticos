@@ -1,5 +1,5 @@
 ---
-source_sha: "c3d2c064ea18"
+source_sha: "ee4fc0273506"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -82,7 +82,8 @@ Kontrakt obsługuje zagnieżdżone obiekty, tablice obiektów, `enum`, `required
 długości ciągów znaków (`minLength` i `maxLength`), długości tablic (`minItems` i
 `maxItems`) oraz `additionalProperties`. Używaj ponownie definicji przez `$defs`
 i lokalne referencje `$ref`. Referencje muszą wskazywać na ten sam dokument;
-referencje zewnętrzne są odrzucane i nigdy nie są pobierane. Kontrakt nie wymaga
+referencje zewnętrzne są odrzucane i nigdy nie są pobierane. Bezwzględny lub względny
+URI jest dozwolony, jeśli wskazuje zasób już zawarty w dokumencie. Kontrakt nie wymaga
 modelu Python zdefiniowanego przez użytkownika ani konkretnego frameworka
 wywołującego.
 
