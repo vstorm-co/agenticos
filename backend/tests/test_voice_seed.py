@@ -19,6 +19,17 @@ from app.services.voice.seed import RECENT_TURNS_KEPT, seed_history
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def history_revision(monkeypatch):
+    read = AsyncMock(return_value=0)
+    monkeypatch.setattr("app.repositories.conversation.get_guardrail_revision", read)
+    return read
+
+
+def _db():
+    return MagicMock(commit=AsyncMock())
+
+
 def _rows(n: int, size: int = 20):
     return [
         SimpleNamespace(
@@ -38,7 +49,7 @@ async def test_a_short_history_is_seeded_verbatim():
         AsyncMock(return_value=_rows(4)),
     ):
         seeded = await seed_history(
-            MagicMock(), conversation_id=uuid4(), context_window=32_000, summarise=summarise
+            _db(), conversation_id=uuid4(), context_window=32_000, summarise=summarise
         )
     assert [type(m) for m in seeded] == [ModelRequest, ModelResponse, ModelRequest, ModelResponse]
     summarise.assert_not_awaited()
@@ -81,7 +92,7 @@ async def test_a_turn_the_guardrail_refused_is_not_seeded():
         ),
     ):
         seeded = await seed_history(
-            MagicMock(), conversation_id=uuid4(), context_window=32_000, summarise=AsyncMock()
+            _db(), conversation_id=uuid4(), context_window=32_000, summarise=AsyncMock()
         )
     assert [part.content for message in seeded for part in message.parts] == [
         REFUSED_TURN,
@@ -153,7 +164,7 @@ async def test_a_history_past_half_the_window_is_a_summary_plus_the_recent_turns
         AsyncMock(return_value=rows),
     ):
         seeded = await seed_history(
-            MagicMock(), conversation_id=uuid4(), context_window=32_000, summarise=summarise
+            _db(), conversation_id=uuid4(), context_window=32_000, summarise=summarise
         )
     summarise.assert_awaited_once()
     assert "They asked about invoices for Acme." in seeded[0].parts[0].content
@@ -170,7 +181,38 @@ async def test_recent_turns_too_long_to_keep_whole_are_dropped_oldest_first():
         AsyncMock(return_value=rows),
     ):
         seeded = await seed_history(
-            MagicMock(), conversation_id=uuid4(), context_window=8_000, summarise=summarise
+            _db(), conversation_id=uuid4(), context_window=8_000, summarise=summarise
         )
     assert sum(len(str(p.content)) for m in seeded for p in m.parts) <= 8_000 * 0.5 * 4 // 2
     assert len(seeded) < RECENT_TURNS_KEPT
+
+
+@pytest.mark.security
+async def test_a_voice_summary_cannot_use_history_refused_after_it_was_read(history_revision):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+
+    history_revision.side_effect = [0, 1]
+    summarise = AsyncMock()
+    with (
+        patch(
+            "app.services.voice.seed.conversation_repo.get_recent_messages",
+            AsyncMock(return_value=_rows(60, size=2000)),
+        ),
+        pytest.raises(GuardrailBlocked),
+    ):
+        await seed_history(
+            _db(), conversation_id=uuid4(), context_window=32000, summarise=summarise
+        )
+    summarise.assert_not_awaited()
+
+
+async def test_voice_seed_preserves_the_revision_before_loading_rows(history_revision):
+    history_revision.return_value = 7
+    with patch(
+        "app.services.voice.seed.conversation_repo.get_recent_messages",
+        AsyncMock(return_value=_rows(4)),
+    ):
+        history = await seed_history(
+            _db(), conversation_id=uuid4(), context_window=32000, summarise=AsyncMock()
+        )
+    assert history.revision == 7

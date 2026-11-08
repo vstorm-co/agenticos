@@ -1918,3 +1918,25 @@ def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapsh
     assert "can work at once" not in sandbox
     private = CodingAgent(runs_on="personal_sandbox").get_instructions()
     assert "isolated copy" in private and "queue" not in private
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("harness", ["claude_code", "codex"])
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_refused_source_never_launches_a_sandbox_harness(harness, late):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+
+    checks = 0
+
+    async def check():
+        nonlocal checks
+        checks += 1
+        if not late or checks > 1:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    shell = _Shell()
+    with checking_model_context(check), pytest.raises(GuardrailBlocked):
+        await _call(shell, harness=harness)
+    assert shell.started == []
+    assert checks == (2 if late else 1)

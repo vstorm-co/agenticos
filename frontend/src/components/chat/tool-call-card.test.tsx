@@ -201,7 +201,8 @@ describe("a tool call in the transcript", () => {
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
       [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
-      [{ name: "load_capability", args: {} }, "Load Skill"],
+      [{ name: "load_capability", args: {} }, "Read Skill"],
+      [{ name: "read_skill", args: { id: "refund_policy" } }, "Refund Policy"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
         { name: "grep", args: { pattern: "TODO", path: "/workspace/app.py" } },
@@ -793,4 +794,24 @@ it("shows the task being worked on before the platform tool finishes", () => {
   });
   expect(screen.getByText("Create task")).toBeVisible();
   expect(screen.getByText("Review supplier draft")).toBeVisible();
+});
+
+it("renders a renamed chart through its stable identity while showing the actual alias", () => {
+  card({
+    name: "plot_sales",
+    tool_id: "create_chart",
+    result: JSON.stringify({ kind: "chart", title: "Sales", series: [] }),
+  });
+  expect(screen.getByTestId("chart")).toHaveTextContent("Sales");
+  expect(row()).toHaveTextContent("Plot Sales");
+});
+
+it("keeps an MCP tool named create_chart generic even with a chart-shaped result", () => {
+  card({
+    name: "create_chart",
+    tool_id: null,
+    presentation_kind: "generic",
+    result: JSON.stringify({ kind: "chart", title: "External", series: [] }),
+  });
+  expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f5f9ee0e642"
+source_sha: "d2c11cec8ef2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -282,18 +282,14 @@ skill cada vez — la alternativa sería un campo de instrucciones que crece has
 cada run paga por cada procedimiento. Consulta [Skills](../skills.md) para saber
 qué es un skill y cómo llega a una organización.
 
-**Cada skill vinculado es una capability propia.** Su nombre y su descripción están
-en el catálogo que el modelo lee en cada turno, y el modelo trae el cuerpo con
-`load_capability`, la herramienta del propio framework de agents: por eso no está
-en la lista de arriba y por eso un spec no puede concederla, ni controlarla, ni
-renombrarla. `read_skill_resource` es la única herramienta que aporta esta
-capability, y solo aparece cuando al menos un skill vinculado trae un archivo junto
-a sus instrucciones.
-
-La herramienta viene de `pydantic-ai-skills`, así que su nombre y su redacción los
-cambia otra persona. Un test de deriva compara lo que declara el registro con las
-herramientas que realmente se le ofrecen al modelo, y eso es lo que avisa el día
-que ocurra.
+**Cada skill vinculado sigue siendo una capability diferida nativa.** El modelo
+ve un catálogo de skills disponibles y abre el contenido con `read_skill`. El
+adaptador de la plataforma conserva el estado de carga nativo, las aprobaciones
+y la reproducción de conversaciones, incluidas las antiguas. Las políticas de
+aprobación mantienen la clave estable `load_capability`; los overrides habituales
+no renombran este cargador del framework. `read_skill_resource` lee archivos
+auxiliares y aparece solo si un skill vinculado incluye alguno. Un test de deriva
+compara la herramienta de archivos de la biblioteca con el registro.
 
 `run_skill_script` está apagada en lugar de expuesta: los archivos de un skill
 llegan a un run bajo `/workspace/skills/`, donde los ejecuta el propio `execute`
@@ -2842,7 +2838,7 @@ aplique el renombrado de la vinculación. Las exclusiones afectan a la visibilid
 las listas permitidas de conexión y vinculación siguen controlando el acceso.
 
 Las herramientas nativas del provider y los hooks de capabilities siguen activos.
-Los skills conservan su propio descubrimiento mediante `load_capability`. La voz
+Los skills conservan su propio descubrimiento mediante `read_skill`. La voz
 en tiempo real no usa el diferido de la búsqueda de herramientas. Si todas las
 herramientas siguen visibles, la búsqueda no tiene un catálogo diferido que descubrir.
 
@@ -2926,8 +2922,31 @@ lo nuevo de su propio turno, así que el historial de un turno posterior no repr
 el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
 En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
 el texto del mensaje ni lo que añadieron los archivos enviados con él. La
-conversación sigue mostrando a la persona lo que escribió. La búsqueda en
-conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
+conversación sigue mostrando a la persona lo que escribió. El rechazo de un paso
+de agent en un workflow también marca el mensaje exacto del chat de origen. La
+búsqueda en conversaciones anteriores (`conversation_search`) omite los mensajes
+rechazados en coincidencias, fragmentos y lecturas de transcripciones. Estas
+herramientas no reciben el título de una conversación con un turno rechazado,
+incluso si el título ya estaba guardado.
+
+Los reintentos y los workflows llamados conservan este vínculo del rechazo con
+su origen. No heredan un destino de respuesta ni acceso al workspace del chat original.
+Si un turno recién rechazado ya estaba compactado, se descarta el resumen guardado
+que lo incluye para reconstruir el historial posterior con la nota de rechazo.
+Las menciones de conversaciones usan la misma lista filtrada para que sus etiquetas
+no repitan a un modelo el texto de un turno rechazado.
+
+Una compactación ya iniciada no puede devolver a la caché un turno rechazado
+después. La actualización reconstruye una vez los resúmenes guardados; los
+mensajes originales se conservan.
+
+Cada ejecución comprueba su historial antes de cada petición al modelo, también después de llamadas a herramientas. Los pasos de agente, modelo y decisión de un workflow también comprueban la fuente de chat compartida antes de empezar; los pasos en cola no pueden reutilizar una fuente rechazada o eliminada. Los resúmenes de voz y las nuevas sesiones realtime usan la misma comprobación de revisión.
+
+Los harnesses de código comprueban el mismo contexto antes de iniciarse y antes de cada prompt ACP, también después de una corrección de la tarea.
+
+Si se rechaza un turno anterior mientras un run espera aprobación o una respuesta,
+el run se detiene antes de volver a ejecutar herramientas o llamar a un modelo.
+Inicia un turno nuevo para continuar con el historial actual y filtrado.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

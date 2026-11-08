@@ -31,6 +31,7 @@ from app.agents.capabilities import get as capability_def
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.skills import Skills
+from app.agents.capabilities.skills._loader import SkillLoader
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
@@ -184,12 +185,12 @@ async def test_skills_reach_a_call_as_toolless_leaves_with_their_file_tool():
     ]
     adapted = voice_skills(Skills(skills=stored))
     assert adapted is not None
-    agent = Agent(capabilities=[adapted])
+    agent = Agent(capabilities=[SkillLoader(), adapted])
 
     async with agent._resolve_realtime_session(_REALTIME) as resolved:
         built_tools = sorted(t.name for t in resolved.model_request_parameters.function_tools)
 
-    assert built_tools == ["load_capability", "read_skill_resource"]
+    assert built_tools == ["read_skill", "read_skill_resource"]
 
 
 @pytest.mark.security
@@ -365,8 +366,9 @@ def test_a_visitor_is_never_asked_to_approve_out_loud():
 class _ScriptedConnection(RealtimeConnection):
     """A provider that calls each named tool in turn, one response each, and then waits."""
 
-    def __init__(self, calls: Sequence[str]) -> None:
+    def __init__(self, calls: Sequence[str], *, args: str = "{}") -> None:
         self._calls = calls
+        self._args = args
         self._lifecycle = InferredLifecycle()
         self.results: list[str] = []
         self._send_result, self._result_sent = anyio.create_memory_object_stream[str](10)
@@ -379,7 +381,7 @@ class _ScriptedConnection(RealtimeConnection):
 
     async def _events(self) -> AsyncIterator[RealtimeCodecEvent]:
         for index, name in enumerate(self._calls):
-            yield ToolCall(f"call-{index}", tool_name=name, args="{}")
+            yield ToolCall(f"call-{index}", tool_name=name, args=self._args)
             yield ResponseDone()
             await self._result_sent.receive()
         await anyio.sleep_forever()
@@ -451,3 +453,34 @@ async def test_a_call_answers_a_tool_it_does_not_have_and_carries_on():
     assert answered == "sunny"
     assert [event.part.outcome for event in settled] == ["failed", "failed", "success"]
     assert "web_fetch" not in model.offered
+
+
+@pytest.mark.anyio
+async def test_read_skill_keeps_native_realtime_instruction_delivery():
+    from app.agents.ephemeral_media import dump_messages
+
+    stored = [
+        SimpleNamespace(
+            name="refunds",
+            description="Refund policy",
+            content="PRIVATE_VOICE_POLICY",
+            resources=[],
+        )
+    ]
+    adapted = voice_skills(Skills(skills=stored))
+    agent = Agent(capabilities=[SkillLoader(), adapted])
+    model = _ScriptedRealtime([])
+    model.connection = _ScriptedConnection(["read_skill"], args='{"id":"refunds"}')
+    async with agent.realtime(model).session() as session:
+        with anyio.fail_after(5):
+            async for event in session:
+                if (
+                    isinstance(event, FunctionToolResultEvent)
+                    and len(model.connection.results) == 1
+                ):
+                    break
+        stored_history = dump_messages(session.all_messages())
+    assert model.offered == ["read_skill"]
+    assert "PRIVATE_VOICE_POLICY" in model.connection.results[0]
+    assert "Skill 'refunds' loaded" in model.connection.results[0]
+    assert "agenticos.read-skill" in json.dumps(stored_history)

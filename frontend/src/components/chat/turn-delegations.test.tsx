@@ -284,3 +284,45 @@ it("keeps an open sheet usable when live task identities give way to saved calls
     within(screen.getByRole("dialog")).getByText("Answer from support-desk"),
   ).toBeInTheDocument();
 });
+
+it("keeps a renamed delegation's byline and exchange sheet", async () => {
+  render(
+    <TurnDelegations
+      toolCalls={[{ ...asked("renamed", "finance-analyst"), name: "consult", tool_id: "task" }]}
+      agents={AGENTS}
+    />,
+  );
+  expect(
+    screen.getByText("Talked it through with Finance Analyst · 1 exchange"),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+  expect(
+    within(screen.getByRole("dialog")).getByText("Answer from finance-analyst"),
+  ).toBeInTheDocument();
+});
+
+it("keeps renamed coding reports in the team summary", () => {
+  render(
+    <TurnDelegations
+      toolCalls={[
+        {
+          id: "coded",
+          name: "build",
+          tool_id: "run_coding_agent",
+          args: {},
+          status: "completed",
+          result: JSON.stringify({
+            kind: "coding_agent",
+            harness: "codex",
+            access: "edit",
+            outcome: "completed",
+            answer: "Built",
+            steps: [],
+          }),
+        },
+      ]}
+      agents={AGENTS}
+    />,
+  );
+  expect(screen.getByText("Talked it through with Codex · 1 exchange")).toBeInTheDocument();
+});

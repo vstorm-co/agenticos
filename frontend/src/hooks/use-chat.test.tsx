@@ -3049,20 +3049,30 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingQuestions).toEqual([]);
   });
 
-  it("pauses the working status while a tool question awaits an answer", () => {
-    useConversationStore.getState().setCurrentConversationId("c-1");
-    const { result } = renderHook(() => useChat(), { wrapper });
-    receive("model_request_start", {});
-    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-live", args: {} });
-    receive("ask_user", { questions: [{ question: "Which?", options: [{ label: "A" }] }] });
-    expect(useWorkingStore.getState().waiting["c-1"]).toBe("awaiting_answer");
-    expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
-      "awaiting_answer",
-    );
-    act(() => result.current.sendAskUserResponses([{ answer: "A", skipped: false }]));
-    expect(useWorkingStore.getState().waiting["c-1"]).toBeUndefined();
-    expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe("running");
-  });
+  it.each(["ask_user_question", "ask_person"])(
+    "pauses the working status while %s awaits an answer",
+    (name) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const { result } = renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("tool_call", {
+        tool_name: name,
+        tool_id: "ask_user_question",
+        tool_call_id: "ask-live",
+        args: {},
+      });
+      receive("ask_user", { questions: [{ question: "Which?", options: [{ label: "A" }] }] });
+      expect(useWorkingStore.getState().waiting["c-1"]).toBe("awaiting_answer");
+      expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
+        "awaiting_answer",
+      );
+      act(() => result.current.sendAskUserResponses([{ answer: "A", skipped: false }]));
+      expect(useWorkingStore.getState().waiting["c-1"]).toBeUndefined();
+      expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
+        "running",
+      );
+    },
+  );
 
   it("sends the answers and closes the prompt", () => {
     const { result } = renderHook(() => useChat(), { wrapper });

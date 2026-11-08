@@ -126,7 +126,7 @@ item the agreement actually has, both read as thorough in the chat.
     The run was recorded on 0.0.508, when the gallery installed this skill
     as "Document review first pass" and the instructions named it that way.
     The first attempt failed before producing anything: the model called
-    `load_capability` with the id `document-review-first-pass`, which did
+    `read_skill` with the id `document-review-first-pass`, which did
     not exist then — a bound skill's id is its exact stored name — retried
     with a second wrong guess, and the run ended with "the agent could not
     finish this turn," for 0.0083 USD spent on the two guesses. Since
@@ -137,7 +137,7 @@ item the agreement actually has, both read as thorough in the chat.
 ## When it goes wrong
 
 - **The run fails with "could not finish this turn" before any output.**
-  A call to `load_capability` named a skill id that does not exist. On
+  A call to `read_skill` named a skill id that does not exist. On
   0.0.509 and later this points at a skill installed earlier, which still
   carries its gallery title as its name: install the skill again from the
   gallery, which adds it under the hyphenated name, and bind that one.

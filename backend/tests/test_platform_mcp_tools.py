@@ -607,7 +607,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0}},
+            {"params": {"limit": 100, "skip": 0, "for_model": True}},
         ),
     ),
     (
@@ -618,7 +618,11 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     (
         "list_conversations",
         {"search": "Geopolityka", "limit": 5},
-        ("GET", "/conversations", {"params": {"limit": 5, "search": "Geopolityka"}}),
+        (
+            "GET",
+            "/conversations",
+            {"params": {"limit": 5, "search": "Geopolityka", "for_model": True}},
+        ),
     ),
     (
         "create_conversation",

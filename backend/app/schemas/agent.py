@@ -910,6 +910,8 @@ class RunStep(BaseSchema):
         description="The provider's id for the call, so a surface can match it to a step it drew."
     )
     tool_name: str
+    tool_id: str | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     result: str | None = Field(
         default=None,
