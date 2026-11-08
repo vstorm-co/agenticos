@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop and mobile native dependencies use an immutable GTK-compatible backport of the GLib string iterator soundness fix (RUSTSEC-2024-0429). The mobile build no longer enables the legacy HTML path that pulled vulnerable `rand` 0.7.3 (RUSTSEC-2026-0097).
+
 ## [1.58.2] - 2026-11-08
 
 ### Fixed
