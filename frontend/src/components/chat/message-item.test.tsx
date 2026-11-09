@@ -119,6 +119,7 @@ function item(
   props: {
     agent?: Agent;
     onRegenerate?: () => void;
+    onFork?: (messageId: string) => void;
     groupPosition?: "first" | "middle" | "last" | "single";
     continuesTurn?: boolean;
     endsTurn?: boolean;
@@ -1030,6 +1031,31 @@ describe("the footer", () => {
 
     item();
     expect(screen.queryByRole("button", { name: "Regenerate response" })).toBeNull();
+  });
+
+  it("offers a fork of a saved answer where the caller may fork", async () => {
+    const onFork = vi.fn();
+    const { unmount } = item({ id: "m-9" }, { onFork });
+    await userEvent.click(screen.getByRole("button", { name: "Fork into a new conversation" }));
+    expect(onFork).toHaveBeenCalledWith("m-9");
+    unmount();
+
+    // Not the owner's thread: the container passes no handler.
+    item();
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+
+  it("never offers a fork of a person's message, a system note or an answer not yet saved", () => {
+    const { unmount } = item({ role: "user", content: "x" }, { onFork: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+    unmount();
+
+    const system = item({ role: "system", content: "x" }, { onFork: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+    system.unmount();
+
+    item({ isTemporaryId: true }, { onFork: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
   });
 
   it("never offers a regenerate on a person's own message", () => {

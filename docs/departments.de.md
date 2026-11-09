@@ -1,5 +1,5 @@
 ---
-source_sha: "5f28c27a069e"
+source_sha: "a73281723216"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -90,7 +90,7 @@ Freigabe, die der Bereich Share schreibt, und braucht dasselbe Recht zu
 bearbeiten.
 
 Mitglieder werden benachrichtigt, wenn etwas mit ihrer Gruppe geteilt wird - im
-Posteingang und, wenn gewünscht, per E-Mail; *Shared with your group* in den
+Posteingang und, wenn gewünscht, per E-Mail; *Shared with you or your group* in den
 Benachrichtigungseinstellungen schaltet das ab. Karten in der ganzen Konsole
 sagen, für wen etwas ist: *Alle*, seine Abteilungen mit Namen - beides, wenn es
 für alle ist und zu einer Abteilung gehört - oder *Privat*.
