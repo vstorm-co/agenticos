@@ -295,6 +295,37 @@ describe("SkillPage", () => {
     expect(screen.getByText("2 changes · 5 behind main")).toBeInTheDocument();
   });
 
+  it("reads what the line shown serves on Content, for main and for a fork", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions/")
+        ? {
+            id: path.split("/").at(-1),
+            number: 2,
+            description: "d",
+            content: `served ${path.split("/").at(-1)}`,
+            resources: [],
+          }
+        : serveOnce(path),
+    );
+    state.tab = "content";
+    await mount();
+    expect(await screen.findByText("served m12")).toBeInTheDocument();
+    expect(screen.getByText("v12")).toBeInTheDocument();
+  });
+
+  it("reads a fork's own newest version on Content", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions/")
+        ? { id: "r2", number: 2, description: "d", content: "served r2", resources: [] }
+        : serveOnce(path),
+    );
+    state.tab = "content";
+    state.show = "fork:f1";
+    await mount();
+    expect(await screen.findByText("served r2")).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/versions/r2");
+  });
+
   it("says the skill is out of reach rather than empty when it cannot be read", async () => {
     skill.error = new ApiError(404, "Not found");
     await mount();
@@ -441,7 +472,7 @@ describe("SkillPage's lines and writes", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "OK" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(apiClient.delete).not.toHaveBeenCalled();
   });
 

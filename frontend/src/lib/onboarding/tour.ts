@@ -723,6 +723,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "skill-content",
+    page: SKILL_DETAIL,
+    target: "skill-content",
+    activate: "skill-content-tab",
+    permission: Perm.skillsView,
+  },
+  {
     id: "skill-history",
     page: SKILL_DETAIL,
     target: "skill-history",

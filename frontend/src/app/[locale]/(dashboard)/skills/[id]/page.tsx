@@ -2,7 +2,7 @@
 
 import { use, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, GitBranch, History } from "lucide-react";
+import { Bot, FileText, GitBranch, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
@@ -10,6 +10,7 @@ import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { NewForkDialog } from "@/components/skills/new-fork-dialog";
 import { ReturnForkDialog } from "@/components/skills/return-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
+import { SkillContent } from "@/components/skills/skill-content";
 import { SkillHistory } from "@/components/skills/skill-history";
 import {
   eachAgentOnce,
@@ -35,7 +36,7 @@ import { Perm } from "@/types/permissions";
 import type { SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["agents", "history", "tree"];
+const TABS = ["agents", "content", "history", "tree"];
 
 /**
  * One skill: the agents that use it and the version each is served, every version
@@ -116,6 +117,10 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             <Bot className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.agents")}
           </TabsTrigger>
+          <TabsTrigger value="content" data-tour="skill-content-tab">
+            <FileText className="mr-1.5 size-4 shrink-0" aria-hidden />
+            {t("tabs.content")}
+          </TabsTrigger>
           <TabsTrigger value="history" data-tour="skill-history-tab">
             <History className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.history")}
@@ -142,6 +147,20 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             canCreate={skill.can_edit === true && can(Perm.datasetsEdit)}
           />
           {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
+        </TabsContent>
+        <TabsContent value="content">
+          <SkillContent
+            skillId={id}
+            versionId={fork === null ? base : (fork.latest?.id ?? fork.base.id)}
+            label={
+              fork === null
+                ? t("tree.number", { number: skill.version })
+                : t("tree.forkNumber", {
+                    name: fork.name,
+                    number: fork.latest?.number ?? fork.base.number,
+                  })
+            }
+          />
         </TabsContent>
         <TabsContent value="history">
           <SkillHistory

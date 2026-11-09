@@ -207,7 +207,7 @@ function Column({
 }
 
 /** A version's three parts; against a reference, each marked where it differs. */
-function Sections({
+export function Sections({
   version,
   base,
   onlyDifferences,

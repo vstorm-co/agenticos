@@ -5384,6 +5384,10 @@
       "skill-test-questions": {
         "title": "Pytania testowe",
         "body": "Pytania, które dostaje każdy agent używający skilla, gdy sprawdzana jest jego zmiana. Zacznij je tutaj od ostatnich odpowiedzi albo od pustego zestawu, a popraw w datasecie."
+      },
+      "skill-content": {
+        "title": "Co zawiera",
+        "body": "Opis, instrukcje i pliki, które pokazana linia serwuje teraz, do przeczytania bez otwierania edytora."
       }
     },
     "chooseLanguage": "Język",
@@ -8209,7 +8213,8 @@
       "tabs": {
         "agents": "Agenci",
         "history": "Historia",
-        "tree": "Drzewo wersji"
+        "tree": "Drzewo wersji",
+        "content": "Treść"
       },
       "agentCount": "{count, plural, =0 {Brak agentów} one {# agent} few {# agentów} many {# agentów} other {# agenta}}",
       "state": {
@@ -8483,6 +8488,9 @@
         "empty": "Zacznij od pustego zestawu",
         "createHint": "Ostatnie odpowiedzi to odpowiedzi z 30 dni, w których agent wczytał skill. W obu przypadkach pytania dodasz i poprawisz w datasecie.",
         "askEditor": "Może je dodać osoba, która edytuje ten skill i tworzy datasety."
+      },
+      "content": {
+        "title": "Co teraz serwuje"
       }
     },
     "checkOnAgents": "Sprawdź na agentach",

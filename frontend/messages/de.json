@@ -5494,6 +5494,10 @@
       "skill-test-questions": {
         "title": "Seine Testfragen",
         "body": "Fragen, die jeder Agent mit diesem Skill bekommt, wenn eine Änderung daran geprüft wird. Beginnen Sie sie hier mit aktuellen Antworten oder leer und bearbeiten Sie sie im Dataset."
+      },
+      "skill-content": {
+        "title": "Was er sagt",
+        "body": "Beschreibung, Anweisungen und Dateien, die die gezeigte Linie jetzt ausliefert, zum Lesen ohne den Editor zu öffnen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8327,7 +8331,8 @@
       "tabs": {
         "agents": "Agents",
         "history": "Verlauf",
-        "tree": "Versionsbaum"
+        "tree": "Versionsbaum",
+        "content": "Inhalt"
       },
       "agentCount": "{count, plural, =0 {Keine Agents} =1 {1 Agent} other {# Agents}}",
       "state": {
@@ -8601,6 +8606,9 @@
         "empty": "Mit einem leeren Satz beginnen",
         "createHint": "Aktuelle Antworten sind die der letzten 30 Tage, in denen ein Agent den Skill geladen hat. In beiden Fällen ergänzen und bearbeiten Sie die Fragen im Dataset.",
         "askEditor": "Hinzufügen kann sie, wer diesen Skill bearbeiten und Datasets anlegen darf."
+      },
+      "content": {
+        "title": "Was er jetzt ausliefert"
       }
     },
     "checkOnAgents": "Auf Agents prüfen",

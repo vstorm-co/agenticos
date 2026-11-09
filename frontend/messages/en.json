@@ -5616,6 +5616,10 @@
       "skill-test-questions": {
         "title": "Its test questions",
         "body": "Questions every agent using the skill is asked when a change to it is checked. Start them here from recent answers, or empty, and edit them in the dataset."
+      },
+      "skill-content": {
+        "title": "What it says",
+        "body": "The description, instructions and files the line shown serves now, to read without opening the editor."
       }
     },
     "chooseLanguage": "Language",
@@ -8449,7 +8453,8 @@
       "tabs": {
         "agents": "Agents",
         "history": "History",
-        "tree": "Version tree"
+        "tree": "Version tree",
+        "content": "Content"
       },
       "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
       "state": {
@@ -8723,6 +8728,9 @@
         "empty": "Start an empty set",
         "createHint": "Recent answers are the last 30 days of answers where an agent loaded the skill. Either way you can add and edit questions in the dataset.",
         "askEditor": "Someone who may edit this skill and create datasets can add them."
+      },
+      "content": {
+        "title": "What it serves now"
       }
     },
     "checkOnAgents": "Check on agents",
