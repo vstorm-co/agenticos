@@ -46,7 +46,11 @@ export function SkillCard({ skill }: SkillCardProps) {
           </span>
         </span>
       </Link>
-      <UsedBy agents={skill.used_by} className="text-foreground/85 mx-4 mb-3 gap-2" />
+      <UsedBy
+        agents={skill.used_by}
+        drafted={skill.drafted_by}
+        className="text-foreground/85 mx-4 mb-3 gap-2"
+      />
       <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {skill.category !== null && (

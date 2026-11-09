@@ -13,6 +13,14 @@ vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
+// The button is gated on agents:edit and tested on its own; here only where it appears.
+vi.mock("@/components/agents/add-to-agent", () => ({
+  AddToAgent: ({ resource }: { resource: { id: string } }) => (
+    <button type="button" data-resource={resource.id}>
+      Add to an agent
+    </button>
+  ),
+}));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push: vi.fn() }),
@@ -144,6 +152,15 @@ describe("SkillAgents", () => {
   it("gives the version room on a phone, where the agent's name truncates instead", () => {
     mount(LIST([onMain("Support")]));
     expect(screen.getByText("v12 · main").closest("td")).toHaveClass("max-sm:min-w-40");
+  });
+
+  it("offers adding the skill to an agent when no agent uses it", () => {
+    mount(LIST([]));
+    expect(screen.getByText("No agent uses this skill yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to an agent" })).toHaveAttribute(
+      "data-resource",
+      "s1",
+    );
   });
 
   it("says nobody is in a view that holds no agent", () => {

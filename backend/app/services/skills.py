@@ -67,6 +67,7 @@ from app.services import skill_library
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
 from app.services.resource_usage import (
     agents_serving_skills,
+    agents_using,
     agents_using_skill,
     groups_sharing,
     in_use_by,
@@ -411,6 +412,9 @@ class SkillService:
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
         used = await agents_serving_skills(self.db, ctx, skill_ids=[skill.id for skill in items])
+        drafted = await agents_using(
+            self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
+        )
         groups = await groups_sharing(
             self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
         )
@@ -423,6 +427,11 @@ class SkillService:
                 _summary(skill, bundled_names).model_copy(
                     update={
                         "used_by": used[skill.id],
+                        "drafted_by": [
+                            agent
+                            for agent in drafted[skill.id]
+                            if agent.id not in {serving.id for serving in used[skill.id]}
+                        ],
                         "shared_groups": groups[skill.id],
                         "can_edit": skill.id in editable,
                         "forks": forks[skill.id],

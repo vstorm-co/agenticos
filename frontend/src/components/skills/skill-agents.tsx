@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { AddToAgent } from "@/components/agents/add-to-agent";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Badge, Button, DataTable, ListCard, type Column } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -131,7 +132,14 @@ export function SkillAgents({
         getRowKey={readerKey}
         loading={agents === undefined && !error}
         error={error ? getErrorMessage(error, tErrors) : undefined}
-        empty={<p className="text-muted-foreground p-4 text-sm">{empty}</p>}
+        empty={
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <p className="text-muted-foreground text-sm">{empty}</p>
+            {shown === "all" && (
+              <AddToAgent resource={{ kind: "skill", id: skillId }} name={skillName} />
+            )}
+          </div>
+        }
       />
       {(agents?.hidden ?? 0) > 0 && (
         <p className="text-muted-foreground px-4 py-3 text-xs">

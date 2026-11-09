@@ -1098,7 +1098,8 @@
     "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
     "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
-    "alreadyHasIt": "Używa"
+    "alreadyHasIt": "Używa",
+    "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

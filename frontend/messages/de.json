@@ -1098,7 +1098,8 @@
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
     "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
-    "alreadyHasIt": "Verwendet ihn"
+    "alreadyHasIt": "Verwendet ihn",
+    "inDraftOf": "{more, plural, =0 {Im Entwurf von {names}, noch nicht veröffentlicht} other {In den Entwürfen von {names} und # weiteren, noch nicht veröffentlicht}}"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

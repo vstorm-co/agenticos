@@ -474,6 +474,19 @@ class TestTheSkillsAgents:
         assert listed_fork.agents == 1 and listed_fork.archive_candidate is False
         assert sorted(agent.name for agent in cards[skill.id]) == ["Fork", "Main"]
 
+    async def test_a_card_names_the_agents_that_only_drafted_it_apart(self, db):
+        """An agent the skill was just added to, not yet published with it, is named as
+        a draft rather than left out as if nothing used the skill."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        await _serving(db, ctx, "Main", _spec(skill))
+        await _published(db, ctx, name="Draft", spec=_spec(skill))
+
+        [card] = (await SkillService(db).list_readable(ctx)).items
+
+        assert [agent.name for agent in card.used_by] == ["Main"]
+        assert [agent.name for agent in card.drafted_by] == ["Draft"]
+
     async def test_specs_that_name_the_skill_without_a_readable_binding_are_left_out(self, db):
         """A version or fork that is gone, a mention in the instructions, a spec that no
         longer parses: none is an agent of the skill, and none breaks the listing."""

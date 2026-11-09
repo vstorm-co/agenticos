@@ -167,6 +167,8 @@ export interface SkillSummary {
    * Optional because only the listings carry it.
    */
   used_by?: AgentUsage[];
+  /** Agents whose draft binds it and no served version does yet: added, not published. */
+  drafted_by?: AgentUsage[];
   /** The groups it is shared with, by name (#2072). Only the listings carry it. */
   shared_groups?: string[];
 }

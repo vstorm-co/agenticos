@@ -153,6 +153,13 @@ class SkillSummary(BaseSchema):
             "it runs, or that it runs nowhere yet"
         ),
     )
+    drafted_by: list[AgentUsage] = Field(
+        default_factory=list,
+        description=(
+            "Agents whose draft binds this and no served version does yet, among those "
+            "the caller may see - added, waiting to be published"
+        ),
+    )
     shared_groups: list[str] = Field(
         default_factory=list,
         description="The groups this is shared with, by name - the departments it belongs to.",
