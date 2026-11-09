@@ -1,5 +1,5 @@
 ---
-source_sha: "531a01aeaaa3"
+source_sha: "30f10f2d929e"
 ---
 
 # La consola { #the-console }
@@ -995,8 +995,7 @@ iOS y mantenimiento son tarjetas opcionales que abren la sección administrativa
 correspondiente en otra pestaña. El recorrido no activa mantenimiento ni carga
 credenciales automáticamente.
 
-El presupuesto de organización ofrece propuestas, un deslizador y un importe exacto
-en USD. Conserva los límites decimales existentes. Sin límite es una opción explícita;
+El presupuesto de organización ofrece propuestas y un deslizador. Conserva los límites decimales existentes. Sin límite es una opción explícita;
 cero advierte que puede bloquear ejecuciones. Es un límite de uso registrado, no una
 suscripción ni saldo de prepago. Aprobaciones, asistentes y voz avanzados quedan
 plegados y conservan sus permisos y acciones de guardado habituales.

@@ -1,5 +1,5 @@
 ---
-source_sha: "531a01aeaaa3"
+source_sha: "30f10f2d929e"
 ---
 
 # Die Konsole { #the-console }
@@ -1041,8 +1041,7 @@ Konten. App-Erscheinungsbild, Sprache, iOS-Push-Zugangsdaten und Wartung sind op
 Karten, die den passenden Administrationsbereich in einem neuen Tab öffnen. Der
 Ablauf aktiviert weder Wartung noch hinterlegt er automatisch Zugangsdaten.
 
-Für das Organisationsbudget gibt es Vorschläge, einen Regler und einen genauen
-USD-Betrag. Ein bestehendes Dezimallimit bleibt erhalten. Ohne Limit ist eine eigene
+Für das Organisationsbudget gibt es Vorschläge und einen Regler. Ein bestehendes Dezimallimit bleibt erhalten. Ohne Limit ist eine eigene
 Auswahl; bei null wird vor möglichen blockierten Läufen gewarnt. Das begrenzt erfasste
 Nutzung und ist kein Abo oder Guthaben. Erweiterte Freigaben, Assistenten und Sprache
 bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.

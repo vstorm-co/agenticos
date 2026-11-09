@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
-import { Button, FormField, Input } from "@/components/ui";
+import { Button } from "@/components/ui";
 import type { Organization } from "@/types";
 import { StartQuestion } from "./start-question";
 import styles from "./guided-start.module.css";
@@ -109,23 +109,14 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
             </Button>
           </div>
         </div>
-        <div className={styles.budgetDetails}>
-          <div className={styles.exact}>
-            <FormField label={t("exactAmount")} htmlFor="start-budget" error={error}>
-              <Input
-                id="start-budget"
-                type="number"
-                min={0}
-                step="0.01"
-                value={value}
-                disabled={pending}
-                placeholder={t("unlimited")}
-                onChange={(event) => choose(event.target.value)}
-              />
-            </FormField>
-          </div>
-          <p className={`${styles.hint} mt-6`}>{t(parsed === 0 ? "zeroBudget" : "budgetHint")}</p>
-        </div>
+        <p className={`${styles.hint} mt-6 text-center`}>
+          {t(parsed === 0 ? "zeroBudget" : "budgetHint")}
+        </p>
+        {error && (
+          <p role="alert" className="text-destructive-ink mt-4 text-sm">
+            {error}
+          </p>
+        )}
       </div>
     </StartQuestion>
   );

@@ -181,7 +181,8 @@ it("changes a budget by preset and slider but saves only on Continue", async () 
   expect(env.budget).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "$100" }));
   fireEvent.change(screen.getByRole("slider"), { target: { value: "350" } });
-  expect(screen.getByRole("spinbutton", { name: "Exact amount in USD" })).toHaveValue(350);
+  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  expect(screen.getByRole("slider")).toHaveValue("350");
   expect(env.budget).not.toHaveBeenCalled();
   await proceed();
   expect(env.budget).toHaveBeenCalledWith("company", 350);
@@ -189,7 +190,6 @@ it("changes a budget by preset and slider but saves only on Continue", async () 
 });
 it("preserves an existing decimal cap without an unnecessary write", async () => {
   render(<StartBudget org={{ ...org, monthly_budget_usd: "1250.120000" }} onContinue={env.next} />);
-  expect(screen.getByRole("spinbutton")).toHaveValue(1250.12);
   expect(screen.getByRole("slider")).toHaveValue("1250.12");
   await proceed();
   expect(env.budget).not.toHaveBeenCalled();
@@ -205,7 +205,7 @@ it("keeps a failed budget save in the same question", async () => {
 });
 it("supports no ceiling and warns about an explicit zero", async () => {
   render(<StartBudget org={{ ...org, monthly_budget_usd: "100" }} onContinue={env.next} />);
-  fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "0" } });
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "0" } });
   expect(screen.getByText(/zero limit can block/)).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "No limit" }));
   await proceed();

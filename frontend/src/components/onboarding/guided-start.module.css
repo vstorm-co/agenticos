@@ -277,9 +277,6 @@
   gap: 10px;
   margin: 24px 0;
 }
-.exact {
-  width: 100%;
-}
 .memberWelcome {
   text-align: center;
   display: grid;
@@ -420,21 +417,11 @@
   border-radius: 8px;
 }
 .budgetLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: 28px;
-  align-items: center;
+  max-width: 640px;
+  margin: 0 auto;
 }
 .budgetLayout .presets {
   margin-bottom: 0;
-}
-.budgetDetails {
-  min-width: 0;
-}
-@media (max-width: 640px) {
-  .budgetLayout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 :global(html[data-motion="reduce"]) .choice {

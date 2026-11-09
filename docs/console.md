@@ -937,7 +937,7 @@ voice, mobile push credentials and maintenance are optional cards linking to the
 appropriate administrator section in a new tab. The walkthrough never activates
 maintenance or uploads credentials automatically.
 
-Organization setup offers budget presets, a slider and an exact USD amount. An
+Organization setup offers budget presets and a slider. An
 existing decimal cap is preserved. No limit is an explicit option; zero warns that
 runs can be blocked. This is a ceiling for tracked usage, not a subscription or
 prepaid credit. Advanced approvals, assistants and voice settings stay collapsed

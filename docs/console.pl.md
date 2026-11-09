@@ -1,5 +1,5 @@
 ---
-source_sha: "531a01aeaaa3"
+source_sha: "30f10f2d929e"
 ---
 
 # Konsola { #the-console }
@@ -966,7 +966,7 @@ domyślną i nie przenosi istniejących kont. Wygląd aplikacji, głos, dane pus
 konserwacja są opcjonalnymi kartami otwierającymi odpowiednią sekcję administratora
 w nowej karcie. Kreator nie włącza automatycznie konserwacji ani nie dodaje kluczy.
 
-Organizacja dostaje propozycje budżetu, suwak i dokładną kwotę w USD. Istniejący
+Organizacja dostaje propozycje budżetu i suwak. Istniejący
 limit z częścią dziesiętną pozostaje zachowany. Brak limitu jest osobnym wyborem,
 a zero ostrzega o możliwej blokadzie runów. To limit rejestrowanego zużycia, nie
 abonament ani doładowanie. Zaawansowane zatwierdzenia, asystenci i głos pozostają
