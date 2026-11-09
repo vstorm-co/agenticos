@@ -13,9 +13,11 @@ import styles from "./model-setup-card.module.css";
 export function ModelSetupCard({
   agentId,
   interactive = false,
+  canConfigure,
 }: {
   agentId?: string;
   interactive?: boolean;
+  canConfigure?: boolean;
 }) {
   const t = useTranslations("chat.modelSetup");
   return (
@@ -45,7 +47,7 @@ export function ModelSetupCard({
               {t("publish")}
             </li>
           </ol>
-          {interactive && agentId && <SetupActions agentId={agentId} />}
+          {interactive && agentId && <SetupActions agentId={agentId} canConfigure={canConfigure} />}
           <p className={styles.notice}>
             <ShieldCheck size={14} aria-hidden />
             {t("notice")}
@@ -55,14 +57,14 @@ export function ModelSetupCard({
     </div>
   );
 }
-function SetupActions({ agentId }: { agentId: string }) {
+function SetupActions({ agentId, canConfigure }: { agentId: string; canConfigure?: boolean }) {
   const t = useTranslations("chat.modelSetup");
   const { can, isLoaded } = usePermissions();
   const start = useStart();
   if (!isLoaded) return null;
-  if (can(Perm.connectionsManage) && can(Perm.agentsEdit))
+  if (canConfigure !== false && can(Perm.connectionsManage) && can(Perm.agentsEdit))
     return (
-      <Link className={styles.action} href={`/agents/${agentId}?highlight=agent-model`}>
+      <Link className={styles.action} href={`/agents/${agentId}?highlight=agent-model-picker`}>
         {t("action")}
         <ArrowUpRight size={16} aria-hidden />
       </Link>

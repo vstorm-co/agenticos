@@ -9728,7 +9728,7 @@
       "description": "Kullanmak istediğin AI modelini bağla. Çalışma alanın ve bu sohbet burada kalır.",
       "provider": "Sağlayıcı ve sohbet modeli seç",
       "key": "Gerekiyorsa API anahtarı ekle",
-      "publish": "AgenticOS’u yayımla ve bu sohbete dön",
+      "publish": "Ajanı yayımla ve bu sohbete dön",
       "action": "AI modelimi bağla",
       "notice": "Kurulum yanıtı · AI modeli çağrılmadı ve sağlayıcı kullanım ücreti oluşmadı.",
       "ownerHint": "Çalışma alanı yöneticin ekip için AI bağlayabilir. Kendi anahtarını sağlaman gerekmez.",
@@ -12182,18 +12182,7 @@
       }
     },
     "setup": {
-      "bubble": "Henüz bir modele bağlı değilim; bu yüzden düşünemiyorum. Bir modeli nasıl bağlayacağınızı göstereyim mi?",
-      "title": "Model bağlama",
-      "typing": "{name} yazıyor…",
-      "openBuilder": "Model ayarlarımı aç",
-      "steps": {
-        "intro": "Merhaba, ben {name}. Agent oluşturmaya ve platformda yolunuzu bulmaya yardım ederim. Düşünebilmem için bir dil modeline ihtiyacım var, ancak henüz bağlı değil. Şöyle bağlayabilirsiniz; yaklaşık iki dakika sürer.",
-        "key": "<b>1. adım: API anahtarı alın.</b> Anthropic, OpenAI, Google veya başka bir model providerında oturum açıp konsolundan API anahtarı oluşturun. Genellikle “sk-” ile başlayan uzun bir dizgedir. Şirketiniz kendi modelini, örneğin Ollama veya vLLM üzerinde çalıştırıyorsa adresi yeterlidir.",
-        "settings": "<b>2. adım: Agent Builder’da beni açın.</b> Model bölümünde providerı seçip anahtarı yapıştırın. Anahtar şifrelenerek doğrudan vault’a gider; sizin dışınızda hiç kimse, ben dahil, tamamını tekrar göremez.",
-        "model": "<b>3. adım: model seçip yayımlayın.</b> Fiyatı orta düzeyde ve yetenekli bir model iyi bir başlangıçtır. İstediğiniz zaman değiştirebilirsiniz.",
-        "done": "<b>Hepsi bu.</b> Buraya dönün, size merhaba diyeyim. Kuruluşunuzdaki diğer agentlar da bu modeli kullanabilir.",
-        "askAdmin": "<b>Kim yapabilir:</b> model bağlama izni yalnızca kuruluş yöneticinizdedir. Bu adımları izlemesini isteyin; yaklaşık iki dakika sürer, ardından herkes beni kullanabilir."
-      }
+      "bubble": "Henüz bir modele bağlı değilim; bu yüzden düşünemiyorum. Bir modeli nasıl bağlayacağınızı göstereyim mi?"
     },
     "screenshot": "Bu sayfayı göster",
     "screenshotFailed": "Ekran görüntüsü alınamadı. Bunun yerine konuşmaya bir görsel yapıştırın.",

@@ -1,5 +1,6 @@
 .reply {
   max-width: 640px;
+  container: model-setup / inline-size;
 }
 
 .card {
@@ -118,6 +119,33 @@
   margin-top: 8px;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+@container model-setup (max-width: 480px) {
+  .artwork {
+    height: 76px;
+    gap: 12px;
+  }
+  .key {
+    width: 44px;
+    height: 44px;
+  }
+  .artwork > div {
+    transform: scale(0.8);
+  }
+  .body {
+    padding: 18px;
+  }
+  .body h3 {
+    font-size: 20px;
+  }
+  .steps {
+    gap: 8px;
+    margin: 14px 0 18px;
+  }
+  .body .notice {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
 }
 @media (max-width: 640px) {
   .body {

@@ -2388,7 +2388,7 @@
       "description": "Connect the AI you want to use. Your workspace and this conversation stay right here.",
       "provider": "Choose a provider and a chat model",
       "key": "Add its API key, if required",
-      "publish": "Publish AgenticOS and return to this chat",
+      "publish": "Publish the agent and return to this conversation",
       "action": "Connect my AI model",
       "notice": "Setup response · No AI model was called and no provider usage was charged.",
       "ownerHint": "Your workspace administrator can connect AI for the team. You do not need to provide your own key.",
@@ -11021,18 +11021,7 @@
       }
     },
     "setup": {
-      "bubble": "I'm not connected to a model yet, so I can't think. Want me to show you how to connect one?",
-      "title": "Connecting a model",
-      "typing": "{name} is typing…",
-      "openBuilder": "Open my model settings",
-      "steps": {
-        "intro": "Hi, I'm {name}. I help build agents and find your way around the platform - but to think I need a language model, and none is connected yet. Here's how to connect one. It takes about two minutes.",
-        "key": "<b>Step 1: get an API key.</b> Sign in to a model provider - Anthropic, OpenAI, Google or another - and create an API key in its console. It's a long string, often starting with \"sk-\". If your company runs its own model, for example on Ollama or vLLM, its address is enough.",
-        "settings": "<b>Step 2: open me in the Agent Builder.</b> Under Model, choose the provider and paste the key. It goes straight into the vault, encrypted - nobody sees it whole again, me included.",
-        "model": "<b>Step 3: choose a model and publish.</b> A capable mid-priced model is a good start, and you can change it any time.",
-        "done": "<b>That's it.</b> Come back here and I'll say hello. Every other agent in your organization can use that model too.",
-        "askAdmin": "<b>Who can do it:</b> only an administrator of your organization can connect a model. Ask one to follow these steps - it takes about two minutes, and then I'm here for everyone."
-      }
+      "bubble": "I'm not connected to a model yet, so I can't think. Want me to show you how to connect one?"
     },
     "screenshot": "Show it this page",
     "screenshotFailed": "The screenshot could not be taken. Paste one into the conversation instead.",

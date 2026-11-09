@@ -25,7 +25,7 @@ it("takes a builder directly to the chosen starter's model settings", () => {
   render(<ModelSetupCard agentId="starter" interactive={env.interactive} />);
   expect(screen.getByRole("link", { name: "Connect my AI model" })).toHaveAttribute(
     "href",
-    "/agents/starter?highlight=agent-model",
+    "/agents/starter?highlight=agent-model-picker",
   );
   expect(screen.getByText(/No AI model was called/)).toBeVisible();
 });

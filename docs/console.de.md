@@ -1,5 +1,5 @@
 ---
-source_sha: "f6c076f8f6ba"
+source_sha: "fb9a68f0777d"
 ---
 
 # Die Konsole { #the-console }
@@ -361,12 +361,7 @@ Agent-Entwurf und eine Routine, deren Entfernen Sie verlangen. Neben Freigaben u
 Organisation meldet sich seine Sprechblase, wenn ein Run von Ihnen gerade
 fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
-Solange die Organisation kein Modell hat, kann er nicht antworten. Geöffnet tippt
-er dann ein kurzes Gespräch darüber, wie man eins verbindet: einen API-Schlüssel
-beim Provider besorgen, den Architect im Agent Builder öffnen, unter **Modell**
-den Provider wählen und den Schlüssel einfügen, dann ein Modell auswählen. Die
-Schaltfläche bekommt nur, wer die Einstellungen der Organisation ändern darf;
-alle anderen erfahren, wer das kann.
+Vor dem Verbinden eines Modells öffnet der Architect denselben Chat mit einer grafischen Einrichtungskarte, einer kurzen Checkliste und dem Link zu den Modelleinstellungen. Eine Nachricht im Widget oder im Chat mit dem Architect-Entwurf erhält eine gespeicherte Einrichtungsantwort samt Karte, ohne Modellaufruf und ohne KI-Run. Die Antwort verwendet den Namen des gewählten Agents. Konfigurationsaktionen beachten Berechtigungen; andere Mitglieder erhalten Hinweise zum Administrator. Nach der Veröffentlichung bleibt das Widget für die normale Unterhaltung geöffnet.
 
 Der Architect ist ein Agent wie jeder andere, also werden Name, Modell, Wissen
 und der Rest seiner Spec im Agent Builder bearbeitet - von jemandem, der die

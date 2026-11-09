@@ -33,12 +33,19 @@ class ShippedAgentService:
         self.registry = AgentRegistryService(db)
 
     async def setup_candidate(self, ctx: AuthContext, agent_id: UUID | None) -> Agent | None:
-        """A first-use setup reply is allowed only for the authentic shipped starter.
+        """A setup reply belongs only to the shipped starter or the enabled Architect.
 
         This grants no draft execution. Ordinary, renamed lookalikes, archived or
         published agents always take the normal publication and run checks.
         """
         agent = await agent_repo.get_shipped_starter(self.db, organization_id=ctx.organization_id)
+        # An explicit Architect selection is authenticated by the organization row,
+        # never by its display name or a client-supplied template marker.
+        if agent_id is not None and (agent is None or agent.id != agent_id):
+            assistant = await organization_assistant_repo.get(self.db, ctx.organization_id)
+            if assistant is None or not assistant.enabled or assistant.agent_id != agent_id:
+                return None
+            agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         if (
             agent is None
             or (agent_id is not None and agent.id != agent_id)

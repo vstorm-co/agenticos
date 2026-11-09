@@ -1536,7 +1536,7 @@
       "description": "Podłącz AI, z którego chcesz korzystać. Twój workspace i ta rozmowa zostają tutaj.",
       "provider": "Wybierz dostawcę i model do rozmów",
       "key": "Dodaj klucz API, jeśli jest wymagany",
-      "publish": "Opublikuj AgenticOS i wróć do tej rozmowy",
+      "publish": "Opublikuj agenta i wróć do tej rozmowy",
       "action": "Podłącz mój model AI",
       "notice": "Odpowiedź konfiguracyjna · Bez wywołania modelu AI i kosztu użycia dostawcy.",
       "ownerHint": "Administrator workspace może podłączyć AI dla całego zespołu. Nie musisz podawać własnego klucza.",
@@ -11756,18 +11756,7 @@
       }
     },
     "setup": {
-      "bubble": "Nie mam jeszcze podpiętego modelu, więc nie potrafię myśleć. Pokazać Ci, jak go podpiąć?",
-      "title": "Podpinanie modelu",
-      "typing": "{name} pisze…",
-      "openBuilder": "Otwórz ustawienia mojego modelu",
-      "steps": {
-        "intro": "Cześć, jestem {name}. Pomagam budować agentów i odnaleźć się na platformie - ale żeby myśleć, potrzebuję modelu językowego, a żaden nie jest jeszcze podpięty. Pokażę Ci, jak to zrobić. To zajmie około dwóch minut.",
-        "key": "<b>Krok 1: zdobądź klucz API.</b> Zaloguj się u dostawcy modeli - Anthropic, OpenAI, Google lub innego - i utwórz klucz API w jego konsoli. To długi ciąg znaków, często zaczynający się od „sk-”. Jeśli Twoja firma ma własny model, np. na Ollamie albo vLLM, wystarczy jego adres.",
-        "settings": "<b>Krok 2: otwórz mnie w Agent Builderze.</b> W sekcji Model wybierz dostawcę i wklej klucz. Trafi prosto do vaulta, zaszyfrowany - nikt już nie zobaczy go w całości, ja też nie.",
-        "model": "<b>Krok 3: wybierz model i opublikuj.</b> Na start dobry jest mocny model ze średniej półki cenowej - zmienisz go w każdej chwili.",
-        "done": "<b>To wszystko.</b> Wróć tutaj, a od razu się przywitam. Z tego modelu mogą korzystać też wszyscy inni agenci w Twojej organizacji.",
-        "askAdmin": "<b>Kto może to zrobić:</b> model podpina tylko administrator Twojej organizacji. Poproś go o te kroki - zajmą mu około dwóch minut, a potem będę tu dla wszystkich."
-      }
+      "bubble": "Nie mam jeszcze podpiętego modelu, więc nie potrafię myśleć. Pokazać Ci, jak go podpiąć?"
     },
     "screenshot": "Pokaż mu tę stronę",
     "screenshotFailed": "Nie udało się zrobić zrzutu ekranu. Wklej go do rozmowy samodzielnie.",

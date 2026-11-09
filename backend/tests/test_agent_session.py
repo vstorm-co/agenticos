@@ -4049,7 +4049,7 @@ class TestStarterSetupReply:
             patch.object(session, "_chat_context", AsyncMock(return_value=ctx)),
             patch(
                 "app.services.agent_session.ShippedAgentService.setup_candidate",
-                AsyncMock(return_value=SimpleNamespace(id=agent_id)),
+                AsyncMock(return_value=SimpleNamespace(id=agent_id, name="Architect")),
             ),
             patch(
                 "app.services.agent_session.persist_user_turn", AsyncMock(return_value=prompt)
@@ -4076,5 +4076,6 @@ class TestStarterSetupReply:
             "complete",
         ]
         assert greeting in events[2][1]["text"]
+        assert "Architect" in events[2][1]["text"]
         if saved is None:
             assert events[3][1]["code"] == "message_save_failed"

@@ -1,5 +1,5 @@
 ---
-source_sha: "f6c076f8f6ba"
+source_sha: "fb9a68f0777d"
 ---
 
 # La consola { #the-console }
@@ -347,11 +347,7 @@ Además de las
 aprobaciones y de una organización vacía, su bocadillo avisa cuando un run tuyo
 acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
 
-Mientras la organización no tenga un modelo, no puede responder. Al abrirlo
-escribe entonces una breve conversación sobre cómo conectar uno: consigue una clave
-de API de un provider, abre el Architect en el Agent Builder, elige el provider en
-**Model** y pega la clave, y escoge un modelo. Solo quien puede cambiar los ajustes
-de la organización recibe el botón; a los demás se les dice quién puede hacerlo.
+Antes de conectar un modelo, el Architect abre el mismo chat con una tarjeta visual de configuración, una lista breve de pasos y el enlace a los ajustes del modelo. Un mensaje en el widget o en el chat con el borrador del Architect recibe una respuesta de configuración y una tarjeta guardadas, sin llamar al modelo ni registrar un run de IA. La respuesta usa el nombre del agente elegido. Las acciones respetan los permisos; los demás miembros reciben indicaciones para contactar al administrador. Tras publicarlo, el widget permanece abierto para conversar normalmente.
 
 El Architect es un agente como cualquier otro, así que su nombre, su modelo, su
 conocimiento y el resto de su spec se editan en el Agent Builder - lo hace quien

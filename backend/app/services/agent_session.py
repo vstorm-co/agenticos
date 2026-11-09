@@ -779,15 +779,15 @@ class AgentSession:
         # already told them through `approval_requested` or the question's park.
         await self._tell_the_absent(self._outcome)
 
-    async def _reply_with_model_setup(self, agent_id: UUID) -> None:
+    async def _reply_with_model_setup(self, agent_id: UUID, name: str) -> None:
         """Persist an honest setup response without opening or charging an AI run."""
         replies = {
-            "en": "Hi, I'm AgenticOS. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
-            "pl": "Cześć, jestem AgenticOS. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
-            "de": "Hallo, ich bin AgenticOS. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
-            "tr": "Merhaba, ben AgenticOS. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
+            "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
+            "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
+            "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
         }
-        text = replies.get(self.user.locale or "en", replies["en"])
+        text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
         await self._emit("model_setup_required", {"agent_id": str(agent_id), "text": text})
         if self.current_conversation_id is None:
             raise RuntimeError("A setup response requires a persisted conversation")
@@ -921,7 +921,7 @@ class AgentSession:
                     "message_id": None if prompt.message_id is None else str(prompt.message_id),
                 },
             )
-            await self._reply_with_model_setup(agent_id)
+            await self._reply_with_model_setup(agent_id, setup_agent.name)
             return
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,

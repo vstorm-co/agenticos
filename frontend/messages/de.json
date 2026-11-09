@@ -2388,7 +2388,7 @@
       "description": "Verbinde die KI deiner Wahl. Dein Workspace und dieses Gespräch bleiben hier.",
       "provider": "Anbieter und Chatmodell wählen",
       "key": "API-Schlüssel hinzufügen, falls erforderlich",
-      "publish": "AgenticOS veröffentlichen und zum Chat zurückkehren",
+      "publish": "Veröffentliche den Agent und kehre zu diesem Chat zurück",
       "action": "Mein KI-Modell verbinden",
       "notice": "Einrichtungsantwort · Kein KI-Aufruf und keine Nutzungsgebühren beim Anbieter.",
       "ownerHint": "Dein Workspace-Administrator kann KI für das Team verbinden. Du brauchst keinen eigenen Schlüssel.",
@@ -10900,18 +10900,7 @@
       }
     },
     "setup": {
-      "bubble": "Ich bin noch mit keinem Modell verbunden und kann deshalb nicht denken. Soll ich Ihnen zeigen, wie Sie eins verbinden?",
-      "title": "Ein Modell verbinden",
-      "typing": "{name} schreibt…",
-      "openBuilder": "Meine Modelleinstellungen öffnen",
-      "steps": {
-        "intro": "Hallo, ich bin {name}. Ich helfe beim Bauen von Agents und beim Zurechtfinden auf der Plattform – aber zum Denken brauche ich ein Sprachmodell, und noch ist keins verbunden. So verbinden Sie eins. Es dauert etwa zwei Minuten.",
-        "key": "<b>Schritt 1: einen API-Schlüssel besorgen.</b> Melden Sie sich bei einem Modell-Provider an – Anthropic, OpenAI, Google oder einem anderen – und erstellen Sie in dessen Konsole einen API-Schlüssel. Das ist eine lange Zeichenfolge, oft beginnend mit „sk-“. Betreibt Ihr Unternehmen ein eigenes Modell, etwa auf Ollama oder vLLM, genügt dessen Adresse.",
-        "settings": "<b>Schritt 2: mich im Agent Builder öffnen.</b> Wählen Sie unter Modell den Provider und fügen Sie den Schlüssel ein. Er wandert verschlüsselt direkt in den Vault – niemand sieht ihn je wieder vollständig, ich auch nicht.",
-        "model": "<b>Schritt 3: ein Modell wählen und veröffentlichen.</b> Ein leistungsfähiges Modell mittlerer Preisklasse ist ein guter Start, und Sie können es jederzeit wechseln.",
-        "done": "<b>Das war's.</b> Kommen Sie hierher zurück, und ich begrüße Sie. Dieses Modell steht auch allen anderen Agents Ihrer Organisation zur Verfügung.",
-        "askAdmin": "<b>Wer das kann:</b> Nur ein Administrator Ihrer Organisation kann ein Modell verbinden. Bitten Sie ihn, diese Schritte zu befolgen – das dauert etwa zwei Minuten, danach bin ich für alle da."
-      }
+      "bubble": "Ich bin noch mit keinem Modell verbunden und kann deshalb nicht denken. Soll ich Ihnen zeigen, wie Sie eins verbinden?"
     },
     "screenshot": "Diese Seite zeigen",
     "screenshotFailed": "Der Screenshot konnte nicht erstellt werden. Fügen Sie stattdessen selbst einen in die Unterhaltung ein.",

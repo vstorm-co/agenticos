@@ -321,11 +321,7 @@ remove. Besides approvals and an
 empty organization, its bubble speaks up when a run of yours has just failed
 and when a form has been open, unfinished, for a minute.
 
-Until the organization has a model, it cannot answer. Opening it then types out
-a short conversation explaining how to connect one: get an API key from a
-provider, open the Architect in the Agent Builder, choose the provider under
-**Model** and paste the key, and pick a model. Only somebody who may change the
-organization's settings is given the button; anybody else is told who can do it.
+Before a model is connected, the Architect opens the same chat with a visual setup card, a short checklist and the model-settings action. You can write a message in the widget or select the draft Architect in chat: it saves a setup reply and card in the conversation without calling a model or recording an AI run. The reply uses the selected agent’s name. Configuration actions respect permissions; other members see administrator guidance. Once published, the normal conversation continues without closing the widget.
 
 The Architect is an agent like any other, so its name, model, knowledge and the
 rest of its spec are edited in the Agent Builder - by somebody who may change

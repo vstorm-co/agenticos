@@ -1,5 +1,5 @@
 ---
-source_sha: "f6c076f8f6ba"
+source_sha: "fb9a68f0777d"
 ---
 
 # Konsola { #the-console }
@@ -337,11 +337,7 @@ usunięcie poprosisz. Oprócz
 akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
 udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
-Dopóki organizacja nie ma modelu, nie potrafi odpowiadać. Otwarty wtedy wypisuje
-krótką rozmowę o tym, jak go podpiąć: zdobądź klucz API od dostawcy, otwórz
-Architekta w Agent Builderze, w sekcji **Model** wybierz dostawcę i wklej klucz, a
-potem wybierz model. Przycisk dostaje tylko ktoś, kto może zmieniać ustawienia
-organizacji; pozostali dowiadują się, kto może to zrobić.
+Przed podłączeniem modelu Architect otwiera ten sam czat z graficzną kartą konfiguracji, krótką listą kroków i przyciskiem ustawień modelu. Możesz napisać wiadomość w widżecie lub wybrać szkic Architecta w czacie: zapisze odpowiedź konfiguracyjną i kartę w historii, bez wywołania modelu i bez runu AI. Odpowiedź używa nazwy wybranego agenta. Przyciski konfiguracji respektują uprawnienia; pozostali członkowie widzą wskazówkę do administratora. Po publikacji zwykła rozmowa jest dostępna bez zamykania widżetu.
 
 Architekt jest agentem jak każdy inny, więc jego nazwę, model, wiedzę i resztę
 spec edytuje się w Agent Builderze - może to zrobić ktoś, kto zmienia ustawienia
