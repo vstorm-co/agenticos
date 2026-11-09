@@ -179,6 +179,9 @@ class SkillCheckRead(SkillCheckEstimate):
     candidate_version_id: UUID | None = Field(
         default=None, description="The main version that update would move it to"
     )
+    candidate: CandidateText = Field(
+        description="The text checked, so a person can go back to editing it"
+    )
     status: CheckStatus
     verdict: CheckVerdict | None = None
     warnings: list[Literal["within_noise"]] = Field(default_factory=list)

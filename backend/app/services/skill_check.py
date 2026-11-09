@@ -1299,6 +1299,9 @@ class SkillCheckService:
                     source=CheckSource(check.source),
                     agent_id=check.agent_id,
                     candidate_version_id=check.candidate_version_id,
+                    candidate=CandidateText(
+                        description=check.candidate_description, content=check.candidate_content
+                    ),
                     status=status,
                     verdict=verdict,
                     warnings=["within_noise"]

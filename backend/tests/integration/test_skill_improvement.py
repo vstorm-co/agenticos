@@ -1244,6 +1244,7 @@ class FakeChecks:
             status=check.status,
             verdict=check.verdict,
             outcomes=[CheckOutcome.APPLY, CheckOutcome.DISCARD] if check.verdict else [],
+            candidate=_TEXT,
             created_at=check.created_at,
         )
 

@@ -68,6 +68,7 @@ def _check(**overrides: Any) -> SkillCheckRead:
         "status": "done",
         "verdict": "passed",
         "outcomes": ["apply", "improve_further", "discard"],
+        "candidate": {"description": "Refunds", "content": "Refund within 30 days."},
         "created_at": NOW,
     }
     return SkillCheckRead(**{**values, **overrides})
