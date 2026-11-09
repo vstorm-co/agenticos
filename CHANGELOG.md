@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A step stays in the loop it belongs to (#2770).** A For each body was
+  whatever the loop's **Each item** port's wires reached, so deleting a wire
+  inside a body moved the steps after it out of the loop, and a second wire from
+  that port, which no view drew, made publishing fail with "A loop's body must
+  start at exactly one loop item step". Each step now names its loop
+  (`scope_id`), the loop has no **Each item** port, and a body starts at its
+  **Loop item**. A new loop comes with its **Loop item** and **Loop result**,
+  which go only with the loop; a step added or pasted in a body stays there; and
+  deleting a loop deletes its body. Publishing refuses a body step **Loop item**
+  never reaches. Migration `0301_workflow_loop_scope` rewrites stored drafts,
+  versions and test-run snapshots, moving an extra wire from the old port onto
+  the body's **Loop item**; a graph sent or imported in the old shape is read the
+  same way. See [Workflows](docs/workflows.md#connections-and-foreach-scope).
+
+## [1.61.0] - 2026-11-09
+
 ### Added
 
 - A shared first-task hub for web, invitations and desktop, with editable fictional
@@ -94,20 +112,6 @@ Two things are versioned separately from this file and worth knowing about:
   the start. Scope pending start operations to their initiating membership.
 - Reserve the dashboard start panel during loading and offer an explicit retry
   after failed checks, without shifting the adjacent briefing on successful load.
-
-- **A step stays in the loop it belongs to (#2770).** A For each body was
-  whatever the loop's **Each item** port's wires reached, so deleting a wire
-  inside a body moved the steps after it out of the loop, and a second wire from
-  that port, which no view drew, made publishing fail with "A loop's body must
-  start at exactly one loop item step". Each step now names its loop
-  (`scope_id`), the loop has no **Each item** port, and a body starts at its
-  **Loop item**. A new loop comes with its **Loop item** and **Loop result**,
-  which go only with the loop; a step added or pasted in a body stays there; and
-  deleting a loop deletes its body. Publishing refuses a body step **Loop item**
-  never reaches. Migration `0301_workflow_loop_scope` rewrites stored drafts,
-  versions and test-run snapshots, moving an extra wire from the old port onto
-  the body's **Loop item**; a graph sent or imported in the old shape is read the
-  same way. See [Workflows](docs/workflows.md#connections-and-foreach-scope).
 
 ## [1.60.3] - 2026-11-09
 
@@ -20832,7 +20836,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...HEAD
+[1.61.0]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...v1.61.0
 [1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
 [1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
 [1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1
