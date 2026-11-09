@@ -252,10 +252,11 @@ that edit is not checked.
 ### What it asks { #what-a-check-asks }
 
 First the skill's own **test questions**, the same set on every agent. Each skill
-has one set, created through the API - `POST /api/v1/skills/{id}/test-set`, empty
-or from recent answers that loaded the skill - or with **Add test questions** beside
-an agent [Improve](#improving-a-skill) could not check, and edited like any other
-[dataset](datasets.md). Then the agent's own questions:
+has one set, started on the skill page under **Test questions** - from recent answers
+that loaded the skill, or empty - or through the API,
+`POST /api/v1/skills/{id}/test-set`, or with **Add test questions** beside an agent
+[Improve](#improving-a-skill) could not check, and edited like any other
+[dataset](datasets.md), which Datasets marks as the skill's. Then the agent's own questions:
 
 - **Quick**, the default: four questions of the agent's dataset - more when the
   skill's own held-out questions are too few for the five a result needs - whose
@@ -439,7 +440,9 @@ result that could not be measured is not acknowledged (`acknowledge_unknown`), a
 when the agent was published again or main moved on since the check; it closes the
 check and marks the agent checked on that version. Moving an agent without a check
 stays possible, as any change of version is: the agent then reads "unknown" on its
-new version, and the person who moved it answers for that.
+new version, and the person who moved it answers for that. On the skill page,
+**Change version** offers **Check first** for exactly this move: it runs the check
+and comes back with its result, which the move then carries.
 
 **Catch up a fork.** Main's changes reach a fork in a session. On the skill page,
 a fork the page shows offers **Catch up** while main has moved past it and **Move
@@ -599,6 +602,8 @@ manufacturing and logistics. Ten each.
 
 Pick an industry, then install one skill or the whole shelf. From that moment it
 is an ordinary skill the organization owns and edits, exactly like a bundled one.
+**Preview** reads a skill's instructions and the files it comes with before you
+install it, and **Installed** opens the organization's own copy.
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
@@ -647,7 +652,7 @@ nobody here has read. Each folder in `app/core/catalog/skills/` and
 
 ## A skill's page
 
-Open a skill from the list to see its page. It has three tabs.
+Open a skill from the list to see its page. It has four tabs.
 
 **Agents** lists every agent that uses the skill, and the version it is served:
 
@@ -667,7 +672,13 @@ that History lists and Edit saves to.
 
 Each row says whether a
 [check](#checking-a-change-on-every-agent) measured the version the agent serves,
-and how it did; a version never checked on it is **unknown**.
+and how it did. A version no check measured is **unknown** where a change reached
+the agent unchecked - its answers used an earlier version - and **not checked yet**
+where the agent never answered with another.
+
+Under it, **Test questions** counts the skill's own
+[test questions](#what-a-check-asks) and links to their dataset, or starts them.
+A skill no agent uses offers **Add to an agent** in place of the table.
 
 Under the table, a reader who may view runs sees how often each agent opened the
 skill in the last 30 days: one chart by day, overlaying the agents you pick from
@@ -678,11 +689,15 @@ test panel are not counted.
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
 as [Which version an agent reads](#which-version-an-agent-reads) describes: what
 goes live, what waits in the draft, and what is changed in the Builder. A version
-other than the one the agent serves now, and that no check measured on it, has not
-been checked there, so you confirm that first; one a check did measure says how it
-did. The dialog also says when the agent would stop getting new main versions, and
+other than the one the agent serves now, that no check measured on it and that
+it has not answered with before, has not been checked there, so you confirm that
+first, or press **Check first** when the move is a pinned agent's to main's newest
+version; one a check did measure says how it did. The dialog also says when the agent would stop getting new main versions, and
 dates each main version it offers to pin, with a link to what it changed. The
 control is shown to people who may edit the agent.
+
+**Content** shows what the line chosen serves now - its description, instructions
+and files - read without opening the editor.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),

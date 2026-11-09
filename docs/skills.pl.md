@@ -1,5 +1,5 @@
 ---
-source_sha: "62a0fc38c479"
+source_sha: "57792cfecf5c"
 ---
 
 # Skille { #skills }
@@ -264,10 +264,11 @@ skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
 ### O co pyta { #what-a-check-asks }
 
 Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie.
-Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
-pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
-**Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
-mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o pytania samego agenta:
+Każdy skill ma jeden zestaw, zaczynany na stronie skilla w sekcji **Pytania testowe**
+- z ostatnich odpowiedzi, które otworzyły skill, albo pusty - albo przez API,
+`POST /api/v1/skills/{id}/test-set`, albo przyciskiem **Dodaj pytania testowe** przy
+agencie, którego [Popraw](#improving-a-skill) nie mogło sprawdzić, i edytowany jak
+każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do skilla. Potem o pytania samego agenta:
 
 - **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
   held-out samego skilla jest za mało do pięciu, których wymaga wynik - których
@@ -457,7 +458,9 @@ zmierzyć, nie został potwierdzony (`acknowledge_unknown`), i gdy agent został
 opublikowany ponownie albo main poszedł dalej od czasu sprawdzenia; zamyka ono
 sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
 sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
-wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
+wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła. Na stronie
+skilla **Zmień wersję** oferuje dla dokładnie tego przeniesienia **Najpierw sprawdź**:
+uruchamia sprawdzenie i wraca z jego wynikiem, który przeniesienie potem niesie.
 
 **Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji. Na stronie
 skilla pokazany fork ma przycisk doganiania, gdy main go wyprzedził, i przycisk
@@ -620,6 +623,8 @@ profesjonalne, produkcja i logistyka. Po dziesięć w każdej.
 
 Wybierz branżę, a potem zainstaluj jeden skill albo całą półkę. Od tej chwili to
 zwykły skill, który organizacja posiada i edytuje, dokładnie jak dołączony.
+**Podgląd** pokazuje instrukcje skilla i pliki, z którymi przychodzi, zanim go
+zainstalujesz, a **Zainstalowany** otwiera własną kopię organizacji.
 
 !!! info "Galeria działa na zaproszenie i na tym polega cała różnica"
 
@@ -668,7 +673,7 @@ nie przeczytał. Każdy katalog w `app/core/catalog/skills/` i
 
 ## Strona skilla { #a-skills-page }
 
-Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
+Otwórz skill z listy, żeby zobaczyć jego stronę. Ma cztery zakładki.
 
 **Agenci** to lista każdego agenta, który używa skilla, z wersją, którą dostaje:
 
@@ -688,7 +693,14 @@ którą pokazuje Historia i do której zapisuje Edycja.
 
 Każdy wiersz mówi, czy
 [sprawdzenie](#checking-a-change-on-every-agent) zmierzyło wersję, którą agent
-serwuje, i z jakim wynikiem; wersja nigdy na nim niesprawdzona jest **nieznana**.
+serwuje, i z jakim wynikiem. Wersja, której żadne sprawdzenie nie zmierzyło, jest
+**nieznana** tam, gdzie zmiana trafiła do agenta bez sprawdzenia - jego odpowiedzi
+korzystały z wcześniejszej wersji - i **jeszcze niesprawdzona** tam, gdzie agent nie
+odpowiadał z żadną inną.
+
+Pod tabelą **Pytania testowe** podają liczbę [pytań testowych](#what-a-check-asks)
+skilla i linkują do ich datasetu albo pozwalają je zacząć. Skill, którego nie używa
+żaden agent, w miejscu tabeli oferuje **Dodaj do agenta**.
 
 Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
 otwierał skill w ostatnich 30 dniach: jeden wykres dzień po dniu z agentami
@@ -698,11 +710,15 @@ użył skilla. Runy ewaluacji i panelu testowego Buildera się nie liczą.
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
 fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
 trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja inna
-niż ta, którą agent serwuje teraz, i której żadne sprawdzenie na nim nie zmierzyło,
-nie była tam sprawdzona, więc najpierw to potwierdzasz; przy wersji zmierzonej okno
-podaje wynik. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
+niż ta, którą agent serwuje teraz, której żadne sprawdzenie na nim nie zmierzyło i z
+którą wcześniej nie odpowiadał, nie była tam sprawdzona, więc najpierw to
+potwierdzasz albo naciskasz **Najpierw sprawdź**, gdy to przeniesienie przypiętego
+agenta na najnowszą wersję main; przy wersji zmierzonej okno podaje wynik. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
 podaje datę każdej wersji main do przypięcia, z linkiem do jej zmian. Kontrolkę
 widzą osoby, które mogą edytować agenta.
+
+**Treść** pokazuje, co wybrana linia serwuje teraz - opis, instrukcje i pliki - do
+przeczytania bez otwierania edytora.
 
 **Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
 (edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),

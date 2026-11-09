@@ -1,5 +1,5 @@
 ---
-source_sha: "62a0fc38c479"
+source_sha: "57792cfecf5c"
 ---
 
 # Skills { #skills }
@@ -284,10 +284,11 @@ geprüft.
 ### Was sie fragt { #what-a-check-asks }
 
 Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
-Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
-leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
-**Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
-nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
+Skill hat einen Satz, begonnen auf der Skill-Seite unter **Testfragen** - aus
+jüngsten Antworten, die den Skill geladen haben, oder leer - oder über die API,
+`POST /api/v1/skills/{id}/test-set`, oder mit **Testfragen hinzufügen** neben einem
+Agent, den [Verbessern](#improving-a-skill) nicht prüfen konnte, und bearbeitet wie
+jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichnet. Dann die eigenen Fragen des Agents:
 
 - **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
   eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
@@ -501,6 +502,9 @@ Prüfung erneut veröffentlicht wurde oder main weitergezogen ist; es schließt 
 Prüfung ab und markiert den Agent auf dieser Version als geprüft. Einen Agent ohne
 Prüfung zu verschieben bleibt möglich, wie jeder Versionswechsel: Der Agent zeigt
 dann auf der neuen Version „unbekannt“, und dafür steht ein, wer ihn verschoben hat.
+Auf der Skill-Seite bietet **Version ändern** für genau diesen Wechsel **Zuerst
+prüfen** an: Es startet die Prüfung und kommt mit ihrem Ergebnis zurück, das der
+Wechsel dann mitträgt.
 
 **Einen Fork aufholen lassen.** Die Änderungen von main erreichen einen Fork in einer
 Sitzung. Auf der Seite des Skills bietet ein angezeigter Fork das Nachziehen an,
@@ -672,7 +676,9 @@ professionelle Dienstleistungen, Fertigung und Logistik. Jeweils zehn.
 
 Wählen Sie eine Branche, dann installieren Sie einen Skill oder das ganze Regal.
 Von diesem Moment an ist es ein gewöhnlicher Skill, den die Organisation besitzt
-und bearbeitet, genau wie ein mitgelieferter.
+und bearbeitet, genau wie ein mitgelieferter. **Vorschau** zeigt die Anweisungen
+eines Skills und die Dateien, die er mitbringt, bevor Sie ihn installieren, und
+**Installiert** öffnet die eigene Kopie der Organisation.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
@@ -726,7 +732,7 @@ hat es sich angesehen.
 
 ## Die Seite eines Skills { #a-skills-page }
 
-Öffnen Sie einen Skill in der Liste, um seine Seite zu sehen. Sie hat drei Tabs.
+Öffnen Sie einen Skill in der Liste, um seine Seite zu sehen. Sie hat vier Tabs.
 
 **Agents** listet jeden Agent, der den Skill nutzt, mit der Version, die er bekommt:
 
@@ -746,8 +752,14 @@ gewählter Fork ist auch die Linie, die der Verlauf zeigt und in die Bearbeiten
 speichert.
 
 Jede Zeile sagt, ob eine [Prüfung](#checking-a-change-on-every-agent) die
-Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis; eine nie auf
-ihm geprüfte Version ist **unbekannt**.
+Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis. Eine
+Version, die keine Prüfung gemessen hat, ist **unbekannt**, wo eine Änderung den
+Agent ungeprüft erreicht hat - seine Antworten nutzten eine frühere Version - und
+**noch nicht geprüft**, wo der Agent mit keiner anderen geantwortet hat.
+
+Darunter zählt **Testfragen** die eigenen [Testfragen](#what-a-check-asks) des
+Skills und verlinkt ihr Dataset oder beginnt sie. Ein Skill, den kein Agent nutzt,
+bietet anstelle der Tabelle **Zu einem Agenten hinzufügen** an.
 
 Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
 letzten 30 Tagen geöffnet hat: ein Diagramm nach Tagen mit den Agents, die Sie in
@@ -759,12 +771,16 @@ zuletzt genutzt hat. Runs von Evals und vom Testbereich des Builders zählen nic
 oder auf einen Fork, wie [Welche Version ein Agent
 liest](#which-version-an-agent-reads) beschreibt: was live geht, was im Entwurf
 wartet und was im Builder geändert wird. Eine andere Version als die, die der Agent
-gerade ausliefert, und die keine Prüfung auf ihm gemessen hat, wurde dort nicht
-geprüft, deshalb bestätigen Sie das zuerst; bei einer gemessenen nennt der Dialog
-das Ergebnis. Der Dialog sagt auch, wann der Agent keine neuen main-Versionen mehr
+gerade ausliefert, die keine Prüfung auf ihm gemessen hat und mit der er noch nicht
+geantwortet hat, wurde dort nicht geprüft, deshalb bestätigen Sie das zuerst oder
+drücken **Zuerst prüfen**, wenn es der Wechsel eines festgesetzten Agents auf die
+neueste main-Version ist; bei einer gemessenen nennt der Dialog das Ergebnis. Der Dialog sagt auch, wann der Agent keine neuen main-Versionen mehr
 bekäme, und datiert jede main-Version, die er zum Festsetzen anbietet, mit einem
 Link zu ihren Änderungen. Das Steuerelement sehen Personen, die den Agent bearbeiten
 dürfen.
+
+**Inhalt** zeigt, was die gewählte Linie jetzt ausliefert - Beschreibung,
+Anweisungen und Dateien - zum Lesen, ohne den Editor zu öffnen.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines

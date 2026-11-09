@@ -1,5 +1,5 @@
 ---
-source_sha: "62a0fc38c479"
+source_sha: "57792cfecf5c"
 ---
 
 # Skills { #skills }
@@ -271,11 +271,12 @@ se comprueba.
 ### Qué pregunta { #what-a-check-asks }
 
 Primero las **preguntas de prueba** propias del skill, el mismo conjunto en cada
-agent. Cada skill tiene un conjunto, creado a través de la API -
-`POST /api/v1/skills/{id}/test-set`, vacío o a partir de respuestas recientes que
-cargaron el skill - o con **Añadir preguntas de prueba** junto a un agent que
-[Improve](#improving-a-skill) no pudo comprobar, y editado como cualquier otro
-[dataset](datasets.md).
+agent. Cada skill tiene un conjunto, empezado en la página del skill en **Test
+questions** - a partir de respuestas recientes que cargaron el skill, o vacío - o a
+través de la API, `POST /api/v1/skills/{id}/test-set`, o con **Añadir preguntas de
+prueba** junto a un agent que [Improve](#improving-a-skill) no pudo comprobar, y
+editado como cualquier otro [dataset](datasets.md), que Datasets marca como el del
+skill.
 Después, las preguntas del propio agent:
 
 - **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
@@ -472,7 +473,9 @@ que no se pudo medir (`acknowledge_unknown`) y cuando el agent se publicó de nu
 main avanzó desde la comprobación; cierra la comprobación y marca al agent como
 comprobado en esa versión. Mover un agent sin comprobación sigue siendo posible, como
 cualquier cambio de versión: el agent queda entonces como «desconocido» en su nueva
-versión, y responde de ello quien lo movió.
+versión, y responde de ello quien lo movió. En la página del skill, **Cambiar
+versión** ofrece **Check first** para exactamente este movimiento: lanza la
+comprobación y vuelve con su resultado, que el movimiento lleva después.
 
 **Poner al día un fork.** Los cambios de main llegan a un fork en una sesión. En la
 página del skill, un fork mostrado ofrece ponerse al día mientras main lo ha dejado
@@ -637,7 +640,8 @@ profesionales, fabricación y logística. Diez de cada.
 
 Elige un sector y luego instala un skill o el estante entero. Desde ese momento
 es un skill normal que la organización posee y edita, exactamente igual que uno
-incluido.
+incluido. **Preview** muestra las instrucciones de un skill y los archivos que trae
+antes de instalarlo, e **Installed** abre la copia propia de la organización.
 
 !!! info "La galería es opcional, y esa es toda la diferencia"
 
@@ -688,7 +692,7 @@ pequeña promesa que hace el [catálogo MCP](mcp.md#the-catalog): alguien lo mir
 
 ## La página de un skill { #a-skills-page }
 
-Abre un skill desde la lista para ver su página. Tiene tres pestañas.
+Abre un skill desde la lista para ver su página. Tiene cuatro pestañas.
 
 **Agentes** lista cada agent que usa el skill y la versión que recibe:
 
@@ -708,7 +712,13 @@ línea que muestra el Historial y en la que guarda Editar.
 
 Cada fila dice si una
 [comprobación](#checking-a-change-on-every-agent) midió la versión que sirve el agent y
-con qué resultado; una versión nunca comprobada en él es **desconocida**.
+con qué resultado. Una versión que ninguna comprobación midió es **desconocida** donde
+un cambio llegó al agent sin comprobar - sus respuestas usaron una versión anterior -
+y **todavía sin comprobar** donde el agent nunca respondió con otra.
+
+Debajo, **Test questions** cuenta las [preguntas de prueba](#what-a-check-asks)
+propias del skill y enlaza a su dataset, o las empieza. Un skill que ningún agent usa
+ofrece **Add to an agent** en lugar de la tabla.
 
 Debajo de la tabla, quien puede ver runs ve con qué frecuencia cada agent abrió el
 skill en los últimos 30 días: un gráfico por día con los agents que eliges en la
@@ -719,11 +729,15 @@ Los runs de evals y del panel de pruebas del Builder no cuentan.
 **Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
 como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
 publica, qué espera en el borrador y qué se cambia en el Builder. Una versión distinta
-de la que el agent sirve ahora, y que ninguna comprobación midió en él, no se ha
-comprobado ahí, así que primero lo confirmas; en una medida, el diálogo da el
-resultado. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
+de la que el agent sirve ahora, que ninguna comprobación midió en él y con la que no
+ha respondido antes, no se ha comprobado ahí, así que primero lo confirmas o pulsas
+**Check first** cuando es el movimiento de un agent fijado a la versión más nueva de
+main; en una medida, el diálogo da el resultado. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
 de main, y fecha cada versión de main que ofrece fijar, con un enlace a sus cambios.
 El control lo ve quien puede editar el agent.
+
+**Contenido** muestra lo que sirve ahora la línea elegida - descripción,
+instrucciones y archivos - para leerlo sin abrir el editor.
 
 **Historial** lista las versiones de la línea elegida, de la más nueva a la más
 antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,
