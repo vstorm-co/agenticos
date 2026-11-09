@@ -601,7 +601,11 @@ class EvalRunService:
                         "this change was derived from, so none can measure it. Add cases "
                         "from other conversations, or pick another dataset."
                     ),
-                    details={"dataset_id": dataset.id, "excluded": len(excluded)},
+                    details={
+                        "dataset_id": dataset.id,
+                        "excluded": len(excluded),
+                        "reason": "all_evidence",
+                    },
                 )
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         ai_enabled = await AiAssistanceService(self.db).is_enabled(

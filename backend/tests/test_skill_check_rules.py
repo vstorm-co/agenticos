@@ -213,6 +213,13 @@ class TestVerdict:
         result = verdict([AgentState.BETTER, AgentState.UNKNOWN])
         assert result is CheckVerdict.NEEDS_ACK
 
+    def test_no_agent_measured_needs_an_acknowledgement(self) -> None:
+        assert verdict([AgentState.UNKNOWN, AgentState.UNKNOWN]) is CheckVerdict.NEEDS_ACK
+        assert verdict([AgentState.NO_CHANGE, AgentState.UNKNOWN]) is CheckVerdict.NO_BETTER
+
+    def test_a_line_nobody_reads_passes(self) -> None:
+        assert verdict([]) is CheckVerdict.PASSED
+
     def test_within_noise_is_a_warning_not_a_block(self) -> None:
         result = verdict([AgentState.BETTER, AgentState.WITHIN_NOISE])
         assert result is CheckVerdict.PASSED

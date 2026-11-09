@@ -108,8 +108,15 @@ class CheckStage(BaseSchema):
     kind: StageKind
     dataset_id: UUID
     dataset_name: str | None = Field(description="Null for a dataset the reader may not see")
-    cases: int
-    eval_run_id: UUID | None = None
+    cases: int = Field(
+        description=(
+            "The questions the stage asks, without those taken from the conversations the "
+            "change learned from"
+        )
+    )
+    eval_run_id: UUID | None = Field(
+        default=None, description="The eval run that asked them, once the stage started"
+    )
     counts: StageCounts | None = Field(
         default=None,
         description=(
@@ -128,8 +135,9 @@ class SkillCheckAgentRead(BaseSchema):
     sample: SampleKind | None = Field(
         default=None,
         description=(
-            "In a quick check, whether the agent's own questions were asked or, with none "
-            "that loaded the skill, the skill's test questions alone"
+            "In a quick check, whether the agent's own questions were asked; the skill's "
+            "test questions alone, with none that loaded the skill or could be graded; or "
+            "`own_not_asked`, picked and left unasked once the skill's made it worse"
         ),
     )
     stages: list[CheckStage]
@@ -193,6 +201,13 @@ class SkillCheckRead(SkillCheckEstimate):
         "and the check's own decisions answer 409 DECIDE_IN_SESSION",
     )
     applied_version_id: UUID | None = None
+    no_readers: bool = Field(
+        default=False,
+        description=(
+            "No agent read the line, so the change reached nobody and nothing was asked; "
+            "the check passed with nothing to measure"
+        ),
+    )
     created_at: datetime
     finished_at: datetime | None = None
 

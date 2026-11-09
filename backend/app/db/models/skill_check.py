@@ -122,6 +122,16 @@ class UnknownReason(StrEnum):
     INCONCLUSIVE = "inconclusive"
     """A run ended without grading every question."""
     FAILED = "failed"
+    UNSCORABLE = "unscorable"
+    """Nothing its questions are graded with can decide one: no check, expected tool
+    call or judge, or a judge while AI assistance is off."""
+    ALL_EVIDENCE = "all_evidence"
+    """Every question it would be asked came from the conversations the change learned from."""
+    CANCELLED = "cancelled"
+    """The check was stopped before the agent's runs finished."""
+    OWN_NOT_ASKED = "own_not_asked"
+    """A quick check left its own questions unasked once the skill's made it worse, and a
+    person's verdict has since taken that back: its own questions would decide it."""
 
 
 class SampleKind(StrEnum):
@@ -129,7 +139,10 @@ class SampleKind(StrEnum):
 
     OWN_QUESTIONS = "own_questions"
     SKILL_SET_ONLY = "skill_set_only"
-    """None of its dataset's questions loaded the skill, so only the skill's set ran."""
+    """Only the skill's set ran: none of its dataset's questions loaded the skill, or
+    none of them could be graded."""
+    OWN_NOT_ASKED = "own_not_asked"
+    """Its questions were picked, and left unasked once the skill's made it worse."""
 
 
 class CheckOutcome(StrEnum):
