@@ -138,6 +138,13 @@ class SkillSummary(BaseSchema):
     built_in: bool = Field(
         description="Whether this skill shipped with the deployment, by library name"
     )
+    architect: bool = Field(
+        default=False,
+        description=(
+            "Whether the AI Architect's template binds this skill, by name - installed for "
+            "the Architect, and read by it"
+        ),
+    )
     excerpt: str = Field(
         default="",
         description=(

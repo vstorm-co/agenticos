@@ -40,6 +40,11 @@ export function SkillCard({ skill }: SkillCardProps) {
               {skill.name}
             </span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
+            {skill.architect && (
+              <Badge variant="outline" title={t("architectHint")}>
+                {t("architect")}
+              </Badge>
+            )}
           </span>
           <span className="text-foreground/85 line-clamp-2 min-h-10 text-sm leading-relaxed">
             {skill.description}

@@ -47,7 +47,7 @@ from app.services.skills import LibraryRefresh, SkillService
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_KEY = "general/platform-assistant"
+TEMPLATE_KEY = agent_templates.ARCHITECT_KEY
 # Its mark, worn as an ordinary agent picture so every place an agent's face is
 # drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
 AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"

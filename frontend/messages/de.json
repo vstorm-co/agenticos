@@ -8669,7 +8669,9 @@
       "backToChange": "Zurück zum Versionswechsel"
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
-    "instructions": "Anweisungen"
+    "instructions": "Anweisungen",
+    "architect": "Architekt",
+    "architectHint": "Für den KI-Architekten installiert, der ihn liest. Eine Änderung verändert, wie der Architekt arbeitet."
   },
   "states": {
     "loading": "Wird geladen"

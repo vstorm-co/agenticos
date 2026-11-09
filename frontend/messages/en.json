@@ -8791,7 +8791,9 @@
       "backToChange": "Back to Change version"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
-    "instructions": "Instructions"
+    "instructions": "Instructions",
+    "architect": "Architect",
+    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works."
   },
   "states": {
     "loading": "Loading"

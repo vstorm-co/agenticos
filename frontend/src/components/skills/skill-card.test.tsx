@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
 import { SkillCard } from "./skill-card";
 import type { SkillSummary } from "@/types/providers";
@@ -63,6 +63,17 @@ describe("SkillCard", () => {
   it("does not accuse a custom skill of being built-in", () => {
     renderCard();
     expect(screen.queryByText("built-in")).not.toBeInTheDocument();
+  });
+
+  it("marks a skill installed for the Architect, and only that one", () => {
+    renderCard({ skill: { ...SKILL, architect: true } });
+    expect(screen.getByText("Architect")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/changes how the Architect works/),
+    );
+    cleanup();
+    renderCard();
+    expect(screen.queryByText("Architect")).toBeNull();
   });
 
   it("names the shelf a categorized skill sits on, as a label rather than a slug", () => {

@@ -102,7 +102,9 @@ def improver_skill_chars(skills: Sequence[Skill], used: Mapping[UUID, set[UUID]]
     return sum(min(len(skill.content), SKILL_BODY_CHARS) for skill in skills if skill.id in used)
 
 
-def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
+def _summary(
+    skill: Skill, bundled_names: frozenset[str], architect_names: frozenset[str]
+) -> SkillSummary:
     """A skill as the listing shows it.
 
     `built_in` is a name match against the shipped library because that is
@@ -119,6 +121,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         file_count=len(skill.resources),
         version=skill.version,
         built_in=skill.name in bundled_names,
+        architect=skill.name in architect_names,
         excerpt=excerpt(skill.content),
     )
 
@@ -412,6 +415,7 @@ class SkillService:
             limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
+        architect_names = skill_library.architect_names()
         used = await agents_serving_skills(self.db, ctx, skill_ids=[skill.id for skill in items])
         drafted = await agents_using(
             self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
@@ -425,7 +429,7 @@ class SkillService:
         )
         return SkillList(
             items=[
-                _summary(skill, bundled_names).model_copy(
+                _summary(skill, bundled_names, architect_names).model_copy(
                     update={
                         "used_by": used[skill.id],
                         "drafted_by": [

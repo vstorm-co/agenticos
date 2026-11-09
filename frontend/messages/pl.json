@@ -8551,7 +8551,9 @@
       "backToChange": "Wróć do zmiany wersji"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
-    "instructions": "Instrukcje"
+    "instructions": "Instrukcje",
+    "architect": "Architekt",
+    "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta."
   },
   "states": {
     "loading": "Wczytywanie"

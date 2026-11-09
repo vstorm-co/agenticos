@@ -160,6 +160,8 @@ export interface SkillSummary {
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
+  /** Whether the AI Architect's template binds it: installed for the Architect, which reads it. */
+  architect?: boolean;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
   /**
