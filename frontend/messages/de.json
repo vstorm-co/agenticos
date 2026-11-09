@@ -8614,7 +8614,8 @@
       "content": {
         "title": "Was er jetzt ausliefert"
       },
-      "more": "Weitere Aktionen"
+      "more": "Weitere Aktionen",
+      "aiOff": "Improve und das Aufholen eines Forks mit main lassen ein Modell die Antworten des Skills lesen, und AI assistance ist für diese Organisation ausgeschaltet."
     },
     "checkOnAgents": "Auf Agents prüfen",
     "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
@@ -8674,8 +8675,8 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "KI-Unterstützung",
-    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten vorschlagen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
-    "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator und der Authoring-Assistent werden abgelehnt. Deterministische Prüfungen und Urteile von Menschen funktionieren weiter.",
+    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten und Skills vorschlagen, den Fork eines Skills mit main zusammenführen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
+    "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator, der Authoring-Assistent, Improve für Agenten und Skills und das Aufholen eines Skill-Forks mit main werden abgelehnt. Deterministische Prüfungen, die Testfragen eines Skills und Urteile von Menschen funktionieren weiter.",
     "aiAssistanceOn": "KI-Unterstützung ist an",
     "aiAssistanceOff": "KI-Unterstützung ist aus",
     "aiAssistanceFailed": "KI-Unterstützung konnte nicht geändert werden",
@@ -15432,7 +15433,8 @@
       "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, in denen Versionen dieser Linie geladen wurden, {agents, plural, =1 {von 1 Agent} other {von # Agents}}.",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gelesen.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gelesen.}}",
       "checkNamedLater": "Bevor die Änderungen geprüft werden, wird jeder Agent genannt, auf dem sie laufen, und die, auf denen sie nicht laufen können, mit Grund.",
-      "noEvidence": "Es gibt keine schlecht bewerteten oder fehlgeschlagenen Antworten, in denen diese Linie geladen wurde, also gibt es noch nichts zu lernen."
+      "noEvidence": "Es gibt keine schlecht bewerteten oder fehlgeschlagenen Antworten, in denen diese Linie geladen wurde, also gibt es noch nichts zu lernen.",
+      "aiOff": "Improve lässt ein Modell die Antworten des Skills lesen und Änderungen schreiben, und AI assistance ist für diese Organisation ausgeschaltet."
     },
     "understand": {
       "title": "Verstehen",
@@ -15543,7 +15545,8 @@
       "start": {
         "catch_up": "Nachziehen starten",
         "to_main": "Übernahme starten"
-      }
+      },
+      "aiOff": "Einen Fork mit main zusammenzuführen lässt ein Modell die beiden Texte zusammenführen, und AI assistance ist für diese Organisation ausgeschaltet."
     },
     "mergeReading": "Die Zusammenführung wird gelesen…",
     "mergeAgain": {

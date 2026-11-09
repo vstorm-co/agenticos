@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bot, FileText, GitBranch, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AiAssistanceNotice } from "@/components/datasets/ai-assistance-notice";
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { NewForkDialog } from "@/components/skills/new-fork-dialog";
@@ -104,6 +105,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
+      {skill.can_edit && can(Perm.runsView) && <AiAssistanceNotice body={t("aiOff")} />}
       {skill.can_edit && can(Perm.runsView) && (
         <CheckRunning skillId={id} forkId={fork?.id ?? null} />
       )}

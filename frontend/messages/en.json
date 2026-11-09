@@ -8736,7 +8736,8 @@
       "content": {
         "title": "What it serves now"
       },
-      "more": "More actions"
+      "more": "More actions",
+      "aiOff": "Improve and catching a fork up with main ask a model to read the skill's answers, and AI assistance is switched off for this organization."
     },
     "checkOnAgents": "Check on agents",
     "checkChangeTo": "Check the change to {name} on the agents that use it",
@@ -8796,8 +8797,8 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "AI assistance",
-    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
-    "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator and the authoring assistant are refused. Deterministic checks and people's verdicts keep working.",
+    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and skills, merge a skill's fork with main and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
+    "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator, the authoring assistant, Improve for agents and skills, and catching a skill's fork up with main are refused. Deterministic checks, a skill's test questions and people's verdicts keep working.",
     "aiAssistanceOn": "AI assistance is on",
     "aiAssistanceOff": "AI assistance is off",
     "aiAssistanceFailed": "Could not change AI assistance",
@@ -15760,7 +15761,8 @@
       "reads": "{runs, plural, =1 {It reads 1 answer} other {It reads # answers}} where the line's versions were loaded, {agents, plural, =1 {from 1 agent} other {from # agents}}.",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not read.} other {# answers are from before skill loads were recorded and are not read.}}",
       "checkNamedLater": "Before the changes are checked, each agent they run on is named, and the ones they cannot run on, with the reason.",
-      "noEvidence": "There are no rated-down or failed answers where this line was loaded, so there is nothing to learn from yet."
+      "noEvidence": "There are no rated-down or failed answers where this line was loaded, so there is nothing to learn from yet.",
+      "aiOff": "Improve asks a model to read the skill's answers and write changes, and AI assistance is switched off for this organization."
     },
     "understand": {
       "title": "Understand",
@@ -15871,7 +15873,8 @@
       "start": {
         "catch_up": "Start the catch-up",
         "to_main": "Start the move"
-      }
+      },
+      "aiOff": "Merging a fork with main asks a model to merge the two texts, and AI assistance is switched off for this organization."
     },
     "mergeReading": "Reading the merge…",
     "mergeAgain": {

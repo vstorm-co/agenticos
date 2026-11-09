@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Skill } from "@/types/providers";
 import { SkillPageHeader, type Merges } from "./skill-page-header";
 
+const ai = vi.hoisted(() => ({ enabled: true as boolean | null }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useAiAssistance: () => ({ orgId: "o1", enabled: ai.enabled }),
+}));
 const state = vi.hoisted(() => ({ runsView: true }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.runsView, isLoading: false }),
@@ -41,6 +45,7 @@ async function more() {
 
 beforeEach(() => {
   state.runsView = true;
+  ai.enabled = true;
 });
 
 describe("SkillPageHeader", () => {
@@ -85,6 +90,18 @@ describe("SkillPageHeader", () => {
       "Make a change in the fork first; there's nothing to merge yet.",
     );
     expect(screen.queryByRole("link", { name: /main/ })).not.toBeInTheDocument();
+  });
+
+  it("holds Improve and Catch up while AI assistance is off, and says why", () => {
+    ai.enabled = false;
+    mount();
+
+    for (const name of ["Improve fork “returns”", "Catch “returns” up with main"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(/AI assistance is switched off/);
+    }
+    expect(screen.queryByRole("link", { name: /Improve|up with main/ })).toBeNull();
   });
 
   it("offers returning a fork with nothing of its own to main", async () => {

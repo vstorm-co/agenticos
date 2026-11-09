@@ -10,6 +10,10 @@ import { skillSession } from "@/test-utils/skill-improvement";
 import { SkillStart } from "./skill-start";
 
 const push = vi.fn();
+const ai = vi.hoisted(() => ({ enabled: true as boolean | null }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useAiAssistance: () => ({ orgId: "o1", enabled: ai.enabled }),
+}));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push }),
@@ -45,6 +49,7 @@ function mount(forkId: string | null = null, fromRun: string | null = null) {
 }
 
 beforeEach(() => {
+  ai.enabled = true;
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue([]);
   vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
@@ -53,6 +58,15 @@ beforeEach(() => {
 });
 
 describe("SkillStart", () => {
+  it("says AI assistance is off rather than failing, and prices nothing", async () => {
+    ai.enabled = false;
+    mount();
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/AI assistance is switched off/);
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("says what it reads and from how many agents, before anything is spent", async () => {
     mount();
 

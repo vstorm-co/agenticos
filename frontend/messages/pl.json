@@ -8496,7 +8496,8 @@
       "content": {
         "title": "Co teraz serwuje"
       },
-      "more": "Więcej akcji"
+      "more": "Więcej akcji",
+      "aiOff": "Improve i doganianie maina w forku proszą model o przeczytanie odpowiedzi skilla, a AI assistance jest w tej organizacji wyłączone."
     },
     "checkOnAgents": "Sprawdź na agentach",
     "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
@@ -8556,8 +8557,8 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "Wsparcie AI",
-    "aiAssistanceDescription": "Wyłączone, dopóki ktoś go nie włączy. Pozwala modelom oceniać odpowiedzi w ewaluacjach, przygotowywać przypadki testowe, proponować zmiany w agentach i przygotowywać treści dla luk w wiedzy; każde użycie to rozliczany run w ramach budżetów agenta i organizacji.",
-    "aiAssistanceHint": "Gdy jest wyłączone, nic tutaj nie wywołuje modelu, żeby ocenić, wygenerować albo zaproponować: sędzia ewaluacji, generator przypadków i asystent tworzenia są odrzucane. Kontrole deterministyczne i werdykty ludzi działają dalej.",
+    "aiAssistanceDescription": "Wyłączone, dopóki ktoś go nie włączy. Pozwala modelom oceniać odpowiedzi w ewaluacjach, przygotowywać przypadki testowe, proponować zmiany w agentach i skillach, scalać fork skilla z mainem i przygotowywać treści dla luk w wiedzy; każde użycie to rozliczany run w ramach budżetów agenta i organizacji.",
+    "aiAssistanceHint": "Gdy jest wyłączone, nic tutaj nie wywołuje modelu, żeby ocenić, wygenerować albo zaproponować: sędzia ewaluacji, generator przypadków, asystent tworzenia, Improve agentów i skilli oraz doganianie maina w forku skilla są odrzucane. Kontrole deterministyczne, pytania testowe skilla i werdykty ludzi działają dalej.",
     "aiAssistanceOn": "Wsparcie AI jest włączone",
     "aiAssistanceOff": "Wsparcie AI jest wyłączone",
     "aiAssistanceFailed": "Nie udało się zmienić wsparcia AI",
@@ -15534,7 +15535,8 @@
       "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, w których wczytano wersje tej linii, {agents, plural, one {od # agenta} few {od # agentów} many {od # agentów} other {od # agenta}}.",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest czytana.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są czytane.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.}}",
       "checkNamedLater": "Zanim zmiany zostaną sprawdzone, każdy agent, na którym ruszą, jest wymieniony, a ci, na których nie mogą, z powodem.",
-      "noEvidence": "Nie ma źle ocenionych ani nieudanych odpowiedzi, w których wczytano tę linię, więc na razie nie ma się z czego uczyć."
+      "noEvidence": "Nie ma źle ocenionych ani nieudanych odpowiedzi, w których wczytano tę linię, więc na razie nie ma się z czego uczyć.",
+      "aiOff": "Improve prosi model o przeczytanie odpowiedzi skilla i napisanie zmian, a AI assistance jest w tej organizacji wyłączone."
     },
     "understand": {
       "title": "Zrozumienie",
@@ -15645,7 +15647,8 @@
       "start": {
         "catch_up": "Zacznij doganianie",
         "to_main": "Zacznij przenoszenie"
-      }
+      },
+      "aiOff": "Scalanie forka z mainem prosi model o połączenie obu tekstów, a AI assistance jest w tej organizacji wyłączone."
     },
     "mergeReading": "Odczytywanie scalenia…",
     "mergeAgain": {
