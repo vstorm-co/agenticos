@@ -852,9 +852,9 @@ class SkillImprovementService:
         line, run = await self._editable_row(ctx, skill_id, run_id)
         if run.purpose != Purpose.IMPROVE.value:
             return await self._merge_continuation(
-                ctx, line, run, mode=data.mode, main_alone=data.main_alone
+                ctx, line, run, mode=data.mode, main_alone=data.main_alone, budget=data.budget_usd
             )
-        quote, _ = await self._continuation(ctx, line, run, mode=data.mode)
+        quote, _ = await self._continuation(ctx, line, run, mode=data.mode, budget=data.budget_usd)
         return quote
 
     async def continue_run(
@@ -877,7 +877,9 @@ class SkillImprovementService:
         if run.purpose != Purpose.IMPROVE.value:
             await self._continue_merge(ctx, line, run, consent)
             return await self._read(ctx, run, line)
-        quote, covered = await self._continuation(ctx, line, run, mode=consent.mode)
+        quote, covered = await self._continuation(
+            ctx, line, run, mode=consent.mode, budget=consent.budget_usd
+        )
         moved = line.latest != run.base_version_id
         if consent.candidate_hash != quote.candidate_hash and moved:
             self._refuse_moved(run, line)
@@ -2040,7 +2042,12 @@ class SkillImprovementService:
         if consent.note is not None:
             raise refused_field("note", "A note goes with Try again only")
         quote = await self._merge_continuation(
-            ctx, line, run, mode=consent.mode, main_alone=consent.main_alone
+            ctx,
+            line,
+            run,
+            mode=consent.mode,
+            main_alone=consent.main_alone,
+            budget=consent.budget_usd,
         )
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
@@ -2075,8 +2082,10 @@ class SkillImprovementService:
         *,
         mode: CheckMode | None,
         main_alone: bool,
+        budget: Decimal | None,
     ) -> SkillContinuationEstimate:
-        """The price of checking the merge at Changes, main alone priced as its own line."""
+        """The price of checking the merge at Changes, main alone priced as its own line,
+        against `budget` when it raises the session's limit."""
         if not (run.status == Status.WAITING and run.stage == Stage.FILTERING):
             raise BadRequestError(
                 message="The session has no step for a person to take now",
@@ -2094,14 +2103,15 @@ class SkillImprovementService:
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
+        limit = _limit(run, budget)
         return SkillContinuationEstimate(
             mode="next_step",
             number=run.iteration,
             total_usd=total,
             expected_usd=sum((check.expected_usd for check in checks), Decimal(0)),
-            budget_usd=run.budget_usd,
+            budget_usd=limit,
             affordable=all(check.affordable for check in checks)
-            and rules.affordable(spent=spent, step_estimate=total, budget=run.budget_usd),
+            and rules.affordable(spent=spent, step_estimate=total, budget=limit),
             candidate_hash=merge_hash(starts, checks),
             check_estimate=merged,
             main_alone_usd=None if alone is None else alone.at_most_usd,
@@ -2212,9 +2222,11 @@ class SkillImprovementService:
         run: SkillImprovementRun,
         *,
         mode: CheckMode | None,
+        budget: Decimal | None,
     ) -> tuple[SkillContinuationEstimate, bool]:
-        """The next step's quote, and whether the organization's and the helper's budgets
-        cover it - the session's own limit may be raised with consent, those may not.
+        """The next step's quote against `budget` when it raises the session's limit, and
+        whether the organization's and the helper's budgets cover it - the session's own
+        limit may be raised with consent, those may not.
 
         Raises:
             BadRequestError: A proposal would have nothing on the line to learn from.
@@ -2222,6 +2234,7 @@ class SkillImprovementService:
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
+        limit = _limit(run, budget)
         if run.status == Status.WAITING and run.stage == Stage.FILTERING:
             # A line that moved since Changes is priced on its newest version: the same
             # chosen edits, applied to what the line serves now.
@@ -2244,11 +2257,9 @@ class SkillImprovementService:
                 number=run.iteration,
                 total_usd=check.at_most_usd,
                 expected_usd=check.expected_usd,
-                budget_usd=run.budget_usd,
+                budget_usd=limit,
                 affordable=check.affordable
-                and rules.affordable(
-                    spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
-                ),
+                and rules.affordable(spent=spent, step_estimate=check.at_most_usd, budget=limit),
                 candidate_hash=plan_hash(
                     start.candidate.description, start.candidate.content, check
                 ),
@@ -2300,9 +2311,9 @@ class SkillImprovementService:
             number=number,
             total_usd=price,
             expected_usd=price,
-            budget_usd=run.budget_usd,
+            budget_usd=limit,
             affordable=priced.affordable
-            and rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd),
+            and rules.affordable(spent=spent, step_estimate=price, budget=limit),
             candidate_hash=hashlib.sha256(f"{run.base_version_id}:{number}".encode()).hexdigest(),
         ), priced.affordable
 
@@ -2733,6 +2744,11 @@ class SkillImprovementService:
                 message="A skill session reads runs, which needs runs:view",
                 details={"permission": Perm.RUNS_VIEW.value},
             )
+
+
+def _limit(run: SkillImprovementRun, budget: Decimal | None) -> Decimal:
+    """The spending limit a step is priced against: a person may raise it, never lower it."""
+    return run.budget_usd if budget is None else max(run.budget_usd, budget)
 
 
 def _starter(people: Mapping[UUID, PersonRef], user_id: UUID | None) -> PersonRef | None:

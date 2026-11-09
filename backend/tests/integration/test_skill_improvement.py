@@ -1390,6 +1390,33 @@ class TestCheckAndResult:
         assert read.check is not None and read.check.status == "running"
         assert read.outcomes == []
 
+    async def test_a_limit_raised_at_the_quote_is_the_limit_the_session_keeps(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        raised = run.budget_usd + Decimal("0.01")
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(
+            ctx, run.skill_id, run.id, SkillContinue(budget_usd=raised)
+        )
+        await service.continue_run(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=quote.budget_usd,
+            ),
+        )
+
+        assert quote.budget_usd == raised
+        assert (await db.get(SkillImprovementRun, run.id)).budget_usd == raised
+
     async def test_a_check_still_running_leaves_the_session_working(
         self, db, evidence, monkeypatch
     ):

@@ -712,6 +712,34 @@ class TestAMoveToMain:
             )
         assert read_before is not None
 
+    async def test_a_limit_raised_at_the_quote_is_the_limit_it_keeps(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx, TO_MAIN)
+        raised = run.budget_usd + Decimal("0.01")
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(
+            ctx, skill.id, run.id, SkillContinue(budget_usd=raised)
+        )
+        await service.continue_run(
+            ctx,
+            skill.id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=quote.budget_usd,
+            ),
+        )
+        await db.refresh(run)
+
+        assert quote.budget_usd == raised
+        assert run.budget_usd == raised
+
     async def test_one_that_helped_nobody_waits_at_its_result(self, db, call_price, monkeypatch):
         _checked(db, monkeypatch)
         ctx = await _owner(db)
