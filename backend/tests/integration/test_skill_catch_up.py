@@ -360,6 +360,22 @@ class TestReturnToMain:
                 ours, skill.id, their_fork.id, ReturnToMain()
             )
 
+    async def test_a_fork_of_another_skill_is_not_found_and_nobody_moves(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        other = await _skill(db, ctx, "invoices")
+        other_fork = await _fork(db, ctx, other)
+        desk = await _serving(db, ctx, "Desk", _spec(other, fork_id=str(other_fork.id)))
+
+        with pytest.raises(NotFoundError, match="Fork not found"):
+            await SkillCatchUpService(db).return_to_main(
+                ctx, skill.id, other_fork.id, ReturnToMain()
+            )
+
+        await db.refresh(desk)
+        [binding] = AgentSpec.model_validate(desk.draft_spec).skill_bindings
+        assert binding.fork_id == other_fork.id
+
 
 class TestReturningBesideADecision:
     async def test_a_decision_holding_the_skill_lets_the_return_wait_its_turn(

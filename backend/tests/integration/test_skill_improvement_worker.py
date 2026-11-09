@@ -6,6 +6,7 @@ records what it could not anchor - and each wakes the session it ran for.
 """
 
 import uuid
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -248,6 +249,58 @@ async def test_a_proposal_that_keeps_the_description_proposes_only_body_edits(db
     request = await _work(db, ctx, iteration.authoring_request_id, describes=False)
 
     assert (request.report["proposed"], request.report["recorded"]) == (2, 1)
+
+
+class _FailingImprover(SkillImprover):
+    """Fails the one model call whose prompt starts with `fails_on`."""
+
+    fails_on = ""
+
+    def _answer(self, prompt: str) -> dict[str, Any]:
+        if prompt.startswith(self.fails_on):
+            raise RuntimeError("The model is unavailable")
+        return super()._answer(prompt)
+
+
+@pytest.mark.parametrize("step", ["Group the bad answers", "Propose edits to the skill"])
+@pytest.mark.parametrize("erased", [False, True])
+async def test_a_failed_model_call_still_rechecks_the_evidence_it_was_given(
+    db, evidence, step: str, erased: bool
+):
+    """A source erased while the model ran is what the step reports, not the model's failure."""
+    ctx, run = await _session(db, evidence)
+    request_id = run.analysis_request_id
+    assert request_id is not None
+    if step.startswith("Propose"):
+        await _work(db, ctx, request_id)
+        service = SkillImprovementService(db)
+        await service.advance(run.id, ctx.organization_id)
+        await db.refresh(run)
+        await _continue(db, ctx, run)
+        await service.advance(run.id, ctx.organization_id)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None and iteration.authoring_request_id is not None
+        request_id = iteration.authoring_request_id
+    if erased:
+        evidence["runs"] = [replace(_packed(_RUN_ID), people=frozenset({uuid.uuid4()}))]
+    model = _FailingImprover(db)
+    model.fails_on = step
+
+    with _answering(model):
+        await AuthoringWorker(request_id, ctx.organization_id, sessions=_sessions(db)).run()
+
+    request = await db.get(AuthoringRequest, request_id)
+    assert request is not None
+    await db.refresh(request)
+    assert (request.status, request.report) == ("failed", None)
+    assert request.error == (
+        "An evidence source was erased while the assistant worked. Start again with current "
+        "evidence."
+        if erased
+        else "The assistant stopped unexpectedly. Try again."
+    )
 
 
 async def test_reading_a_lines_evidence_is_priced_like_any_improve(db):

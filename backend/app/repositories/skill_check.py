@@ -296,8 +296,7 @@ async def check_answers(
     )
     answers: dict[UUID, CheckAnswer] = {}
     for score_id, skill_id, check_id, role, current, proposed in rows.tuples().all():
-        if score_id is None:
-            continue
+        assert score_id is not None, "`case_score_id IN (...)` never matches a null score"
         mine = role == ArmRole.CANDIDATE.value
         answers[score_id] = CheckAnswer(skill_id, check_id, mine, proposed if mine else current)
     return answers

@@ -102,6 +102,16 @@ class TestMergeText:
         assert merge_text("", "", "") == []
         assert merged_text([]) == ""
 
+    def test_a_blank_line_one_side_dropped_stays_dropped_beside_the_others_edit(self):
+        base = "# Refunds\n\n\nOffer a refund.\nSay thanks.\n"
+        fork = "# Refunds\n\nOffer a refund.\nSay thanks.\n"
+        main = base.replace("Say thanks.", "Say thank you.")
+
+        parts = merge_text(base, fork, main)
+
+        assert PartState.CONFLICT not in _states(parts)
+        assert merged_text(parts) == "# Refunds\n\nOffer a refund.\nSay thank you.\n"
+
     def test_nothing_changed_is_one_unchanged_part(self):
         parts = merge_text(BASE, BASE, BASE)
 

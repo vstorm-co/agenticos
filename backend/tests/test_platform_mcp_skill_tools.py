@@ -694,6 +694,30 @@ class TestReadingSessions:
             in session["summary"]
         )
 
+    async def test_a_blocked_session_with_no_choice_left_says_only_why(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        check = {**BLOCKED, "outcomes": ["discard"]}
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(
+                    purpose="to_main",
+                    fork_id=FORK,
+                    line_name="Wholesale",
+                    check=check,
+                    outcomes=check["outcomes"],
+                    can_restart=False,
+                    can_discard=False,
+                ),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert "An agent got worse, so it cannot simply be applied." in session["summary"]
+        assert "cannot simply be applied:" not in session["summary"]
+
     async def test_checking_again_is_priced_and_run_on_its_own_routes(
         self, server: FastMCP, api: MagicMock
     ) -> None:

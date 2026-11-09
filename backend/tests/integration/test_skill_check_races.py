@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError
 from app.db.models.skill_check import SkillCheck
-from app.schemas.skill_check import SkillCheckApply
+from app.schemas.skill_check import SkillCheckApply, SkillCheckStart
 from app.services.skill_check import SkillCheckService
+from tests.integration.test_skill_check_edges import _proposal
 from tests.integration.test_skill_checks import FakeEvals, Outcome, _lab, _run_to_end, _start
 
 pytestmark = pytest.mark.anyio
@@ -78,3 +79,47 @@ async def test_a_check_discarded_while_an_apply_waited_is_not_applied(
     async with factory() as reading:
         check = await reading.get(SkillCheck, started.id)
         assert check is not None and (check.status, check.outcome) == ("discarded", "discard")
+
+
+async def test_a_check_cancelled_while_its_proposal_closed_keeps_the_cancel(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    """Closing the proposal reads its check running, waits for the cancel's lock, and must
+    then leave the cancelled check as it is rather than stop it a second time."""
+    lab = await _lab(db)
+    FakeEvals().install(monkeypatch)
+    proposal = await _proposal(db, lab)
+    started = await SkillCheckService(db).start(
+        lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+    )
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def close_proposal() -> object:
+        async with factory() as session:
+            await SkillCheckService(session).stop_for_proposal(lab.ctx, lab.skill.id, proposal.id)
+            await session.commit()
+        return None
+
+    task: asyncio.Task[object] | None = None
+    async with factory() as cancelling:
+        try:
+            cancelled = await SkillCheckService(cancelling).cancel(
+                lab.ctx, lab.skill.id, started.id
+            )
+            task = asyncio.create_task(close_proposal())
+            await _waiting_for_a_lock(factory, task)
+
+            await cancelling.commit()
+            await task
+            task = None
+        finally:
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    async with factory() as reading:
+        check = await reading.get(SkillCheck, started.id)
+        assert check is not None and check.status == "cancelled"
+        assert check.finished_at == cancelled.finished_at
