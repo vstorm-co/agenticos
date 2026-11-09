@@ -13,6 +13,7 @@ import { Button } from "@/components/ui";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import type { Onboarding } from "@/lib/onboarding-api";
 import { StartLanguage } from "./start-language";
+import { StartTour } from "./start-tour";
 import { StartCompanions } from "./start-companions";
 import { StartGuide } from "./start-guide";
 import { StartStageArtwork } from "./start-stage-artwork";
@@ -81,6 +82,7 @@ export function StartMember({ data }: { data: Onboarding }) {
           </Link>
           <div className={styles.topActions}>
             <StartLanguage />
+            <StartTour />
             <Link href="/chat">
               {admin("openApp")}
               <ArrowUpRight size={15} aria-hidden />

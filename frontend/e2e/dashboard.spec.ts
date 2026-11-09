@@ -202,6 +202,9 @@ test.describe("Dashboard", () => {
           json: {
             ...data,
             dismissed: false,
+            completed: false,
+            has_activity: false,
+            agents: [],
             has_result: false,
             latest_conversation_id: null,
             latest_completed_at: null,

@@ -24,6 +24,7 @@ import { StartOrganizationSettings } from "./start-organization-settings";
 import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { StartLanguage } from "./start-language";
+import { StartTour } from "./start-tour";
 import styles from "./administration.module.css";
 const STEPS = [
   "workspace",
@@ -137,6 +138,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
           </Link>
           <div className={styles.topActions}>
             <StartLanguage />
+            <StartTour />
             <Link href="/chat">
               {t("openApp")}
               <ArrowUpRight size={15} aria-hidden />

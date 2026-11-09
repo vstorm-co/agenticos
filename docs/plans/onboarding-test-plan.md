@@ -65,7 +65,7 @@ A demo or a model-setup reply must never be counted as a successful AI run.
 | Expand reasoning or tool details | Timeline connectors stay outside text and JSON in both themes. |
 | Render a map without a tile configuration | Bundled SVG geography, markers and routes render without external tile requests. |
 | Configure the optional street-map provider | Street detail is opt-in; a configured failing health probe remains visible. |
-| Upgrade from released main or from the PR migration head | Both histories reach 0301_merge_onboarding; alembic check reports no model drift. |
+| Upgrade from released main or the existing onboarding preview head | Both histories reach `0302_merge_onboarding_chats.py` without replaying their column additions; alembic check reports no model drift. |
 
 Automated coverage includes the invitation service and HTTP routes, mailbox proof,
 session persistence on PostgreSQL, onboarding state, guided questions, locale navigation,

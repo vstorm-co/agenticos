@@ -16,7 +16,7 @@ export function StartChecklist({ orgId, className }: { orgId: string; className?
   const state = useStart();
   const t = useTranslations("start");
   const frame = cn(
-    "mt-6 flex h-56 flex-col justify-center gap-4 rounded-xl border bg-card p-6 lg:h-[31rem]",
+    "mt-6 flex min-h-[22rem] flex-col justify-center gap-4 rounded-xl border bg-card p-6 lg:h-[31rem]",
     className,
   );
   if (state.isLoading || state.waitingForScope)

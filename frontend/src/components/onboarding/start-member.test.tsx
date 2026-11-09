@@ -13,7 +13,9 @@ const env = vi.hoisted(() => ({
   },
   callbacks: new Map<string, () => void>(),
   finish: vi.fn(),
+  push: vi.fn(),
 }));
+vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: env.push }) }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
@@ -144,4 +146,10 @@ it("lets an invited account reuse its saved identity even without a job descript
   await userEvent.click(screen.getByRole("button", { name: "Use my saved profile" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(env.callbacks.size).toBe(0);
+});
+
+it("keeps the requested full tour available from the member welcome", async () => {
+  render(<StartMember data={data} />);
+  await userEvent.click(screen.getByRole("button", { name: "Explore the application" }));
+  expect(env.push).toHaveBeenCalledWith("/dashboard");
 });

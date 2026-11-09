@@ -52,7 +52,7 @@ it("reserves a shaped panel while start state is loading", () => {
   state.isLoading = true;
   render(<StartChecklist orgId="org" />);
   expect(screen.getByRole("region", { name: "Start with something useful" })).toHaveClass(
-    "h-56",
+    "min-h-[22rem]",
     "lg:h-[31rem]",
   );
   expect(screen.getByRole("status", { name: "Loading" })).toBeVisible();
