@@ -243,3 +243,46 @@ it("does not let a hidden deployment flow replace another step's position", () =
   render(<StartDeployment org={org} active={false} onContinue={env.next} />);
   expect(new URLSearchParams(window.location.search).get("question")).toBe("budget");
 });
+
+const openAnnouncement = () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-step=admin.deployment&workspace=company&question=announcement",
+  );
+  render(<StartDeployment org={org} onContinue={env.next} />);
+};
+
+it("prefills the welcome message and saves it only on Continue", async () => {
+  openAnnouncement();
+  const message = screen.getByRole("textbox", { name: "Team announcement" });
+  expect(message).toHaveValue(
+    "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
+  );
+  expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent(
+    "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
+  );
+  expect(env.save).not.toHaveBeenCalled();
+  await proceed();
+  expect(env.save).toHaveBeenCalledWith({
+    announcement: "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
+  });
+});
+
+it("preserves an existing announcement", async () => {
+  env.settings.announcement = "Our existing welcome";
+  openAnnouncement();
+  expect(screen.getByRole("textbox", { name: "Team announcement" })).toHaveValue(
+    "Our existing welcome",
+  );
+  await proceed();
+  expect(env.save).not.toHaveBeenCalled();
+});
+
+it("allows clearing the suggested welcome message", async () => {
+  openAnnouncement();
+  await userEvent.clear(screen.getByRole("textbox", { name: "Team announcement" }));
+  expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent("No announcement");
+  await proceed();
+  expect(env.save).toHaveBeenCalledWith({ announcement: null });
+});

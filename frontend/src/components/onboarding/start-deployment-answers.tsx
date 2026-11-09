@@ -144,7 +144,6 @@ export function DeploymentAnnouncement({
             value={value ?? ""}
             disabled={pending}
             onChange={(event) => onChange({ announcement: event.target.value || null })}
-            placeholder={t("announcementPlaceholder")}
           />
         </FormField>
         <div className={styles.presets}>

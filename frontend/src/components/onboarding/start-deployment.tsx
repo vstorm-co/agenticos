@@ -54,7 +54,13 @@ export function StartDeployment({
         cta={{ label: t("retry"), onClick: () => void refetch() }}
       />
     );
-  const draft = { ...settings, ...edits };
+  const changes: DeploymentSettingsPatch = {
+    ...(question === "announcement" && !settings.announcement
+      ? { announcement: t("announcementPlaceholder") }
+      : {}),
+    ...edits,
+  };
+  const draft = { ...settings, ...changes };
   const set = (patch: DeploymentSettingsPatch) => {
     setFailed(false);
     setEdits((previous) => ({ ...previous, ...patch }));
@@ -67,12 +73,12 @@ export function StartDeployment({
     else onContinue();
   };
   const submit = async () => {
-    if (!Object.keys(edits).length) {
+    if (!Object.keys(changes).length) {
       next();
       return;
     }
     try {
-      await save.mutateAsync(edits);
+      await save.mutateAsync(changes);
     } catch {
       setFailed(true);
       return;
