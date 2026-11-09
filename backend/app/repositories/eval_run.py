@@ -1,6 +1,6 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -984,6 +984,22 @@ async def scores(
         )
     )
     return {score.id: score for score in result.scalars().all()}
+
+
+async def score_attempts(
+    db: AsyncSession, score_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """Of these scores, the ones an eval run gave, with the attempt each answered: 0 for a
+    case's first answer, then each re-ask that confirmed a change."""
+    if not score_ids:
+        return {}
+    rows = await db.execute(
+        select(EvalRunCase.case_score_id, EvalRunCase.attempt).where(
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.case_score_id.in_(list(score_ids)),
+        )
+    )
+    return {score_id: attempt for score_id, attempt in rows.tuples().all() if score_id is not None}
 
 
 async def revisions(
