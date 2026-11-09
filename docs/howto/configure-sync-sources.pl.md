@@ -1,5 +1,5 @@
 ---
-source_sha: "c38c8588f596"
+source_sha: "82df64a0d99f"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -717,6 +717,8 @@ Pola, które można zmienić: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
 Ustaw `is_active` na `false`, aby wstrzymać źródło bez usuwania go.
+
+Ręczne wyzwolenie przez API zwraca `400`, jeśli źródło jest wstrzymane. Worker sprawdza ten stan ponownie przed synchronizacją, więc zadanie z kolejki lub wywołanie CLI zatrzymuje się przed pobieraniem i indeksowaniem danych, jeśli źródło jest wstrzymane. Aktywuj je przed kolejną próbą.
 
 ## Monitorowanie operacji synchronizacji { #monitoring-sync-operations }
 

@@ -2387,18 +2387,6 @@
       "agentUnavailable": "Der ausgewählte Agent konnte nicht geladen werden. Versuche es erneut.",
       "failed": "Zugriff auf diesem Computer konnte nicht eingerichtet werden"
     },
-    "modelSetup": {
-      "eyebrow": "Ein Schritt näher an deiner ersten Antwort",
-      "title": "Gib mir ein Modell zum Arbeiten",
-      "description": "Verbinde die KI deiner Wahl. Dein Workspace und dieses Gespräch bleiben hier.",
-      "provider": "Anbieter und Chatmodell wählen",
-      "key": "API-Schlüssel hinzufügen, falls erforderlich",
-      "publish": "Veröffentliche den Agent und kehre zu diesem Chat zurück",
-      "action": "Mein KI-Modell verbinden",
-      "notice": "Einrichtungsantwort · Kein KI-Aufruf und keine Nutzungsgebühren beim Anbieter.",
-      "ownerHint": "Dein Workspace-Administrator kann KI für das Team verbinden. Du brauchst keinen eigenen Schlüssel.",
-      "contact": "Administrator kontaktieren"
-    },
     "fork": "In neue Unterhaltung abzweigen",
     "forkedToast": "Unterhaltung abgezweigt",
     "failedForkConversation": "Unterhaltung konnte nicht abgezweigt werden",
@@ -2414,7 +2402,19 @@
     "accessChecking": "Zugriff auf die Unterhaltung wird geprüft…",
     "accessFailed": "Der Zugriff auf diese Unterhaltung konnte nicht geprüft werden",
     "accessRetry": "Erneut versuchen",
-    "forking": "Unterhaltung wird verzweigt…"
+    "forking": "Unterhaltung wird verzweigt…",
+    "modelSetup": {
+      "eyebrow": "Ein Schritt näher an deiner ersten Antwort",
+      "title": "Gib mir ein Modell zum Arbeiten",
+      "description": "Verbinde die KI deiner Wahl. Dein Workspace und dieses Gespräch bleiben hier.",
+      "provider": "Anbieter und Chatmodell wählen",
+      "key": "API-Schlüssel hinzufügen, falls erforderlich",
+      "publish": "Veröffentliche den Agent und kehre zu diesem Chat zurück",
+      "action": "Mein KI-Modell verbinden",
+      "notice": "Einrichtungsantwort · Kein KI-Aufruf und keine Nutzungsgebühren beim Anbieter.",
+      "ownerHint": "Dein Workspace-Administrator kann KI für das Team verbinden. Du brauchst keinen eigenen Schlüssel.",
+      "contact": "Administrator kontaktieren"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

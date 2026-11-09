@@ -9765,18 +9765,6 @@
       "agentUnavailable": "Seçilen ajan yüklenemedi. Tekrar deneyin.",
       "failed": "Bu bilgisayarda erişim ayarlanamadı"
     },
-    "modelSetup": {
-      "eyebrow": "İlk yanıtına bir adım daha yakın",
-      "title": "Çalışmam için bir model bağla",
-      "description": "Kullanmak istediğin AI modelini bağla. Çalışma alanın ve bu sohbet burada kalır.",
-      "provider": "Sağlayıcı ve sohbet modeli seç",
-      "key": "Gerekiyorsa API anahtarı ekle",
-      "publish": "Ajanı yayımla ve bu sohbete dön",
-      "action": "AI modelimi bağla",
-      "notice": "Kurulum yanıtı · AI modeli çağrılmadı ve sağlayıcı kullanım ücreti oluşmadı.",
-      "ownerHint": "Çalışma alanı yöneticin ekip için AI bağlayabilir. Kendi anahtarını sağlaman gerekmez.",
-      "contact": "Yöneticinle iletişime geç"
-    },
     "fork": "Yeni konuşmaya dallandır",
     "forkedToast": "Konuşma dallandırıldı",
     "failedForkConversation": "Konuşma dallandırılamadı",
@@ -9792,7 +9780,19 @@
     "accessChecking": "Sohbet erişimi kontrol ediliyor…",
     "accessFailed": "Bu sohbete erişim doğrulanamadı",
     "accessRetry": "Tekrar dene",
-    "forking": "Sohbet dallandırılıyor…"
+    "forking": "Sohbet dallandırılıyor…",
+    "modelSetup": {
+      "eyebrow": "İlk yanıtına bir adım daha yakın",
+      "title": "Çalışmam için bir model bağla",
+      "description": "Kullanmak istediğin AI modelini bağla. Çalışma alanın ve bu sohbet burada kalır.",
+      "provider": "Sağlayıcı ve sohbet modeli seç",
+      "key": "Gerekiyorsa API anahtarı ekle",
+      "publish": "Ajanı yayımla ve bu sohbete dön",
+      "action": "AI modelimi bağla",
+      "notice": "Kurulum yanıtı · AI modeli çağrılmadı ve sağlayıcı kullanım ücreti oluşmadı.",
+      "ownerHint": "Çalışma alanı yöneticin ekip için AI bağlayabilir. Kendi anahtarını sağlaman gerekmez.",
+      "contact": "Yöneticinle iletişime geç"
+    }
   },
   "admin": {
     "actions": "Eylemler",

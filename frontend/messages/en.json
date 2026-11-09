@@ -2387,18 +2387,6 @@
       "agentUnavailable": "The selected agent could not be loaded. Try again.",
       "failed": "Could not set up access on this computer"
     },
-    "modelSetup": {
-      "eyebrow": "One step closer to your first answer",
-      "title": "Give me a model to work with",
-      "description": "Connect the AI you want to use. Your workspace and this conversation stay right here.",
-      "provider": "Choose a provider and a chat model",
-      "key": "Add its API key, if required",
-      "publish": "Publish the agent and return to this conversation",
-      "action": "Connect my AI model",
-      "notice": "Setup response · No AI model was called and no provider usage was charged.",
-      "ownerHint": "Your workspace administrator can connect AI for the team. You do not need to provide your own key.",
-      "contact": "Contact your administrator"
-    },
     "fork": "Fork into a new conversation",
     "forkedToast": "Conversation forked",
     "failedForkConversation": "Failed to fork conversation",
@@ -2414,7 +2402,19 @@
     "accessChecking": "Checking conversation access…",
     "accessFailed": "Could not verify access to this conversation",
     "accessRetry": "Retry",
-    "forking": "Forking conversation…"
+    "forking": "Forking conversation…",
+    "modelSetup": {
+      "eyebrow": "One step closer to your first answer",
+      "title": "Give me a model to work with",
+      "description": "Connect the AI you want to use. Your workspace and this conversation stay right here.",
+      "provider": "Choose a provider and a chat model",
+      "key": "Add its API key, if required",
+      "publish": "Publish the agent and return to this conversation",
+      "action": "Connect my AI model",
+      "notice": "Setup response · No AI model was called and no provider usage was charged.",
+      "ownerHint": "Your workspace administrator can connect AI for the team. You do not need to provide your own key.",
+      "contact": "Contact your administrator"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
