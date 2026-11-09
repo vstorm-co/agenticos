@@ -243,45 +243,56 @@ export function SkillCheckDialog({
             <Button onClick={() => onChecked(check)}>{t("backToChange")}</Button>
           </DialogFooter>
         )}
-        {session === null && check?.status === "done" && !onChecked && (
-          <CheckDecision
-            check={check}
-            busy={apply.isPending || fork.isPending || discard.isPending}
-            onEdit={
-              onEdit &&
-              (() => {
-                onEdit({
-                  ...check.candidate,
-                  baseVersionId: check.base_version.id,
-                  forkId: check.line.fork_id,
-                });
-                onOpenChange(false);
-              })
-            }
-            onFork={(choice) =>
-              fork.mutateAsync(choice).then(
-                () => {
-                  onApplied?.();
+        {session === null &&
+          check?.status === "done" &&
+          !onChecked &&
+          check.source === "catch_up" && (
+            <DialogFooter>
+              <p className="text-muted-foreground text-sm">{t("updateDecidedElsewhere")}</p>
+            </DialogFooter>
+          )}
+        {session === null &&
+          check?.status === "done" &&
+          !onChecked &&
+          check.source !== "catch_up" && (
+            <CheckDecision
+              check={check}
+              busy={apply.isPending || fork.isPending || discard.isPending}
+              onEdit={
+                onEdit &&
+                (() => {
+                  onEdit({
+                    ...check.candidate,
+                    baseVersionId: check.base_version.id,
+                    forkId: check.line.fork_id,
+                  });
                   onOpenChange(false);
-                  return null;
-                },
-                (error: unknown) => getErrorMessage(error, tErrors),
-              )
-            }
-            onApply={(decision) =>
-              apply.mutate(decision, {
-                onSuccess: () => {
-                  onApplied?.();
-                  onOpenChange(false);
-                },
-                onError: failed,
-              })
-            }
-            onDiscard={() =>
-              discard.mutate(undefined, { onSuccess: () => onOpenChange(false), onError: failed })
-            }
-          />
-        )}
+                })
+              }
+              onFork={(choice) =>
+                fork.mutateAsync(choice).then(
+                  () => {
+                    onApplied?.();
+                    onOpenChange(false);
+                    return null;
+                  },
+                  (error: unknown) => getErrorMessage(error, tErrors),
+                )
+              }
+              onApply={(decision) =>
+                apply.mutate(decision, {
+                  onSuccess: () => {
+                    onApplied?.();
+                    onOpenChange(false);
+                  },
+                  onError: failed,
+                })
+              }
+              onDiscard={() =>
+                discard.mutate(undefined, { onSuccess: () => onOpenChange(false), onError: failed })
+              }
+            />
+          )}
       </DialogContent>
     </Dialog>
   );

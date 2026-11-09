@@ -8571,6 +8571,7 @@
       "progressLabel": "Sprawdzeni agenci",
       "updateChecked": "Sprawdzone. Wróć, aby zdecydować, czy przenieść agenta.",
       "backToChange": "Wróć do zmiany wersji",
+      "updateDecidedElsewhere": "Ten check sprawdzał przeniesienie jednego agenta na main. Zdecyduj o nim w Change version tego agenta.",
       "backToEditing": "Wróć do edycji",
       "improveFurther": "Popraw dalej",
       "discardConfirm": {

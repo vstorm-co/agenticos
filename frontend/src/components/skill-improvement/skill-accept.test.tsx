@@ -12,6 +12,11 @@ import type { SkillCheck } from "@/types/skill-checks";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import { SkillAccept } from "./skill-accept";
 
+const permissions = vi.hoisted(() => ({ datasetsEdit: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => permissions.datasetsEdit, isLoading: false }),
+}));
+
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },

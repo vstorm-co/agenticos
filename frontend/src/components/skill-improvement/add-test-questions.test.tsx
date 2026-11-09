@@ -8,6 +8,11 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { AddTestQuestions } from "./add-test-questions";
 
+const permissions = vi.hoisted(() => ({ datasetsEdit: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => permissions.datasetsEdit, isLoading: false }),
+}));
+
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -22,7 +27,10 @@ function mount() {
   });
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  permissions.datasetsEdit = true;
+});
 
 describe("AddTestQuestions", () => {
   it("links to the skill's questions when it has them", async () => {
@@ -83,5 +91,14 @@ describe("AddTestQuestions", () => {
     mount();
 
     expect(await screen.findByText("Boom")).toBeInTheDocument();
+  });
+
+  it("offers no way to write them to somebody who may not create datasets", async () => {
+    permissions.datasetsEdit = false;
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "None"));
+    mount();
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

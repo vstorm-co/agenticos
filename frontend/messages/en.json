@@ -8811,6 +8811,7 @@
       "progressLabel": "Agents checked",
       "updateChecked": "Checked. Go back to decide whether to move the agent.",
       "backToChange": "Back to Change version",
+      "updateDecidedElsewhere": "This check was made to move one agent to main. Decide it from Change version on that agent.",
       "backToEditing": "Back to editing",
       "improveFurther": "Improve further",
       "discardConfirm": {

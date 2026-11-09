@@ -26,6 +26,11 @@ const held = vi.hoisted(() => ({
   checkId: null as string | null,
 }));
 
+const permissions = vi.hoisted(() => ({ datasetsEdit: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => permissions.datasetsEdit, isLoading: false }),
+}));
+
 vi.mock("@/hooks/use-skill-check", () => ({
   useSkillCheck: (_skillId: string, checkId: string | null) => {
     held.checkId = checkId;
@@ -184,6 +189,15 @@ describe("SkillCheckDialog", () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onOpenChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a check made to move one agent to Change version on that agent", () => {
+    held.check = finishedCheck({ source: "catch_up" });
+    open();
+
+    expect(screen.getByText(/Decide it from Change version/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
   });
 
   it("points a check an improvement session started to that session", () => {

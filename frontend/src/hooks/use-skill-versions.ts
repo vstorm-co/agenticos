@@ -111,6 +111,7 @@ export function useSkillVersionWrites(skillId: string) {
     onSettled: async () => {
       await settle();
       await queryClient.invalidateQueries({ queryKey: qk.agents.all() });
+      await queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) });
     },
   });
   const createFork = useMutation({

@@ -8,6 +8,11 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { SkillTestQuestions } from "./skill-test-questions";
 
+const permissions = vi.hoisted(() => ({ datasetsEdit: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => permissions.datasetsEdit, isLoading: false }),
+}));
+
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },

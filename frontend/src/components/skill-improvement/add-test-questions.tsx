@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSkillTestSet } from "@/hooks/use-skill-check";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 
 /**
  * The skill's own test questions, which let an agent with none of its own be
@@ -25,6 +27,7 @@ export function AddTestQuestions({
 }) {
   const t = useTranslations("skillImprovement.testSet");
   const tErrors = useTranslations("errors");
+  const { can } = usePermissions();
   const { testSet, isLoading, error, create } = useSkillTestSet(skillId);
   if (isLoading) return null;
   if (error) return <p className="text-destructive text-sm">{getErrorMessage(error, tErrors)}</p>;
@@ -37,6 +40,7 @@ export function AddTestQuestions({
       </p>
     );
   }
+  if (!can(Perm.datasetsEdit)) return null;
   const refused =
     create.error && !(create.error instanceof ApiError && create.error.status === 409)
       ? getErrorMessage(create.error, tErrors)
