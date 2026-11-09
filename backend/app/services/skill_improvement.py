@@ -1138,7 +1138,9 @@ class SkillImprovementService:
     ) -> SkillContinuationEstimate:
         """The price of checking the result's changes again, on the line as it is now."""
         line, run = await self._editable_row(ctx, skill_id, run_id)
-        return await self._recheck_quote(ctx, line, run, data.mode or await self._mode_of(run))
+        return await self._recheck_quote(
+            ctx, line, run, data.mode or await self._mode_of(run), budget=data.budget_usd
+        )
 
     async def recheck(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
@@ -1157,7 +1159,7 @@ class SkillImprovementService:
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         mode = consent.mode or await self._mode_of(run)
-        quote = await self._recheck_quote(ctx, line, run, mode)
+        quote = await self._recheck_quote(ctx, line, run, mode, budget=consent.budget_usd)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
                 message="The check's price changed since it was quoted; review it again",
@@ -1198,7 +1200,13 @@ class SkillImprovementService:
         return await self._read(ctx, run, line)
 
     async def _recheck_quote(
-        self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun, mode: CheckMode | None
+        self,
+        ctx: AuthContext,
+        line: SessionLine,
+        run: SkillImprovementRun,
+        mode: CheckMode | None,
+        *,
+        budget: Decimal | None,
     ) -> SkillContinuationEstimate:
         if run.purpose != Purpose.IMPROVE.value:
             raise BadRequestError(
@@ -1223,16 +1231,15 @@ class SkillImprovementService:
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
+        limit = _limit(run, budget)
         return SkillContinuationEstimate(
             mode="next_step",
             number=run.iteration,
             total_usd=check.at_most_usd,
             expected_usd=check.expected_usd,
-            budget_usd=run.budget_usd,
+            budget_usd=limit,
             affordable=check.affordable
-            and rules.affordable(
-                spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
-            ),
+            and rules.affordable(spent=spent, step_estimate=check.at_most_usd, budget=limit),
             candidate_hash=plan_hash(start.candidate.description, start.candidate.content, check),
             check_estimate=check,
         )

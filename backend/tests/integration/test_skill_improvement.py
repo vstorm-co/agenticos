@@ -1880,6 +1880,21 @@ async def _with_result(
 
 
 class TestCheckAgain:
+    async def test_a_limit_raised_at_its_quote_is_quoted_and_never_lowered(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        _, run = await _with_result(db, ctx, monkeypatch)
+        service = SkillImprovementService(db)
+        raised = run.budget_usd + Decimal("1")
+
+        quotes = [
+            await service.estimate_recheck(ctx, run.skill_id, run.id, SkillContinue(budget_usd=b))
+            for b in (raised, Decimal("0.000001"))
+        ]
+
+        assert [quote.budget_usd for quote in quotes] == [raised, run.budget_usd]
+
     async def test_a_result_its_line_moved_past_is_stale_and_checked_again_on_the_new_text(
         self, db, evidence, monkeypatch
     ):
