@@ -28,6 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Reveal new AgenticOS and Architect setup replies progressively before showing the model setup card.
 - Select and display onboarding monthly budgets in whole dollars.
 - Show optional deployment settings as cards with immediately visible links.
 - Prefill the onboarding welcome announcement with an editable message and live preview.

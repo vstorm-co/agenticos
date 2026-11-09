@@ -1728,3 +1728,19 @@ it("keeps shared turn parts free of private setup actions by default", () => {
   );
   expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "false");
 });
+
+it("defers a newly received setup card until its answer has been revealed", () => {
+  render(
+    <MessageItem
+      message={message({
+        content: "Connect a model to continue.",
+        animateSetupReply: true,
+        parts: [
+          { id: "text", type: "text", content: "Connect a model to continue." },
+          { id: "setup", type: "model_setup", setupAgentId: "starter" },
+        ],
+      })}
+    />,
+  );
+  expect(screen.queryByTestId("model-setup")).not.toBeInTheDocument();
+});

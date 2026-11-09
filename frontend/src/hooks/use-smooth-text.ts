@@ -66,11 +66,12 @@ function safeCut(text: string, length: number): number {
  * opening flows in from nothing; a long one is a conversation reopened mid-turn and
  * is shown at once, and a turn that ends with text still waiting finishes its
  * reveal rather than jumping. Anyone who asked the system for less motion gets the text
- * as it arrives.
+ * as it arrives. `replay` explicitly animates a newly received local reply,
+ * including a long one; loaded history must leave it false.
  */
-export function useSmoothText(text: string, streaming: boolean): string {
+export function useSmoothText(text: string, streaming: boolean, replay = false): string {
   const [shown, setShown] = useState(() =>
-    streaming && text.length <= REPLAY_LIMIT ? 0 : text.length,
+    replay || (streaming && text.length <= REPLAY_LIMIT) ? 0 : text.length,
   );
   // The frame loop reads the newest text without restarting on every token.
   const target = useRef(text);

@@ -965,6 +965,7 @@ export function useChat(options: UseChatOptions = {}) {
               { id: `${id}-text`, type: "text", content: text },
               { id: `${id}-setup`, type: "model_setup", setupAgentId: agentId },
             ],
+            animateSetupReply: true,
             isStreaming: false,
           }));
           break;

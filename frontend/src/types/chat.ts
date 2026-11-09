@@ -69,6 +69,8 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Local reveal for a newly received setup reply; absent from loaded history. */
+  animateSetupReply?: boolean;
   /** Run-level pause, including gated delegate tools absent from this message. */
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;

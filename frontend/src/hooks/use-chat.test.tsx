@@ -6799,6 +6799,7 @@ it("renders a setup reply as an AgenticOS message and receipt without inventing 
     role: "assistant",
     agentId: "starter",
     content: "Connect a model to continue.",
+    animateSetupReply: true,
     isStreaming: false,
   });
   expect(reply?.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
