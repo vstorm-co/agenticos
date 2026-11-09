@@ -96,7 +96,7 @@ export function ReviewResultsTable({
       columns={columns}
       rows={scores}
       getRowKey={(score) => score.id}
-      className="[&_thead]:bg-foreground/[0.025] [&_th]:text-muted-foreground rounded-none border-0 [&_th]:text-xs [&_th]:font-medium"
+      className="[&_thead]:bg-foreground/[0.025] [&_th]:text-muted-foreground [&_tbody_tr:hover]:bg-foreground/[0.035] [&_tbody_tr:has(:focus-visible)]:bg-foreground/[0.035] [&_tbody_tr:has(:focus-visible)]:outline-ring rounded-none border-0 [&_tbody_tr:has(:focus-visible)]:outline-2 [&_tbody_tr:has(:focus-visible)]:-outline-offset-2 [&_th]:text-xs [&_th]:font-medium"
     />
   );
 }

@@ -3,7 +3,7 @@
 import { PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
@@ -29,16 +29,17 @@ export function ReviewQueueRow(props: Props) {
   const decided = score.human_passed !== null;
   return (
     <div className="min-w-0">
-      <Button
-        variant="ghost"
-        className="group h-auto w-full min-w-0 justify-start gap-3 p-0 text-left whitespace-normal"
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        className="group flex min-h-10 w-full min-w-0 items-center justify-start gap-3 bg-transparent p-0 text-left text-sm font-medium whitespace-normal outline-none"
         onClick={() => setExpanded(true)}
       >
         <span className="line-clamp-2 min-w-0 flex-1 break-words">
           {score.case_masked ? t("maskedConversation") : score.question}
         </span>
         <PanelRightOpen className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-      </Button>
+      </button>
       <Sheet open={expanded} onOpenChange={setExpanded}>
         <SheetContent side="right" className="bg-background w-full sm:max-w-3xl">
           <SheetHeader className="shrink-0 py-4">
