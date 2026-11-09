@@ -4560,7 +4560,8 @@
           "redis": "Redis",
           "vector_store": "Vector store",
           "model_access": "Dostęp do modeli",
-          "scheduler": "Zadania cykliczne"
+          "scheduler": "Zadania cykliczne",
+          "map_tiles": "Podkład map ulicznych"
         }
       },
       "top-orgs": {

@@ -2589,7 +2589,8 @@
           "redis": "Redis",
           "vector_store": "Vektorspeicher",
           "model_access": "Modellzugriff",
-          "scheduler": "Geplante Jobs"
+          "scheduler": "Geplante Jobs",
+          "map_tiles": "Straßenkarten"
         }
       },
       "knowledge-freshness": {

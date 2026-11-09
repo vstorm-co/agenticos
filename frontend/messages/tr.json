@@ -6984,7 +6984,8 @@
           "redis": "Redis",
           "vector_store": "Vektör deposu",
           "model_access": "Model erişimi",
-          "scheduler": "Zamanlanmış işler"
+          "scheduler": "Zamanlanmış işler",
+          "map_tiles": "Sokak haritası altlığı"
         }
       },
       "knowledge-freshness": {
