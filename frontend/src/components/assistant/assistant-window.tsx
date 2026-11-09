@@ -26,6 +26,8 @@ interface AssistantWindowProps {
   open: boolean;
   /** A prompt a bubble asked, sent as the reader. */
   prompt: ChatPrompt | null;
+  /** Words written into the message box for the reader to send, once per id. */
+  draft?: { id: number; text: string } | null;
   /** The page behind the window, for "What am I looking at?". */
   page: PageContext;
   tipsOff: boolean;
@@ -46,6 +48,7 @@ export function AssistantWindow({
   agentId,
   open,
   prompt,
+  draft = null,
   page,
   tipsOff,
   onTipsOff,
@@ -76,6 +79,13 @@ export function AssistantWindow({
   };
   const [showHistory, setShowHistory] = useState(false);
   const [incoming, setIncoming] = useState<IncomingFiles | null>(null);
+  // Handed to the message box the way a screenshot's words are, written during render
+  // as state that follows a prop is.
+  const [wroteDraft, setWroteDraft] = useState<number | null>(null);
+  if (draft !== null && wroteDraft !== draft.id) {
+    setWroteDraft(draft.id);
+    setIncoming((last) => ({ id: (last?.id ?? 0) + 1, files: [], text: draft.text }));
+  }
   const name = architectName(assistant, t("defaultName"));
 
   // The window steps aside while the page is photographed, so the screenshot
