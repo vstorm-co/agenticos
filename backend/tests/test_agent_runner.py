@@ -58,6 +58,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+from app.agents.computer_on_use import RequestComputerOnUse
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.deps import AgentDeps
 from app.agents.loop_guard import ToolLoopStopped
@@ -168,6 +169,7 @@ def _db(monthly_budget_usd: Decimal | None = None):
     # context, because that exit rolls back on an exception and is skipped
     # entirely by a cancellation.
     db.commit = AsyncMock()
+    db.scalar = AsyncMock(return_value=0)
     # `db.get` is how the organization row - and with it the org-wide spending
     # cap the runner reads for every run - comes back. Uncapped by default,
     # which is what an organization that never opened the setting looks like.
@@ -192,6 +194,8 @@ def _prepared(
     built = MagicMock()
     built.ledger = ledger or SpendLedger()
     built.model_label = "gpt-4.1"
+    built.deps.tool_definitions = {}
+    built.deps.tool_identities = {}
     # A real gauge: what a turn records against its conversation is read off
     # this, and a `MagicMock` answers "yes, summarised" to every turn.
     built.context = ContextGauge()
@@ -3338,6 +3342,7 @@ class TestParking:
         assert recorded["status"] == RunStatus.AWAITING_APPROVAL.value
         assert recorded["paused_state"] == {
             "messages": [],
+            "tool_identities": {},
             "channel_destination": None,
             "channel_file_attempts": 0,
             "channel_context": "",
@@ -3828,6 +3833,8 @@ class TestResume:
         surface: RunSurface = RunSurface.API,
         parent_run_id: uuid.UUID | None = None,
         stream_receipt: bool = False,
+        conversation_id: uuid.UUID | None = None,
+        current_revision: int | None = 0,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -3843,6 +3850,7 @@ class TestResume:
             user_id=None if orphaned else uuid.uuid4(),
             surface=surface.value,
             parent_run_id=parent_run_id,
+            conversation_id=conversation_id,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         from contextlib import asynccontextmanager
@@ -3886,13 +3894,20 @@ class TestResume:
                 new=AsyncMock(return_value=self._version()),
             ),
             patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
-            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finished,
+            patch(
+                "app.services.agent_runner.conversation_repo.get_guardrail_revision",
+                new=AsyncMock(return_value=current_revision),
+            ),
             patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
+            self.finished = finished
             self.resolve = resolve
             resumer = _ctx()
             # Kept for the tests that ask *whose* account the continuation spoke
@@ -3902,6 +3917,34 @@ class TestResume:
             await service.resume(resumer, run.id, run_limit_usd=run_limit_usd)
 
         return build
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("stored", "current", "has_conversation", "allowed"),
+        [
+            (0, 0, True, True),
+            (None, 0, True, True),
+            (None, 1, True, False),
+            (1, 1, True, True),
+            (1, 2, True, False),
+            (0, None, True, False),
+            (0, None, False, False),
+            (None, None, False, True),
+        ],
+    )
+    async def test_a_parked_snapshot_is_replayed_only_before_another_refusal(
+        self, stored, current, has_conversation, allowed
+    ):
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}, "guardrail_revision": stored},
+            conversation_id=uuid.uuid4() if has_conversation else None,
+            current_revision=current,
+        )
+        assert build.return_value.agent.run.await_count == (1 if allowed else 0)
+        assert self.finished.await_args.kwargs["status"] == (
+            RunStatus.COMPLETED.value if allowed else RunStatus.GUARDRAIL_BLOCKED.value
+        )
 
     @pytest.mark.anyio
     async def test_streamed_resume_announces_its_saved_message_without_a_second_bubble(self):
@@ -6484,6 +6527,100 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         assert "both called gh" in briefed
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("workspace_kind", "can_ask"),
+        [
+            ("local", True),
+            ("local", False),
+            ("local-sandbox-coding", True),
+            ("local-personal-coding", True),
+            ("local-computer-coding", True),
+            ("local-disabled-coding", True),
+            ("coding-none", True),
+            ("coding-cloud", True),
+            ("coding-disabled", True),
+        ],
+    )
+    async def test_a_computer_workspace_with_none_chosen_is_asked_for_on_use(
+        self, workspace_kind, can_ask
+    ):
+        """A chat that can wait runs without the computer and offers
+        `request_computer_access`; a surface that cannot is refused as before."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        bindings = [CapabilityBindingSpec(id="web_research")]
+        if workspace_kind.startswith("local"):
+            bindings.insert(0, CapabilityBindingSpec(id="sandbox", config={"backend": "local"}))
+            if workspace_kind != "local":
+                runs_on = {
+                    "local-sandbox-coding": "sandbox",
+                    "local-personal-coding": "personal_sandbox",
+                    "local-computer-coding": "this_computer",
+                    "local-disabled-coding": "unused-invalid-value",
+                }[workspace_kind]
+                bindings.insert(
+                    0,
+                    CapabilityBindingSpec(
+                        id="coding_agent",
+                        enabled=workspace_kind != "local-disabled-coding",
+                        config={"runs_on": runs_on},
+                    ),
+                )
+        else:
+            bindings.insert(
+                0,
+                CapabilityBindingSpec(
+                    id="coding_agent", config={"runs_on": "this_computer", "harness": "codex"}
+                ),
+            )
+            if workspace_kind == "coding-cloud":
+                bindings.insert(
+                    0, CapabilityBindingSpec(id="sandbox", config={"backend": "service"})
+                )
+        if workspace_kind == "coding-disabled":
+            bindings[0] = bindings[0].model_copy(update={"enabled": False})
+        spec = AgentSpec(name="Mine", capabilities=bindings)
+
+        with (
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None))
+            if not workspace_kind.startswith("local")
+            else nullcontext(),
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            if not can_ask:
+                with pytest.raises(BadRequestError, match="uses your computer"):
+                    await service.prepare(ctx, agent.id)
+                return
+            await service.prepare(ctx, agent.id, request_computer_access=AsyncMock())
+
+        if workspace_kind == "coding-disabled":
+            assert not build.call_args.kwargs["extra_capabilities"]
+            return
+        (asking,) = build.call_args.kwargs["extra_capabilities"]
+        assert isinstance(asking, RequestComputerOnUse)
+        built_spec = build.call_args.args[0]
+        expected = ["web_research"]
+        if workspace_kind == "coding-cloud":
+            expected.insert(0, "sandbox")
+        elif workspace_kind in {"local-personal-coding", "local-disabled-coding"}:
+            expected.insert(0, "coding_agent")
+        assert [binding.id for binding in built_spec.capabilities] == expected
+
+    @pytest.mark.anyio
     async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):
         ctx = _ctx()
         service = AgentRunnerService(_db())
@@ -6998,6 +7135,132 @@ class TestParkedQuestions:
         deferred = await self._resume(run)
 
         assert deferred.calls == {"ask-1": DECLINED}
+
+    async def _accept(
+        self,
+        run: MagicMock,
+        responses: dict[str, list[dict[str, list[str]]]],
+        *,
+        ctx: AuthContext | None = None,
+    ) -> tuple[MagicMock, AsyncMock]:
+        service = AgentRunnerService(_db())
+
+        async def save(_db: object, *, run: MagicMock, paused_state: dict[str, Any]) -> MagicMock:
+            run.paused_state = paused_state
+            return run
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ) as claim,
+            patch(
+                "app.services.agent_runner.agent_run_repo.keep_paused_state",
+                new=AsyncMock(side_effect=save),
+            ) as kept,
+            patch.object(service, "resume", new=AsyncMock()) as resume,
+        ):
+            accepted = await service.accept_answers(ctx or self._asker(), run.id, responses)
+        claim.assert_awaited_once()
+        resume.assert_not_awaited()
+        return accepted, kept
+
+    @pytest.mark.anyio
+    async def test_a_workflow_answer_is_saved_without_executing_the_agent(self) -> None:
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=_asked_state(),
+            user_id=_THE_ASKER,
+        )
+
+        messages = run.paused_state["messages"]
+        accepted, kept = await self._accept(run, {"ask-1": [{"selected": ["Casual"]}]})
+
+        assert accepted is run
+        assert run.paused_state["question_results"] == {"ask-1": {"Tone": ["Casual"]}}
+        assert run.paused_state["messages"] == messages
+        assert run.status == RunStatus.AWAITING_ANSWER.value
+        kept.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_an_identical_answer_retry_keeps_the_first_saved_result(self) -> None:
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=_asked_state(),
+            user_id=_THE_ASKER,
+        )
+        responses = {"ask-1": [{"selected": ["Casual"]}]}
+        await self._accept(run, responses)
+
+        accepted, kept = await self._accept(run, responses)
+
+        assert accepted is run
+        kept.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_accepted_workflow_answer_cannot_be_replaced(self) -> None:
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=_asked_state(),
+            user_id=_THE_ASKER,
+        )
+        await self._accept(run, {"ask-1": [{"selected": ["Casual"]}]})
+
+        with pytest.raises(BadRequestError, match="already have accepted"):
+            await self._accept(run, {"ask-1": [{"selected": ["Formal"]}]})
+
+        assert run.paused_state["question_results"] == {"ask-1": {"Tone": ["Casual"]}}
+
+    @pytest.mark.anyio
+    async def test_accepting_answers_cannot_claim_a_foreign_or_missing_run(self) -> None:
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await service.accept_answers(self._asker(), uuid.uuid4(), {})
+
+    @pytest.mark.anyio
+    async def test_an_accepted_answer_disappears_from_the_pending_question_list(self) -> None:
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state={**_asked_state(), "question_results": {"ask-1": DECLINED}},
+            user_id=_THE_ASKER,
+        )
+
+        assert await AgentRunnerService(_db()).parked_questions(self._asker(), run) == []
+
+    @pytest.mark.anyio
+    async def test_a_workflow_continuation_uses_the_saved_answer_after_a_restart(self) -> None:
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state={
+                **_asked_state(),
+                "question_results": {"ask-1": {"Tone": ["Casual"]}},
+            },
+        )
+
+        deferred = await self._resume(run)
+
+        assert deferred.calls == {"ask-1": {"Tone": ["Casual"]}}
+
+    @pytest.mark.anyio
+    async def test_a_continuation_cannot_override_an_accepted_answer(self) -> None:
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state={**_asked_state(), "question_results": {"ask-1": DECLINED}},
+        )
+
+        with pytest.raises(BadRequestError, match="already have accepted"):
+            await self._resume(run, answers={"ask-1": {"Tone": ["Formal"]}})
+
+    @pytest.mark.anyio
+    async def test_a_workflow_agent_cannot_be_answered_with_an_inline_continuation(self) -> None:
+        with pytest.raises(BadRequestError, match="through its workflow"):
+            await self._answer({}, surface=RunSurface.WORKFLOW.value)
 
 
 class TestAddingToARunAndAskingAside:
@@ -7533,6 +7796,23 @@ class TestPerRunLocalServices:
 @pytest.mark.anyio
 @pytest.mark.security
 class TestCancelParkedRun:
+    async def test_stopping_a_workflow_agent_wakes_its_owner_after_commit(self) -> None:
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(user_id=ctx.user_id, surface=RunSurface.WORKFLOW.value)
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch.object(service, "_stop_parked", new=AsyncMock(return_value="Stopped")),
+            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        spawn.assert_called_once()
+        assert spawn.call_args.kwargs["name"] == "workflow-agent-stop-wake"
+        spawn.call_args.args[1].close()
+
     @pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
     async def test_it_stops_a_parked_run_without_a_model_call_and_preserves_its_spend(self, status):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
@@ -9348,3 +9628,18 @@ class TestLiveQuestionContinuation:
                 raise asyncio.CancelledError
 
         end.assert_awaited_once_with(turn)
+
+
+@pytest.mark.security
+def test_the_parked_payload_carries_the_history_revision():
+    from app.services.agent_runner import _classify_output
+
+    result = MagicMock(
+        output=DeferredToolRequests(
+            approvals=[ToolCallPart("send_email", {}, tool_call_id="send-1")]
+        )
+    )
+    result.all_messages.return_value = []
+    _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
+    assert state is not None
+    assert state.model_dump(mode="json")["guardrail_revision"] == 7

@@ -45,6 +45,7 @@ def test_no_other_identity_can_grant_local_access(caller: str) -> None:
         organization_id=uuid4(),
         role="owner",
         api_key_id=uuid4() if caller == "key" else None,
+        key_internal=caller == "key",
     )
     trigger = MagicMock(
         id=uuid4(),

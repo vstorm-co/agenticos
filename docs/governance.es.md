@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "1276ed684962"
 ---
 
 # Governance { #governance }
@@ -597,6 +597,21 @@ como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
 
+La mirada nocturna vence 20 horas después de su propio último intento. Las
+vigilancias y el mantenimiento de memoria no cambian ese momento. Las
+vigilancias siguen contando para el límite personal de gasto en proactividad.
+
+Una mirada completada guarda la persona y un hash de cada prompt leído, sin
+copiar el texto. Finalizar una pausa de aprobación o pregunta ya leída no
+provoca otra llamada de pago al modelo. Un prompt aplazado sigue sin leer
+hasta que una mirada posterior lo incluya; el texto modificado vuelve a ser
+nuevo. Las llamadas fallidas al modelo no marcan prompts como leídos.
+
+Tras actualizar, los runs antiguos de fondo sin rol no aplazan la siguiente
+mirada. Los mensajes existentes no tienen comprobante de lectura, por lo que
+los prompts recientes elegibles pueden incluirse una vez para ponerse al día,
+con los interruptores y presupuestos habituales.
+
 La tarea nocturna solo lee un prompt que pasó el
 [guardrail](reference/capabilities.md#guardrails) de entrada del agent al que se
 envió, porque el modelo de proactividad no tiene guardrails propios:
@@ -616,6 +631,12 @@ envió, porque el modelo de proactividad no tiene guardrails propios:
   que el rechazo de un guardrail de entrada, que no dejó respuesta, queda fuera.
   Un turno hablado no registra el modelo, así que queda fuera cuando ya no existe
   su run.
+
+Los prompts de rutinas se comprueban con la versión fijada del agent, la versión
+del entorno indicado o la versión actual del agent, como al ejecutar la rutina.
+Se omiten los destinos ausentes y las specs ilegibles, así como una rutina cuya
+última ejecución fue rechazada. También se omite una rutina ya ejecutada cuyo
+último run eliminó la retención: un resultado desconocido no puede anular un rechazo.
 
 Un prompt que un guardrail redactó pasa, y la tarea lo lee tal como está guardado,
 sin redactar ([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).

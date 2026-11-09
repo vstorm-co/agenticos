@@ -9,7 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOrgStore } from "@/stores/org-store";
 
-const native = vi.hoisted(() => ({ allow: vi.fn(), pick: vi.fn() }));
+const native = vi.hoisted(() => ({ allow: vi.fn(), pick: vi.fn(), grants: [] as unknown[] }));
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -22,6 +22,7 @@ vi.mock("@/hooks/use-routine-local-work", () => ({
     org: "org",
     user: "owner",
     allow: { mutateAsync: native.allow },
+    grants: { data: native.grants },
     pick: {
       isPending: false,
       mutate: (_input: undefined, options: { onSuccess: (folder: string) => void }) =>
@@ -44,6 +45,7 @@ const approved = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  native.grants = [];
   useOrgStore.setState({ activeOrgId: "org" });
   useAuthStore.setState({
     user: {
@@ -85,7 +87,7 @@ async function configure() {
   return { user, dialog, onCreated, onOpenChange, ...view };
 }
 describe("local routine creation", () => {
-  it("creates paused, confirms the actual routine ID, then attaches and activates", async () => {
+  it("creates paused, asks once for every routine, then attaches and activates", async () => {
     const { user, dialog, onCreated } = await configure();
     await user.click(dialog.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
@@ -96,7 +98,7 @@ describe("local routine creation", () => {
     expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("local_target");
     expect(native.allow).toHaveBeenCalledWith(
       expect.objectContaining({
-        routine_id: "routine",
+        routine_id: null,
         organization_id: "org",
         user_id: "owner",
         device_id: "device",
@@ -108,6 +110,27 @@ describe("local routine creation", () => {
       local_target: approved,
       is_active: true,
     });
+  });
+  it("uses the permission for every routine without asking again", async () => {
+    native.grants = [
+      {
+        id: "all",
+        routine_id: null,
+        root: "/",
+        operations: { read: true, write: true, execute: true },
+      },
+    ];
+    const { user, dialog, onCreated } = await configure();
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(native.allow).not.toHaveBeenCalled();
+    expect(apiClient.patch).toHaveBeenCalledWith(
+      "/agents/agent/triggers/routine",
+      expect.objectContaining({
+        local_target: expect.objectContaining({ routine_grant: "all", folder: "/work" }),
+        is_active: true,
+      }),
+    );
   });
   it("keeps cancellation paused and retries the same routine without duplicates", async () => {
     native.allow.mockResolvedValueOnce(null);

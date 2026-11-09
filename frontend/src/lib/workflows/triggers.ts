@@ -1,5 +1,10 @@
-import { type InputField, inputFieldsOf } from "@/lib/workflows/input-fields";
-import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
+import { type InputField, inputFieldsOf, inputSchemaOf } from "@/lib/workflows/input-fields";
+import type {
+  JsonSchema,
+  NodeDefinition,
+  NodeInstance,
+  WorkflowGraph,
+} from "@/lib/workflows/types";
 
 /**
  * The trigger nodes a workflow starts from - `app/workflows/triggers.py`.
@@ -222,4 +227,13 @@ export function declaredFields(graph: WorkflowGraph | null | undefined): InputFi
   return entry !== undefined && FIELD_TRIGGERS.has(entry.definition_id)
     ? inputFieldsOf(entry.config)
     : [];
+}
+
+/** The selected start's JSON Schema contract, if it uses one instead of simple fields. */
+export function declaredInputSchema(graph: WorkflowGraph | null | undefined): JsonSchema | null {
+  const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
+  return entry !== undefined &&
+    (BY_HAND_TRIGGERS.has(entry.definition_id) || entry.definition_id === WORKFLOW_CALL_TRIGGER)
+    ? inputSchemaOf(entry.config)
+    : null;
 }

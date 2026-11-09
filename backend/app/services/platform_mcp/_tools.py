@@ -37,7 +37,10 @@ from app.schemas.virtual_table import (
 from app.schemas.workflow import NodeCatalog, WorkflowPreparationCreate
 from app.services.platform_mcp._api import PlatformApi
 from app.services.workflow_execution import context as workflow_context
+from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
+from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.triggers import BY_HAND
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
@@ -401,13 +404,107 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         What was asked and answered, oldest first, with the tools each turn called
         and what they returned - for making a skill of how something was done, or
         picking up where a conversation left off. Another member's conversation is
-        not found.
+        not found. Guardrail-refused turns and quoted reply excerpts are omitted.
         """
         return await api.request(
             "GET",
             f"/conversations/{conversation_id}/transcript",
-            params={"limit": limit, "skip": skip},
+            params={"limit": limit, "skip": skip, "for_model": True},
         )
+
+    async def test_my_connection(connection_id: UUID) -> dict[str, Any]:
+        """Check one of the asker's own connections and list the tools it offers now.
+
+        Use it after connecting a service, or when a routine or watch says a source
+        is unavailable: it reaches the server, records whether it answered, and
+        refreshes the tools the platform knows it has. Needs `agents:run` for a key.
+        """
+        result = await api.request("POST", f"/me/mcp-connections/{connection_id}/test")
+        return {
+            "ok": result.get("ok"),
+            "error": result.get("error"),
+            "tools": [tool.get("name") for tool in result.get("tools", [])],
+        }
+
+    async def list_conversations(search: str | None = None, limit: int = 50) -> dict[str, Any]:
+        """The asker's own chats, most recently active first. Needs `runs:view`.
+
+        Find a chat by title - for example the one a routine should answer in -
+        before opening another. Only ids, titles and dates are returned; read one
+        with read_conversation. Conversations containing guardrail-refused turns
+        are omitted so a stored title cannot repeat their text.
+        """
+        params: dict[str, str | int] = {"limit": limit, "for_model": True}
+        if search is not None:
+            params["search"] = search
+        listing = await api.request("GET", "/conversations", params=params)
+        return {
+            "total": listing.get("total"),
+            "items": [
+                {key: item.get(key) for key in ("id", "title", "created_at", "updated_at")}
+                for item in listing.get("items", [])
+            ],
+        }
+
+    async def create_conversation(title: str) -> dict[str, Any]:
+        """Open a new, empty chat of the asker's own, with a title. Needs `agents:run`.
+
+        For a topic thread a routine answers in (`answer_to="conversation"` and
+        its `delivery_conversation_id`), so each subject keeps one running chat.
+        Check list_conversations for one with that title first.
+        """
+        created = await api.request("POST", "/conversations", json={"title": title})
+        return {key: created.get(key) for key in ("id", "title", "created_at")}
+
+    async def update_proactivity_settings(
+        watches_enabled: bool | None = None,
+        watch_min_minutes: int | None = None,
+        briefing_enabled: bool | None = None,
+        briefing_hour: int | None = None,
+        briefing_days: list[int] | None = None,
+        monthly_limit_usd: str | None = None,
+    ) -> dict[str, Any]:
+        """Change the organization's initiative. Needs `org:settings` and `budgets:manage`.
+
+        `watches_enabled` lets people have their own connections watched;
+        `watch_min_minutes` is the most often any watch may run. `briefing_*` is
+        the daily look at each person's week: whether it runs, at which hour and
+        on which ISO weekdays (1 is Monday), in each person's time zone.
+        `monthly_limit_usd` is what that work may spend per person per month.
+        Only what you pass changes; the result is the settings as they now stand.
+        """
+        body: dict[str, Any] = {}
+        if watches_enabled is not None:
+            body["proactive_watches_enabled"] = watches_enabled
+        if watch_min_minutes is not None:
+            body["proactive_watch_min_minutes"] = watch_min_minutes
+        if briefing_enabled is not None:
+            body["proactive_enabled"] = briefing_enabled
+        if briefing_hour is not None:
+            body["proactive_hour"] = briefing_hour
+            body["proactive_timing"] = "fixed"
+        if briefing_days is not None:
+            body["proactive_days"] = briefing_days
+        if monthly_limit_usd is not None:
+            body["proactive_limit_usd"] = monthly_limit_usd
+        if not body:
+            raise ValueError("Pass at least one setting to change")
+        me = await api.request("GET", "/me/permissions")
+        if "organization_id" not in me:
+            raise ValueError("This connection names no organization")
+        updated = await api.request("PATCH", f"/orgs/{me['organization_id']}", json=body)
+        return {
+            key: updated.get(key)
+            for key in (
+                "proactive_enabled",
+                "proactive_watches_enabled",
+                "proactive_watch_min_minutes",
+                "proactive_hour",
+                "proactive_days",
+                "proactive_timing",
+                "proactive_limit_usd",
+            )
+        }
 
     async def list_knowledge_bases() -> dict[str, Any]:
         """The knowledge bases this caller can see, with each one's `collection_name`.
@@ -1108,6 +1205,52 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", f"/workflows/{workflow_id}")
 
+    async def get_workflow_input_schema(
+        workflow_id: UUID, version_id: UUID | None = None
+    ) -> dict[str, JsonValue]:
+        """Inspect a published workflow's input before execution. Needs `workflows:view`.
+
+        Returns workflow_id, version_id and entries with entry_node_id, trigger
+        and input_schema (JSON Schema Draft 2020-12). Uses the current published
+        version unless version_id selects an older one. References remain local
+        to each schema. Legacy integer fields additionally require integer tokens,
+        marked by x-agenticos-strict-integer; ordinary schema validation alone
+        cannot enforce that representation. Untyped entries
+        accept any JSON object.
+        Only Manual/API entry contracts are returned: run_workflow cannot start
+        Form or Called by a workflow entries. HTTP discovery includes those
+        contracts for their own admission surfaces.
+        Responses above 32 KiB of encoded JSON are refused in full; inspect larger
+        contracts through the HTTP endpoint outside the model context.
+        """
+        response = await api.request(
+            "GET",
+            f"/workflows/{workflow_id}/input-schema",
+            params={} if version_id is None else {"version_id": str(version_id)},
+        )
+        if "entries" in response:
+            entries = response["entries"]
+            if not isinstance(entries, list):
+                raise TypeError("Workflow input-schema entries must be an array")
+            runnable: list[JsonValue] = []
+            for entry in entries:
+                if not isinstance(entry, dict) or not isinstance(
+                    trigger := entry.get("trigger"), str
+                ):
+                    raise TypeError("Workflow input-schema entry must name a trigger")
+                if trigger in BY_HAND:
+                    runnable.append(entry)
+            response = {**response, "entries": runnable}
+        try:
+            json_byte_size(response, limit=MAX_DISCOVERY_BYTES)
+        except PayloadTooLarge:
+            return api.refuse(
+                "Workflow input-schema discovery exceeds its 32 KiB allowance. "
+                "Inspect larger contracts through the HTTP input-schema endpoint "
+                "outside the model context. No partial contract was returned."
+            )
+        return response
+
     async def list_workflow_nodes() -> dict[str, JsonValue]:
         """Discover available workflow steps before choosing an automation design. Needs `workflows:view`.
 
@@ -1371,7 +1514,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     ) -> dict[str, JsonValue]:
         """Start a published workflow as the caller. Needs run access; waits for approval.
 
-        Read get_workflow_definition first and supply its declared input fields.
+        Read get_workflow_input_schema first and supply input that fits its contract.
         Returns the admitted run, not a completed result: poll get_workflow_execution
         and inspect its steps. An agent inside a workflow must use a workflow.run
         node instead of starting another root workflow.
@@ -1461,6 +1604,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_virtual_table_views, False),
         (list_workflow_definitions, False),
         (get_workflow_definition, False),
+        (get_workflow_input_schema, False),
         (list_workflow_nodes, False),
         (get_workflow_node, False),
         (create_workflow_draft, True),
@@ -1512,6 +1656,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_runs, False),
         (get_run, False),
         (read_conversation, False),
+        (list_conversations, False),
+        (create_conversation, True),
+        (update_proactivity_settings, True),
         (get_spend, False),
         (list_knowledge_bases, False),
         (list_embedding_models, False),
@@ -1532,6 +1679,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (invite_member, True),
         (search_mcp_servers, False),
         (list_my_connections, False),
+        (test_my_connection, True),
         (list_org_connections, False),
         (list_sandbox_connections, False),
         (list_sandbox_runtimes, False),

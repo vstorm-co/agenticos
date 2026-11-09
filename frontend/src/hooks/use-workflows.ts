@@ -255,13 +255,13 @@ export function useWorkflowVersions(workflowId: string | null) {
  * its own query, cached per version id (a frozen version never changes).
  */
 export function useWorkflowVersion(workflowId: string, versionId: string | null) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.version(workflowId, versionId ?? ""),
     queryFn: () => getWorkflowVersion(workflowId, versionId as string),
     enabled: !!versionId,
     staleTime: Infinity,
   });
-  return { version: data, isLoading, error };
+  return { version: data, isLoading, error, refetch };
 }
 
 /**

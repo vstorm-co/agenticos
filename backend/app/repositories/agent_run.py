@@ -45,8 +45,10 @@ from app.db.models.conversation import Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.system_agent_profile import DAILY_BRIEFING
 from app.db.models.user import User
 from app.db.models.voice_call import VoiceCall
+from app.repositories.conversation import mark_run_messages_refused
 
 
 async def create_run(
@@ -169,9 +171,7 @@ async def finish_run(
     await db.flush()
     # The rows already written; see `Message.guardrail_refused` for why on the row.
     if status == RunStatus.GUARDRAIL_BLOCKED.value:
-        await db.execute(
-            sql_update(Message).where(Message.run_id == run.id).values(guardrail_refused=True)
-        )
+        await mark_run_messages_refused(db, run_id=run.id)
     await db.refresh(run)
     return run
 
@@ -387,6 +387,17 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     run.ended_at = None
     # The next park starts unannounced.
     run.chat_notice_sent_at = None
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def keep_paused_state(
+    db: AsyncSession, *, run: AgentRun, paused_state: dict[str, Any]
+) -> AgentRun:
+    """Persist accepted question results while the run remains parked."""
+    run.paused_state = paused_state
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -774,16 +785,20 @@ async def recent_role_runs(
     return list(result.scalars().all())
 
 
-async def last_proactive_run_at(
+async def last_nightly_run_at(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID
 ) -> datetime | None:
-    """When the platform last thought about this person here - their last background run."""
+    """The last nightly look attempt, excluding watches and unclassified legacy runs.
+
+    Legacy NULL roles cannot distinguish a watch from a look. They still count
+    toward spending, but cannot postpone a person's next nightly look.
+    """
     result = await db.execute(
         select(func.max(AgentRun.started_at)).where(
             AgentRun.organization_id == organization_id,
             AgentRun.user_id == user_id,
             AgentRun.surface == RunSurface.PROACTIVE.value,
-            _in_proactivity_limit(),
+            AgentRun.system_role == DAILY_BRIEFING,
         )
     )
     return result.scalar_one_or_none()
@@ -2314,6 +2329,10 @@ async def list_unanswered_runs(
         .where(
             AgentRun.status == RunStatus.AWAITING_ANSWER.value,
             AgentRun.ended_at < older_than,
+            or_(
+                AgentRun.paused_state["question_results"].is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
         )
         .order_by(AgentRun.ended_at.asc())
         .limit(limit)

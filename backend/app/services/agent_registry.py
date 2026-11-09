@@ -3179,15 +3179,16 @@ class AgentRegistryService:
         A new version put in front of their trigger by somebody else - a publish
         an environment follows, a promotion, a rollback - could read their mailbox
         with their connections, so their consent does not carry over to it; their
-        own publishes keep it (#2027) - in person only. Through one of their API
-        keys, or by an administrator impersonating them, it is somebody else's
-        publish: the rule `agent_trigger._acts_as_themselves` sets for granting
-        the consent holds for keeping it.
+        own publishes keep it (#2027) - in person, which includes a key or MCP
+        token they issued. By an administrator impersonating them, or an agent's
+        run credential, it is somebody else's publish: the rule
+        `agent_trigger._acts_as_themselves` sets for granting the consent holds
+        for keeping it.
 
         An explicitly pinned routine keeps its immutable spec, so changing the
         default or an environment does not withdraw its unchanged consent.
         """
-        in_person = ctx.api_key_id is None and current_impersonator() is None
+        in_person = ctx.acts_in_person and current_impersonator() is None
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
             self.db, agent_id=agent.id, kept_for=ctx.user_id if in_person else None
         )

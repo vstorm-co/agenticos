@@ -1,5 +1,5 @@
 ---
-source_sha: "276f8e90ab5e"
+source_sha: "ce5e1db92c13"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1178,6 +1178,10 @@ Każde narzędzie to wywołanie [publicznego API](api.md) tym kluczem, więc jes
 odrzucane, limitowane i audytowane dokładnie tak jak to samo żądanie po HTTP;
 odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
+
+Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_my_connection` czeka na zatwierdzenie zarówno przy `writes`, jak i `all`.
+
 | Narzędzie | Wymaga |
 |---|---|
 | `whoami` | — |
@@ -1191,7 +1195,9 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` na agencie |
 | `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
-| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `create_conversation` | `agents:run` |
+| `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
@@ -1206,9 +1212,14 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
-| `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego; klucz wymaga `agents:run` dla `test_my_connection`) |
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
-| `create_watch`, `update_watch` | zgoda człowieka w prywatnej rozmowie; `agents:run` przy wyborze agenta |
+| `create_watch`, `update_watch` | sama osoba - zalogowana, przez wydany przez nią klucz lub token MCP albo w jej prywatnym czacie; `agents:run` przy wyborze agenta |
+
+Narzędzie platformy `read_conversation` pomija tury odrzucone przez guardrail
+i cytaty odpowiedzi. `list_conversations` pomija rozmowy zawierające odrzucone
+tury, aby wygenerowany tytuł nie powtórzył ich treści modelowi. Konsola zachowuje
+pełny transkrypt dla uprawnionej osoby.
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów.
 Instrukcje i konfigurację wybranego projektu odczytuje `get_project`.
@@ -1317,6 +1328,22 @@ Kolejka kontroli stanu korzysta z osobnego, indeksowanego znacznika czasu. Odśw
 ## Budowanie workflows i tabel { #workflow-and-table-tools }
 
 Serwer platformy MCP udostępnia też narzędzia workflows i Virtual Tables. Zacznij od `list_workflow_definitions`, `get_workflow_definition`, `list_workflow_nodes` i `get_workflow_node`. Twórz i zapisuj prywatne grafy przez `create_workflow_draft` i `update_workflow_draft`, zachowując `expected_revision`. `test_workflow_draft` przyjmuje opcjonalne `entry_node_id`; przed ogłoszeniem sukcesu sprawdź `get_workflow_execution` i `get_workflow_execution_steps`. Test może wywołać prawdziwe API i zapisać dane. `publish_workflow` aktywuje skonfigurowane wejścia, wymaga dotychczasowych uprawnień publikacji i ukrywa przed modelem jednorazowe sekrety podpisu. Publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji; klucz API nie może ich przejąć.
+
+Przed `run_workflow` użyj `get_workflow_input_schema`, aby sprawdzić opublikowany
+kontrakt wejścia bez wykonywania workflow. Narzędzie przyjmuje `workflow_id` i
+opcjonalne `version_id`, zwracając te same kontrakty `input_schema` poszczególnych
+wejść co [endpoint odkrywania HTTP](api.md#running-a-workflow). Wybierz właściwe
+`entry_node_id` i wyślij zgodne `fields`. Kontrakty JSON Schema Draft 2020-12,
+dotychczasowe proste pola i nietypowane wejścia używają tego samego formatu
+odkrywania; przyjęcie runu sprawdza kontrakt wersji przyjętej dla runu.
+
+Narzędzie MCP zwraca tylko wejścia Manual/API, które może uruchomić powiązane
+`run_workflow`. Kontrakty Form i Called by a workflow pozostają dostępne przez
+odkrywanie HTTP dla właściwych im sposobów uruchamiania.
+
+`get_workflow_input_schema` odmawia odpowiedzi większych niż 32 KiB zakodowanego
+JSON, wliczając wszystkie zwracane wejścia. Nigdy nie zwraca części kontraktu.
+Większe kontrakty sprawdzaj przez endpoint HTTP poza kontekstem modelu.
 
 Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
 

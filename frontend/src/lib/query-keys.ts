@@ -194,6 +194,7 @@ export const qk = {
     recentLogs: (limit: number) => ["workflows", "recent-logs", limit] as const,
     runLogs: (runId: string) => ["workflows", "run", runId, "logs"] as const,
     run: (runId: string) => ["workflows", "run", runId] as const,
+    runQuestions: (runId: string) => ["workflows", "run", runId, "questions"] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
     runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,

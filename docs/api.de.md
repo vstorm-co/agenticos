@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "cc88ed3eb4e4"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -65,6 +65,25 @@ Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihr
 Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
 Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
 auf einem öffentlichen Widget.
+
+Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
+
+**Arbeit, die als Sie handelt, richten Sie auch mit einem selbst ausgestellten
+Schlüssel ein.** Ein Schlüssel, den Sie erstellt haben, oder das Token eines
+MCP-Clients, den Sie autorisiert haben, darf Ihre eigenen [Routinen](triggers.md),
+die als Sie handeln (`runs_as_creator`), und Ihre [Watches](console.md) anlegen und
+ändern, die Quellen einer Routine prüfen und einen Agenten veröffentlichen, ohne
+die Zustimmung Ihrer als Sie handelnden Routinen zu entziehen. Der Lauf einer
+solchen Routine bleibt an ihre geprüften Quellen und ihr Budget gebunden. Die
+Laufberechtigung eines Agenten außerhalb Ihres privaten Chats kann das nicht,
+ebenso wenig ein Administrator, der Sie imitiert.
+
+Auch Unterhaltungen sind öffentlich: `GET /api/v1/conversations` listet die Chats
+des Ausstellers (`runs:view`), `POST /api/v1/conversations` mit `title` und
+`PATCH /api/v1/conversations/{id}` öffnen und benennen einen Chat (`agents:run`) -
+etwa einen Themen-Chat, in dem eine Routine antwortet.
+`POST /api/v1/me/mcp-connections/{id}/test` prüft eine eigene Verbindung und
+aktualisiert ihre Tools (`agents:run`).
 
 Auch die Verbindungssuche ist lesend öffentlich: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` und `GET /sandbox-connections/{id}/policy`
@@ -354,6 +373,34 @@ Das startet einen Run der veröffentlichten Version des Workflows und antwortet
 sofort mit `201`; die Knoten laufen im Hintergrund. `input` ist das, was der Trigger [`core.input`](reference/workflow-nodes.md#core-input) des Graphen weitergibt, höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES` als JSON (darüber `413`). Hier startet nur eine Version, die mit diesem Trigger oder ohne einen startet: jede andere antwortet `409
 WORKFLOW_TRIGGER_MISMATCH`, weil ein Webhook, ein Zeitplan, eine Chatnachricht oder ein Tabellen-Datensatz sie startet. `"mode": "test"` führt
 stattdessen den aktuellen Entwurf aus, mit jedem Trigger, und verlangt `workflows:edit`.
+
+Lies vor dem Aufruf `GET /api/v1/workflows/{id}/input-schema` mit
+`workflows:view`. Die Antwort enthält die veröffentlichte `version_id` und eine
+Liste `entries` mit `entry_node_id`, `trigger` und wirksamem `input_schema` für jeden
+Manual-, API-, Called-by-a-workflow- oder Form-Eingang. Übergib `version_id`, um
+eine bestimmte veröffentlichte Version zu prüfen. JSON-Schema-Verträge werden
+unverändert zurückgegeben; einfache Felder werden als JSON Schema dargestellt,
+und untypisierte Eingänge liefern `{"type": "object"}`. Verwende den Vertrag des
+gewünschten Eingangs und übergib beim Start dessen `entry_node_id`.
+
+Bisherige einfache `integer`-Felder verlangen zusätzlich ganzzahlige JSON-Tokens:
+`1` wird angenommen, `1.0` und `1e0` werden abgelehnt. Die Erkennung markiert
+diese Felder mit `x-agenticos-strict-integer: true`, auch in optionalen Feldern,
+die null erlauben. Gewöhnliches JSON Schema kann diese Schreibweise nicht
+erzwingen; seine Validierung allein reicht für diese Felder nicht aus. Die
+Serverprüfung entscheidet. Rohe JSON-Schema-Verträge nutzen die standardmäßige
+Integer-Semantik.
+
+Der optionale [JSON-Schema-Eingabevertrag](reference/workflow-nodes.md#json-schema-input-contracts)
+wird vor dem Annehmen des Runs geprüft. Eine Abweichung liefert
+`422 WORKFLOW_RUN_INPUT_INVALID` mit Feldpfaden und Meldungen in `error.details.fields`;
+es wird kein Run angelegt. Jeder Eintrag enthält `field` und `message`;
+verschachtelte Anfragepfade enthalten Array-Indizes, etwa `input.items.0.sku`.
+Für bestehende Aufrufer behält `error.details.problems` außerdem `field`, `message`
+und `type` mit Pfaden relativ zum Eingabeobjekt. Der Vertrag stammt aus der
+aktuellen veröffentlichten Version oder bei `"mode": "test"` aus dem Draft.
+Er gilt ebenso über WebSocket und MCP sowie beim Aufruf durch einen anderen
+Workflow.
 
 `deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
 geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige

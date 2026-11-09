@@ -46,3 +46,8 @@ it("renders a watch through its authorized management card", () => {
   render(<WatchResult watchId={id} />);
   expect(screen.getByText(id)).toBeVisible();
 });
+
+it("keeps trusted platform cards and refuses a generic external watch", () => {
+  expect(writtenWatches([call({ presentation_kind: "platform" })])).toEqual([id]);
+  expect(writtenWatches([call({ presentation_kind: "generic" })])).toEqual([]);
+});

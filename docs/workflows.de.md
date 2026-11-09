@@ -1,5 +1,5 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -111,7 +111,9 @@ einen Workflow, was seinen Trigger ebenfalls pausiert. Ein archivierter lässt s
 wiederherstellen, weiterhin pausiert, oder mit Versionen, Läufen und Freigaben löschen;
 einer mit noch nicht beendeten Läufen wird mit `WORKFLOW_IN_USE` abgelehnt.
 
-Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheint nur das Workflow-Ergebnis. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
+Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheinen das Workflow-Ergebnis und Fragen des Agents. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
+
+Ein Agent-Schritt kann mit `ask_user_question` pausieren und **Wartet auf Benutzer** anzeigen. Beantworte die Frage im ursprünglichen Chat oder auf der Run-Seite. Deine Antwort schließt den offenen Tool-Aufruf ab, und der Workflow-Worker setzt dieselbe Unterhaltung des Agents fort. Der Agent kann weitere Fragen stellen, bevor er sein Ergebnis zurückgibt. Unabhängige Zweige können währenddessen weiterlaufen.
 
 Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im Hintergrund-Worker als auch im Webchat verwenden.
 
@@ -1024,6 +1026,16 @@ Triggers.
 Eingabefeld, so typisiert wie dieses, und ein API-Aufruf, dessen Eingabe nicht passt,
 wird mit den falschen Feldern abgelehnt. Siehe
 [core.input](reference/workflow-nodes.md#core-input).
+
+Konfiguriere für verschachtelte Objekte und Arrays optional `input_schema`
+nach JSON Schema Draft 2020-12 bei **Manual**, **API request** oder
+**Called by a workflow** anstelle einfacher Felder. Das Schema wird mit der
+veröffentlichten Version gespeichert, und jeder Run muss vor dem Start den Vertrag
+dieser Version erfüllen. API- und MCP-Aufrufer können denselben Vertrag vor dem
+Senden der Eingabe prüfen. Siehe
+[Eingabeverträge mit JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+für Konfiguration, Referenzen und Validierungsfehler. Bestehende Eingaben mit
+einfachen Feldern und Workflows ohne Vertrag behalten ihr Verhalten.
 
 ### Aus dem Chat { #from-the-chat }
 

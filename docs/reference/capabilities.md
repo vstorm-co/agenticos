@@ -256,16 +256,13 @@ a time — the alternative being an instructions field that grows until every ru
 pays for every procedure. See [Skills](../skills.md) for what a skill is and how
 one gets into an organization.
 
-**Each bound skill is a capability of its own.** Its name and description sit in
-the catalog the model reads every turn, and the model pulls the body in with
-`load_capability` — the agent framework's own tool, which is why it is not in the
-list above and why a spec cannot grant, gate or rename it. `read_skill_resource`
-is the one tool this capability contributes, and it appears only when at least one
-bound skill ships a file beside its instructions.
-
-The tool comes from `pydantic-ai-skills`, so its name and wording are somebody
-else's to change. A drift test compares what the registry declares against the
-tools the model is actually offered, which is what reports the day that happens.
+**Each bound skill remains a native deferred capability.** The model sees an
+“available skills” catalog and opens a body with `read_skill`. The platform's
+adapter keeps native loading state, approvals and conversation replay, including
+older histories. Approval policies keep the stable `load_capability` key;
+ordinary tool overrides do not rename this framework-owned loader.
+`read_skill_resource` reads supporting files and appears only when a bound skill
+ships one. A drift test checks the library's file tool against the registry.
 
 `run_skill_script` is switched off rather than exposed: a skill's files reach a
 run under `/workspace/skills/`, where the [sandbox](../sandbox.md)'s own `execute`
@@ -2382,6 +2379,11 @@ Spec version 14 removes stored `virtual_tables` bindings when they load. Existin
 
 ## Workflows { #workflows }
 
+`list_workflows` discovery is limited to 32 KiB of encoded JSON, including
+input contracts. Larger responses return a refusal instead of a partial list.
+Choose fewer workflows or smaller contracts for the binding, or inspect the
+HTTP input-schema endpoint outside the agent context.
+
 Lets the agent start the published [workflows](../workflows.md) its binding names,
 and read how they went. The Builder's panel lists the organization's workflows, one
 row each, and a ticked row is one the agent may start. A workflow that is a draft,
@@ -2661,7 +2663,7 @@ Exclusions affect visibility; connection and binding allowlists still control
 access.
 
 Provider-native built-ins and capability hooks stay active. Skills retain their
-own discovery through `load_capability`. Realtime voice does not use Tool search
+own discovery through `read_skill`. Realtime voice does not use Tool search
 deferral. If every tool stays visible, search has no deferred catalog to discover.
 
 **The Builder says when it is worth it.** Once an agent's MCP bindings add up to
@@ -2739,8 +2741,28 @@ its own turn, so a later turn's history does not replay the message of a
 `guardrail_blocked` run, whichever check stopped it. In its place the model reads a
 short note that a guardrail stopped that turn, without the message's text or what
 the files sent with it added. The conversation still shows the person what they
-typed. Search over past conversations (`conversation_search`) does not filter these
-messages yet.
+typed. Workflow agent-step refusals also mark the exact source chat turn. Search
+over past conversations (`conversation_search`) omits refused messages from
+matching, snippets and transcript reads. Conversation titles are withheld from
+these tools when the conversation contains a refused turn, including existing
+stored titles.
+
+Workflow retries and called workflows preserve this refusal provenance. They do
+not inherit a reply destination or access to the source chat’s workspace. If a newly
+refused turn was already compacted, the stored summary covering it is discarded
+so later history rebuilds with the refusal note. Conversation mentions use the
+same filtered listing, so their labels cannot repeat a refused turn to a model.
+
+A compaction already in flight cannot restore a later refused turn to the cache.
+Upgrading rebuilds existing cached summaries once; the original messages remain.
+
+Every run revalidates its history snapshot before each model request, including after tool calls. Workflow agent, model and decision steps also check their shared chat source before starting; queued sibling steps cannot reuse a refused or deleted source. Voice summaries and new realtime sessions use the same revision check.
+
+Coding harnesses check the same context before launch and before each ACP prompt, including prompts after a task correction.
+
+If an earlier turn is refused while a run waits for approval or an answer, that
+run stops before replaying tools or calling a model. Start a new turn to continue
+with the current, filtered history.
 
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
@@ -2866,8 +2888,8 @@ picks keyed by header, or is told the person declined and carries on.
 
 The tool and its schema come from `AskUser` in pydantic-ai-harness. It is on by
 default in every new agent and every template, and an author can switch it off.
-Where nobody can answer yet - a schedule, a webhook, the API - the agent is told
-the person declined.
+A standalone agent run without a question channel - from a schedule, a webhook
+or the API - is told the person declined.
 
 In console chat, the run saves its questions and pauses before showing the card
 - **Waiting for an answer** in run history. Switching chats, reloading or opening
@@ -2880,6 +2902,10 @@ Only the person asked can answer. API clients can use
 After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+Inside a workflow agent step, the same tool saves the conversation and pauses the workflow with **Waiting for user**. Answer in the workflow run view or the originating chat. The answer is saved and the workflow worker resumes the same agent run, with its budget and earlier tool results intact. Workflow clients read `GET /workflow-runs/{run_id}/questions` and submit `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` with the usual `responses` object. Each entry names the owning `workflow_run_id`; use that id when answering a question from a synchronously called workflow.
+
+Question cards appear only while you retain permission to run the owning workflow. A per-workflow **use** grant also allows you to answer; another viewer cannot answer on your behalf.
 
 ## Drafts
 

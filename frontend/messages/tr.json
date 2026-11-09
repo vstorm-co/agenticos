@@ -782,7 +782,13 @@
         "boolean": "Evet veya hayır",
         "date": "Tarih",
         "choice": "Seçenek"
-      }
+      },
+      "contractFormat": "Giriş sözleşmesi",
+      "simpleFields": "Basit alanlar",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Basit alanları veya JSON Schema sözleşmesini seçin. Bu tetikleyici açıkken her kayıtlı biçim korunur; workflow’a yalnızca seçilen biçim kaydedilir.",
+      "schemaHint": "İç içe nesneler, diziler ve referanslar için JSON Schema Draft 2020-12 kullanın. Girdiler run başlamadan önce doğrulanır.",
+      "schemaInvalid": "Bir JSON nesnesi girin. Bu değişiklik kaydedilmedi."
     },
     "categoryHint": {
       "triggers": "run nasıl başlar?",
@@ -1380,7 +1386,7 @@
     "templateUnknown": "{placeholder}, bu adımın okuyabileceği bir alanı belirtmiyor.",
     "templatePreview": "Önizleme:",
     "templateSuggestions": "Önceki adımlardaki değerler",
-    "triggerHintCall": "Başka bir workflow’daki Run a workflow adımı bunu girdisiyle başlatır; girdi bu alanlara göre doğrulanır. Sonraki adımlar bunları payload olarak okur.",
+    "triggerHintCall": "Başka bir workflow’daki Run a workflow adımı bunu girdisiyle başlatır; girdi bu giriş sözleşmesine göre doğrulanır. Sonraki adımlar girdiyi payload olarak okur.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Bir workflow seçin",
     "pickerWorkflowNone": "Henüz Called by a workflow ile başlayan bir workflow yayımlanmadı.",
@@ -4254,7 +4260,8 @@
       "templateCategories": "Kategoriler",
       "templateCount": "{count, plural, one {# şablon} other {# şablon}}",
       "automationCategoryHint": "Tabloları otomatik hazırlanan, kullanıma hazır otomasyonlar.",
-      "exampleCategoryHint": "Kendi otomasyonunuzu öğrenmek ve oluşturmak için küçük akışlar."
+      "exampleCategoryHint": "Kendi otomasyonunuzu öğrenmek ve oluşturmak için küçük akışlar.",
+      "startRunSchema": "Beklenen giriş şeması"
     },
     "runs": {
       "aParkedRunIsStill": "Beklemeye alınmış run hâlâ beklemede. Hiçbir karar verilmedi ve hiçbir şeyin süresi dolmadı.",
@@ -4586,6 +4593,7 @@
     "failedLoadConnections": "Bağlantılar yüklenemedi",
     "failedLoadOrgServers": "Kuruluşun MCP server'ları yüklenemedi",
     "finishConsentThenReturn": "Açılan sekmedeki işlemi tamamlayıp geri dönün. Yetkilendirildiğinde server burada görünür.",
+    "finishConsentInBrowser": "Tarayıcınızda oturum açmayı tamamlayıp geri dönün. Yetkilendirildiğinde server burada görünür.",
     "consentTabBlocked": "Tarayıcınız oturum açma sekmesini engelledi. Bu site için açılır pencerelere izin verip yeniden deneyin.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "Genel MCP registry'den. Burada kimse incelemedi: açıklama yayınlayana aittir ve hangi kimlik bilgisini istediğine dair yönlendirme yoktur.",
@@ -8506,6 +8514,10 @@
       "chat-coding-accounts": {
         "title": "Kodlama hesapların",
         "body": "Sohbetten ayrılmadan Codex veya Claude Code bağla. Bunlar özel bulut hesaplarındır; yerel masaüstü araçları kendi oturumlarını kullanır."
+      },
+      "workflow-input-contract": {
+        "title": "Beklenen girdiyi tanımlayın",
+        "body": "Manuel, API veya Bir workflow tarafından çağrılan tetikleyicileri, basit alanları veya JSON Schema Draft 2020-12 sözleşmesini kullanabilir. Şema iç içe değerleri destekler ve run başlamadan önce doğrulanır."
       }
     }
   },
@@ -9023,11 +9035,11 @@
       "knowledgeBaseSearch": "Bilgi tabanı araması",
       "listed": "{named, select, no {Listelendi…} other {{subject} listelendi}}",
       "listing": "{named, select, no {Listeleniyor…} other {{subject} listeleniyor}}",
-      "loadSkill": "Skill yükle",
+      "loadSkill": "Skill oku",
       "loading": "Yükleniyor…",
       "availableSkills": "Kullanılabilir skill'ler",
       "lookingThroughSkills": "Skill'ler inceleniyor",
-      "loadingSkill": "Bir skill yükleniyor",
+      "loadingSkill": "Bir skill okunuyor",
       "lookedFor": "{named, select, no {Arandı…} other {{subject} arandı}}",
       "lookingAtChannel": "Kanal inceleniyor",
       "lookingAtChannelMembers": "Kanaldaki kişiler inceleniyor",
@@ -9738,8 +9750,9 @@
     "approvalRememberFailed": "Onay kaldırılamadı. Tekrar deneyin.",
     "approvalRememberRetry": "Tekrar dene",
     "localAccess": {
+      "continue": "Erişim verildi - lütfen devam et.",
       "title": "{agent} nerede çalışabilir?",
-      "description": "{agent} bilgisayarında çalışır. Bu agent için bir kez sorulur; daha sonra Chat controls → Work on altında değiştirebilir ya da geri alabilirsin.",
+      "description": "{agent} bu istek için bilgisayarındaki dosyalara ihtiyaç duyuyor. Seçimin bu agent için hatırlanır; daha sonra Chat controls → Work on altında değiştirebilir ya da geri alabilirsin.",
       "computer": "Tüm bilgisayar",
       "computerHint": "Hesabının erişebildiği her yerde dosyaları okuyup değiştirebilir ve senin adına komut çalıştırabilir. Bilgisayarın onay ister.",
       "folder": "Klasör seç",
@@ -10017,7 +10030,8 @@
     "revoked": "Anahtar iptal edildi",
     "couldNotLoad": "API anahtarlarınız yüklenemedi",
     "emptyTitle": "Henüz API anahtarı yok",
-    "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun."
+    "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun.",
+    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin."
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",
@@ -10543,6 +10557,8 @@
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {
+      "useAllowed": "İzin verilen klasörü kullan",
+      "allRoutines": "Tüm rutinlerim",
       "label": "Üzerinde çalış",
       "hint": "Her çalışma, masaüstü uygulaması aracılığıyla bilgisayarınızdaki bir klasörde veya agent’ın sandbox’ında gerçekleşir. Uygulama kapalıysa çalışma uygulamanın açılmasını bekler.",
       "elsewhereHint": "Her çalışma bilgisayarınızdaki bu klasörde gerçekleşir. Bunu o bilgisayardaki masaüstü uygulamasından değiştirin.",

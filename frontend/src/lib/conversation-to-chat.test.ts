@@ -514,3 +514,26 @@ it("replays a persisted setup reply with its original agent and configuration ca
   expect(message.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
   expect(message.parts?.[1]?.setupAgentId).toBe("starter");
 });
+
+it("keeps renderer identity when rebuilding a saved or run-timeline turn", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      tool_calls: [
+        {
+          tool_call_id: "call",
+          tool_name: "compose",
+          tool_id: "write_draft",
+          presentation_kind: "draft",
+          args: {},
+          result: "Drafted Reply.",
+          status: "completed",
+        },
+      ],
+    }),
+  );
+  expect(message.toolCalls?.[0]).toMatchObject({
+    name: "compose",
+    tool_id: "write_draft",
+    presentation_kind: "draft",
+  });
+});

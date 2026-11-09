@@ -55,6 +55,7 @@ from app.repositories.conversation import Attributed
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.channels.mentions import ChannelAgentRouter
 from app.services.embed_session import EmbedSession
+from app.services.message_history import ModelHistory
 
 pytestmark = pytest.mark.anyio
 
@@ -233,7 +234,7 @@ def _widget_session(db: MagicMock, *, embed: MagicMock | None = None) -> EmbedSe
 
 
 @contextmanager
-def _the_widgets_rows() -> Iterator[None]:
+def _the_widgets_rows() -> Iterator[MagicMock]:
     """The conversation the turn opens, its history, and the owner's membership."""
     with (
         patch(
@@ -257,7 +258,7 @@ def _the_widgets_rows() -> Iterator[None]:
         ),
     ):
         reader.return_value.model_history = AsyncMock(return_value=[])
-        yield
+        yield reader
 
 
 def _embed(*, context: str | None = None) -> MagicMock:
@@ -613,12 +614,14 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
     one, over a history one turn longer each time (#49)."""
 
     async def test_a_summary_is_written_to_the_conversation_it_summarised(self) -> None:
-        session = _widget_session(_db())
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
+        session = _widget_session(db)
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
         with (
             _run_yielding(run) as (captured, _conversations),
-            _the_widgets_rows(),
+            _the_widgets_rows() as reader,
             patch("app.services.agent_runner.ConversationService") as service,
         ):
             service.return_value.keep_summary = AsyncMock()
@@ -629,11 +632,14 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
                 captured["prepared"].built.context.summarized = True
                 return _searched_then_answered("The refund window is 30 days.")
 
+            reader.return_value.model_history.return_value = ModelHistory([], revision=7)
             run.side_effect = summarise
             await session._answer("What's your refund window?")
 
         kept = service.return_value.keep_summary
         assert kept.await_args.args[0] == captured["prepared"].run.conversation_id
+
+        assert kept.await_args.kwargs["expected_revision"] == 7
 
     async def test_a_turn_that_summarised_nothing_writes_nothing(self) -> None:
         session = _widget_session(_db())

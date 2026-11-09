@@ -2183,6 +2183,7 @@ class TestWhatACollectionReportsItHolds:
                 db, collection_name="app_and_tenant", filename=f"app-{status}.txt", tenant=who
             )
             doc.knowledge_base_id = app_kb.id if who is not None else None
+            doc.writer_kind = "document" if who is not None else "operator"
             doc.status = status
         await db.flush()
 

@@ -62,20 +62,24 @@ beforeEach(() => {
   FakeSocket.opened = [];
   vi.stubGlobal("WebSocket", FakeSocket);
   get.mockImplementation((url: string) =>
-    url === "/conversations/background-tasks"
+    url.endsWith("/questions")
       ? Promise.resolve([])
-      : url.startsWith("/auth/me")
-        ? Promise.resolve({ ...SIGNED_IN, access_token: "t-1" })
-        : url === "/me/permissions"
-          ? Promise.resolve({
-              organization_id: "org-1",
-              role: "member",
-              is_app_admin: false,
-              permissions: [{ permission: "workflows:run", scope: "all" }],
-            })
-          : url === "/workflows"
-            ? Promise.resolve({ items: [WORKFLOW], total: 1 })
-            : Promise.resolve({ items: [], total: 0 }),
+      : url.startsWith("/workflow-runs/")
+        ? Promise.resolve({ id: "r-1", status: "running" })
+        : url === "/conversations/background-tasks"
+          ? Promise.resolve([])
+          : url.startsWith("/auth/me")
+            ? Promise.resolve({ ...SIGNED_IN, access_token: "t-1" })
+            : url === "/me/permissions"
+              ? Promise.resolve({
+                  organization_id: "org-1",
+                  role: "member",
+                  is_app_admin: false,
+                  permissions: [{ permission: "workflows:run", scope: "all" }],
+                })
+              : url === "/workflows"
+                ? Promise.resolve({ items: [WORKFLOW], total: 1 })
+                : Promise.resolve({ items: [], total: 0 }),
   );
   post.mockResolvedValue({
     id: "c-new",

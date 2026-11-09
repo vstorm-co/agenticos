@@ -87,7 +87,7 @@ class InvitationService:
     async def accept_received(
         self, invitation_id: UUID, user_id: UUID, session_id: UUID | None = None
     ) -> Invitation:
-        person = await user_repo.get_by_id_for_update(self.db, user_id)
+        person = await user_repo.get_by_id(self.db, user_id)
         invite = await invitation_repo.get_by_id(self.db, invitation_id)
         if (
             person is None

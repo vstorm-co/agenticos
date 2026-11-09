@@ -38,6 +38,7 @@ write and drop went through the lax one (#368, #371).
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -308,6 +309,14 @@ def validate_collection_name(collection: str, *, metadata: MetaData) -> None:
         )
 
 
+class VectorWriterKind(StrEnum):
+    """Persistent origin, independent of a user or base surviving deletion."""
+
+    DOCUMENT = "document"
+    OPERATOR = "operator"
+    LEGACY_UNKNOWN = "legacy_unknown"
+
+
 @dataclass(frozen=True)
 class VectorScope:
     """Which chunks of a shared runtime table one caller may read or change.
@@ -328,7 +337,10 @@ class VectorScope:
 
     With no `knowledge_base_id` - the CLI, or a collection no base claims - the
     scope is the tenant alone, as it was before chunks recorded their base, and
-    `takes_unfiled` has nothing to narrow.
+    `takes_unfiled` has nothing to narrow. With `operator_unfiled_only`, public
+    global reads additionally require explicit operator origin on unfiled chunks;
+    with no base they read only those chunks, never somebody else's filed data.
+    Missing origin is quarantined, not inferred from a missing tenant (#2773).
     """
 
     tenant: UUID | None
@@ -336,3 +348,6 @@ class VectorScope:
     takes_unfiled: bool = True
     # Additional explicitly bound bases of the same tenant, for read unions.
     additional_knowledge_base_ids: tuple[UUID, ...] = ()
+    # Public app reads may adopt only explicitly operator-written unfiled data.
+    # Raw maintenance scopes retain tenant-wide access.
+    operator_unfiled_only: bool = False

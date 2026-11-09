@@ -1,5 +1,5 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -106,7 +106,9 @@ przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
 udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
 `WORKFLOW_IN_USE`.
 
-Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje tylko wynik workflow. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje wynik workflow oraz pytania agenta. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+
+Krok agenta może wywołać `ask_user_question`, aby wstrzymać się ze stanem **Oczekiwanie na użytkownika**. Odpowiedz na karcie pytania w czacie źródłowym lub na stronie runa. Odpowiedź kończy oczekujące wywołanie narzędzia, a worker workflow wznawia tę samą rozmowę agenta. Agent może zadać kolejne pytanie, zanim zwróci końcowy wynik. Niezależne gałęzie mogą działać dalej, gdy ten krok czeka.
 
 Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 
@@ -940,6 +942,15 @@ tego wyzwalacza.
 **Manual** to wyzwalacz, który osoba uruchamia przyciskiem **Test draft**; **API request** to ten, który wywołuje system, a **Trigger** pokazuje jego endpoint i przykładowe żądanie. Daj któremuś **pola wejścia**, a run poprosi o to, czego potrzebuje: **Test draft** i **Start a run** pokazują formularz z jednym polem na każde pole zamiast
 JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
 listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
+
+Dla zagnieżdżonych obiektów i tablic skonfiguruj opcjonalne `input_schema`
+JSON Schema Draft 2020-12 w **Manual**, **API request** lub **Called by a workflow**
+zamiast prostych pól. Schemat jest zapisywany z opublikowaną wersją, a każdy run
+musi spełniać kontrakt tej wersji przed startem. Wywołujący przez API i MCP mogą
+sprawdzić ten sam kontrakt przed wysłaniem wejścia. Zobacz
+[Kontrakty wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts),
+aby poznać konfigurację, referencje i błędy walidacji. Istniejące wejścia prostych
+pól i workflow bez kontraktu zachowują dotychczasowe działanie.
 
 ### Z czatu { #from-the-chat }
 

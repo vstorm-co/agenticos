@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "b4d9ec998c26"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -54,7 +54,7 @@ hat, und nennt die Oberfläche in `triggered_by`.
 
 Seine **Eingabefelder** machen die Eingabe zu einem Vertrag. Ein Feld hat einen
 Namen, einen Typ - Text, Liste von Texten, Zahl, ganze Zahl, ja oder nein, Datum oder Auswahl - und ob
-es Pflicht ist. Ohne Felder nimmt ein Run jedes JSON-Objekt. Mit Feldern fragt
+es Pflicht ist. Ohne Felder und ohne Schema nimmt ein Run jedes JSON-Objekt. Mit Feldern fragt
 **Start a run** jedes beim Namen ab, ein Run, dessen Eingabe eines fehlt, eines vom
 falschen Typ oder ein nicht deklariertes sendet, wird vor dem Start mit
 `WORKFLOW_RUN_INPUT_INVALID` abgelehnt, und ein Binding an `payload.<feld>` wird beim
@@ -74,11 +74,132 @@ ist bei den Triggern Manual, Form und Called by a workflow verfügbar.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### Eingabeverträge mit JSON Schema { #json-schema-input-contracts }
+
+Setze für verschachtelte Eingaben `config.input_schema` des Triggers auf ein
+Dokument nach JSON Schema Draft 2020-12. **API request**, **Manual** und
+**Called by a workflow** akzeptieren diese Alternative zu einfachen `fields`.
+Verwende jeweils einen Vertrag: Ein Schema und eine nicht leere Liste `fields`
+können nicht kombiniert werden. Öffentliche **Form**-Trigger behalten ihren
+Vertrag mit einfachen Feldern.
+
+Der Vertrag unterstützt verschachtelte Objekte, Arrays aus Objekten, `enum`,
+`required`, Zeichenfolgenlängen (`minLength` und `maxLength`), Array-Längen
+(`minItems` und `maxItems`) und `additionalProperties`. Verwende Definitionen mit
+`$defs` und lokalen `$ref`-Referenzen erneut. Referenzen müssen innerhalb desselben
+Dokuments aufgelöst werden; externe Referenzen werden abgelehnt und nie abgerufen.
+Ein absoluter oder relativer URI ist erlaubt, wenn er auf eine bereits im Dokument
+enthaltene Ressource verweist.
+Ein benutzerdefiniertes Python-Modell oder ein bestimmtes Framework des Aufrufers
+ist nicht erforderlich.
+
+Die Workflow-Eingabe ist immer ein JSON-Objekt. Die Veröffentlichung lehnt einen
+Vertrag ab, wenn seine ausdrücklichen Wurzelbeschränkungen durch `type`, `const`,
+`enum`, statische lokale `$ref` oder `allOf`/`anyOf`/`oneOf` beweisen, dass kein
+Objekt ihn erfüllen kann. Diese konservative Kompatibilitätsprüfung ist kein
+allgemeiner Erfüllbarkeitsnachweis: Beschränkungen mit `not`, Bedingungen oder
+`$dynamicRef` können unentschieden bleiben und werden beim Annehmen eines Runs
+gegen die tatsächliche Eingabe geprüft. Teilschemas für primitive Werte und
+Arrays innerhalb von Objekteigenschaften bleiben unterstützt.
+
+Diese Trigger-Konfiguration nimmt einen Kunden und mindestens eine
+Bestellposition an:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Das Veröffentlichen friert das Schema in der Workflow-Version ein. Die Eingabe
+wird vor dem Annehmen eines Runs gegen den Vertrag dieser Version geprüft, auch
+bei API-, WebSocket-, MCP- und untergeordneten Workflow-Aufrufen; Tests verwenden
+den Vertrag des Drafts. Ungültige Eingaben liefern `WORKFLOW_RUN_INPUT_INVALID`
+mit Feldpfaden und Meldungen. Das Schema konvertiert keine Werte und setzt keine
+Standardwerte ein. Ohne einfache Felder und ohne Schema, auch bei einem leeren
+Schema-Objekt, bleibt die bisherige untypisierte JSON-Objekteingabe erhalten.
+
+Rohe Schemas sind bei der Veröffentlichung auf 256 KiB begrenzt. Vor dem
+Annehmen eines Runs muss die als JSON serialisierte Validierungsanfrage mit
+Schema und Eingabe in 1 MiB passen. Die Validierung läuft in einem isolierten
+Prozess mit einer Frist von zwei Sekunden einschließlich Prozessstart. Jede
+Ereignisschleife der API oder eines Workers erlaubt höchstens zwei gleichzeitige
+Validierungen; sind beide Plätze belegt, wird der Run sofort mit `429` abgelehnt.
+Bestehende Verträge mit einfachen Feldern werden weiterhin ohne separaten
+Prozess validiert.
+
+Linux erzwingt zusätzlich ein Adressraumlimit von 256 MiB und ein CPU-Limit.
+Bei nativer Entwicklung unter macOS bleiben CPU- und Zeitlimits bestehen, aber
+kein Adressraumlimit, da Darwin `RLIMIT_AS` nicht unterstützt.
+
+Eine Zeitüberschreitung, Speichermangel im Validator oder ein Größenlimit des Validierungsprotokolls lehnt
+den Run mit `422 WORKFLOW_RUN_INPUT_INVALID` ab; `error.details.fields` nennt
+`input`, und der Problemtyp `type` im bisherigen Format ist `validation_limit`.
+Ein Fehler beim Starten des Validators, ein abnormaler Prozessabbruch (auch durch
+ein Ressourcenlimit des Betriebssystems) oder eine ungültige Ausgabe liefert
+`503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Beide Ablehnungen legen keinen Run
+an. Diagnosen sind auf 50 Einträge und 4 KiB UTF-8-JSON begrenzt. Wird eine Grenze
+erreicht, fasst der letzte Eintrag die Kürzung zusammen. Diagnosen zitieren nie
+übermittelte Werte.
+
+Schemas oder reguläre Ausdrücke oberhalb der Verschachtelungs- oder
+Wiederholungsgrenzen des Validators werden bei der Veröffentlichung abgelehnt,
+anstatt einen Serverfehler auszulösen.
+
+Aufrufer können den wirksamen Vertrag vor der Ausführung über die
+[Workflow-Eingabeschema-API](../api.md#running-a-workflow) oder die
+[MCP-Suche](../mcp.md#workflow-and-table-tools) prüfen. Auch bestehende Verträge mit
+einfachen Feldern werden als JSON Schema bereitgestellt.
+
+Die HTTP-Erkennung zeigt nur den ersten Einstieg **Called by a workflow**, wobei der Standardeinstieg zuerst kommt, da Aufrufe untergeordneter Workflows keinen anderen Einstieg auswählen können. Die Plattform-MCP-Erkennung zeigt nur die Manual/API-Einstiege, die ihr Ausführungswerkzeug unterstützt.
+
+Eigenständige `then`/`else`-Zweige und Zweige, die ein boolescher Literalwert
+für `if` ausschließt, werden auf sichere Referenzen geprüft, erzeugen aber keine
+Rekursionskanten für die Auswertung.
+
+Verträge mit `$dynamicRef` sind bei der Veröffentlichungsprüfung auf
+2048 Resolver-Kontexte und 64 verschiedene Ressourcen in einem dynamischen
+Gültigkeitsbereich begrenzt. Das Überschreiten eines Limits führt zu einer
+ausdrücklichen Ablehnung der Konfiguration.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Von einer Person gestartet - **Test draft** im Editor oder **Start a run** auf
 seiner Run-Seite. Er gibt dem Graphen dasselbe wie **API request** und nimmt
-dieselben Eingabefelder, nach denen der Editor vor dem Start fragt.
+dieselben Eingabefelder oder einen JSON-Schema-Vertrag. Der Editor fragt vor dem Start nach der Eingabe.
 
 ### trigger.chat { #trigger-chat }
 
@@ -125,9 +246,9 @@ sofern Spalten gewählt sind. Das Veröffentlichen braucht Lesezugriff auf die T
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Vom Schritt `workflow.run` eines anderen Workflows
-gestartet, mit den Feldern, die er deklariert - denselben wie bei **Manual** - und nie
-von Hand oder über die API. Die Eingabe des Aufrufers wird vor dem Start dagegen
-geprüft.
+gestartet, mit seinem deklarierten Eingabevertrag - einfachen Feldern oder JSON
+Schema wie bei **Manual** - und nie von Hand oder über die API. Die Eingabe des
+Aufrufers wird vor dem Start gegen diesen Vertrag geprüft.
 
 ### trigger.form { #trigger-form }
 
@@ -711,6 +832,10 @@ Guardrails und Run-Historie des Agents. Der Run wird mit der Oberfläche
 den Prompt angehängt. Ein freigabepflichtiger Tool-Aufruf hält den Schritt an,
 und die Entscheidung setzt denselben Agent-Run fort.
 
+Auch das vorhandene Tool `ask_user_question` hält diesen Schritt an. Der Workflow zeigt `waiting_for_user`; die Fragekarte erscheint im ursprünglichen Chat und in der Run-Ansicht. Nur die gefragte Person kann antworten. Antworten werden gespeichert, bevor die Workflow-Fortsetzung eingereiht wird; diese setzt den offenen Tool-Aufruf unter dem aktuellen Workflow-Budget fort. Neuladen verwirft die Frage nicht. Ein Abbruch des Workflows beendet seine wartenden Agent-Runs; unbeantwortete Fragen verfallen nach `QUESTION_EXPIRY_HOURS` (standardmäßig 24).
+
+Dies gilt für den eigenen Agent des Schritts, wenn eine angemeldete Person hinter dem Run steht. Runs mit öffentlichem Ursprung haben keine Person für Rückfragen. Delegierte Agents benötigen weiterhin eine aktive Frageoberfläche. Bündelt das Modell eine Frage mit einem freigabepflichtigen Aufruf, hat die Freigabe Vorrang; beim Fortsetzen gilt die Frage als abgelehnt.
+
 `inline` konfiguriert den Agent im Schritt statt `agent`, und genau eines von beiden
 ist gesetzt. Die Spec gehört dem Schritt und wird mit dem Graphen versioniert: Der
 erste Run legt einen Agent an, der dem Workflow gehört, nicht im Katalog erscheint
@@ -733,6 +858,7 @@ fehlschlagen, und eine Antwort ohne Objekt, wo eines verlangt war, mit
 |---|---|
 | Completed | Completed |
 | Wartet auf Freigabe | Wartet, setzt dann denselben Run fort |
+| Wartet auf Antwort | Wartet auf die Person und setzt dieselbe Unterhaltung fort |
 | Budget überschritten | `AGENT_BUDGET_EXCEEDED` |
 | Von einem Guardrail blockiert | `AGENT_GUARDRAIL_BLOCKED` |
 | Sonst | `AGENT_RUN_FAILED` |

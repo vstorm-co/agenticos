@@ -254,15 +254,10 @@ class RoutineSourceService:
             ctx.organization_id != trigger.organization_id
             or ctx.user_id is None
             or ctx.user_id != trigger.created_by_user_id
-            or ctx.api_key_id is not None
-            or ctx.routine_id is not None
-            or ctx.fired_as_creator is not None
-            or ctx.subject_is_publisher_fallback
+            or not ctx.acts_in_person
             or current_impersonator() is not None
         ):
-            raise AuthorizationError(
-                message="Only the routine's owner can review its sources in the console"
-            )
+            raise AuthorizationError(message="Only the routine's owner can review its sources")
 
     async def _review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         if trigger.pinned_version_id is not None:

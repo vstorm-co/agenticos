@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.55.0"
+version = "1.59.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -208,6 +208,8 @@ dependencies = [
     # step declares, before anything downstream reads it (#1789). MIT; already
     # installed through the MCP SDK.
     "jsonschema>=4.23.0",
+    # Keeps workflow trigger contracts self-contained, with no remote schema retrieval.
+    "referencing>=0.36.2",
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
@@ -644,6 +646,7 @@ include = [
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
     # service that records a privileged action is already in this list; the trail
@@ -1397,6 +1400,7 @@ include = [
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
     # service that records a privileged action is already in this list; the trail

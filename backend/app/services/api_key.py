@@ -147,8 +147,11 @@ class ApiKeyService:
             presets.append(ApiKeyPreset(id="read_only", scopes=read_only))
         if set(held) >= _KNOWLEDGE_INGEST:
             presets.append(ApiKeyPreset(id="knowledge_ingest", scopes=sorted(_KNOWLEDGE_INGEST)))
-        if held:
-            presets.append(ApiKeyPreset(id="full_access", scopes=[perm.value for perm in held]))
+        # Standing personal consent is a separate, informed opt-in, including
+        # when the person chooses the broad organization-access preset.
+        ordinary = [perm.value for perm in held if perm is not Perm.PERSONAL_CONSENT]
+        if ordinary:
+            presets.append(ApiKeyPreset(id="full_access", scopes=ordinary))
         return ApiKeyScopeCatalog(scopes=[perm.value for perm in held], presets=presets)
 
     async def create(self, ctx: AuthContext, data: ApiKeyCreate) -> ApiKeyCreated:
@@ -404,6 +407,7 @@ class ApiKeyService:
                 role=membership.role,
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
+                key_internal=key.internal,
                 source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )

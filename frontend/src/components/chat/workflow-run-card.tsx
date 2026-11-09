@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
+import { WorkflowRunQuestions } from "@/components/workflows/runs/run-questions";
+import { useWorkflowChatRun } from "@/hooks/use-workflow-questions";
+import { isRunTerminal } from "@/lib/workflows/types";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowRunStatus } from "@/lib/workflows/types";
 import type { WorkflowRunPart } from "@/types";
@@ -16,10 +20,28 @@ import type { WorkflowRunPart } from "@/types";
  *
  * The same card live and after a reload - live, the chat socket moves its
  * status; read back, the stored `workflow_run` entry carries where it ended.
- * The name is the one recorded when it answered, so the card needs no query
- * of its own.
+ * The name is the one recorded when it answered. A live card also reads the
+ * saved run so questions and later state survive a disconnected chat socket.
  */
 export function WorkflowRunCard({ run }: { run: WorkflowRunPart }) {
+  if (run.runId !== null && !isRunTerminal(run.status as WorkflowRunStatus)) {
+    return <LiveWorkflowRunCard run={run} runId={run.runId} />;
+  }
+  return <WorkflowRunCardView run={run} />;
+}
+
+function LiveWorkflowRunCard({ run, runId }: { run: WorkflowRunPart; runId: string }) {
+  const { data } = useWorkflowChatRun(runId);
+  const status = data?.status ?? run.status;
+  const error = data?.error?.message ?? run.error;
+  return (
+    <WorkflowRunCardView run={{ ...run, status, error }}>
+      {!isRunTerminal(status as WorkflowRunStatus) && <WorkflowRunQuestions runId={runId} />}
+    </WorkflowRunCardView>
+  );
+}
+
+function WorkflowRunCardView({ run, children }: { run: WorkflowRunPart; children?: ReactNode }) {
   const t = useTranslations("chat.workflowRun");
   return (
     <div className="bg-card flex w-full max-w-md items-start gap-3 rounded-xl border p-3">
@@ -31,6 +53,7 @@ export function WorkflowRunCard({ run }: { run: WorkflowRunPart }) {
           <p className="truncate text-sm font-medium">{run.workflowName ?? t("unnamed")}</p>
           <WorkflowRunStatusBadge status={run.status as WorkflowRunStatus} />
         </div>
+        {children}
         {run.error && <p className="text-destructive text-xs">{run.error}</p>}
         {run.runId && (
           <Link

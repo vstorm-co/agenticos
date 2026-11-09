@@ -16,6 +16,9 @@
  * their types from here. Nothing here renders; nothing here fetches.
  */
 
+import type { AskUserAnswer } from "@/types/chat";
+import type { ParkedQuestion } from "@/types/runs";
+
 /** A serialized UUID. An alias, so a signature reads as the contract does. */
 export type Uuid = string;
 
@@ -553,6 +556,7 @@ export type WorkflowRunStatus =
   | "queued"
   | "running"
   | "waiting_approval"
+  | "waiting_for_user"
   | "waiting_retry"
   | "needs_attention"
   | "budget_exceeded"
@@ -648,6 +652,17 @@ export interface WorkflowNodeRunRead {
   started_at: string | null;
   ended_at: string | null;
 }
+
+/** Questions the reading caller may answer for one suspended agent step. */
+export interface WorkflowQuestionRead {
+  /** The actual run owning the question, including synchronous nested workflows. */
+  workflow_run_id: Uuid;
+  node_run_id: Uuid;
+  agent_run_id: Uuid;
+  questions: ParkedQuestion[];
+}
+
+export type WorkflowQuestionResponses = Record<string, AskUserAnswer[]>;
 
 export interface WorkflowNodeRunList {
   items: WorkflowNodeRunRead[];

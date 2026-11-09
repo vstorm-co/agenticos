@@ -45,7 +45,6 @@ def received(monkeypatch):
             ]
         ),
     )
-    monkeypatch.setattr(module.user_repo, "get_by_id_for_update", AsyncMock(return_value=person))
     monkeypatch.setattr(SessionService, "has_mailbox_proof", AsyncMock(return_value=True))
     service = InvitationService(MagicMock())
     service.accept = AsyncMock(return_value=invite)
@@ -84,7 +83,7 @@ async def test_received_invitation_cannot_be_claimed_by_another_address(received
     if case == "missing":
         module.invitation_repo.get_by_id.return_value = None
     if case == "missing_user":
-        module.user_repo.get_by_id_for_update.return_value = None
+        module.user_repo.get_by_id.return_value = None
     with pytest.raises(NotFoundError):
         await service.accept_received(invite.id, person.id)
     service.accept.assert_not_awaited()

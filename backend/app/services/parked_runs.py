@@ -5,6 +5,8 @@ somewhere else, this service queues the continuation for after the decision
 commits, as them, and the answer is posted to the chat. HTTP resume and answer
 requests run inline and post to the chat once they commit. The socket uses the
 same result builder while retaining its live question channels.
+Workflow answers are saved before their owning dispatcher continues the agent,
+so resuming through this surface cannot bypass workflow budgets or cancellation.
 
 Lock order, on every decision for a channel-surface run (a key's included): the
 run row, then the approval row. The chat's press takes them in that order too.
@@ -22,8 +24,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import CHANNEL_SURFACES, AgentRun, ApprovalStatus, ToolApproval
+from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
+    AgentRun,
+    ApprovalStatus,
+    RunSurface,
+    ToolApproval,
+)
 from app.repositories import agent_run_repo, channel_prompt_repo
 from app.repositories.channel_prompt import SettledBy
 from app.schemas.agent import AgentRunResult, RunStep, SettledCall, SettledDelegation
@@ -138,6 +147,12 @@ class ParkedRunService:
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> Continued:
         """Continue a run whose calls were decided, inline; post to its chat when it has one."""
+        run = await self.runner.get_run(ctx, run_id)
+        if run.surface == RunSurface.WORKFLOW.value:
+            raise BadRequestError(
+                message="This run is continued by its workflow",
+                details={"run_id": run_id},
+            )
         return await self._continue(
             ctx,
             run_id,
@@ -148,7 +163,21 @@ class ParkedRunService:
     async def answer(
         self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[dict[str, JsonValue]]]
     ) -> Continued:
-        """Answer a parked run's questions, inline; post to its chat when it has one."""
+        """Answer questions inline, or queue the owning workflow's continuation."""
+        run = await self.runner.get_run(ctx, run_id)
+        if run.surface == RunSurface.WORKFLOW.value:
+            from app.services.workflow_execution import WorkflowExecutionService
+
+            workflow = await WorkflowExecutionService(self.db).answer_agent_questions(
+                ctx, run_id, responses
+            )
+            if workflow is None:
+                raise BadRequestError(
+                    message="This run is no longer waiting in its workflow",
+                    details={"run_id": run_id},
+                )
+            run = await self.runner.get_run(ctx, run_id)
+            return Continued(RunSegment(output="", run=run, tool_calls=[], settled={}), False)
         return await self._continue(
             ctx,
             run_id,
@@ -203,6 +232,8 @@ async def run_result(
             RunStep(
                 tool_call_id=call.tool_call_id,
                 tool_name=call.tool_name,
+                tool_id=call.tool_id,
+                presentation_kind=call.presentation_kind,
                 args=call.args,
                 result=call.result,
             )

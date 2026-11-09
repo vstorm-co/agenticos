@@ -680,6 +680,18 @@ class TestOpeningAndClosing:
 
         assert await service.open(AgentSpec(name="Plain"), ctx=_ctx(), identity=_identity()) is None
 
+    async def test_a_computer_workspace_with_none_chosen_is_refused_or_deferred(
+        self, mock_db_session
+    ):
+        """Refused where nobody can be asked; deferred where the run can ask on use."""
+        service = SandboxWorkspaceService(mock_db_session)
+        spec = _spec(backend="local")
+
+        with pytest.raises(BadRequestError, match="uses your computer"):
+            await service.open(spec, ctx=_ctx(), identity=_identity())
+        opened = await service.open(spec, ctx=_ctx(), identity=_identity(), defer_local=True)
+        assert opened is None
+
     async def test_a_run_scoped_state_workspace_needs_no_row(self, monkeypatch, mock_db_session):
         created = AsyncMock()
         monkeypatch.setattr(workspace_repo, "create", created)
