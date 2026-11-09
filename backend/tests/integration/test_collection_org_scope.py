@@ -191,7 +191,7 @@ class TestTheDocumentListingStaysInsideTheOrganization:
         """Codex on #2062: the legacy listing filtered on the collection's name alone.
 
         An app-scoped base is no longer the name alone either: of the rows filed
-        under no base, it holds only the untagged one (#2486).
+        under no base, it holds only the operator-origin untagged one (#2486, #2773).
         """
         mine, _ = await _org(db, name="Acme")
         theirs, _ = await _org(db, name="Globex")
@@ -206,6 +206,7 @@ class TestTheDocumentListingStaysInsideTheOrganization:
             db.add(
                 RAGDocument(
                     organization_id=organization_id,
+                    writer_kind="operator" if organization_id is None else "document",
                     collection_name="handbook",
                     filename=filename,
                     filesize=1,
@@ -228,11 +229,17 @@ class TestTheDocumentListingStaysInsideTheOrganization:
 
 
 async def _document(
-    db, filename: str, *, organization_id: uuid.UUID | None, kb: KnowledgeBase | None
+    db,
+    filename: str,
+    *,
+    organization_id: uuid.UUID | None,
+    kb: KnowledgeBase | None,
+    writer_kind: str = "document",
 ) -> RAGDocument:
     doc = RAGDocument(
         organization_id=organization_id,
         knowledge_base_id=None if kb is None else kb.id,
+        writer_kind=writer_kind,
         collection_name="both",
         filename=filename,
         filesize=1,
@@ -278,7 +285,9 @@ class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
             "app_by_a": await _document(db, "app-by-a.pdf", organization_id=org_a.id, kb=kb_app),
             "app_by_b": await _document(db, "app-by-b.pdf", organization_id=org_b.id, kb=kb_app),
             # A deployment-wide sync's row: no base, no organization.
-            "untagged": await _document(db, "untagged.pdf", organization_id=None, kb=None),
+            "untagged": await _document(
+                db, "untagged.pdf", organization_id=None, kb=None, writer_kind="operator"
+            ),
         }
 
     @pytest.mark.security
@@ -396,7 +405,9 @@ class TestAnAppCollectionKeepsApartFromASameNamedPersonalBase:
             "personal": await _document(db, "personal.pdf", organization_id=None, kb=kb_mine),
             "app": await _document(db, "app.pdf", organization_id=org_b.id, kb=kb_app),
             # A deployment-wide sync's row: no base, no organization - the app's.
-            "untagged": await _document(db, "untagged.pdf", organization_id=None, kb=None),
+            "untagged": await _document(
+                db, "untagged.pdf", organization_id=None, kb=None, writer_kind="operator"
+            ),
         }
 
     @pytest.mark.security
@@ -524,7 +535,7 @@ class TestWhatABaseReportsStaysItsOwn:
         await _document(db, "tenant.pdf", organization_id=org_a.id, kb=kb_a)
         await _document(db, "app-by-a.pdf", organization_id=org_a.id, kb=kb_app)
         await _document(db, "app-by-b.pdf", organization_id=org_b.id, kb=kb_app)
-        await _document(db, "untagged.pdf", organization_id=None, kb=None)
+        await _document(db, "untagged.pdf", organization_id=None, kb=None, writer_kind="operator")
         return {
             "kb_a": kb_a,
             "kb_app": kb_app,

@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: global unfiled knowledge needs operator provenance.** App-scoped
+  bases no longer publish or clear ambiguous legacy chunks merely by claiming a
+  retained collection name. New CLI imports record operator origin; tracked
+  ingestions retain document origin after their owner or base is deleted.
+  Migration `0300_unfiled_writer_provenance.py` preserves certain document
+  ownership and quarantines unknown data. Operators must audit retained imports
+  with `agenticos cmd rag-unfiled-provenance <name>` and, only after inspecting
+  their source, explicitly use `--confirm-operator` to share unknown operator
+  imports with every organization. Known document data is never promoted by
+  that command. Re-ingest private data into its authorized base instead (#2773).
+
 ## [1.58.3] - 2026-11-08
 
 ### Fixed

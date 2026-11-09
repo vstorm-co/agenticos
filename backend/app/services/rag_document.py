@@ -15,7 +15,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorWriterKind, VectorScope
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
@@ -185,6 +185,17 @@ class RAGDocumentService:
                 details={"collection": collection_name},
             )
 
+    async def audit_unfiled_provenance(
+        self, collection_name: str
+    ) -> rag_document_repo.UnfiledProvenanceCounts:
+        """Read-only aggregate audit for the server operator, never an API grant."""
+        return await rag_document_repo.unfiled_provenance_counts(self.db, collection_name)
+
+    async def confirm_operator_unfiled(self, collection_name: str) -> int:
+        """Apply an explicit operator assertion to this name's unknown unfiled data."""
+        await self.hold_ingestion_name(collection_name)
+        return await rag_document_repo.confirm_operator_unfiled(self.db, collection_name)
+
     async def create_document(
         self,
         *,
@@ -203,6 +214,7 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        writer_kind: VectorWriterKind = VectorWriterKind.DOCUMENT,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -272,6 +284,7 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            writer_kind=writer_kind,
         )
 
     async def _filing_scope(self, knowledge_base_id: UUID | None) -> CollectionScope | None:

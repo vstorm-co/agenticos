@@ -31,6 +31,7 @@ from app.db.vector_tables import (
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
     VectorScope,
+    VectorWriterKind,
     is_runtime_vector_table,
     validate_collection_name,
 )
@@ -368,6 +369,7 @@ class BaseVectorStore(ABC):
         chunk: DocumentPageChunk,
         document: Document,
         scope: VectorScope,
+        writer_kind: VectorWriterKind | None = None,
     ) -> dict[str, Any]:
         image_count = len(chunk.images) if chunk.image_count is None else chunk.image_count
         metadata: dict[str, Any] = {
@@ -399,6 +401,7 @@ class BaseVectorStore(ABC):
         # unfiled and matched by its tenant alone.
         if scope.knowledge_base_id is not None:
             metadata["knowledge_base_id"] = str(scope.knowledge_base_id)
+        metadata["writer_kind"] = writer_kind or document.metadata.writer_kind
         return metadata
 
     def _sanitize_id(self, document_id: str) -> str:
@@ -516,7 +519,12 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
     else:
         tenant_clause = f"(metadata->>'organization_id') = :{prefix}org"
         params = {f"{prefix}org": str(scope.tenant)}
+    unfiled = "(metadata->>'knowledge_base_id') IS NULL"
+    if scope.operator_unfiled_only:
+        unfiled += " AND (metadata->>'writer_kind') = 'operator'"
     if scope.knowledge_base_id is None:
+        if scope.operator_unfiled_only:
+            return f"{tenant_clause} AND ({unfiled})", params
         return tenant_clause, params
     if scope.additional_knowledge_base_ids:
         filed = f"(metadata->>'knowledge_base_id') = ANY(:{prefix}kbs)"
@@ -527,7 +535,11 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
         filed = f"(metadata->>'knowledge_base_id') = :{prefix}kb"
         params[f"{prefix}kb"] = str(scope.knowledge_base_id)
     if scope.takes_unfiled:
-        filed = f"({filed} OR (metadata->>'knowledge_base_id') IS NULL)"
+        filed = (
+            f"({filed} OR ({unfiled}))"
+            if scope.operator_unfiled_only
+            else f"({filed} OR {unfiled})"
+        )
     return f"{tenant_clause} AND {filed}", params
 
 
@@ -746,9 +758,13 @@ class PgVectorStore(BaseVectorStore):
         resolved, rather than resolving one from a name.
         """
         if organization_id is None:
-            return VectorScope(tenant=None)
+            return VectorScope(tenant=None, operator_unfiled_only=True)
         resolved = await self._resolver(name, organization_id)
-        return resolved.vector_scope if resolved is not None else VectorScope(tenant=None)
+        return (
+            resolved.vector_scope
+            if resolved is not None
+            else VectorScope(tenant=None, operator_unfiled_only=True)
+        )
 
     async def _ensure_collection(self, name: str) -> None:
         """Create the collection table and indexes under a per-name DDL lock."""
@@ -912,19 +928,20 @@ class PgVectorStore(BaseVectorStore):
                         "knowledge_base_id": str(scope.knowledge_base_id),
                     },
                 )
-            if (
-                document.metadata.rag_document_id is not None
-                and not await rag_document_repo.hold_for_vector_write(
+            writer_kind = document.metadata.writer_kind
+            if document.metadata.rag_document_id is not None:
+                recorded_kind = await rag_document_repo.hold_for_vector_write(
                     session,
                     document.metadata.rag_document_id,
                     collection=collection_name,
                     knowledge_base_id=scope.knowledge_base_id,
                 )
-            ):
-                raise KnowledgeBaseRemovedError(
-                    message="The document was cleared while this file was being indexed",
-                    details={"collection": collection_name},
-                )
+                if recorded_kind is None:
+                    raise KnowledgeBaseRemovedError(
+                        message="The document was cleared while this file was being indexed",
+                        details={"collection": collection_name},
+                    )
+                writer_kind = recorded_kind
             # The target locks remain held through creation and the chunk commit, so
             # a completed teardown cannot be followed by an empty replacement.
             await self._ensure_collection(collection_name)
@@ -940,7 +957,7 @@ class PgVectorStore(BaseVectorStore):
                             "content": chunk.chunk_content,
                             "embedding": str(vectors[i]),
                             "metadata": json.dumps(
-                                self._build_chunk_metadata(chunk, document, scope)
+                                self._build_chunk_metadata(chunk, document, scope, writer_kind)
                             ),
                         }
                         for i, chunk in batch
@@ -1110,7 +1127,7 @@ class PgVectorStore(BaseVectorStore):
         # with it even from a base that reads no unfiled chunks. Left behind, a
         # personal base's document would stay readable through a same-named
         # app-scoped base with nothing tracking it (#2537).
-        scope = replace(scope, takes_unfiled=True)
+        scope = replace(scope, takes_unfiled=True, operator_unfiled_only=False)
         # The scope conjunct is what stops one org deleting another's document
         # from the shared table (#1684): matching a `parent_doc_id` alone reaches
         # every tenant's rows under that id, which is how the replace path could
@@ -1146,7 +1163,9 @@ class PgVectorStore(BaseVectorStore):
             if unfiled_of is not None:
                 # An unfiled chunk carries no base, so its tenant tag is what
                 # keeps another tenant's document of the same id out (#1684).
-                tenant_clause, tenant_params = _vector_scope_clause(unfiled_of, prefix="unfiled_")
+                tenant_clause, tenant_params = _vector_scope_clause(
+                    replace(unfiled_of, operator_unfiled_only=False), prefix="unfiled_"
+                )
                 params.update(tenant_params)
                 clause = (
                     f"({clause} OR ((metadata->>'knowledge_base_id') IS NULL AND {tenant_clause}))"
