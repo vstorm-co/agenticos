@@ -471,7 +471,6 @@ class TestUpdateDraft:
             ScopeBoundary(
                 scope_node_id=fake_node_id,
                 body_node_ids=frozenset({fake_node_id}),
-                entry_port="body",
                 exit_node_id=fake_node_id,
                 exit_port="done",
             ).model_dump(mode="json")

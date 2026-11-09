@@ -43,6 +43,7 @@ from app.db.models.artifact import Artifact
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.credential import ModelProfile
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.deployment_settings import DeploymentSettings
@@ -87,6 +88,7 @@ from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
+from app.schemas.conversation_share import ConversationShareUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
@@ -101,6 +103,7 @@ from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
+from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
@@ -154,6 +157,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     ChannelBotUpdate: ChannelBot,
     ContextFileUpdate: ContextFile,
     ConversationUpdate: Conversation,
+    # Sets `permission` on one share (`conversation_share.change_permission`).
+    ConversationShareUpdate: ConversationShare,
     DashboardLayoutUpdate: DashboardLayout,
     DeploymentSettingsUpdate: DeploymentSettings,
     EmbedUpdate: AgentEmbed,
@@ -170,6 +175,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
+    # Renames goal and maps dismissed to a timestamp; repository tests pin explicit-null behaviour.
+    OnboardingUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,

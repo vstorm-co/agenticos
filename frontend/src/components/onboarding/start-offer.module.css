@@ -1,0 +1,124 @@
+.notice {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto 32px;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 16px 18px;
+}
+.companion {
+  width: 40px;
+  height: 40px;
+}
+.copy {
+  min-width: 0;
+}
+.workspace {
+  color: var(--color-muted-foreground);
+  font-size: 10px;
+  line-height: 1.4;
+  margin-bottom: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.title {
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.5;
+  letter-spacing: -0.015em;
+}
+.hint {
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 2px;
+}
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #7650c7;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.action:hover {
+  background: #6743b7;
+}
+.action:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 3px;
+}
+.dismiss {
+  width: 32px;
+  height: 32px;
+  align-self: start;
+  color: var(--color-muted-foreground);
+}
+.error {
+  grid-column: 2/-1;
+  font-size: 12px;
+  color: var(--color-destructive);
+}
+:global(html:not([data-motion="reduce"])) .notice {
+  animation: notice-arrive 180ms ease-out both;
+}
+:global(html:not([data-motion="reduce"])) .action svg {
+  transition: transform 160ms ease;
+}
+:global(html:not([data-motion="reduce"])) .action:hover svg {
+  transform: translateX(2px);
+}
+@keyframes notice-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 640px) {
+  .notice {
+    grid-template-columns: 32px minmax(0, 1fr) 44px;
+    padding: 14px;
+    gap: 10px 12px;
+  }
+  .companion {
+    width: 32px;
+    height: 32px;
+    align-self: start;
+  }
+  .workspace {
+    display: none;
+  }
+  .title {
+    font-size: 13px;
+  }
+  .hint {
+    font-size: 11px;
+  }
+  .action {
+    grid-column: 2;
+    justify-self: start;
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  .dismiss {
+    grid-column: 3;
+    grid-row: 1;
+    width: 44px;
+    height: 44px;
+  }
+  .error {
+    grid-column: 1/-1;
+  }
+}

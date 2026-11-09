@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
+import { usePathname } from "next/navigation";
+import { stripLocale } from "@/lib/active-route";
 import {
   Button,
   Dialog,
@@ -20,6 +22,7 @@ import { OPEN_DESKTOP_SETUP } from "./desktop-setup-menu-item";
 export function DesktopSetupGate() {
   const t = useTranslations("desktop.readiness");
   const setup = useDesktopSetup();
+  const acceptingInvitation = stripLocale(usePathname()).startsWith("/invitations");
   const hydrated = useSyncExternalStore(
     useDesktopPreferencesStore.persist.onFinishHydration,
     useDesktopPreferencesStore.persist.hasHydrated,
@@ -41,14 +44,18 @@ export function DesktopSetupGate() {
     return () => window.removeEventListener(OPEN_DESKTOP_SETUP, openSetup);
   }, []);
   const settled = setup.items.every((item) => item.state !== "checking");
-  const needsSetup = setup.items.some((item) => item.state === "missing" || item.state === "error");
+  const needsSetup = setup.items.some(
+    (item) =>
+      ["account", "device", "agent", "model"].includes(item.key) &&
+      (item.state === "missing" || item.state === "error"),
+  );
   const reviewDue =
     hydrated &&
     settled &&
     !!setup.scope &&
     setup.revision !== undefined &&
     reviewed !== setup.revision;
-  const open = requestedOpen || (reviewDue && needsSetup);
+  const open = requestedOpen || (reviewDue && needsSetup && !acceptingInvitation);
   useEffect(() => {
     if (reviewDue && !needsSetup && setup.scope && setup.revision !== undefined)
       mark(setup.scope, setup.revision);

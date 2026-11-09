@@ -691,12 +691,15 @@ async def test_each_uploaded_file_is_converted_summarised_totalled_and_filed_int
     upsert = _node("table.record.upsert", _pin(batches))
     collect = _node("loop.yield")
     report = _node("core.output")
+    item, convert, read, shape, total, summarise, upsert, collect = (
+        n.model_copy(update={"scope_id": loop.id})
+        for n in (item, convert, read, shape, total, summarise, upsert, collect)
+    )
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, convert, read, shape, total, summarise, upsert, collect, report),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             *_chain(item, convert, read, shape, total, summarise, upsert, collect),
             _edge(loop, report, "done"),
         ),

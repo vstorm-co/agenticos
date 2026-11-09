@@ -10,6 +10,11 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  onboarding: {
+    preview: (org: string, user: string) => ["onboarding", "preview", org, user] as const,
+    all: () => ["onboarding"] as const,
+    state: (user: string, org: string) => ["onboarding", user, org] as const,
+  },
   codingAccounts: {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
@@ -508,6 +513,7 @@ export const qk = {
     detail: (id: string) => ["context", id] as const,
   },
   invitations: {
+    received: (user: string) => ["invitations", "received", user] as const,
     all: () => ["invitations"] as const,
     list: (orgId: string) => ["invitations", orgId] as const,
   },
@@ -542,8 +548,16 @@ export const qk = {
   conversationShares: {
     all: () => ["conversation-shares"] as const,
     list: (conversationId: string) => ["conversation-shares", conversationId] as const,
-    sharedWithMe: (skip: number, limit: number) =>
-      ["conversation-shares", "shared-with-me", skip, limit] as const,
+    sharedLists: () => ["conversation-shares", "shared-with-me"] as const,
+    sharedWithMe: (
+      skip: number,
+      limit: number,
+      orgId: string | null = null,
+      includeArchived = true,
+    ) => ["conversation-shares", "shared-with-me", skip, limit, orgId, includeArchived] as const,
+    /** What the reader may do in one conversation their own listing does not hold. */
+    access: (conversationId: string, orgId: string | null) =>
+      ["conversation-shares", "access", conversationId, orgId] as const,
   },
   kb: {
     all: () => ["kb"] as const,

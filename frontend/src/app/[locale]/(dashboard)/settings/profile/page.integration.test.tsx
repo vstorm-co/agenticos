@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
+import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import ProfileSettingsPage from "./page";
 
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: useAuthStore((state) => state.user) }) }));
@@ -73,4 +74,19 @@ it("preserves the edited value when saving fails", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled());
   expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Jamie edited");
+});
+
+it("saves the guided identity before moving to the next question", async () => {
+  const next = vi.fn();
+  vi.mocked(apiClient.patch)
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValueOnce({ ...USER, full_name: "Jamie edited" });
+  render(<ProfileIdentitySettings section="identity" onContinue={next} saveLabel="Continue" />);
+  await userEvent.type(screen.getByRole("textbox", { name: "Display name" }), " edited");
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled());
+  expect(next).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Jamie edited");
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(next).toHaveBeenCalledOnce());
 });

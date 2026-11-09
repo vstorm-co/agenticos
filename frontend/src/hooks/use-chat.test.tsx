@@ -6802,6 +6802,24 @@ it("does not restore approvals from stale transcript rows after a terminal recei
   expect(get).not.toHaveBeenCalledWith("/runs/r-1/parked");
 });
 
+it("renders a setup reply as an AgenticOS message and receipt without inventing a run", () => {
+  renderHook(() => useChat(), { wrapper });
+  receive("model_setup_required", { agent_id: "starter", text: "Connect a model to continue." });
+  const reply = useChatStore.getState().messages.at(-1);
+  expect(reply).toMatchObject({
+    role: "assistant",
+    agentId: "starter",
+    content: "Connect a model to continue.",
+    animateSetupReply: true,
+    isStreaming: false,
+  });
+  expect(reply?.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
+  expect(reply?.runId).toBeUndefined();
+  receive("message_saved", { message_id: "saved-setup" });
+  receive("complete", {});
+  expect(useChatStore.getState().messages.at(-1)?.id).toBe("saved-setup");
+});
+
 describe("useChat - computer access continues only its successful turn", () => {
   function asking() {
     useConversationStore.getState().setCurrentConversationId("c-1");
@@ -6981,4 +6999,20 @@ it("keeps the first granted computer continuation when a later delegate declines
   expect(
     sent.mock.calls.filter(([frame]) => frame.message === "Access granted - please continue."),
   ).toHaveLength(1);
+});
+
+it.each([
+  null,
+  {},
+  { agent_id: "starter" },
+  { agent_id: 7, text: "Connect a model" },
+  { agent_id: "starter", text: 7 },
+])("ignores a malformed setup response without adding a transcript row: %j", (data) => {
+  renderHook(() => useChat(), { wrapper });
+  act(() =>
+    socket.onMessage?.(
+      new MessageEvent("message", { data: JSON.stringify({ type: "model_setup_required", data }) }),
+    ),
+  );
+  expect(useChatStore.getState().messages).toEqual([]);
 });

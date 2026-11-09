@@ -170,3 +170,19 @@ describe("the rest of the session state", () => {
     expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: false, isLoading: false });
   });
 });
+
+describe("mailbox proof belongs to the session and current address", () => {
+  it("keeps session proof through a profile update that contains no session fields", () => {
+    useAuthStore.getState().setUser(createMockUser({ email_verified: true }));
+    useAuthStore.getState().setUser(createMockUser({ full_name: "Changed name" }));
+    expect(useAuthStore.getState().user?.email_verified).toBe(true);
+  });
+  it("clears proof on a changed email or an explicit password-session response", () => {
+    useAuthStore.getState().setUser(createMockUser({ email_verified: true }));
+    useAuthStore.getState().setUser(createMockUser({ email: "different@example.com" }));
+    expect(useAuthStore.getState().user?.email_verified).toBe(false);
+    useAuthStore.getState().setUser(createMockUser({ email_verified: true }));
+    useAuthStore.getState().setUser(createMockUser({ email_verified: false }));
+    expect(useAuthStore.getState().user?.email_verified).toBe(false);
+  });
+});

@@ -303,6 +303,10 @@ async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
     """Every knowledge base claiming this collection name, ordered by creation time and id.
 
+    Bases created together share a `created_at` (`now()` is the transaction's
+    start), so `id` breaks the tie: without it the order, and with it the base a
+    name resolves to, is whatever the database returns that time.
+
     Plural because the column is not unique: two organizations can name a
     collection the same thing, and `get_by_collection_name` then answers with
     whichever row the database returns first. An authorization check built on

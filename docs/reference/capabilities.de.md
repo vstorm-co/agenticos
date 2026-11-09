@@ -1,5 +1,5 @@
 ---
-source_sha: "fe652977b769"
+source_sha: "d813678bfffa"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -60,6 +60,67 @@ ein Container auf dem eigenen Sandbox-Dienst der Installation, den Bootstrap und
 die erste Veröffentlichung als Standard der Organisation registrieren; ohne ihn
 hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installation
 (`BROWSER_SIGN_IN_CDP_URL`) und entfällt, wo es keinen gibt.
+
+## Tool-Fehler und Wiederherstellung { #tool-errors-and-recovery }
+
+In Text-Runs liefern Validierungsfehler, nicht verfügbare Tools und unerwartete
+Ausführungsfehler ein `error`-Objekt mit `id`, `code`, `tool`, `execution`, `message`,
+`issues` und `recovery`. Validierungsprobleme nennen
+`field`, den Validierungscode `code` und `expected_type`, mit einer Korrektur oder
+einem Beispiel. Eine Workflow-ID muss eine bei der Workflow-Suche zurückgegebene
+UUID sein; ein Array von Feldnamen wird als `["name", "primary_ip"]` übergeben,
+nicht als durch Kommas getrennte Zeichenfolge.
+
+`execution` ist `not_started`, wenn Validierung oder Registrierung den Aufruf vor
+der Ausführung ablehnt, `started`, wenn der Start feststeht, und `unknown`, wenn
+ein Fehler das Ergebnis ungewiss lässt. Ein Timeout nach dem Aufruf beweist nicht,
+dass die Aktion fehlgeschlagen ist. Prüfe vor einem erneuten Versuch ihren Status.
+
+| Fehlercode | Nächster Schritt |
+|---|---|
+| `invalid_arguments` | `correct_arguments`: Korrigiere das genannte Feld vor einem neuen Versuch. |
+| `tool_unavailable` | `rediscover_tools`: Suche die in diesem Kontext verfügbaren Tools und Aufrufwege. |
+| `permission_denied` | `stop`: Erkläre die Ablehnung. |
+| `transient_failure` | `retry`, wenn das Ergebnis bekannt und ein weiterer Versuch sicher ist; sonst `inspect_execution_status`. |
+| `execution_unknown` | `inspect_execution_status`: Stelle zuerst das Ergebnis der bestehenden Aktion fest. |
+
+Die Suche macht nicht jeden zurückgegebenen Tool-Namen direkt aufrufbar. Ein
+Registrierungsfehler bedeutet, dass das Tool im aktuellen Aufrufkontext nicht
+verfügbar ist; er belegt keine fehlende Benutzerberechtigung. Die Laufzeit nennt
+einen unterstützten Aufrufweg nur, wenn sie ihn feststellen kann. Die Anweisungen
+zur Wiederherstellung verlangen, diesem Weg zu folgen, konkrete Argumente zu
+korrigieren und bei der Aufgabe zu bleiben: Eine fehlgeschlagene Workflow-Suche
+rechtfertigt keine Suche im Dateisystem.
+
+Derselbe strukturierte Fehler erreicht das Modell und das gespeicherte Transkript,
+wenn ein genehmigter Aufruf fortgesetzt wird. Unerwartete Ausnahmen zeigen eine
+knappe Erklärung und den Ausnahmetyp, soweit das sicher ist; nicht vertrauenswürdige
+Meldungen externer Dienste und interne Stacktraces bleiben in den Serverlogs.
+Über die Fehler-`id` findest du den zugehörigen ausführlichen Logeintrag.
+
+Wenn `run_code` einen Fehler eines verschachtelten Tools meldet, benennen `cause_tool`
+und `cause_execution` diesen Aufruf und geben an, ob er gestartet wurde. Fehler-ID
+und Feldprobleme bleiben über die Sandbox-Grenze erhalten. Bei unbekanntem äußerem
+Ergebnis müssen frühere Aktionen vor einer erneuten Skriptausführung geprüft werden.
+
+Fehlende Pflichtfelder werden einzeln benannt. Wertebeschränkungen nennen die
+zulässigen Optionen, Zahlenbegrenzungen, Elementanzahlen oder die erforderliche
+Länge. Die MCP-Argumentprüfung nutzt das bereitgestellte Schema, ohne externe
+Referenzen abzurufen. Schemaprüfungen laufen in getrennten Prozessen mit begrenzter
+Parallelität und einer Frist. Ungültige, nicht auflösbare oder rekursive Schemas
+und Prüfungen mit überschrittener Frist liefern vor dem Aufruf `tool_unavailable`.
+
+Compilerfehler behalten eine sichere Diagnose und, soweit verfügbar, die Position
+im Quelltext, einschließlich des Bezeichners einer nicht aufgelösten Referenz.
+Die Diagnose lässt rohen Quelltext, interne Stacktraces und beliebige Ausnahmemeldungen aus.
+
+Beim Leeren von Tool-Ergebnissen bleiben kontrollierte Fehlerstrukturen erhalten,
+auch wenn die konfigurierte Anzahl beibehaltener Ergebnisse null ist.
+Zusammenfassungen und gleitende Fenster können ältere Nachrichten weiterhin kürzen.
+
+Ein ausgeschöpftes Budget, Guardrail-Sperren, Schleifenstopps und Nutzungslimits des
+Modells beenden weiterhin den Lauf und behalten ihre bisherige Abrechnung bei.
+Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 
 ## Was ausgeliefert wird { #what-ships }
 

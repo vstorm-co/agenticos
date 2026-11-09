@@ -1,5 +1,5 @@
 ---
-source_sha: "0f3dca8ab414"
+source_sha: "bcdc4834f590"
 ---
 
 # Konfiguracja { #configuration }
@@ -856,7 +856,7 @@ serwowane. Zobacz [Aplikacje](artifacts.md).
 | `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Najwięcej bajtów rekordów, jakie jeden proces API trzyma przez 30 sekund dla [publicznych linków i embedów stron](artifacts.md#the-cache-and-the-cap). Tylko w pamięci procesu, nigdy w Redisie. Najdawniej używane odczyty odpadają pierwsze, a odczyt ponad budżet nie jest zachowywany. Co najmniej 1024 |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 | `ARTIFACT_RENDER_CDP_URL` | (puste) | Endpoint Chromium DevTools, w którym [`preview_artifact`](artifacts.md#seeing-the-page-preview) rysuje strony, np. `http://artifact-render:9222`. To wyłącznie konfiguracja wdrożenia: nie jest sprawdzana względem `BROWSER_CDP_ALLOWED_HOSTS`, która wymienia, czym mogą sterować autorzy agentów, a agent przeglądający strony dostaje odmowę dla tego hosta, nawet gdy ta lista go wymienia. Backend potrzebuje dodatku `browser`. Gdy jest puste, podgląd zwraca raport bez obrazu |
-| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
+| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Bez tego ustawienia nowe mapy używają lokalnych konturów krajów w SVG, pinezek i połączeń. Istniejące strony tras mogą pokazywać zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
 
 **Kafelki map pobiera deployment, nie przeglądarka czytelnika.** Strona prosi o

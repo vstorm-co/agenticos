@@ -1,5 +1,5 @@
 ---
-source_sha: "b4d9ec998c26"
+source_sha: "a09299e9af23"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1225,9 +1225,12 @@ fallar igual.
 `control.foreach` ejecuta su cuerpo una vez por cada elemento de una lista
 `items` enlazada, un elemento cada vez y en orden. Después continúa por su
 puerto `done` con `results` en el orden de entrada, `errors` y `count`. El
-cuerpo empieza en `loop.item`, conectado desde el puerto `body` del bucle, que
-ofrece `item`, `index` y `count`. Termina en `loop.yield`, cuyo `value` enlazado
-es el resultado de la iteración. Ninguna arista vuelve al bucle. Un paso del
+cuerpo son los pasos que nombran el bucle en `scope_id`; ninguna arista entra en
+él. Empieza en `loop.item`, que ofrece `item`, `index` y `count`, y cada paso del
+cuerpo debe alcanzarse desde `loop.item` por las aristas del propio cuerpo. Termina en `loop.yield`, cuyo `value` enlazado
+es el resultado de la iteración.
+
+Ninguna arista vuelve al bucle. Un paso del
 cuerpo puede enlazarse a cualquier cosa que se ejecutara antes del bucle, y nada
 fuera del cuerpo puede enlazarse a su interior.
 

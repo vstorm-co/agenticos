@@ -111,6 +111,7 @@ from app.agents.subagent_runtime import (
 from app.agents.visual_reports import VisualReport, VisualReports
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
@@ -282,6 +283,10 @@ def _chat(
 
     with (
         patch("app.services.conversation_turns.claim", new=admitted),
+        patch(
+            "app.services.agent_session.member_repo.get",
+            new=AsyncMock(return_value=SimpleNamespace(role="member")),
+        ),
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
@@ -4130,3 +4135,151 @@ async def test_a_closed_surface_returns_no_answers_without_opening_a_live_prompt
     session._closed = True
     assert await session._ask_user([{"question": "Still there?"}]) == []
     assert _sent_events(session) == []
+
+
+class TestStarterSetupReply:
+    async def test_a_setup_card_requires_a_persisted_conversation(self) -> None:
+        session = _session()
+        session.user.locale = "en"
+        with (
+            patch("app.services.agent_session.persist_assistant_turn", AsyncMock()) as persist,
+            pytest.raises(RuntimeError, match="requires a persisted conversation"),
+        ):
+            await session._reply_with_model_setup(uuid4(), "Architect")
+        persist.assert_not_awaited()
+        assert [kind for kind, _ in _sent_events(session)] == ["model_setup_required"]
+
+    @pytest.mark.security
+    async def test_setup_access_is_refused_before_persisting_or_running_a_turn(self) -> None:
+        session = _session()
+
+        @asynccontextmanager
+        async def db_context() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        with (
+            patch("app.services.agent_session.get_db_context", db_context),
+            patch.object(session, "_chat_context", AsyncMock()),
+            patch(
+                "app.services.agent_session.ShippedAgentService.setup_candidate",
+                AsyncMock(side_effect=AuthorizationError(message="Agent access denied")),
+            ),
+            patch("app.services.agent_session.persist_user_turn", AsyncMock()) as persist,
+            patch("app.services.agent_session.ChatAgentRunner.run", AsyncMock()) as run,
+        ):
+            await session.process_message({"message": "hello", "allow_setup_reply": True})
+        persist.assert_not_awaited()
+        run.assert_not_awaited()
+        assert _sent_events(session) == [("error", {"message": "Agent access denied"})]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "locale, greeting", [("pl", "Cześć"), ("de", "Hallo"), ("tr", "Merhaba"), ("fr", "Hi")]
+    )
+    @pytest.mark.parametrize("saved", ["saved", None])
+    async def test_first_message_gets_a_persisted_setup_card_without_running_a_draft(
+        self, locale, greeting, saved
+    ):
+        session = _session()
+        session.user.locale = locale
+        session.organization_id = uuid4()
+        agent_id = uuid4()
+        conversation_id = str(uuid4())
+        ctx = AuthContext(
+            user_id=session.user.id,
+            organization_id=session.organization_id,
+            role=OrgRoleName.MEMBER,
+        )
+        prompt = SimpleNamespace(
+            conversation_id=conversation_id, newly_created=True, message_id=uuid4()
+        )
+
+        @contextlib.asynccontextmanager
+        async def db_context():
+            yield MagicMock()
+
+        with (
+            patch("app.services.agent_session.get_db_context", db_context),
+            patch.object(session, "_chat_context", AsyncMock(return_value=ctx)),
+            patch(
+                "app.services.agent_session.ShippedAgentService.setup_candidate",
+                AsyncMock(return_value=SimpleNamespace(id=agent_id, name="Architect")),
+            ),
+            patch(
+                "app.services.agent_session.persist_user_turn", AsyncMock(return_value=prompt)
+            ) as user_turn,
+            patch(
+                "app.services.agent_session.persist_assistant_turn", AsyncMock(return_value=saved)
+            ) as reply,
+            patch("app.services.agent_session.ChatAgentRunner.run", AsyncMock()) as run,
+        ):
+            await session.process_message({"message": "siema", "allow_setup_reply": True})
+        assert user_turn.await_count == 1
+        assert reply.await_args.kwargs["agent_id"] == agent_id
+        assert [part.type for part in reply.await_args.kwargs["parts"]] == ["text", "model_setup"]
+        assert reply.await_args.kwargs["parts"][1].setup_agent_id == agent_id
+        assert reply.await_args.args[2] is None
+        assert "run_id" not in reply.await_args.kwargs
+        run.assert_not_awaited()
+        events = _sent_events(session)
+        assert [kind for kind, _ in events] == [
+            "conversation_created",
+            "user_prompt",
+            "model_setup_required",
+            "message_saved" if saved else "error",
+            "complete",
+        ]
+        assert greeting in events[2][1]["text"]
+        assert "Architect" in events[2][1]["text"]
+        if saved is None:
+            assert events[3][1]["code"] == "message_save_failed"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "kind,field,payload",
+    [
+        ("ask_user_response", "_ask_user_future", {"answers": ["yes"]}),
+        ("connect_account_response", "_connect_future", {"connected": True}),
+        ("computer_access_response", "_computer_future", {"granted": True}),
+    ],
+)
+async def test_a_live_prompt_cannot_resume_after_conversation_write_access_is_revoked(
+    kind, field, payload
+):
+    from app.core.exceptions import NotFoundError
+
+    session = _session()
+    session.current_conversation_id = _CONVERSATION
+    session.websocket.close = AsyncMock()
+    future = asyncio.get_running_loop().create_future()
+    setattr(session, field, future)
+    with (
+        patch.object(session, "_chat_context", AsyncMock()),
+        patch("app.services.agent_session.ConversationService") as service,
+    ):
+        service.return_value.get_conversation = AsyncMock(
+            side_effect=NotFoundError(message="Conversation not found")
+        )
+        await session.handle_frame({"type": kind, **payload})
+    assert not future.done()
+    session.websocket.close.assert_awaited_once_with(
+        code=4003, reason="Conversation write access revoked"
+    )
+
+
+async def test_a_live_prompt_rechecks_write_access_before_applying_the_answer():
+    session = _session()
+    session.current_conversation_id = _CONVERSATION
+    future = asyncio.get_running_loop().create_future()
+    session._connect_future = future
+    with (
+        patch.object(session, "_chat_context", AsyncMock()),
+        patch("app.services.agent_session.ConversationService") as service,
+    ):
+        read = AsyncMock()
+        service.return_value.get_conversation = read
+        await session.handle_frame({"type": "connect_account_response", "connected": True})
+    assert future.result() is True
+    assert read.await_args.kwargs["for_write"] is True
+    assert read.await_args.kwargs["turn"] is True

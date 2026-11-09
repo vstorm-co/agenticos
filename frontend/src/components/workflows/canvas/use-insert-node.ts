@@ -20,7 +20,7 @@ import { Perm } from "@/types/permissions";
 import { type NodeInsertion, useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { buildCatalogMap, definitionsByNode } from "./graph-adapter";
-import { type InsertFrom, planInsertion } from "./insertion";
+import { type InsertFrom, loopStepsOf, planInsertion } from "./insertion";
 
 /** Where a step is being added from: after a node's output, or where it was dropped. */
 export interface InsertOptions {
@@ -40,7 +40,7 @@ function graphAfter(graph: WorkflowGraph, plan: NodeInsertion): WorkflowGraph {
   return {
     ...graph,
     entry_node_id: plan.becomesEntry ? plan.node.id : graph.entry_node_id,
-    nodes: [...graph.nodes, plan.node],
+    nodes: [...graph.nodes, plan.node, ...(plan.companions ?? [])],
     edges: [
       ...edges,
       ...(plan.split?.tail == null ? [] : [plan.split.tail]),
@@ -142,6 +142,7 @@ export function useInsertNode(catalog: NodeDefinition[], readOnly = false): Inse
   const insertNode = useWorkflowEditorStore((state) => state.insertNode);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const catalogMap = useMemo(() => buildCatalogMap(catalog), [catalog]);
+  const loopSteps = useMemo(() => loopStepsOf(catalog), [catalog]);
   // A read-only canvas adds nothing, so it does not fetch the bots either.
   const mayManage = usePermissions().can(Perm.channelsManage) && !readOnly;
   const { bots, isLoading, error } = useChannelBots(mayManage);
@@ -156,6 +157,7 @@ export function useInsertNode(catalog: NodeDefinition[], readOnly = false): Inse
         scopePath,
         selectedIds: selection.nodeIds,
         definition,
+        ...(loopSteps !== undefined ? { loopSteps } : {}),
         ...options,
       });
       const configured = config === undefined ? plan : { ...plan, node: { ...plan.node, config } };
@@ -184,6 +186,6 @@ export function useInsertNode(catalog: NodeDefinition[], readOnly = false): Inse
         editNode(planned.node.id);
       }
     },
-    [insertNode, editNode, catalog, catalogMap, knownBots],
+    [insertNode, editNode, catalog, catalogMap, loopSteps, knownBots],
   );
 }

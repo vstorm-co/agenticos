@@ -1,15 +1,21 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const upload = vi.hoisted(() => vi.fn());
 const patch = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api-client", () => ({ apiClient: { patch } }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { patch, upload } }));
 
-import { useSaveAgentContext, useSaveProactiveOptOut } from "./use-account-profile";
+import {
+  useSaveAgentContext,
+  useSaveProactiveOptOut,
+  useUploadAccountAvatar,
+} from "./use-account-profile";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 
 beforeEach(() => {
   patch.mockReset();
+  upload.mockReset();
   useAuthStore.setState({ user: { id: "u-1", job_title: null } as User });
 });
 
@@ -45,4 +51,26 @@ describe("useSaveProactiveOptOut", () => {
     expect(patch).toHaveBeenCalledWith("/users/me", { proactive_opt_out: true });
     expect(useAuthStore.getState().user?.proactive_opt_out).toBe(true);
   });
+});
+
+it("updates the account portrait and refreshes its image only after an accepted upload", async () => {
+  const saved: User = {
+    id: "u-1",
+    email: "member@example.com",
+    email_verified: false,
+    is_active: true,
+    created_at: "2026-01-01T00:00:00Z",
+    avatar_url: "avatars/u-1.png",
+  };
+  upload.mockResolvedValue(saved);
+  const version = useAuthStore.getState().avatarVersion;
+  const file = new File(["image"], "photo.png", { type: "image/png" });
+  const { result } = renderHook(() => useUploadAccountAvatar());
+  await result.current(file);
+  expect(upload).toHaveBeenCalledWith("/users/me/avatar", file);
+  expect(useAuthStore.getState().user).toEqual(saved);
+  expect(useAuthStore.getState().avatarVersion).toBe(version + 1);
+  upload.mockRejectedValueOnce(new Error("upload refused"));
+  await expect(result.current(file)).rejects.toThrow("upload refused");
+  expect(useAuthStore.getState().avatarVersion).toBe(version + 1);
 });

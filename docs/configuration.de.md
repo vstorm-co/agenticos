@@ -1,5 +1,5 @@
 ---
-source_sha: "0f3dca8ab414"
+source_sha: "bcdc4834f590"
 ---
 
 # Konfiguration { #configuration }
@@ -899,7 +899,7 @@ sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 | `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Die meisten Bytes an Datensätzen, die ein API-Prozess 30 Sekunden lang für [öffentliche Links und Embeds von Seiten](artifacts.md#the-cache-and-the-cap) hält. Nur im Prozessspeicher, nie in Redis. Die am längsten nicht genutzten Lesevorgänge gehen zuerst, und ein Lesevorgang über dem Budget wird nicht gehalten. Mindestens 1024 |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
 | `ARTIFACT_RENDER_CDP_URL` | (empty) | Der Chromium-DevTools-Endpunkt, in dem [`preview_artifact`](artifacts.md#seeing-the-page-preview) Seiten zeichnet, etwa `http://artifact-render:9222`. Allein Deployment-Konfiguration: Er wird nicht gegen `BROWSER_CDP_ALLOWED_HOSTS` geprüft, das aufführt, was Autoren von Agents steuern dürfen, und einem browsenden Agent wird sein Host verweigert, selbst wenn diese Liste ihn nennt. Das Backend braucht das Extra `browser`. Leer liefert eine Vorschau ihren Bericht ohne Bild |
-| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Das Deployment holt jede Kachel und liefert sie den Seiten über seinen eigenen Kachelpfad aus; keine Seite spricht mit dem Server. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
+| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Das Deployment holt jede Kachel und liefert sie den Seiten über seinen eigenen Kachelpfad aus; keine Seite spricht mit dem Server. Ohne diese Einstellung verwenden neue Karten mitgelieferte SVG-Ländergrenzen, Pins und Verbindungen. Bestehende Reiseroutenseiten können einen Umriss ihrer Stopps zeigen. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | Die Quellenangabe unter einer Karte auf einem eigenen Kachelserver, z. B. `© OpenStreetMap contributors`. Pflicht bei einer URL-Vorlage; ein Preset bringt seine eigene mit |
 
 **Kartenkacheln holt das Deployment, nicht der Browser des Lesers.** Eine Seite

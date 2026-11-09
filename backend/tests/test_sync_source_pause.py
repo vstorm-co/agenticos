@@ -37,7 +37,7 @@ async def test_a_paused_source_creates_neither_a_log_nor_a_job(
             await SyncSourceService(db).trigger_sync(str(paused.id))
 
     assert refusal.value.message == PAUSED_SOURCE
-    assert refusal.value.details == {"source_id": paused.id}
+    assert refusal.value.details == {"source_id": str(paused.id)}
     create_log.assert_not_awaited()
     enqueue.assert_not_awaited()
 

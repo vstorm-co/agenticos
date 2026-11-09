@@ -21,10 +21,202 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Paused knowledge sync sources refuse manual API and CLI triggers, disable the
-  console sync button, and stop queued jobs before downloads. Collection-name
-  resolution breaks creation-time ties by base id and refuses ambiguous new
-  source assignments (#2744).
+- Refuse paused sync sources at the shared service boundary, disable their console
+  sync button, and reject ambiguous collection-name assignments. Resolve tied
+  knowledge bases consistently regardless of candidate order (#2744).
+
+## [1.61.3] - 2026-11-09
+
+### Fixed
+
+- Float invitation and onboarding notices in one overlay without reserving a blank
+  strip or shortening the application. Keep mobile navigation reachable and stack
+  simultaneous notices.
+
+## [1.61.2] - 2026-11-09
+
+### Fixed
+
+- Tool failures now keep actionable structured details through model continuation,
+  approval resume and saved transcripts: named missing fields, allowed values,
+  numeric and collection bounds, safe compiler diagnostics, correction examples,
+  execution disposition, recovery guidance and an error ID that identifies the
+  detailed server log. Unknown tool names report
+  unavailable registration rather than missing permission, and agents check uncertain
+  execution outcomes before retrying. Budgets, guardrails, loop stops and usage limits
+  retain their terminal behavior through code mode. Only calls that pass complete
+  validation count as successful argument repairs.
+- MCP schema checks run in isolated processes with bounded concurrency and a deadline,
+  so server-controlled regular expressions cannot block the application's event loop.
+
+## [1.61.1] - 2026-11-09
+
+### Fixed
+
+- **A step stays in the loop it belongs to (#2770).** A For each body was
+  whatever the loop's **Each item** port's wires reached, so deleting a wire
+  inside a body moved the steps after it out of the loop, and a second wire from
+  that port, which no view drew, made publishing fail with "A loop's body must
+  start at exactly one loop item step". Each step now names its loop
+  (`scope_id`), the loop has no **Each item** port, and a body starts at its
+  **Loop item**. A new loop comes with its **Loop item** and **Loop result**,
+  which go only with the loop; a step added or pasted in a body stays there; and
+  deleting a loop deletes its body. Publishing refuses a body step **Loop item**
+  never reaches. Migration `0301_workflow_loop_scope` rewrites stored drafts,
+  versions and test-run snapshots, moving an extra wire from the old port onto
+  the body's **Loop item**; a graph sent or imported in the old shape is read the
+  same way. See [Workflows](docs/workflows.md#connections-and-foreach-scope).
+
+## [1.61.0] - 2026-11-09
+
+### Added
+
+- A shared first-task hub for web, invitations and desktop, with editable fictional
+  examples, clearly labelled demonstrations without a model, membership-scoped
+  goals and real completed-chat progress. Authorized builders can explicitly
+  prepare a text-only starter without a sandbox.
+
+### Changed
+
+- Require session-bound mailbox proof for received invitations and their logos, paginate older offers, preserve onboarding position across language changes, and use the server clock for snooze expiry. Reject a zero monthly budget before submission.
+
+- Let members enter the trusted AgenticOS setup chat from onboarding without requiring model-management permissions or treating a draft as a runnable agent.
+- Default new maps to bundled SVG country outlines and routes without tile-server setup; keep optional street-map configuration and hide its unconfigured dashboard check.
+- Preserve focus outlines in onboarding profile cards and spacing below form labels.
+- Show organization logos and fallback colors in received invitations before joining.
+- Align chat activity rails and keep them outside expanded tool details.
+- Reveal new AgenticOS and Architect setup replies progressively before showing the model setup card.
+- Select and display onboarding monthly budgets in whole dollars.
+- Show optional deployment settings as cards with immediately visible links.
+- Prefill the onboarding welcome announcement with an editable message and live preview.
+- Place optional onboarding skip actions beside Save and continue in profile cards.
+
+- Match onboarding loading states to workspace cards, profile forms, guided settings, budgets and the first-task canvas.
+
+- Simplify the onboarding budget step to presets and a slider, without a separate numeric input.
+
+- Show pending email invitations after sign-in, with explicit acceptance and organization welcome without needing the emailed link.
+
+- Give Architect the shared model-setup card and a normal chat before model setup, including persisted setup replies in its widget and full chat.
+
+- Guide setup through one decision at a time with a scripted AgenticOS companion,
+  a monthly-budget slider and announcement previews. Separate administrator, new
+  member and returning-member journeys; keep operational credentials optional.
+  Respect legacy completion for existing memberships without hiding a later join.
+
+- Select the shipped AgenticOS before publication and answer first-use chat messages
+  with a persistent model-setup card. Guide builders to configuration and members
+  to their administrator without executing a draft or charging a model call.
+
+- Snooze dismissed start offers for 24 hours. Record walkthrough completion
+  separately after the final step, without requiring optional settings or an AI run.
+
+- Make product tours opt-in, continue accepted invitations into the joined
+  workspace's start, and sign in new password accounts without repeating the login
+  form when possible. Keep the invitation destination if sign-in needs a retry.
+- Localize native desktop setup in English, Polish, German and Turkish, reduce
+  required workspace fields, and keep system permissions optional. Explain local
+  data versus remote AI processing and warn about loopback invitation links.
+- Start administrator onboarding with company workspace creation and immediate
+  team invitations, followed by the existing deployment and organization settings
+  forms. A sequential wizard replaces the settings sidebar, with separate company
+  logo, user identity and agent-context questions, Back and save-and-continue actions.
+  Use actual workspace avatars, equal-height adjacent cards, directional transitions
+  and transient field highlights that respect Motion preferences. Give the chat
+  start notice role-aware guidance, blobby, a clear primary action and a dismiss
+  control that fits desktop and phone layouts. Float it over the desktop console
+  with a translucent surface, preserving both sidebars at full viewport height. Keep personal workspaces optional and enforce
+  effective permissions.
+- Give onboarding the console's controls, animated blobby and violet workspace
+  preview that follows the entered name. Present member examples in a split view
+  with source and result tabs; motion respects reduced-motion preferences.
+
+### Fixed
+
+- Recognize existing agents and personal chat activity, including legacy and
+  failed chats, so automatic welcome links and start offers do not repeat setup.
+  Keep manually opened setup available without resetting existing data.
+- Keep example navigation on the start page and AI setup in a dismissible dialog
+  with Escape support and focus restoration. Separate demonstration material
+  from its recorded result.
+- Keep recorded examples available while a preference save is pending or fails,
+  restore keyboard focus on return, and avoid late chat navigation after leaving
+  the start. Scope pending start operations to their initiating membership.
+- Reserve the dashboard start panel during loading and offer an explicit retry
+  after failed checks, without shifting the adjacent briefing on successful load.
+
+## [1.60.3] - 2026-11-09
+
+### Fixed
+
+- Include shared resource visibility helpers in the platform coverage and type-checking gates, and guard against their accidental removal (#2143).
+
+## [1.60.2] - 2026-11-09
+
+### Changed
+
+- Update Pydantic AI, its harness and skills integration, pricing data and
+  Logfire to the versions locked by the agent-framework dependency update.
+  Normalize wrapped question answers before saving a parked run so the
+  durable answer remains JSON data.
+
+## [1.60.1] - 2026-11-09
+
+### Fixed
+
+- Probe the readiness endpoint after production deploys; the old health URL returned 404 despite a healthy deployment.
+
+- Paused knowledge sources refuse manual API synchronization, and workers
+  recheck the pause before downloading or indexing queued or CLI runs.
+  Knowledge-base collection-name lookups break creation-date ties by ID,
+  keeping the selected base stable (#2744).
+
+## [1.60.0] - 2026-11-09
+
+### Added
+
+- **Fork a conversation at an answer (#2762).** **Fork into a new conversation**
+  under an agent's answer opens a new conversation of your own, in the same
+  project, holding the history up to and including that answer, so you can try
+  another approach or take a side question elsewhere without changing the
+  original. Only the owner can fork, up to ten a minute, within 2,000 messages,
+  10,000 tool calls and 20 MiB; concurrent transcript updates are fenced before
+  copying. Retained copies have a 100 MiB member and 1 GiB organization
+  allowance, including fixed row reservations, freed when a fork is deleted.
+  Drawings with stored image files are refused before copying. The fork copies
+  messages, tool calls and a long conversation's summary, including its
+  externalized text and media within the copy limits, not attachment or
+  workspace files, generated images, cost or runs. Conversations with a saved
+  checklist fork only at the latest answer and retain its tasks and dependencies.
+  Its **Forked from** line
+  is shown only to you. `POST /conversations/{id}/fork` does the same over the
+  API. See [the console guide](docs/console.md#forking).
+- **Conversations shared with you, in the chat sidebar.** They sit under
+  **Shared with you**, below your favourites, for the organization you are in,
+  with their agents, unread dots and running state; until now a conversation shared
+  with you could only be opened by its link. Renaming, sharing, archiving and
+  deleting stay the owner's; their menu holds **Remove from my chats**, which
+  ends your own access (`DELETE /conversations/{id}/shared-with-me`).
+- **A conversation shared with you to read has no message box.** It used to
+  offer one, and the message failed with "Conversation not found".
+  `GET /conversations/shared-with-me` now says each share's `share_permission`.
+- **Change a person's access to a conversation in place.** Each person in the
+  Share dialog has a View/Edit picker, so turning a reader into an editor no
+  longer means revoking and sharing again. The owner only; a share link stays
+  view-only (`PATCH /conversations/{id}/shares/{share_id}`).
+- **A notification when a conversation is shared with you.** It opens the
+  conversation, and follows your preference for "Shared with you or your
+  group" (in the inbox, by email or by push), which the "Shared with your
+  group" preference is now called.
+
+### Fixed
+
+- Shared conversation favourites and read receipts update immediately, including
+  new answers arriving in an open shared thread. Channel participants' direct
+  share permissions are checked even when their thread is already listed.
+- Shared sidebar refreshes read only listing columns. Direct-share notification
+  fanout is rate-limited across conversations by organization, sender, recipient
+  and pair, retaining a local floor when Redis is unavailable.
 
 ## [1.59.1] - 2026-11-09
 
@@ -20676,7 +20868,15 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.3...HEAD
+[1.61.3]: https://github.com/vstorm-co/agenticos/compare/v1.61.2...v1.61.3
+[1.61.2]: https://github.com/vstorm-co/agenticos/compare/v1.61.1...v1.61.2
+[1.61.1]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...v1.61.1
+[1.61.0]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...v1.61.0
+[1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
+[1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
+[1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1
+[1.60.0]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...v1.60.0
 [1.59.1]: https://github.com/vstorm-co/agenticos/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...v1.59.0
 [1.58.3]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...v1.58.3

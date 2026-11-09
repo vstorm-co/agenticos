@@ -170,3 +170,43 @@ it("isolates the reachable branch of an independent start and terminates a cycle
     scopes: [],
   });
 });
+
+it("keeps the whole body of a loop the branch reaches, though no wire leads into it", () => {
+  const step = (id: string, definitionId: string, scopeId?: string) => ({
+    id,
+    definition_id: definitionId,
+    definition_version: 1,
+    config: {},
+    layout: { x: 0, y: 0 },
+    ...(scopeId !== undefined ? { scope_id: scopeId } : {}),
+  });
+  const g: WorkflowGraph = {
+    entry_node_id: "start",
+    nodes: [
+      step("start", "trigger.manual"),
+      step("loop", "control.foreach"),
+      step("item", "loop.item", "loop"),
+      step("inner", "control.foreach", "loop"),
+      step("leaf", "data.map", "inner"),
+      step("elsewhere", "trigger.webhook"),
+    ],
+    edges: [
+      {
+        id: "e",
+        source_node_id: "start",
+        source_port: "out",
+        target_node_id: "loop",
+        target_port: "in",
+      },
+    ],
+    bindings: [],
+    scopes: [],
+  };
+  expect(entryGraph(g, "start").nodes.map((node) => node.id)).toEqual([
+    "start",
+    "loop",
+    "item",
+    "inner",
+    "leaf",
+  ]);
+});

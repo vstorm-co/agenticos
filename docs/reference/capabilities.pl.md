@@ -1,5 +1,5 @@
 ---
-source_sha: "fe652977b769"
+source_sha: "d813678bfffa"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -59,6 +59,65 @@ kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publ
 rejestrują jako domyślną dla organizacji; bez niej przechowuje tylko pliki.
 Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 (`BROWSER_SIGN_IN_CDP_URL`) i pomijana, gdy jej nie ma.
+
+## Błędy narzędzi i odzyskiwanie działania { #tool-errors-and-recovery }
+
+W runach tekstowych błędy walidacji, niedostępne narzędzia i nieoczekiwane błędy
+wykonania zwracają obiekt `error` z polami `id`, `code`, `tool`, `execution`,
+`message`, `issues` i `recovery`. Problemy walidacji
+wskazują `field`, walidacyjny `code` i `expected_type`, wraz z komunikatem lub
+przykładem poprawki. ID workflow musi być UUID zwróconym przez wyszukiwanie
+workflow; tablicę nazw pól podaje się jako `["name", "primary_ip"]`, a nie tekst
+rozdzielony przecinkami.
+
+`execution` ma wartość `not_started`, gdy walidacja lub rejestracja odrzuci wywołanie
+przed uruchomieniem, `started`, gdy rozpoczęcie zostało ustalone, i `unknown`, gdy
+błąd pozostawia wynik niepewny. Przekroczenie czasu po wywołaniu nie dowodzi, że
+działanie się nie powiodło. Sprawdź stan wykonania przed ponowną próbą.
+
+| Kod błędu | Dalsze działanie |
+|---|---|
+| `invalid_arguments` | `correct_arguments`: popraw wskazane pole przed ponowną próbą. |
+| `tool_unavailable` | `rediscover_tools`: znajdź narzędzia i sposoby wywołania dostępne w tym kontekście. |
+| `permission_denied` | `stop`: wyjaśnij odmowę. |
+| `transient_failure` | `retry`, gdy wynik jest znany, a kolejna próba bezpieczna; w innym przypadku `inspect_execution_status`. |
+| `execution_unknown` | `inspect_execution_status`: najpierw ustal wynik istniejącego działania. |
+
+Wyszukanie narzędzia nie sprawia, że każdą zwróconą nazwę można wywołać bezpośrednio.
+Błąd rejestracji oznacza niedostępność narzędzia w bieżącym kontekście wywołania;
+nie dowodzi braku uprawnień użytkownika. Środowisko wykonawcze podaje obsługiwany
+sposób wywołania tylko wtedy, gdy może go ustalić. Instrukcje odzyskiwania każą
+agentowi korzystać z tego sposobu, poprawiać konkretne argumenty i trzymać się
+zadania: nieudane wyszukanie workflow nie uzasadnia przeszukiwania systemu plików.
+
+Ten sam ustrukturyzowany błąd trafia do modelu i zapisanego transkryptu po wznowieniu
+zatwierdzonego wywołania. Nieoczekiwane wyjątki ujawniają zwięzłe wyjaśnienie i typ
+wyjątku, gdy jest to bezpieczne; niezaufane komunikaty usług zewnętrznych i wewnętrzne
+ślady stosu pozostają w logach serwera. Użyj `id` błędu, aby znaleźć szczegółowy wpis.
+
+Gdy `run_code` zgłasza błąd zagnieżdżonego narzędzia, `cause_tool` i `cause_execution`
+wskazują to wywołanie i określają, czy się rozpoczęło. Identyfikator błędu i problemy
+pól przechodzą przez granicę sandboxa. Nieznany wynik zewnętrznego wywołania nadal
+wymaga sprawdzenia wcześniejszych działań przed ponownym uruchomieniem skryptu.
+
+Brakujące wymagane pola są wskazywane osobno. Ograniczenia wartości podają dozwolone
+opcje, granice liczbowe, liczbę elementów lub wymaganą długość. Walidacja argumentów
+MCP korzysta z udostępnionego schematu bez pobierania odwołań zewnętrznych.
+Sprawdzanie schematu działa w osobnych procesach z ograniczoną współbieżnością
+i limitem czasu. Nieprawidłowy, nierozwiązywalny lub rekurencyjny schemat oraz
+przekroczenie limitu czasu zwracają `tool_unavailable` przed wywołaniem narzędzia.
+
+Błędy kompilatora zachowują bezpieczną diagnostykę i dostępną lokalizację w kodzie,
+w tym identyfikator nierozpoznanej nazwy. Diagnostyka pomija surowy kod źródłowy,
+wewnętrzne ślady stosu i dowolne komunikaty wyjątków.
+
+Czyszczenie wyników narzędzi zachowuje kontrolowane struktury błędów, nawet gdy
+skonfigurowana liczba zachowywanych wyników wynosi zero. Podsumowania i przesuwane
+okna nadal mogą ograniczać starsze wymiany.
+
+Wyczerpanie budżetu, blokady guardraili, zatrzymanie pętli i limity użycia modelu
+nadal kończą wykonanie i zachowują dotychczasowe rozliczanie. Tryb kodu zachowuje te
+zatrzymania po przejściu przez granicę sandboxa.
 
 ## Co jest dostarczane { #what-ships }
 

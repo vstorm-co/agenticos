@@ -90,11 +90,22 @@ class MessagePart(BaseSchema):
     )
 
     type: Literal[
-        "text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention", "phone_call"
+        "text",
+        "thinking",
+        "tool",
+        "ask_user",
+        "workflow_run",
+        "steer",
+        "mention",
+        "phone_call",
+        "model_setup",
     ] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
+    )
+    setup_agent_id: UUID | None = Field(
+        default=None, description="The shipped starter needing a model; never evidence of a run"
     )
     phone_call_id: UUID | None = Field(
         default=None, description="The owned telephone receipt for a phone_call entry."
@@ -521,6 +532,24 @@ class ConversationAgent(BaseSchema):
     avatar_color: int | None = None
 
 
+class ConversationForkCreate(BaseSchema):
+    """Fork a conversation at one of its answers."""
+
+    message_id: UUID = Field(
+        description="The assistant message the fork's copied history ends with",
+    )
+
+
+class ConversationForkOrigin(BaseSchema):
+    """Where a fork came from, for the person who owns both."""
+
+    conversation_id: UUID
+    message_id: UUID | None = Field(
+        default=None, description="The answer the fork was made from; null once it is gone"
+    )
+    title: str | None = None
+
+
 class ConversationRead(ConversationBase, TimestampSchema):
     """Schema for reading a conversation (API response)."""
 
@@ -576,6 +605,24 @@ class ConversationRead(ConversationBase, TimestampSchema):
     coding_agents: list[Literal["claude_code", "codex"]] = Field(
         default_factory=list,
         description="Coding harnesses used in this conversation, most recently first, from saved task reports",
+    )
+    share_permission: Literal["view", "edit"] | None = Field(
+        default=None,
+        description=(
+            "What the caller's share of somebody else's conversation lets them do - "
+            "`view` to read, `edit` to write in it too. Set on "
+            "`GET /conversations/shared-with-me` and on a single conversation's read; "
+            "null for the owner and for anyone reading it another way."
+        ),
+    )
+    forked_from: ConversationForkOrigin | None = Field(
+        default=None,
+        description=(
+            "The conversation this one was forked from. Set only for a caller who owns "
+            "both, so a fork shared with somebody else does not name its source; null "
+            "for anybody else, for a conversation that is not a fork, and once the "
+            "source is deleted."
+        ),
     )
 
 

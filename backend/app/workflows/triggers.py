@@ -97,6 +97,10 @@ def entry_graph(graph: WorkflowGraph, node_id: UUID) -> WorkflowGraph:
     forward: dict[UUID, list[UUID]] = {}
     for edge in graph.edges:
         forward.setdefault(edge.source_node_id, []).append(edge.target_node_id)
+    # A loop the branch reaches brings its whole body: no wire leads into one.
+    for node in graph.nodes:
+        if node.scope_id is not None:
+            forward.setdefault(node.scope_id, []).append(node.id)
     active: set[UUID] = set()
     queue = deque([node_id])
     while queue:
