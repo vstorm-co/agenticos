@@ -87,9 +87,9 @@ export async function getSkillTestSet(skillId: string): Promise<Dataset | null> 
 }
 
 /**
- * Give the skill its test questions: from the answers where its agents loaded it, or
- * an empty set to fill in by hand.
+ * Give the skill its test questions, written from the answers where its agents loaded
+ * it - an empty set, filled in by hand, when there are none yet.
  */
-export function createSkillTestSet(skillId: string, fromEvidence = true): Promise<Dataset> {
-  return apiClient.post<Dataset>(`/skills/${skillId}/test-set`, { from_evidence: fromEvidence });
+export function createSkillTestSet(skillId: string): Promise<Dataset> {
+  return apiClient.post<Dataset>(`/skills/${skillId}/test-set`, { from_evidence: true });
 }

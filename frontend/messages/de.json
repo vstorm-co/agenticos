@@ -15451,9 +15451,8 @@
     "testSet": {
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",
       "add": "Testfragen hinzufügen",
-      "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann.",
-      "grading": "Bewertung in {name} einrichten",
-      "empty": "Mit einem leeren Satz beginnen"
+      "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, und leer, solange es keine gibt - den Rest fügst du auf seiner Seite hinzu. Dann kann ein Agent ohne eigene Fragen geprüft werden.",
+      "grading": "Bewertung in {name} einrichten"
     },
     "accept": {
       "title": "Annehmen",

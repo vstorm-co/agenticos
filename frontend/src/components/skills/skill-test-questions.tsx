@@ -68,7 +68,7 @@ export function SkillTestQuestions({
         <div className="space-y-3 text-sm">
           <p className="text-muted-foreground">{t("none")}</p>
           {canCreate ? (
-            <AddTestQuestions skillId={skillId} offerEmpty />
+            <AddTestQuestions skillId={skillId} />
           ) : (
             <p className="text-muted-foreground">{t("askEditor")}</p>
           )}

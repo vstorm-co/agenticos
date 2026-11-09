@@ -45,19 +45,16 @@ describe("SkillTestQuestions", () => {
     expect(screen.getByText("10 questions")).toBeVisible();
   });
 
-  it("starts them from recent answers or empty, as the person picks", async () => {
+  it("starts them from recent answers through one control", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "None"));
     vi.mocked(apiClient.post).mockResolvedValue({ id: "ts", case_count: 0 });
     mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Start an empty set" }));
-    expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/test-set", {
-      from_evidence: false,
-    });
-    await userEvent.click(screen.getByRole("button", { name: "Add test questions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add test questions" }));
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/test-set", {
       from_evidence: true,
     });
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("offers nothing to start to a reader who may not write them", async () => {
@@ -79,10 +76,10 @@ describe("SkillTestQuestions", () => {
       );
     mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Start an empty set" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add test questions" }));
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alert")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Start an empty set" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add test questions" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No access"));
   });

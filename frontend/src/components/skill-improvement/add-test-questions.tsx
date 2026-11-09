@@ -17,13 +17,10 @@ import { Perm } from "@/types/permissions";
 export function AddTestQuestions({
   skillId,
   onCreated,
-  offerEmpty = false,
 }: {
   skillId: string;
   /** Called once the questions are written, for a price that counted none to be read again. */
   onCreated?: () => void;
-  /** Also offer an empty set to fill in by hand, beside the one written from answers. */
-  offerEmpty?: boolean;
 }) {
   const t = useTranslations("skillImprovement.testSet");
   const tErrors = useTranslations("errors");
@@ -47,27 +44,15 @@ export function AddTestQuestions({
       : null;
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          data-tour="skill-improvement-test-set"
-          loading={create.isPending}
-          onClick={() => create.mutate(true, { onSuccess: onCreated })}
-        >
-          {t("add")}
-        </Button>
-        {offerEmpty && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={create.isPending}
-            onClick={() => create.mutate(false, { onSuccess: onCreated })}
-          >
-            {t("empty")}
-          </Button>
-        )}
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        data-tour="skill-improvement-test-set"
+        loading={create.isPending}
+        onClick={() => create.mutate(undefined, { onSuccess: onCreated })}
+      >
+        {t("add")}
+      </Button>
       <p className="text-muted-foreground text-xs">{t("addHint")}</p>
       {refused !== null && (
         <p role="alert" className="text-destructive text-sm">

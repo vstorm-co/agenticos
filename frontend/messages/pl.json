@@ -15553,9 +15553,8 @@
     "testSet": {
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",
       "add": "Dodaj pytania testowe",
-      "addHint": "Powstają z odpowiedzi, w których agenci wczytali skill, więc następnym razem da się sprawdzić agenta bez własnych pytań.",
-      "grading": "Ustaw ocenianie w {name}",
-      "empty": "Zacznij od pustego zestawu"
+      "addHint": "Powstają z odpowiedzi, w których agenci wczytali skill, a gdy takich jeszcze nie ma, zestaw jest pusty - resztę dodajesz na jego stronie. Wtedy da się sprawdzić agenta bez własnych pytań.",
+      "grading": "Ustaw ocenianie w {name}"
     },
     "accept": {
       "title": "Akceptacja",

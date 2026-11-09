@@ -15779,9 +15779,8 @@
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
       "add": "Add test questions",
-      "addHint": "Written from answers where agents loaded the skill, so an agent without questions of its own can be checked next time.",
-      "grading": "Set up grading on {name}",
-      "empty": "Start an empty set"
+      "addHint": "Written from answers where agents loaded the skill, and empty when there are none yet - you add the rest on its page. Then an agent without questions of its own can be checked.",
+      "grading": "Set up grading on {name}"
     },
     "accept": {
       "title": "Accept",
