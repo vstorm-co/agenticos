@@ -131,6 +131,17 @@ describe("SkillStart", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
+  it("says a single answer it reads in the singular", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ ...ESTIMATE, evidence_runs: 1, agents: 1 });
+    mount();
+
+    expect(
+      await screen.findByText(
+        "It reads 1 answer that loaded this line and was rated down or failed. The line serves 1 agent.",
+      ),
+    ).toBeVisible();
+  });
+
   it("holds the start up front when there is nothing to learn from, and says how to give some", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       ...ESTIMATE,
