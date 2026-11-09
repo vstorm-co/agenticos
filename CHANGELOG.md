@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Update Pydantic AI, its harness and skills integration, pricing data and
+  Logfire to the versions locked by the agent-framework dependency update.
+  Normalize wrapped question answers before saving a parked run so the
+  durable answer remains JSON data.
+
 ### Fixed
 
 - Tool failures now keep actionable structured details through model continuation,
