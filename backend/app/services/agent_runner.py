@@ -63,8 +63,17 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai import ToolReturn
 from pydantic_ai.agent import AgentRealtime
 from pydantic_ai.exceptions import ModelAPIError
 from pydantic_ai.messages import (
@@ -388,6 +397,7 @@ if TYPE_CHECKING:
     from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
+_QUESTION_RESULT = TypeAdapter(dict[str, list[str]] | str)
 
 _DELEGATION_RUN_STATUS: Mapping[DelegationStatus, RunStatus] = {
     "completed": RunStatus.COMPLETED,
@@ -7352,15 +7362,21 @@ class AgentRunnerService:
             tool_call_id: question_request(call)
             for tool_call_id, call in _question_calls(state).items()
         }
-        return {
-            tool_call_id: ask_user_result(
+        results: dict[str, dict[str, list[str]] | str] = {}
+        for tool_call_id in state.questions:
+            if tool_call_id not in responses:
+                results[tool_call_id] = DECLINED
+                continue
+            result = ask_user_result(
                 asked[tool_call_id],
                 answers_to_response(asked[tool_call_id], list(responses[tool_call_id])),
             )
-            if tool_call_id in responses
-            else DECLINED
-            for tool_call_id in state.questions
-        }
+            # Durable question state holds normalized answers. User-channel
+            # notes are outside this API's answer contract.
+            results[tool_call_id] = _QUESTION_RESULT.validate_python(
+                result.return_value if isinstance(result, ToolReturn) else result
+            )
+        return results
 
     async def parked_questions(self, ctx: AuthContext, run: AgentRun) -> list[ParkedQuestion]:
         """The questions this run is waiting on the caller to answer, right now.
