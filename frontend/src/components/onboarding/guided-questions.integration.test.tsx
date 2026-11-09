@@ -286,3 +286,20 @@ it("allows clearing the suggested welcome message", async () => {
   await proceed();
   expect(env.save).toHaveBeenCalledWith({ announcement: null });
 });
+
+it("shows every deployment extras link without expanding a section", () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-step=admin.deployment&workspace=company&question=extras",
+  );
+  render(<StartDeployment org={org} onContinue={env.next} />);
+  const links = screen.getAllByRole("link", { name: /Open settings/ });
+  expect(links).toHaveLength(4);
+  for (const [index, section] of ["identity", "services", "services", "operations"].entries()) {
+    expect(links[index]).toBeVisible();
+    expect(links[index]).toHaveAttribute("href", `/admin/settings?section=${section}`);
+    expect(links[index]).toHaveAttribute("target", "_blank");
+  }
+  expect(document.querySelector("details")).not.toBeInTheDocument();
+});

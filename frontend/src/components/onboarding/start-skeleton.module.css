@@ -31,13 +31,6 @@
   animation: none !important;
 }
 
-.extraRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 80px;
-}
-
 .decorative {
   pointer-events: none;
   user-select: none;

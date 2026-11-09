@@ -28,6 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Show optional deployment settings as cards with immediately visible links.
 - Prefill the onboarding welcome announcement with an editable message and live preview.
 - Place optional onboarding skip actions beside Save and continue in profile cards.
 

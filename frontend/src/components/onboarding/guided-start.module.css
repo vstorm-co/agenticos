@@ -194,10 +194,11 @@
   border: 1px solid var(--color-border);
   border-radius: 16px;
   padding: 22px;
-  display: block;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
-.extra summary > svg {
+.extraHeader > svg {
   width: 36px;
   height: 36px;
   padding: 7px;
@@ -210,6 +211,7 @@
   font-weight: 600;
 }
 .extra p {
+  margin: 16px 0 0;
   color: var(--color-muted-foreground);
   font-size: 13px;
   line-height: 1.65;
@@ -218,7 +220,9 @@
   font-size: 12px;
   text-underline-offset: 4px;
   text-decoration: underline;
-  margin-top: 14px;
+  margin-top: auto;
+  padding-top: 14px;
+  align-self: flex-start;
   display: inline-block;
 }
 .details {
@@ -384,37 +388,13 @@
   border-color: #9976ef;
   color: #fff;
 }
-.extra summary {
+.extraHeader {
   display: flex;
   align-items: center;
   gap: 12px;
-  cursor: pointer;
-  list-style: none;
 }
-.extra summary::-webkit-details-marker {
-  display: none;
-}
-.extra summary > svg {
+.extraHeader > svg {
   flex-shrink: 0;
-}
-.extra summary > .extraChevron {
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  margin-left: auto;
-  background: none;
-  color: var(--color-muted-foreground);
-}
-.extra[open] .extraChevron {
-  transform: rotate(180deg);
-}
-.extra[open] p {
-  margin-top: 16px;
-}
-.extra summary:focus-visible {
-  outline: 2px solid var(--color-ring);
-  outline-offset: 6px;
-  border-radius: 8px;
 }
 .budgetLayout {
   max-width: 640px;

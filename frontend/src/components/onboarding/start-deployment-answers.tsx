@@ -10,7 +10,6 @@ import {
   Mic,
   ShieldCheck,
   Palette,
-  ChevronDown,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FormField, Switch, Textarea, Button } from "@/components/ui";
@@ -185,12 +184,11 @@ export function DeploymentExtras({ maintenance }: { maintenance: boolean }) {
           [ShieldCheck, "maintenance", "operations"],
         ] as const
       ).map(([Icon, name, section]) => (
-        <details className={styles.extra} key={name}>
-          <summary>
+        <article className={styles.extra} key={name}>
+          <div className={styles.extraHeader}>
             <Icon aria-hidden />
             <h3>{t(`${name}Title`)}</h3>
-            <ChevronDown className={styles.extraChevron} aria-hidden />
-          </summary>
+          </div>
           <p>{t(`${name}Body`)}</p>
           <Link
             href={`/admin/settings?section=${section}`}
@@ -199,7 +197,7 @@ export function DeploymentExtras({ maintenance }: { maintenance: boolean }) {
           >
             {t("openSettings")}
           </Link>
-        </details>
+        </article>
       ))}
       {maintenance && (
         <p role="status" className={styles.hint}>

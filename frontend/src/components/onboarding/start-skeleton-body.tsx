@@ -223,9 +223,15 @@ function QuestionAnswers({ view, question }: { view: StartLoadingView; question?
     return (
       <div className={guided.extras}>
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className={`${guided.extra} ${styles.extraRow}`}>
-            <Skeleton className="size-9 shrink-0 rounded-xl" />
-            <Skeleton className="h-4 w-2/3" />
+          <div key={i} className={guided.extra}>
+            <div className={guided.extraHeader}>
+              <Skeleton className="size-9 shrink-0 rounded-xl" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            <div className="mt-4">
+              <Lines />
+            </div>
+            <Skeleton className="mt-4 h-4 w-48 max-w-full" />
           </div>
         ))}
       </div>
