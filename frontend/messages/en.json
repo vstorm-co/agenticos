@@ -15728,6 +15728,7 @@
         "unknown": "Unknown"
       },
       "fixedBroken": "{fixed, plural, =1 {Fixes 1 question} other {Fixes # questions}}, {broken, plural, =1 {breaks 1} other {breaks #}}.",
+      "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 question looked fixed} other {# questions looked fixed}} and {broken, plural, =1 {1 looked broken} other {# looked broken}} at first, but asking them again did not confirm it, so the agent counts as no change.",
       "unknown": {
         "no_questions": "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
         "no_access": "Not checked: you may not run this agent.",
@@ -15758,6 +15759,7 @@
       "seen": "Seen",
       "details": "Details of {name}",
       "stageCounts": "{better} better · {same} same · {worse} worse · {unknown} not known",
+      "stageCountsFirst": "At first: {better} better · {same} same · {worse} worse · {unknown} not known",
       "stageLoading": "Reading the results…",
       "stageUnread": "Its results could not be read.",
       "openAgent": "Open {name}",

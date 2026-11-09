@@ -15400,6 +15400,7 @@
         "unknown": "Unbekannt"
       },
       "fixedBroken": "{fixed, plural, =1 {Behebt 1 Frage} other {Behebt # Fragen}}, {broken, plural, =1 {verschlechtert 1} other {verschlechtert #}}.",
+      "fixedBrokenUnconfirmed": "Beim ersten Versuch {fixed, plural, =1 {schien 1 Frage behoben} other {schienen # Fragen behoben}} und {broken, plural, =1 {1 verschlechtert} other {# verschlechtert}}, aber erneutes Fragen hat das nicht bestätigt, daher zählt der Agent als unverändert.",
       "unknown": {
         "no_questions": "Nicht geprüft: Er hat keine Testfragen, bei denen er den Skill geladen hat, und der Skill hat keine eigenen.",
         "no_access": "Nicht geprüft: Sie dürfen diesen Agent nicht ausführen.",
@@ -15430,6 +15431,7 @@
       "seen": "Angesehen",
       "details": "Details zu {name}",
       "stageCounts": "{better} besser · {same} gleich · {worse} schlechter · {unknown} unbekannt",
+      "stageCountsFirst": "Beim ersten Versuch: {better} besser · {same} gleich · {worse} schlechter · {unknown} unbekannt",
       "stageLoading": "Ergebnisse werden gelesen…",
       "stageUnread": "Die Ergebnisse konnten nicht gelesen werden.",
       "openAgent": "{name} öffnen",

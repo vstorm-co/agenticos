@@ -312,6 +312,29 @@ describe("CheckAgents", () => {
     expect(asked.enabled.every((enabled) => !enabled)).toBe(true);
   });
 
+  it("says an agent's first-answer flips went unconfirmed when it is within the noise", async () => {
+    const noisy = checkAgent("Store", "within_noise", { fixed: 2, broken: 0, noisy: true });
+    noisy.stages = [
+      {
+        ...noisy.stages[0]!,
+        kind: "skill_set",
+        counts: { compared: 6, fixed: 2, broken: 0, unchanged: 4, unknown: 0 },
+      },
+    ];
+    render(<CheckAgents check={skillCheck({ agents: [noisy] })} />);
+
+    await openAll();
+    expect(
+      screen.getByText(
+        "2 questions looked fixed and 0 looked broken at first, but asking them again did not confirm it, so the agent counts as no change.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("At first: 2 better · 4 same · 0 worse · 0 not known"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Fixes/)).toBeNull();
+  });
+
   it("says nothing of where agents broke until each one's counts are kept", () => {
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     expect(screen.queryByText(/broke on the skill's own questions/)).toBeNull();

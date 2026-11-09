@@ -28,7 +28,16 @@ export function countsOf(comparison: EvalComparison): StageCounts {
  * better, the same, worse or not known, beside the run that asked them. The check
  * keeps these counts; one judged before it did reads them off the run instead.
  */
-export function StageBreakdown({ agentId, stage }: { agentId: string; stage: CheckStage }) {
+export function StageBreakdown({
+  agentId,
+  stage,
+  unconfirmed = false,
+}: {
+  agentId: string;
+  stage: CheckStage;
+  /** Its flips were not repeated when asked again: the counts are the first answers'. */
+  unconfirmed?: boolean;
+}) {
   const t = useTranslations("skillImprovement.agents");
   const runId = stage.eval_run_id!;
   const { comparison, error } = useEvalComparison(runId, { enabled: stage.counts === null });
@@ -46,7 +55,7 @@ export function StageBreakdown({ agentId, stage }: { agentId: string; stage: Che
       </Link>
       <span className="text-muted-foreground">
         {counts
-          ? t("stageCounts", {
+          ? t(unconfirmed ? "stageCountsFirst" : "stageCounts", {
               better: counts.fixed,
               same: counts.unchanged,
               worse: counts.broken,

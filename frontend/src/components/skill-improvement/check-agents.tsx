@@ -312,7 +312,12 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
   return (
     <div className="space-y-2 px-4 pb-3">
       {measured && (
-        <p className="text-sm">{t("fixedBroken", { fixed: row.fixed, broken: row.broken })}</p>
+        <p className="text-sm">
+          {t(row.state === "within_noise" ? "fixedBrokenUnconfirmed" : "fixedBroken", {
+            fixed: row.fixed,
+            broken: row.broken,
+          })}
+        </p>
       )}
       {row.unknown_reason !== null && (
         <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
@@ -326,7 +331,12 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
       {ran.length > 0 && (
         <ul className="space-y-1 rounded-md border px-3 py-2">
           {ran.map((stage) => (
-            <StageBreakdown key={stage.eval_run_id} agentId={row.agent.id} stage={stage} />
+            <StageBreakdown
+              key={stage.eval_run_id}
+              agentId={row.agent.id}
+              stage={stage}
+              unconfirmed={row.state === "within_noise"}
+            />
           ))}
         </ul>
       )}

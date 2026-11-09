@@ -15502,6 +15502,7 @@
         "unknown": "Nie wiadomo"
       },
       "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
+      "fixedBrokenUnconfirmed": "Przy pierwszej próbie {fixed, plural, one {# pytanie wyglądało na naprawione} few {# pytania wyglądały na naprawione} many {# pytań wyglądało na naprawione} other {# pytania wyglądało na naprawione}}, a {broken, plural, one {# na zepsute} few {# na zepsute} many {# na zepsute} other {# na zepsute}}, ale ponowne zapytania tego nie potwierdziły, więc agent liczy się jako bez zmian.",
       "unknown": {
         "no_questions": "Nie sprawdzono: nie ma pytań testowych tam, gdzie wczytał skill, a skill nie ma własnych.",
         "no_access": "Nie sprawdzono: nie możesz uruchamiać tego agenta.",
@@ -15532,6 +15533,7 @@
       "seen": "Obejrzany",
       "details": "Szczegóły: {name}",
       "stageCounts": "lepiej: {better} · bez zmian: {same} · gorzej: {worse} · nieznane: {unknown}",
+      "stageCountsFirst": "Przy pierwszej próbie: lepiej: {better} · bez zmian: {same} · gorzej: {worse} · nieznane: {unknown}",
       "stageLoading": "Wczytywanie wyników…",
       "stageUnread": "Nie udało się wczytać wyników.",
       "openAgent": "Otwórz {name}",
