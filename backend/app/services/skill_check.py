@@ -432,7 +432,16 @@ class SkillCheckService:
                 row.unknown = UnknownReason.NO_ACCESS
                 continue
             row.stages = await self._stages(
-                ctx, skill, user, test_set, mode, changed_words, row, holdout or {}, size
+                ctx,
+                skill,
+                user,
+                test_set,
+                mode,
+                changed_words,
+                row,
+                holdout or {},
+                size,
+                excluded=exclude_conversations,
             )
             if not row.stages:
                 row.unknown = UnknownReason.NO_QUESTIONS
@@ -581,6 +590,8 @@ class SkillCheckService:
         row: Planned,
         holdout: Mapping[UUID, Collection[UUID]],
         size: int,
+        *,
+        excluded: Collection[UUID] = (),
     ) -> list[Stage]:
         """The skill's questions, then the agent's own, as far as each exists."""
         stages: list[Stage] = []
@@ -608,7 +619,14 @@ class SkillCheckService:
                 stages.append(Stage("dataset", dataset, own_kept, dataset.latest_version or None))
             return stages
         picked = await self._sample(
-            ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id), size=size
+            ctx,
+            skill,
+            user.agent.id,
+            dataset,
+            changed_words,
+            holdout.get(dataset.id),
+            size=size,
+            excluded=excluded,
         )
         if picked:
             row.sample = SampleKind.OWN_QUESTIONS
@@ -627,7 +645,12 @@ class SkillCheckService:
         allowed: Collection[UUID] | None = None,
         *,
         size: int = rules.SAMPLE_SIZE,
+        excluded: Collection[UUID] = (),
     ) -> list[UUID]:
+        """Held-out questions whose newest answer loaded the skill, none taken from the
+        `excluded` conversations - the run leaves those out, so a sample of them would
+        ask fewer questions than it picked."""
+        left_out = set(excluded)
         loaded = await skill_check_repo.loaded_cases(
             self.db,
             organization_id=ctx.organization_id,
@@ -649,6 +672,7 @@ class SkillCheckService:
                 self.db, version.id, organization_id=ctx.organization_id, limit=None
             )
             if case.anonymised_at is None
+            and case.source_conversation_id not in left_out
             and (allowed is not None or case.improvement_partition == "holdout")
         }
         return rules.sample(

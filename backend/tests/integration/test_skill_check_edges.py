@@ -27,6 +27,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun
 from app.db.models.background_job import BackgroundJob
+from app.db.models.conversation import Conversation
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import (
     ArmRole,
@@ -37,6 +38,7 @@ from app.db.models.eval_run import (
     EvalRunStatus,
 )
 from app.db.models.organization import OrganizationMember
+from app.db.models.skill import Skill
 from app.db.models.skill_check import (
     AgentState,
     CheckOutcome,
@@ -1560,6 +1562,46 @@ class TestSampleAndTestSet:
         assert [(stage.kind, stage.cases) for stage in a.stages] == [("dataset_sample", 5)]
         [checked] = read.agents
         assert checked.state is AgentState.BETTER
+
+    async def test_a_quick_sample_never_picks_the_changes_own_evidence(self, db, monkeypatch):
+        """The run leaves out the questions taken from the conversations the change
+        learned from, so a sample of them would ask fewer questions than it picked."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        texts = [f"Receipt question {index}" for index in range(6)]
+        dataset, cases = await _answered(db, lab, texts, lambda _text: True)
+        evidence = Conversation(
+            id=uuid.uuid4(),
+            user_id=lab.ctx.user_id,
+            organization_id=lab.ctx.organization_id,
+            title="Evidence",
+        )
+        db.add(evidence)
+        await db.flush()
+        for case in cases[:4]:
+            case.source_conversation_id = evidence.id
+        await db.flush()
+        kept = sorted((case.case_id for case in cases[4:]), key=str)
+        evidence_id = evidence.id
+        skill_id, a_id = lab.skill.id, lab.a.id
+        await db.execute(
+            delete(Dataset).where((Dataset.agent_id == a_id) & (Dataset.id != dataset.id))
+        )
+        db.expire_all()
+
+        estimate = await SkillCheckService(db).estimate(
+            lab.ctx, skill_id, _start(), exclude_conversations=[evidence_id]
+        )
+
+        a = next(row for row in estimate.agents if row.agent.id == a_id)
+        [own] = [stage for stage in a.stages if stage.kind == "dataset_sample"]
+        assert own.cases == 2
+        skill = await db.get(Skill, skill_id)
+        assert skill is not None
+        picked = await SkillCheckService(db)._sample(
+            lab.ctx, skill, a_id, dataset, set(), excluded=[evidence_id]
+        )
+        assert sorted(picked, key=str) == kept
 
     async def test_the_skills_test_questions_can_start_from_recent_answers(self, db, monkeypatch):
         """A person's rating outranks an answer that only failed, so it is the one a
