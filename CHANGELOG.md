@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.61.5] - 2026-11-09
+
 ### Changed
 
 - Update the backend runtime, development and documentation dependencies from
@@ -20876,7 +20878,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...HEAD
+[1.61.5]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...v1.61.5
 [1.61.4]: https://github.com/vstorm-co/agenticos/compare/v1.61.3...v1.61.4
 [1.61.3]: https://github.com/vstorm-co/agenticos/compare/v1.61.2...v1.61.3
 [1.61.2]: https://github.com/vstorm-co/agenticos/compare/v1.61.1...v1.61.2
