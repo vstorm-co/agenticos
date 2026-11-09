@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useInfiniteQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useAuthStore } from "@/stores/auth-store";
@@ -18,11 +23,18 @@ export interface ReceivedInvitation {
 export function useReceivedInvitations(enabled: boolean) {
   const userId = useAuthStore((state) => state.user?.id);
   const client = useQueryClient();
-  const key = qk.invitations.received(userId ?? "");
-  const query = useQuery({
+  const proved = useAuthStore((state) => state.user?.email_verified === true);
+  const email = useAuthStore((state) => state.user?.email ?? "");
+  const key = [...qk.invitations.received(userId ?? ""), email, proved];
+  const query = useInfiniteQuery({
     queryKey: key,
-    queryFn: () => apiClient.get<ReceivedInvitation[]>("/invitations/received"),
-    enabled: enabled && !!userId,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      apiClient.get<ReceivedInvitation[]>("/invitations/received", {
+        params: { skip: String(pageParam), limit: "50" },
+      }),
+    getNextPageParam: (page, pages) => (page.length === 50 ? pages.length * 50 : undefined),
+    enabled: enabled && !!userId && proved,
     staleTime: 0,
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
@@ -33,12 +45,14 @@ export function useReceivedInvitations(enabled: boolean) {
         `/invitations/received/${encodeURIComponent(id)}/accept`,
       ),
     onSuccess: async (_result, id) => {
-      client.setQueryData<ReceivedInvitation[]>(key, (old) =>
-        old?.filter((item) => item.id !== id),
+      client.setQueryData<InfiniteData<ReceivedInvitation[]>>(key, (old) =>
+        old
+          ? { ...old, pages: old.pages.map((page) => page.filter((item) => item.id !== id)) }
+          : old,
       );
       await client.invalidateQueries({ queryKey: qk.organizations.list() });
       await client.invalidateQueries({ queryKey: key });
     },
   });
-  return { ...query, accept };
+  return { ...query, data: query.data?.pages.flat(), accept };
 }

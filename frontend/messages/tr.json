@@ -471,7 +471,14 @@
         "operator": "Operatör",
         "member": "Üye",
         "viewer": "İzleyici"
-      }
+      },
+      "check": "Davetleri kontrol et",
+      "more": "Daha fazla davet göster",
+      "verifyTitle": "Davetlerin güvende",
+      "verifyDescription": "Ekip davetlerini görmek için {email} adresine erişimini doğrula. Bir giriş bağlantısı göndereceğiz. Asıl davet bağlantısını da kullanabilirsin.",
+      "verifySend": "Giriş bağlantısı gönder",
+      "verificationSent": "Gelen kutunu kontrol et ve giriş bağlantısını aç. Bu kurulumda e-posta gönderimi yapılandırılmış olmalıdır.",
+      "verificationFailed": "Giriş bağlantısı istenemedi. Tekrar dene."
     }
   },
   "knowledgeBases": {
@@ -13147,9 +13154,8 @@
       "unlimitedHint": "Sınır koymak için aşağıdan bir tutar seç",
       "perMonth": "Çalışma alanının tamamı için aylık USD",
       "budgetSlider": "ABD doları olarak aylık bütçe",
-      "budgetInvalid": "Sıfır veya pozitif bir tutar gir.",
+      "budgetInvalid": "Pozitif bir tutar veya limitsiz seçeneğini seç.",
       "budgetHint": "Bu alandaki ajanların izlenen AI kullanımını sınırlar. Abonelik veya ön ödemeli kredi değildir. Sağlayıcı ayrı faturalandırır.",
-      "zeroBudget": "Sıfır sınırı ajan çalıştırmalarını engelleyebilir. AI denemek için pozitif bir tutar seç.",
       "workspaceReadyTitle": "İlk görevin için hazır",
       "workspaceReadyGuide": "Temel hazırlıklar tamam. İlk görevi deneyebiliriz. Gelişmiş kurallar ve ses özellikleri gerekirse aşağıda; bir bölümü açmak ayarları değiştirmez.",
       "readyForPeople": "Ekibinin alanı şekilleniyor",

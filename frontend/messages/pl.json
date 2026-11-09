@@ -1737,7 +1737,14 @@
         "operator": "Operator",
         "member": "Członek",
         "viewer": "Obserwator"
-      }
+      },
+      "check": "Sprawdź zaproszenia",
+      "more": "Pokaż kolejne zaproszenia",
+      "verifyTitle": "Twoje zaproszenia, bezpiecznie",
+      "verifyDescription": "Potwierdź dostęp do {email}, aby zobaczyć zaproszenia do zespołów. Wyślemy link do logowania. Możesz też użyć oryginalnego linku z zaproszenia.",
+      "verifySend": "Wyślij mi link do logowania",
+      "verificationSent": "Sprawdź skrzynkę i otwórz link do logowania. Wysyłanie e-maili musi być skonfigurowane na tej instancji.",
+      "verificationFailed": "Nie udało się poprosić o link do logowania. Spróbuj ponownie."
     }
   },
   "kb": {
@@ -13561,9 +13568,8 @@
       "unlimitedHint": "Wybierz poniżej kwotę, aby ustawić limit",
       "perMonth": "USD miesięcznie, łącznie dla workspace’u",
       "budgetSlider": "Budżet miesięczny w dolarach USA",
-      "budgetInvalid": "Wpisz zero lub dodatnią kwotę.",
+      "budgetInvalid": "Wybierz kwotę większą od zera albo brak limitu.",
       "budgetHint": "To limit rejestrowanego zużycia AI przez agentów w tym workspace. Nie jest abonamentem ani doładowaniem. Dostawca modelu rozlicza użycie oddzielnie.",
-      "zeroBudget": "Zerowy limit może blokować uruchomienia agentów. Wybierz dodatnią kwotę, jeśli chcesz wypróbować AI.",
       "workspaceReadyTitle": "Czas na pierwsze zadanie",
       "workspaceReadyGuide": "Podstawy są gotowe. Możemy przejść do pierwszego zadania. Zaawansowane zasady i funkcje głosowe są dostępne poniżej, jeśli ich potrzebujesz — samo otwarcie sekcji niczego nie zmienia.",
       "readyForPeople": "Miejsce dla zespołu nabiera kształtu",

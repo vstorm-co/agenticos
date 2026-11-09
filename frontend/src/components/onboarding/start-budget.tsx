@@ -22,7 +22,7 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
   const [error, setError] = useState<string | null>(null);
   if (useChanged(`${org.id}|${stored}`)) setValue(stored);
   const parsed = value === "" ? null : Number(value);
-  const valid = parsed === null || (Number.isFinite(parsed) && parsed >= 0);
+  const valid = parsed === null || (Number.isFinite(parsed) && parsed > 0);
   const formatted =
     parsed === null
       ? t("unlimited")
@@ -74,7 +74,7 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
           <input
             type="range"
             className={styles.budgetSlider}
-            min={0}
+            min={1}
             max={Math.max(1000, Math.ceil((valid && parsed !== null ? parsed : 0) / 500) * 500)}
             step={1}
             value={valid && parsed !== null ? Math.round(parsed) : 0}
@@ -109,9 +109,7 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
             </Button>
           </div>
         </div>
-        <p className={`${styles.hint} mt-6 text-center`}>
-          {t(parsed === 0 ? "zeroBudget" : "budgetHint")}
-        </p>
+        <p className={`${styles.hint} mt-6 text-center`}>{t("budgetHint")}</p>
         {error && (
           <p role="alert" className="text-destructive-ink mt-4 text-sm">
             {error}

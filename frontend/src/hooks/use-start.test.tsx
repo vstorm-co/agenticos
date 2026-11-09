@@ -207,3 +207,32 @@ it("refreshes an open start offer when its one-day snooze expires", async () => 
     vi.useRealTimers();
   }
 });
+
+it("uses server time when the local clock is ahead of a snoozed offer", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-10T12:00:00Z"));
+  vi.mocked(readOnboarding).mockResolvedValue({
+    ...sample,
+    dismissed: true,
+    server_time: "2026-11-08T12:00:00Z",
+    snoozed_until: "2026-11-09T12:00:00Z",
+  });
+  const view = mount();
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_600_000);
+    });
+    expect(readOnboarding).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(82_800_001);
+    });
+    expect(readOnboarding).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    view.client.clear();
+    vi.useRealTimers();
+  }
+});

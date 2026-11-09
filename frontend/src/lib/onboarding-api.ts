@@ -6,6 +6,7 @@ export const START_GOALS = ["meeting", "document", "compare"] as const;
 export type StartGoal = (typeof START_GOALS)[number];
 const agent = z.object({ id: z.uuid(), name: z.string() });
 const onboarding = z.object({
+  server_time: z.iso.datetime({ offset: true }).optional(),
   organization_id: z.uuid(),
   organization_name: z.string(),
   goal: z.enum(START_GOALS).nullable(),

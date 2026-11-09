@@ -26,15 +26,18 @@ export function useStart() {
     refetchOnWindowFocus: "always",
   });
   const snoozedUntil = state.data?.snoozed_until;
+  const serverTime = state.data?.server_time;
   const { refetch, dataUpdatedAt } = state;
   useEffect(() => {
     if (!snoozedUntil) return;
+    // Measure against the response clock; local clock skew must not cause a retry loop.
+    const remaining = Date.parse(snoozedUntil) - (serverTime ? Date.parse(serverTime) : Date.now());
     const timer = window.setTimeout(
       () => void refetch(),
-      Math.min(86_400_000, Math.max(1000, Date.parse(snoozedUntil) - Date.now())),
+      Math.min(86_400_000, Math.max(60_000, remaining)),
     );
     return () => window.clearTimeout(timer);
-  }, [snoozedUntil, refetch, dataUpdatedAt]);
+  }, [snoozedUntil, serverTime, refetch, dataUpdatedAt]);
   const save = useMutation({
     mutationKey: [...key, "save"],
     mutationFn: async (data: StartUpdate) => ({ key, data: await saveOnboarding(data) }),

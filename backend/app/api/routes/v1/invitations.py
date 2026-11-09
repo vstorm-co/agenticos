@@ -17,6 +17,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from app.api.deps import (
+    CurrentSessionId,
     CurrentUser,
     InvitationStagingSvc,
     InvitationSvc,
@@ -187,24 +188,33 @@ async def revoke_invitation_by_id(
 
 
 @token_router.get("/invitations/received", response_model=list[ReceivedInvitation])
-async def received_invitations(service: InvitationSvc, user: CurrentUser) -> Any:
+async def received_invitations(
+    service: InvitationSvc,
+    user: CurrentUser,
+    session_id: CurrentSessionId,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
     """List live invitations addressed to the signed-in account, across organizations.
 
+    A live session that proved the current mailbox is required; an unproved
+    session receives an empty list. Pagination uses skip/limit.
     No organization membership or active organization is required. Shareable links,
     expired invitations and existing memberships are excluded; bearer tokens never leave the server.
     """
-    return await service.received(user.id)
+    return await service.received(user.id, session_id, skip=skip, limit=limit)
 
 
 @token_router.get("/invitations/received/{invitation_id}/avatar", response_model=None)
 async def received_invitation_avatar(
-    invitation_id: UUID, service: InvitationSvc, user: CurrentUser
+    invitation_id: UUID, service: InvitationSvc, user: CurrentUser, session_id: CurrentSessionId
 ) -> Any:
     """Preview an organization's logo through a live invitation to the current account.
 
-    No membership is needed. Expired, revoked and other recipients' invitations return 404.
+    The session must have proved the current mailbox. No membership is needed.
+    Expired, revoked and other recipients' invitations return 404.
     """
-    path = await service.received_avatar(invitation_id, user.id)
+    path = await service.received_avatar(invitation_id, user.id, session_id)
     response = await stored_image_response(
         path, headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"}
     )
@@ -219,10 +229,10 @@ async def received_invitation_avatar(
     "/invitations/received/{invitation_id}/accept", response_model=InvitationAccepted
 )
 async def accept_received_invitation(
-    invitation_id: UUID, service: InvitationSvc, user: CurrentUser
+    invitation_id: UUID, service: InvitationSvc, user: CurrentUser, session_id: CurrentSessionId
 ) -> Any:
-    """Accept an addressed invitation by id, after checking the account's current email."""
-    invite = await service.accept_received(invitation_id, user.id)
+    """Accept by id only when this session proved the account's current mailbox."""
+    invite = await service.accept_received(invitation_id, user.id, session_id)
     return InvitationAccepted(organization_id=invite.organization_id)
 
 

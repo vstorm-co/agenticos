@@ -6,7 +6,14 @@ import { ReceivedInvitations } from "./received-invitations";
 import type { ReceivedInvitation } from "@/hooks/use-received-invitations";
 
 const env = vi.hoisted(() => ({
-  auth: { isAuthenticated: true, user: { id: "person" } as { id: string } | null },
+  auth: {
+    isAuthenticated: true,
+    user: { id: "person", email: "person@example.com", email_verified: true } as {
+      id: string;
+      email?: string;
+      email_verified?: boolean;
+    } | null,
+  },
   path: "/chat",
   push: vi.fn(),
   setOrg: vi.fn(),
@@ -58,7 +65,10 @@ function mount() {
 beforeEach(() => {
   vi.resetAllMocks();
   env.path = "/chat";
-  env.auth = { isAuthenticated: true, user: { id: "person" } };
+  env.auth = {
+    isAuthenticated: true,
+    user: { id: "person", email: "person@example.com", email_verified: true },
+  };
   env.items = [
     {
       id: "invite",
@@ -81,7 +91,9 @@ it("shows addressed invitations after sign-in without any token or selected orga
   expect(await screen.findByRole("dialog", { name: "Your team is waiting" })).toBeVisible();
   expect(screen.getByText("Northwind")).toBeVisible();
   expect(screen.getByText("Your role: Member")).toBeVisible();
-  expect(apiClient.get).toHaveBeenCalledWith("/invitations/received");
+  expect(apiClient.get).toHaveBeenCalledWith("/invitations/received", {
+    params: { skip: "0", limit: "50" },
+  });
   expect(apiClient.post).not.toHaveBeenCalled();
 });
 it("accepts the chosen invitation and enters its organization's onboarding", async () => {
@@ -171,4 +183,37 @@ it("uses the invitation logo endpoint and the organization's fallback color", as
   expect(avatar).toHaveAttribute("data-src", "/api/invitations/received/invite/avatar");
   expect(avatar).toHaveAttribute("data-has-image", "true");
   expect(avatar).toHaveAttribute("data-color", "3");
+});
+
+it("asks an unproved password session to prove its mailbox without revealing invitations", async () => {
+  env.auth.user = { id: "person", email: "person@example.com", email_verified: false };
+  mount();
+  fireEvent.click(screen.getByRole("button", { name: "Check invitations" }));
+  expect(screen.getByRole("dialog", { name: "Your invitations, safely" })).toBeVisible();
+  expect(screen.queryByText("Northwind")).not.toBeInTheDocument();
+  expect(apiClient.get).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
+  await waitFor(() =>
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/magic-link/request", {
+      email: "person@example.com",
+      return_to: "/onboarding?entry=joined",
+    }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent("Check your inbox");
+});
+it("loads a second page so older invitations remain reachable", async () => {
+  const first = Array.from({ length: 50 }, (_, i) => ({
+    ...env.items[0]!,
+    id: `invite-${i}`,
+    organization_name: `Team ${i}`,
+  }));
+  vi.mocked(apiClient.get)
+    .mockResolvedValueOnce(first)
+    .mockResolvedValueOnce([{ ...env.items[0]!, organization_name: "Older team" }]);
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Show more invitations" }));
+  expect(await screen.findByText("Older team")).toBeVisible();
+  expect(apiClient.get).toHaveBeenCalledWith("/invitations/received", {
+    params: { skip: "50", limit: "50" },
+  });
 });

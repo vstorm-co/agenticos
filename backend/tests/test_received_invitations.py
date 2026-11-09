@@ -10,6 +10,7 @@ import pytest
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.services import invitation as module
 from app.services.invitation import InvitationService
+from app.services.session import SessionService
 
 pytestmark = pytest.mark.anyio
 
@@ -44,6 +45,8 @@ def received(monkeypatch):
             ]
         ),
     )
+    monkeypatch.setattr(module.user_repo, "get_by_id_for_update", AsyncMock(return_value=person))
+    monkeypatch.setattr(SessionService, "has_mailbox_proof", AsyncMock(return_value=True))
     service = InvitationService(MagicMock())
     service.accept = AsyncMock(return_value=invite)
     return person, invite, service
@@ -53,7 +56,7 @@ async def test_received_list_uses_current_account_email_and_never_exposes_token(
     person, invite, service = received
     rows = await service.received(person.id)
     module.invitation_repo.received.assert_awaited_once_with(
-        service.db, email=person.email, user_id=person.id
+        service.db, email=person.email, user_id=person.id, skip=0, limit=50, invitation_id=None
     )
     assert rows[0].organization_has_avatar is True
     assert rows[0].organization_avatar_color == 3
@@ -81,7 +84,7 @@ async def test_received_invitation_cannot_be_claimed_by_another_address(received
     if case == "missing":
         module.invitation_repo.get_by_id.return_value = None
     if case == "missing_user":
-        module.user_repo.get_by_id.return_value = None
+        module.user_repo.get_by_id_for_update.return_value = None
     with pytest.raises(NotFoundError):
         await service.accept_received(invite.id, person.id)
     service.accept.assert_not_awaited()
@@ -125,7 +128,7 @@ async def test_recipient_can_preview_logo_without_membership(received):
     person, invite, service = received
     assert await service.received_avatar(invite.id, person.id) == "avatars/acme.png"
     module.invitation_repo.received.assert_awaited_once_with(
-        service.db, email=person.email, user_id=person.id
+        service.db, email=person.email, user_id=person.id, skip=0, limit=1, invitation_id=invite.id
     )
 
 
@@ -146,3 +149,23 @@ async def test_logo_preview_requires_a_live_addressed_invitation(received, case)
         await service.received_avatar(
             uuid4() if case == "other_invitation" else invite.id, person.id
         )
+
+
+async def test_unproved_password_session_cannot_discover_accept_or_preview(received):
+    person, invite, service = received
+    SessionService.has_mailbox_proof.return_value = False
+    assert await service.received(person.id) == []
+    module.invitation_repo.received.assert_not_awaited()
+    with pytest.raises(NotFoundError):
+        await service.accept_received(invite.id, person.id)
+    with pytest.raises(NotFoundError):
+        await service.received_avatar(invite.id, person.id)
+    service.accept.assert_not_awaited()
+
+
+async def test_inbox_pagination_passes_offset_without_truncating_older_invitations(received):
+    person, _, service = received
+    await service.received(person.id, skip=150, limit=50)
+    module.invitation_repo.received.assert_awaited_once_with(
+        service.db, email=person.email, user_id=person.id, skip=150, limit=50, invitation_id=None
+    )

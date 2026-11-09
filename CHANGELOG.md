@@ -28,6 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Require session-bound mailbox proof for received invitations and their logos, paginate older offers, preserve onboarding position across language changes, and use the server clock for snooze expiry. Reject a zero monthly budget before submission.
+
 - Let members enter the trusted AgenticOS setup chat from onboarding without requiring model-management permissions or treating a draft as a runnable agent.
 - Default new maps to bundled SVG country outlines and routes without tile-server setup; keep optional street-map configuration and hide its unconfigured dashboard check.
 - Preserve focus outlines in onboarding profile cards and spacing below form labels.

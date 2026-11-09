@@ -3584,7 +3584,14 @@
         "operator": "Operator",
         "member": "Mitglied",
         "viewer": "Betrachter"
-      }
+      },
+      "check": "Einladungen prüfen",
+      "more": "Weitere Einladungen anzeigen",
+      "verifyTitle": "Deine Einladungen, sicher",
+      "verifyDescription": "Bestätige den Zugriff auf {email}, um Teameinladungen zu sehen. Wir senden einen Anmeldelink. Du kannst auch den ursprünglichen Einladungslink nutzen.",
+      "verifySend": "Anmeldelink per E-Mail senden",
+      "verificationSent": "Prüfe dein Postfach und öffne den Anmeldelink. Der E-Mail-Versand muss für diese Installation eingerichtet sein.",
+      "verificationFailed": "Der Anmeldelink konnte nicht angefordert werden. Versuche es erneut."
     }
   },
   "kb": {
@@ -13458,9 +13465,8 @@
       "unlimitedHint": "Unten einen Betrag für die Obergrenze wählen",
       "perMonth": "USD pro Monat, für den gesamten Workspace",
       "budgetSlider": "Monatsbudget in US-Dollar",
-      "budgetInvalid": "Null oder einen positiven Betrag eingeben.",
+      "budgetInvalid": "Wähle einen positiven Betrag oder kein Limit.",
       "budgetHint": "Begrenzt die erfasste KI-Nutzung der Agenten im Workspace. Kein Abo und kein Guthaben. Der Anbieter rechnet separat ab.",
-      "zeroBudget": "Ein Null-Limit kann Agentenläufe blockieren. Zum Ausprobieren einen positiven Betrag wählen.",
       "workspaceReadyTitle": "Bereit für die erste Aufgabe",
       "workspaceReadyGuide": "Das Wichtigste ist bereit. Jetzt können wir eine erste Aufgabe ausprobieren. Erweiterte Regeln und Sprache sind bei Bedarf unten verfügbar; das Öffnen ändert nichts.",
       "readyForPeople": "Der Team-Workspace nimmt Gestalt an",

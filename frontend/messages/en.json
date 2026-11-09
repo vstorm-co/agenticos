@@ -3584,7 +3584,14 @@
         "operator": "Operator",
         "member": "Member",
         "viewer": "Viewer"
-      }
+      },
+      "check": "Check invitations",
+      "more": "Show more invitations",
+      "verifyTitle": "Your invitations, safely",
+      "verifyDescription": "Confirm access to {email} to discover invitations to your teams. We will send a sign-in link. You can also use the original invitation link.",
+      "verifySend": "Email me a sign-in link",
+      "verificationSent": "Check your inbox for the sign-in link. Email delivery must be configured on this deployment.",
+      "verificationFailed": "Could not request the sign-in link. Try again."
     }
   },
   "kb": {
@@ -13786,9 +13793,8 @@
       "unlimitedHint": "Choose an amount below to set a ceiling",
       "perMonth": "USD per month, across this workspace",
       "budgetSlider": "Monthly budget in US dollars",
-      "budgetInvalid": "Enter zero or a positive amount.",
+      "budgetInvalid": "Choose a positive amount, or no limit.",
       "budgetHint": "This caps tracked AI usage across agents in this workspace. It is not a subscription or prepaid credit. Provider billing is separate.",
-      "zeroBudget": "A zero limit can block agent runs. Choose a positive amount if you want to try AI.",
       "workspaceReadyTitle": "Ready for your first task",
       "workspaceReadyGuide": "The essentials are in place. We can try a first task now. Advanced policies and voice features are here if you need them — opening a section doesn't change its settings.",
       "readyForPeople": "Your team's space is taking shape",

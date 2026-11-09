@@ -21,6 +21,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.invitation_admission import admits_anyone
 from app.services.proactive import ProactiveService
+from app.services.session import SessionService
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,10 @@ class InvitationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def received(self, user_id: UUID) -> list[ReceivedInvitation]:
-        rows = await self._received_rows(user_id)
+    async def received(
+        self, user_id: UUID, session_id: UUID | None = None, *, skip: int = 0, limit: int = 50
+    ) -> list[ReceivedInvitation]:
+        rows = await self._received_rows(user_id, session_id=session_id, skip=skip, limit=limit)
         return [
             ReceivedInvitation(
                 id=invite.id,
@@ -44,15 +47,36 @@ class InvitationService:
             for invite, organization in rows
         ]
 
-    async def _received_rows(self, user_id: UUID) -> list[tuple[Invitation, Organization]]:
+    async def _received_rows(
+        self,
+        user_id: UUID,
+        *,
+        session_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 50,
+        invitation_id: UUID | None = None,
+    ) -> list[tuple[Invitation, Organization]]:
         person = await user_repo.get_by_id(self.db, user_id)
         if person is None:
             raise NotFoundError(message="User not found", details={"user_id": user_id})
-        return await invitation_repo.received(self.db, email=person.email, user_id=user_id)
+        if not await SessionService(self.db).has_mailbox_proof(user_id, person.email, session_id):
+            return []
+        return await invitation_repo.received(
+            self.db,
+            email=person.email,
+            user_id=user_id,
+            skip=skip,
+            limit=limit,
+            invitation_id=invitation_id,
+        )
 
-    async def received_avatar(self, invitation_id: UUID, user_id: UUID) -> str:
+    async def received_avatar(
+        self, invitation_id: UUID, user_id: UUID, session_id: UUID | None = None
+    ) -> str:
         """An active addressed invitation grants its recipient a preview of the org logo."""
-        rows = await self._received_rows(user_id)
+        rows = await self._received_rows(
+            user_id, session_id=session_id, invitation_id=invitation_id, limit=1
+        )
         for invite, organization in rows:
             if invite.id == invitation_id and organization.avatar_url:
                 return organization.avatar_url
@@ -60,11 +84,16 @@ class InvitationService:
             message="Invitation avatar not found", details={"invitation_id": invitation_id}
         )
 
-    async def accept_received(self, invitation_id: UUID, user_id: UUID) -> Invitation:
-        person = await user_repo.get_by_id(self.db, user_id)
+    async def accept_received(
+        self, invitation_id: UUID, user_id: UUID, session_id: UUID | None = None
+    ) -> Invitation:
+        person = await user_repo.get_by_id_for_update(self.db, user_id)
         invite = await invitation_repo.get_by_id(self.db, invitation_id)
         if (
             person is None
+            or not await SessionService(self.db).has_mailbox_proof(
+                user_id, person.email, session_id
+            )
             or invite is None
             or invite.email is None
             or invite.email.lower() != person.email.lower()

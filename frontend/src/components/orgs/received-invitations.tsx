@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
+import { apiClient } from "@/lib/api-client";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { pageOf } from "@/lib/assistant-bubbles";
@@ -27,6 +28,7 @@ export function ReceivedInvitations() {
   const userId = useAuthStore((state) =>
     state.isAuthenticated && !state.isLoading ? state.user?.id : undefined,
   );
+  const person = useAuthStore((state) => state.user);
   const pathname = pageOf(usePathname());
   const visible = !!userId && !/^\/(login|register|auth|shared|invitations)(\/|$)/.test(pathname);
   const inbox = useReceivedInvitations(visible);
@@ -39,7 +41,10 @@ export function ReceivedInvitations() {
     setFailed(false);
   }
   const invitations = inbox.data ?? [];
-  if (!visible || !invitations.length) return null;
+  if (!visible) return null;
+  if (person?.email_verified === false)
+    return <VerifyInvitationMailbox key={`${userId}|${person.email}`} email={person.email} />;
+  if (!invitations.length) return null;
   const join = async (id: string) => {
     setFailed(false);
     try {
@@ -115,6 +120,15 @@ export function ReceivedInvitations() {
               </div>
             ))}
           </div>
+          {inbox.hasNextPage && (
+            <Button
+              variant="outline"
+              disabled={inbox.isFetchingNextPage}
+              onClick={() => void inbox.fetchNextPage()}
+            >
+              {t("more")}
+            </Button>
+          )}
           {failed && (
             <p role="alert" className="text-destructive-ink mb-4 text-sm">
               {t("failed")}
@@ -125,6 +139,58 @@ export function ReceivedInvitations() {
             disabled={inbox.accept.isPending}
             onClick={() => setDismissedFor(userId)}
           >
+            {t("later")}
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function VerifyInvitationMailbox({ email }: { email: string }) {
+  const t = useTranslations("invitations.received");
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const send = async () => {
+    setPending(true);
+    try {
+      await apiClient.post("/auth/magic-link/request", {
+        email,
+        return_to: "/onboarding?entry=joined",
+      });
+      setSent(true);
+    } catch {
+      toast.error(t("verificationFailed"));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="fixed top-3 left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        onClick={() => setOpen(true)}
+      >
+        <MailPlus size={16} aria-hidden />
+        {t("check")}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className={DIALOG_FORM}>
+          <DialogHeader>
+            <DialogTitle>{t("verifyTitle")}</DialogTitle>
+            <DialogDescription>{t("verifyDescription", { email })}</DialogDescription>
+          </DialogHeader>
+          {sent ? (
+            <p role="status">{t("verificationSent")}</p>
+          ) : (
+            <Button disabled={pending} onClick={() => void send()}>
+              {t("verifySend")}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => setOpen(false)}>
             {t("later")}
           </Button>
         </DialogContent>

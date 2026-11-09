@@ -1,6 +1,6 @@
 """A person's resumable start in one organization, separate from tour preferences."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -24,6 +24,7 @@ class OnboardingAgent(BaseSchema):
 
 
 class OnboardingRead(BaseSchema):
+    server_time: datetime = Field(default_factory=lambda: datetime.now(UTC))
     organization_id: UUID
     organization_name: str
     goal: StartGoal | None

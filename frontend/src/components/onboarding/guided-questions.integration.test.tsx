@@ -204,10 +204,10 @@ it("keeps a failed budget save in the same question", async () => {
   expect(screen.getByRole("alert")).toHaveTextContent("weren't saved");
   expect(env.next).not.toHaveBeenCalled();
 });
-it("supports no ceiling and warns about an explicit zero", async () => {
+it("keeps the slider above zero and supports no ceiling", async () => {
   render(<StartBudget org={{ ...org, monthly_budget_usd: "100" }} onContinue={env.next} />);
   fireEvent.change(screen.getByRole("slider"), { target: { value: "0" } });
-  expect(screen.getByText(/zero limit can block/)).toBeVisible();
+  expect(screen.getByRole("slider")).toHaveValue("1");
   await userEvent.click(screen.getByRole("button", { name: "No limit" }));
   await proceed();
   expect(env.budget).toHaveBeenCalledWith("company", null);
