@@ -15,7 +15,7 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { datasetNextStep } from "./dataset-journey";
-import { OPTION_TONES } from "@/lib/table-option-colors";
+import { DatasetIcon } from "./dataset-chip";
 import { cn } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
 
@@ -79,14 +79,7 @@ export function DatasetGuide({
                       tab === step.id ? "border-foreground/25 bg-accent/30" : "border-transparent",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                        OPTION_TONES[done ? "green" : step.tone],
-                      )}
-                    >
-                      <Icon className="size-4" aria-hidden />
-                    </span>
+                    <DatasetIcon tone={done ? "green" : step.tone} icon={Icon} />
                     <span className="min-w-0 space-y-1">
                       <span className="block text-xs font-semibold">
                         {t(`step.${step.id}`, { number: index + 1 })}

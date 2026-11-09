@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { DatasetChip } from "./dataset-chip";
+import { DatasetChip, DatasetIcon } from "./dataset-chip";
 import { datasetNextStep } from "./dataset-journey";
 import { timeAgo } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
@@ -42,9 +42,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           aria-label={tc("openNamed", { name: dataset.name })}
         />
         <div className="pointer-events-none relative flex items-start gap-3">
-          <span className="bg-table-blue text-table-blue-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <FlaskConical aria-hidden="true" className="size-5" />
-          </span>
+          <DatasetIcon tone="blue" icon={FlaskConical} className="size-10" />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="text-foreground truncate font-medium">{dataset.name}</p>

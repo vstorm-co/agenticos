@@ -14,7 +14,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { Button, ListCardEmpty } from "@/components/ui";
-import { OPTION_TONES } from "@/lib/table-option-colors";
+import { DatasetIcon } from "./dataset-chip";
 import { cn } from "@/lib/utils";
 import { ImportCasesDialog } from "./import-cases-dialog";
 import type { DatasetTone } from "./dataset-chip";
@@ -130,11 +130,7 @@ function CreationOption({
       data-tour={tour}
       className="group hover:border-foreground/25 hover:bg-accent/30 focus-visible:ring-ring flex flex-col gap-4 rounded-xl border p-5 text-left transition-colors focus-visible:ring-2"
     >
-      <span
-        className={cn("flex size-10 items-center justify-center rounded-xl", OPTION_TONES[tone])}
-      >
-        <Icon className="size-5" aria-hidden />
-      </span>
+      <DatasetIcon tone={tone} icon={Icon} className="size-10 rounded-xl" />
       <span className="space-y-1.5">
         <span className="flex items-center justify-between gap-2 text-sm font-semibold">
           {title}

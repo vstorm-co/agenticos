@@ -1,5 +1,6 @@
 "use client";
 
+import { DatasetIcon } from "./dataset-chip";
 import { Sparkles, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -73,15 +74,7 @@ export function HelperSettings({
     <Card className="min-w-0" data-tour={`datasets-${kind}-settings`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <span
-            className={
-              kind === "generator"
-                ? "bg-table-purple text-table-purple-foreground flex size-8 items-center justify-center rounded-lg"
-                : "bg-table-green text-table-green-foreground flex size-8 items-center justify-center rounded-lg"
-            }
-          >
-            <Icon className="size-4" aria-hidden />
-          </span>
+          <DatasetIcon tone={kind === "generator" ? "purple" : "green"} icon={Icon} />
           {t(`${kind}Title`)}
         </CardTitle>
         <CardDescription>{t(`${kind}Description`)}</CardDescription>

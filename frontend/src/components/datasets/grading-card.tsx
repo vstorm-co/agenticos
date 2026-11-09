@@ -4,8 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import type { LucideIcon } from "lucide-react";
-import { OPTION_TONES } from "@/lib/table-option-colors";
-import { cn } from "@/lib/utils";
+import { DatasetIcon } from "./dataset-chip";
 import type { DatasetTone } from "./dataset-chip";
 import { Badge } from "@/components/ui";
 
@@ -34,14 +33,7 @@ export function GradingCard({
   return (
     <section className="bg-card min-w-0 overflow-hidden rounded-xl border">
       <header className="flex items-start gap-3 border-b p-4 sm:p-5">
-        <span
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-lg",
-            OPTION_TONES[tone],
-          )}
-        >
-          <Icon className="size-4" aria-hidden />
-        </span>
+        <DatasetIcon tone={tone} icon={Icon} className="size-9" />
         <div className="min-w-0 flex-1 space-y-1">
           <h2 className="text-sm font-semibold">{title}</h2>
           <p className="text-muted-foreground text-xs leading-relaxed">{description}</p>

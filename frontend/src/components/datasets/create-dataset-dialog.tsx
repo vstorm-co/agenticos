@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, FlaskConical, ListChecks, Play, Scale } from "lucide-react";
-import { DatasetChip } from "./dataset-chip";
+import { DatasetChip, DatasetIcon } from "./dataset-chip";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -86,9 +86,7 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <span className="bg-table-blue text-table-blue-foreground flex size-9 items-center justify-center rounded-xl">
-              <FlaskConical className="size-5" aria-hidden />
-            </span>
+            <DatasetIcon tone="blue" icon={FlaskConical} className="size-9" />
             {t("newDataset")}
           </DialogTitle>
           <DialogDescription>{t("newDatasetBody")}</DialogDescription>

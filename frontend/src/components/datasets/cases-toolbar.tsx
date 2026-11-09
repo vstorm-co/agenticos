@@ -12,8 +12,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui";
-import { OPTION_TONES } from "@/lib/table-option-colors";
-import { cn } from "@/lib/utils";
+import { DatasetIcon } from "./dataset-chip";
 import { ROUTES } from "@/lib/constants";
 import { ImportCasesDialog } from "./import-cases-dialog";
 import { useDatasetFiles } from "./use-dataset-files";
@@ -43,11 +42,11 @@ export function CasesToolbar({
         {t("addCase")}
       </Button>
       <Button size="sm" variant="outline" disabled={disabled} onClick={onGenerate}>
-        <Sparkles className={cn("size-4 rounded-sm", OPTION_TONES.purple)} aria-hidden />
+        <DatasetIcon tone="purple" icon={Sparkles} className="size-6 rounded-md" />
         {t("generateCases")}
       </Button>
       <Button size="sm" variant="outline" disabled={disabled} onClick={() => setImporting(true)}>
-        <Upload className={cn("size-4 rounded-sm", OPTION_TONES.green)} aria-hidden />
+        <DatasetIcon tone="green" icon={Upload} className="size-6 rounded-md" />
         {t("import")}
       </Button>
       <DropdownMenu>
