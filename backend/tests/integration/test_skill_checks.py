@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBodyFile
@@ -37,6 +37,7 @@ from app.db.models.skill_check import (
     CheckSource,
     CheckStatus,
     CheckVerdict,
+    SkillCheckAgent,
     UnknownReason,
 )
 from app.repositories import dataset_repo, eval_run_repo, skill_check_repo, skill_proposal_repo
@@ -986,6 +987,50 @@ class TestAStageThatCannotMeasure:
         with pytest.raises(BadRequestError):
             await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start())
 
+    async def test_another_refusal_after_a_skipped_stage_still_refuses_the_check(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        test_set = await dataset_repo.for_skill(
+            db, lab.skill.id, organization_id=lab.ctx.organization_id
+        )
+        own = await dataset_repo.testing_agent(
+            db, lab.a.id, organization_id=lab.ctx.organization_id
+        )
+        assert test_set is not None and own
+        FakeEvals(refuse_estimate={test_set.id: "no_scorer", own[0].id: "archived"}).install(
+            monkeypatch
+        )
+
+        with pytest.raises(BadRequestError):
+            await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+
+    async def test_an_agent_asked_nothing_names_no_sample(self, db, monkeypatch):
+        lab = await _lab(db)
+        test_set = await dataset_repo.for_skill(
+            db, lab.skill.id, organization_id=lab.ctx.organization_id
+        )
+        own = await _dataset(db, lab.ctx, "ungradable", agent=lab.c)
+        assert test_set is not None
+        FakeEvals(refuse_estimate={test_set.id: "no_scorer", own.id: "all_evidence"}).install(
+            monkeypatch
+        )
+
+        async def sample(_self, _ctx, _skill, _agent_id, asked, _words, _allowed=None, **_):
+            return [uuid.uuid4()] if asked.id == own.id else []
+
+        monkeypatch.setattr(SkillCheckService, "_sample", sample)
+
+        estimate = await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
+
+        c = next(row for row in estimate.agents if row.agent.name == "C")
+        assert (c.state, c.unknown_reason, c.sample, c.stages) == (
+            "unknown",
+            "unscorable",
+            None,
+            [],
+        )
+
     async def test_a_stage_refused_as_it_starts_says_why(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals(refuse_start={lab.c.id}, start_refusal={"reason": "all_evidence"}).install(
@@ -1033,6 +1078,25 @@ class TestNothingToRun:
         assert check.no_readers and evals.started == []
         applied = await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
         assert (applied.version.fork_id, applied.version.content) == (empty.id, NEW.content)
+
+    async def test_a_check_whose_agents_were_deleted_is_no_better(self, db, monkeypatch):
+        """Deleting an agent deletes its row of the check: a check left with none was not
+        one of a line nobody reads, and passes nothing."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        await db.execute(delete(SkillCheckAgent).where(SkillCheckAgent.check_id == check.id))
+
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert (read.status, read.verdict, read.no_readers) == (
+            CheckStatus.DONE,
+            CheckVerdict.NO_BETTER,
+            False,
+        )
 
     async def test_a_line_none_of_whose_agents_can_be_checked_waits_for_an_acknowledgement(
         self, db, monkeypatch

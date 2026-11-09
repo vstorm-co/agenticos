@@ -17,7 +17,7 @@ checks the change again.
 **The change.** It passes when no agent is worse and at least one is better.
 `within_noise` warns and never blocks. An agent that could not be checked is
 `unknown`, and a person acknowledges it before applying - also when no agent
-could be. A change to a line nobody reads passes: it reaches no agent.
+could be.
 
 **What a person may do.** On main, a change that made an agent worse may still be
 applied with that agent pinned to the version it has now, and any change may be
@@ -175,15 +175,13 @@ def agent_state(stages: Sequence[StageComparison], *, minimum: int) -> AgentStat
 def verdict(states: Iterable[AgentState]) -> CheckVerdict:
     """The rule over every agent of the line, hidden ones included.
 
-    A line nobody reads passes: the change reaches no agent. One whose every agent
-    is unknown needs a person to acknowledge that, as any unknown agent does.
+    A line whose every agent is unknown needs a person to acknowledge that, as any
+    unknown agent does.
     """
     seen = list(states)
-    if not seen:
-        return CheckVerdict.PASSED
     if AgentState.WORSE in seen:
         return CheckVerdict.BLOCKED
-    if all(state is AgentState.UNKNOWN for state in seen):
+    if seen and all(state is AgentState.UNKNOWN for state in seen):
         return CheckVerdict.NEEDS_ACK
     if AgentState.BETTER not in seen:
         return CheckVerdict.NO_BETTER

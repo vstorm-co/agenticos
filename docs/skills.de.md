@@ -1,5 +1,5 @@
 ---
-source_sha: "de9e976fa4a1"
+source_sha: "d4ef900ec7f4"
 ---
 
 # Skills { #skills }
@@ -351,7 +351,8 @@ Held-out-Fragen des Agents.
 
 Eine Prüfung schickt ihre bestätigten Regressionen und die Antworten, die der
 Judge nicht bewerten konnte, in die [Prüfwarteschlange](datasets.md#review), jede
-als Antwort mit der vorgeschlagenen Änderung markiert. Das Urteil einer Person
+als Antwort mit der vorgeschlagenen Änderung markiert, und nie anstelle einer
+Antwort, die auf diese Frage schon wartet. Das Urteil einer Person
 dort über eine Antwort, die eine Prüfung bewertet hat, beurteilt diesen Agent neu:
 seine Zahlen, das Urteil der Prüfung und das Ergebnis des Improve-Versuchs, den
 die Prüfung gemessen hat, folgen diesem Urteil.

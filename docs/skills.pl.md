@@ -1,5 +1,5 @@
 ---
-source_sha: "de9e976fa4a1"
+source_sha: "d4ef900ec7f4"
 ---
 
 # Skille { #skills }
@@ -326,7 +326,8 @@ held-out agenta.
 
 Sprawdzenie wysyła swoje potwierdzone regresje i odpowiedzi, których sędzia nie
 umiał ocenić, do [kolejki przeglądu](datasets.md#review), każdą oznaczoną jako
-odpowiedź udzieloną z proponowaną zmianą. Werdykt osoby na odpowiedź ocenioną
+odpowiedź udzieloną z proponowaną zmianą, i nigdy w miejsce odpowiedzi, która
+już czeka na tym pytaniu. Werdykt osoby na odpowiedź ocenioną
 przez sprawdzenie ocenia tego agenta od nowa: jego liczby, werdykt sprawdzenia i
 wynik próby Improve, którą sprawdzenie mierzyło, idą za tym werdyktem.
 

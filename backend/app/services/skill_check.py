@@ -452,9 +452,10 @@ class SkillCheckService:
                 except BadRequestError as refused:
                     # Questions nothing can grade, or only ones the change learned from,
                     # measure nothing on this agent; its other stage still may.
-                    skipped = skipped or _skipped(refused)
-                    if skipped is None:
+                    reason = _skipped(refused)
+                    if reason is None:
                         raise
+                    skipped = skipped or reason
                     continue
                 asked.append(replace(stage, asked=quote.cases))
                 row.expected += rules.expected_cost(quote.total_usd, quote.rerun_ceiling_usd)
@@ -463,14 +464,15 @@ class SkillCheckService:
                 org_remaining = quote.org_remaining_usd
             if row.unknown is not None:
                 continue
+            row.stages = asked
+            if not asked:
+                row.unknown, row.sample = skipped, None
+                continue
             if row.sample is SampleKind.OWN_QUESTIONS and all(
                 stage.kind == "skill_set" for stage in asked
             ):
                 row.sample = SampleKind.SKILL_SET_ONLY
-            row.stages = asked
-            if not asked:
-                row.unknown = skipped
-            elif remaining is not None and row.at_most > remaining:
+            if remaining is not None and row.at_most > remaining:
                 row.unknown = UnknownReason.NO_BUDGET
         return Plan(
             skill=skill,
@@ -863,7 +865,7 @@ class SkillCheckService:
         for item, row in zip(plan.agents, rows, strict=True):
             if item.unknown is None:
                 await self._run_stage(ctx, check, row, item.stages[0])
-        await self._settle(check)
+        await self._settle(check, no_readers=not rows)
         return await self.read(ctx, skill_id, check.id)
 
     async def _run_stage(
@@ -1085,8 +1087,12 @@ class SkillCheckService:
             values={"state": AgentState.UNKNOWN.value, "unknown_reason": reason.value},
         )
 
-    async def _settle(self, check: SkillCheck) -> None:
-        """Finish a check once every agent has a result."""
+    async def _settle(self, check: SkillCheck, *, no_readers: bool = False) -> None:
+        """Finish a check once every agent has a result.
+
+        `no_readers` is a check started on a line no agent reads, which passes: the
+        change reaches nobody. One whose agents were deleted since is no better.
+        """
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=check.organization_id
         )
@@ -1098,7 +1104,7 @@ class SkillCheckService:
             row=check,
             values={
                 "status": CheckStatus.DONE.value,
-                "verdict": rules.verdict(states).value,
+                "verdict": (CheckVerdict.PASSED if no_readers else rules.verdict(states)).value,
                 "finished_at": datetime.now(UTC),
             },
         )
@@ -1374,7 +1380,7 @@ class SkillCheckService:
                     proposal_id=check.proposal_id,
                     session_id=sessions.get(check.id),
                     applied_version_id=check.applied_version_id,
-                    no_readers=not mine,
+                    no_readers=not mine and verdict is CheckVerdict.PASSED,
                     created_at=check.created_at,
                     finished_at=check.finished_at,
                     line=_line_ref(fork),

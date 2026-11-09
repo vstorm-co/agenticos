@@ -1,5 +1,5 @@
 ---
-source_sha: "de9e976fa4a1"
+source_sha: "d4ef900ec7f4"
 ---
 
 # Skills { #skills }
@@ -336,7 +336,8 @@ toma preguntas held-out del agent.
 
 Una comprobación envía sus regresiones confirmadas, y las respuestas que el juez
 no pudo calificar, a la [cola de revisión](datasets.md#review), cada una marcada
-como respuesta dada con el cambio propuesto. El veredicto de una persona allí
+como respuesta dada con el cambio propuesto, y nunca en lugar de una respuesta que
+ya espera en esa pregunta. El veredicto de una persona allí
 sobre una respuesta que una comprobación calificó vuelve a juzgar a ese agent: sus
 recuentos, el veredicto de la comprobación y el resultado del intento de Improve
 que la comprobación midió siguen ese veredicto.

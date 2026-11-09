@@ -313,7 +313,8 @@ questions.
 
 A check sends its confirmed regressions, and the answers the judge could not
 grade, to the [review queue](datasets.md#review), each marked as an answer given
-with the proposed change. A person's verdict there on an answer a check graded
+with the proposed change, and never in place of an answer already waiting on that
+question. A person's verdict there on an answer a check graded
 judges that agent again: its counts, the check's verdict and the result of the
 Improve attempt the check measured follow the verdict.
 
