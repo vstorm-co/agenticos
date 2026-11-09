@@ -118,13 +118,15 @@ it("discards changes and preserves the draft when saving is refused", async () =
   expect(proceed).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "improve-model" })).toBeInTheDocument();
 });
-it("shows code defaults to readers without offering edits", () => {
+it("shows code defaults on demand to readers without offering edits", async () => {
   render(
     <HelperSettings
       dataset={dataset({ can_edit: false, helper_defaults: configured().helper_defaults })}
       kind="generator"
     />,
   );
+  expect(screen.queryByRole("textbox", { name: "Instructions" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
   expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
     "Code generator instructions",
   );

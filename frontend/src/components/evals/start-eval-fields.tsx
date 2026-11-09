@@ -41,36 +41,55 @@ export function TargetChoice({
   onChange: (target: EvalTarget) => void;
 }) {
   const t = useTranslations("evals.fields");
+  const group = useId();
   if (targets.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("noTarget")}</p>;
   }
   return (
-    <div role="radiogroup" aria-label={t("target")} className="space-y-1" data-tour="eval-target">
-      <p className="text-sm font-medium">{t("target")}</p>
-      {targets.map((target) => (
-        <button
-          key={target}
-          type="button"
-          role="radio"
-          aria-checked={value === target}
-          disabled={target === "compare" && !draftDiffers}
-          onClick={() => onChange(target)}
-          className={cn(
-            "min-h-11 w-full rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-            value === target ? "border-primary bg-primary/5" : "hover:bg-accent/40",
-          )}
-        >
-          <span className="block text-sm font-medium">
-            {t(`targetOption.${target}`, { version: currentVersion ?? 0 })}
-          </span>
-          <span className="text-muted-foreground block text-xs">
-            {target === "compare" && !draftDiffers
-              ? t("noChanges")
-              : t(`targetHint.${target}`, { version: currentVersion ?? 0 })}
-          </span>
-        </button>
-      ))}
-    </div>
+    <fieldset className="min-w-0 space-y-2" data-tour="eval-target">
+      <legend className="text-sm font-medium">{t("target")}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {targets.map((target) => (
+          <label
+            key={target}
+            className={cn(
+              "has-[:focus-visible]:ring-ring grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] content-start gap-x-3 gap-y-1 rounded-xl border p-3 transition-colors has-[:focus-visible]:ring-2",
+              value === target
+                ? "border-foreground/40 bg-accent/50"
+                : "border-border hover:bg-accent/40",
+              target === "compare" && !draftDiffers && "cursor-not-allowed opacity-50",
+            )}
+          >
+            <input
+              type="radio"
+              name={group}
+              value={target}
+              checked={value === target}
+              disabled={target === "compare" && !draftDiffers}
+              onChange={() => onChange(target)}
+              className="sr-only"
+            />
+            <span
+              aria-hidden
+              className={cn(
+                "row-span-2 mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                value === target ? "border-primary bg-primary" : "border-muted-foreground/40",
+              )}
+            >
+              {value === target && <span className="bg-primary-foreground size-1.5 rounded-full" />}
+            </span>
+            <span className="text-sm font-medium">
+              {t(`targetOption.${target}`, { version: currentVersion ?? 0 })}
+            </span>{" "}
+            <span className="text-muted-foreground col-start-2 text-xs leading-relaxed">
+              {target === "compare" && !draftDiffers
+                ? t("noChanges")
+                : t(`targetHint.${target}`, { version: currentVersion ?? 0 })}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

@@ -183,6 +183,11 @@ environment without a person's decision.
 
 ### Fixed
 
+- Make evaluation workspaces easier to use: split case editing into conversation
+  and expectations, keep save actions visible, choose saved pipeline models first,
+  fold default instructions, and lay out grading, helper settings and knowledge
+  gaps side by side on wide screens. Evaluation targets support keyboard arrows.
+
 - Align datasets, evals and Improve with the current console cards, dialogs,
   status text and chart tooltips. Preserve routine approval policies and join
   both published migration histories when upgrading from the preview or main.

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
@@ -109,11 +109,11 @@ type Slot =
 const GROUPS: { group: string; slots: Slot[] }[] = [
   {
     group: "question",
-    slots: [{ field: "input", rows: 4 }],
+    slots: [{ field: "input", rows: 6 }],
   },
   {
     group: "answers",
-    slots: [{ field: "reference_answer", rows: 3 }],
+    slots: [{ field: "reference_answer", rows: 6 }],
   },
   { group: "history", slots: ["history"] },
   { group: "counter", slots: [{ field: "counter_example", rows: 3 }] },
@@ -155,7 +155,7 @@ function CaseGroup({
   const t = useTranslations("datasets");
   if (group === "question" || group === "answers")
     return (
-      <section data-tour={`case-group-${group}`} className="min-w-0 space-y-4 pb-5">
+      <section data-tour={`case-group-${group}`} className="min-w-0 space-y-4">
         {children}
       </section>
     );
@@ -363,7 +363,7 @@ export function CaseEditorDialog({
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent
-        className={cn(DIALOG_FORM, DIALOG_COLUMN, "max-sm:h-[var(--dialog-available-height)]")}
+        className={cn(DIALOG_BROAD, DIALOG_COLUMN, "max-sm:h-[var(--dialog-available-height)]")}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -395,139 +395,181 @@ export function CaseEditorDialog({
               />
             </FormField>
           )}
-          {editing &&
-            json === null &&
-            GROUPS.map(({ group, slots }) => (
-              <CaseGroup
-                key={group}
-                group={group}
-                expanded={
-                  group === "history"
-                    ? draft.history.length > 0 || errors.history !== undefined
-                    : group === "counter"
-                      ? draft.counter_example.length > 0 || errors.counter_example !== undefined
-                      : group === "tools"
-                        ? draft.expected_tool_calls.length > 0 ||
-                          errors.expected_tool_calls !== undefined
-                        : group === "checks"
-                          ? draft.checks.length > 0 || errors.checks !== undefined
-                          : group === "labels"
-                            ? draft.tags.length > 0 ||
-                              draft.note.length > 0 ||
-                              errors.tags !== undefined ||
-                              errors.note !== undefined
-                            : false
-                }
-              >
-                {slots.map((slot) => {
-                  if (slot === "tags") {
-                    return (
-                      <FormField
-                        key={slot}
-                        htmlFor="case-tags"
-                        label={t("field.tags")}
-                        description={t("hint.tags")}
-                        error={errors.tags}
+          {editing && json === null && (
+            <div className="grid items-start gap-5 lg:grid-cols-2">
+              {[
+                {
+                  title: "conversation",
+                  groups: GROUPS.filter(({ group }) =>
+                    ["question", "history", "labels"].includes(group),
+                  ),
+                },
+                {
+                  title: "expectations",
+                  groups: GROUPS.filter(({ group }) =>
+                    ["answers", "counter", "tools", "checks"].includes(group),
+                  ),
+                },
+              ].map(({ title: column, groups }) => (
+                <section
+                  key={column}
+                  aria-label={t(`editor.${column}`)}
+                  className="bg-background/40 min-w-0 rounded-xl border"
+                >
+                  <header className="border-b px-4 py-3">
+                    <h3 className="text-sm font-semibold">{t(`editor.${column}`)}</h3>
+                    <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                      {t(`editor.${column}Hint`)}
+                    </p>
+                  </header>
+                  <div className="space-y-4 p-4">
+                    {groups.map(({ group, slots }) => (
+                      <CaseGroup
+                        key={group}
+                        group={group}
+                        expanded={
+                          group === "history"
+                            ? draft.history.length > 0 || errors.history !== undefined
+                            : group === "counter"
+                              ? draft.counter_example.length > 0 ||
+                                errors.counter_example !== undefined
+                              : group === "tools"
+                                ? draft.expected_tool_calls.length > 0 ||
+                                  errors.expected_tool_calls !== undefined
+                                : group === "checks"
+                                  ? draft.checks.length > 0 || errors.checks !== undefined
+                                  : group === "labels"
+                                    ? draft.tags.length > 0 ||
+                                      draft.note.length > 0 ||
+                                      errors.tags !== undefined ||
+                                      errors.note !== undefined
+                                    : false
+                        }
                       >
-                        <Input
-                          readOnly={readOnly}
-                          placeholder={t("tagsPlaceholder")}
-                          value={draft.tags}
-                          onChange={(event) => edit("tags", event.target.value)}
-                        />
-                      </FormField>
-                    );
-                  }
-                  if (slot === "history") {
-                    return (
-                      <ListField key={slot} field={slot} error={errors.history}>
-                        <CaseHistoryEditor
-                          turns={draft.history}
-                          onChange={(history) => edit("history", history)}
-                        />
-                      </ListField>
-                    );
-                  }
-                  if (slot === "expected_tool_calls") {
-                    return (
-                      <ListField key={slot} field={slot} error={errors.expected_tool_calls}>
-                        <CaseCallsEditor
-                          calls={draft.expected_tool_calls}
-                          onChange={(calls) => edit("expected_tool_calls", calls)}
-                          knownTools={knownTools}
-                        />
-                      </ListField>
-                    );
-                  }
-                  if (slot === "checks") {
-                    return (
-                      <ListField key={slot} field={slot} error={errors.checks}>
-                        <CaseChecksEditor
-                          checks={draft.checks}
-                          onChange={(checks) => edit("checks", checks)}
-                        />
-                      </ListField>
-                    );
-                  }
-                  if (slot === "order_mode") {
-                    return (
-                      <FormField
-                        key={slot}
-                        htmlFor="case-order-mode"
-                        label={t("field.order_mode")}
-                        description={t(`orderMode.${draft.order_mode}Hint`)}
-                      >
-                        <Select
-                          disabled={readOnly}
-                          value={draft.order_mode}
-                          onValueChange={(next) => edit("order_mode", next as ToolOrderMode)}
-                        >
-                          <SelectTrigger id="case-order-mode">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ORDER_MODES.map((mode) => (
-                              <SelectItem key={mode} value={mode}>
-                                {t(`orderMode.${mode}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormField>
-                    );
-                  }
-                  const { field, rows } = slot;
-                  return (
-                    <FormField
-                      key={field}
-                      htmlFor={`case-${field}`}
-                      label={
-                        <span className="inline-flex flex-wrap items-center gap-2">
-                          {t(`field.${field}`)}
-                          {field !== "input" && (
-                            <span aria-hidden className="text-muted-foreground text-xs font-normal">
-                              {t("optionalField")}
-                            </span>
-                          )}
-                        </span>
-                      }
-                      description={t(`hint.${field}`)}
-                      error={errors[field]}
-                      required={field === "input"}
-                    >
-                      <Textarea
-                        rows={rows}
-                        placeholder={t(`placeholder.${field}`)}
-                        aria-label={t(`field.${field}`)}
-                        readOnly={readOnly}
-                        value={draft[field]}
-                        onChange={(event) => edit(field, event.target.value)}
-                      />
-                    </FormField>
-                  );
-                })}
-              </CaseGroup>
-            ))}
+                        {slots.map((slot) => {
+                          if (slot === "tags") {
+                            return (
+                              <FormField
+                                key={slot}
+                                htmlFor="case-tags"
+                                label={t("field.tags")}
+                                description={t("hint.tags")}
+                                error={errors.tags}
+                              >
+                                <Input
+                                  readOnly={readOnly}
+                                  placeholder={t("tagsPlaceholder")}
+                                  value={draft.tags}
+                                  onChange={(event) => edit("tags", event.target.value)}
+                                />
+                              </FormField>
+                            );
+                          }
+                          if (slot === "history") {
+                            return (
+                              <ListField key={slot} field={slot} error={errors.history}>
+                                <CaseHistoryEditor
+                                  turns={draft.history}
+                                  onChange={(history) => edit("history", history)}
+                                />
+                              </ListField>
+                            );
+                          }
+                          if (slot === "expected_tool_calls") {
+                            return (
+                              <ListField key={slot} field={slot} error={errors.expected_tool_calls}>
+                                <CaseCallsEditor
+                                  calls={draft.expected_tool_calls}
+                                  onChange={(calls) => edit("expected_tool_calls", calls)}
+                                  knownTools={knownTools}
+                                />
+                              </ListField>
+                            );
+                          }
+                          if (slot === "checks") {
+                            return (
+                              <ListField key={slot} field={slot} error={errors.checks}>
+                                <CaseChecksEditor
+                                  checks={draft.checks}
+                                  onChange={(checks) => edit("checks", checks)}
+                                />
+                              </ListField>
+                            );
+                          }
+                          if (slot === "order_mode") {
+                            return (
+                              <FormField
+                                key={slot}
+                                htmlFor="case-order-mode"
+                                label={t("field.order_mode")}
+                                description={t(`orderMode.${draft.order_mode}Hint`)}
+                              >
+                                <Select
+                                  disabled={readOnly}
+                                  value={draft.order_mode}
+                                  onValueChange={(next) =>
+                                    edit("order_mode", next as ToolOrderMode)
+                                  }
+                                >
+                                  <SelectTrigger id="case-order-mode">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ORDER_MODES.map((mode) => (
+                                      <SelectItem key={mode} value={mode}>
+                                        {t(`orderMode.${mode}`)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormField>
+                            );
+                          }
+                          const { field, rows } = slot;
+                          return (
+                            <FormField
+                              key={field}
+                              htmlFor={`case-${field}`}
+                              label={
+                                <span className="inline-flex flex-wrap items-center gap-2">
+                                  {t(`field.${field}`)}
+                                  {field !== "input" && (
+                                    <span
+                                      aria-hidden
+                                      className="text-muted-foreground text-xs font-normal"
+                                    >
+                                      {t("optionalField")}
+                                    </span>
+                                  )}
+                                </span>
+                              }
+                              description={t(`hint.${field}`)}
+                              error={errors[field]}
+                              required={field === "input"}
+                            >
+                              <Textarea
+                                rows={rows}
+                                className={
+                                  field === "input" || field === "reference_answer"
+                                    ? "max-sm:h-28"
+                                    : undefined
+                                }
+                                placeholder={t(`placeholder.${field}`)}
+                                aria-label={t(`field.${field}`)}
+                                readOnly={readOnly}
+                                value={draft[field]}
+                                onChange={(event) => edit(field, event.target.value)}
+                              />
+                            </FormField>
+                          );
+                        })}
+                      </CaseGroup>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
           {editing &&
             json === null &&
             scoring !== undefined &&
@@ -546,7 +588,7 @@ export function CaseEditorDialog({
             />
           )}
         </div>
-        <DialogFooter className="items-center">
+        <DialogFooter className="items-center border-t">
           {!readOnly && (
             <Button variant="link" size="sm" className="mr-auto px-0" onClick={toggleJson}>
               {json === null ? t("editAsJson") : t("editAsForm")}

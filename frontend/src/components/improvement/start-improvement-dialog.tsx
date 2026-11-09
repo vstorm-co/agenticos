@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/stores/org-store";
 import type { Agent } from "@/types/agents";
@@ -35,7 +35,7 @@ export function StartImprovementDialog({
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent
-        className={cn(DIALOG_FORM, DIALOG_COLUMN)}
+        className={cn(DIALOG_WIDE, DIALOG_COLUMN)}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           title.current?.focus();
@@ -63,7 +63,7 @@ export function StartImprovementDialog({
             <p role="alert" className="text-sm">
               {t("permission")}
             </p>
-            <DialogFooter>
+            <DialogFooter className="border-t">
               <Button variant="outline" onClick={onClose}>
                 {tc("cancel")}
               </Button>

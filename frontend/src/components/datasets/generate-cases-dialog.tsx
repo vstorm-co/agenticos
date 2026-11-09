@@ -23,7 +23,7 @@ import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import {
@@ -124,12 +124,12 @@ export function GenerateCasesDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("generateCases")}</DialogTitle>
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
-        <div className={cn(DIALOG_BODY, "space-y-4")}>
+        <div className={cn(DIALOG_BODY, "space-y-6")}>
           <p className="text-muted-foreground text-sm">{t("helpers.generationUsesSettings")}</p>
           {agentsError && (
             <div role="alert" className="space-y-2 text-sm">
@@ -163,7 +163,14 @@ export function GenerateCasesDialog({
               {CASE_ORIGINS.map((origin) => {
                 const locked = origin === "conversation" && !can(Perm.runsView);
                 return (
-                  <div key={origin} className="flex items-start gap-3 rounded-lg border p-3">
+                  <div
+                    key={origin}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl border p-4 transition-colors",
+                      sources.includes(origin) && "border-foreground/30 bg-accent/40",
+                      locked && "opacity-50",
+                    )}
+                  >
                     <Checkbox
                       id={`source-${origin}`}
                       disabled={locked}
@@ -208,7 +215,7 @@ export function GenerateCasesDialog({
           </FormField>
           {estimated !== null && <GenerationEstimate estimate={estimated} />}
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={close}>
             {t("cancel")}
           </Button>

@@ -64,7 +64,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
-      <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+      <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -77,7 +77,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
     );
   if (sessionId === "new") return <ImprovementStartRedirect agentId={agentId} />;
   return (
-    <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+    <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -203,7 +203,11 @@ function Session({
     <ReadOnlyProvider value={readOnly}>
       <div className="space-y-6">
         <SessionLine session={session} working={working} />
-        <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
+        <nav
+          data-tour="improvement-steps"
+          aria-label={t("stepsLabel")}
+          className="bg-card sticky top-0 z-20 rounded-xl border p-4 shadow-sm sm:p-5"
+        >
           <WizardSteps
             responsive
             steps={STEPS.map((id) => ({
@@ -244,7 +248,11 @@ function Session({
             <p className="mt-2 break-words">{session.error}</p>
           </details>
         )}
-        <div ref={content} data-step-panel className="space-y-6">
+        <div
+          ref={content}
+          data-step-panel
+          className="bg-card min-w-0 space-y-6 rounded-2xl border p-4 sm:p-6 [&_h2]:scroll-mt-40 [&_h3]:scroll-mt-40"
+        >
           {step === "understand" &&
             (views.understand.content === "working" ? (
               <WorkingNote>{t("understandWorking")}</WorkingNote>

@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
-import { DIALOG_BODY, DIALOG_FILL, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_FILL, DIALOG_BROAD } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { KnowledgeGapActions } from "./knowledge-gap-actions";
 import { KnowledgeGapDraftPanel } from "./knowledge-gap-draft";
@@ -33,7 +33,7 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
   return (
     <InImproveWizard.Provider value={wizard}>
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className={cn(DIALOG_WIDE, DIALOG_FILL)}>
+        <DialogContent className={cn(DIALOG_BROAD, DIALOG_FILL)}>
           <DialogHeader>
             <div className="flex items-start justify-between gap-2">
               <DialogTitle className="break-words">{topic?.label ?? t("topic")}</DialogTitle>
@@ -59,15 +59,19 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
                 cta={{ label: t("retry"), onClick: () => void refetch() }}
               />
             ) : (
-              <>
-                <KnowledgeGapDraftPanel topic={topic} />
-                <h3 className="text-foreground text-sm font-semibold">{t("questions")}</h3>
-                <ul className="space-y-3">
-                  {topic.questions.map((question) => (
-                    <KnowledgeGapQuestionItem key={question.search_id} question={question} />
-                  ))}
-                </ul>
-              </>
+              <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+                <div className="min-w-0">
+                  <KnowledgeGapDraftPanel topic={topic} />
+                </div>
+                <section className="min-w-0 space-y-3 rounded-xl border p-4">
+                  <h3 className="text-foreground text-sm font-semibold">{t("questions")}</h3>
+                  <ul className="space-y-3">
+                    {topic.questions.map((question) => (
+                      <KnowledgeGapQuestionItem key={question.search_id} question={question} />
+                    ))}
+                  </ul>
+                </section>
+              </div>
             )}
           </div>
         </DialogContent>

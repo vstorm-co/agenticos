@@ -102,7 +102,7 @@ export function EstimateSummary({
       arm.model_profile_id === estimate.judge_model_profile_id,
   );
   return (
-    <div className="bg-muted/40 space-y-3 rounded-lg border p-4 text-sm">
+    <div className="bg-background/50 space-y-3 rounded-xl border p-4 text-sm">
       <ul className="space-y-1">
         {estimate.arms.map((arm, index) => (
           <li key={index} className="flex items-center justify-between gap-3">
@@ -117,7 +117,7 @@ export function EstimateSummary({
           </li>
         )}
       </ul>
-      <p className="flex items-center justify-between gap-3 font-medium">
+      <p className="flex items-center justify-between gap-3 border-t pt-3 font-medium">
         <span>{t("total", { count: estimate.cases })}</span>
         <span className="tabular-nums">{usd(estimate.total_usd, locale)}</span>
       </p>

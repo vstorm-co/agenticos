@@ -13980,7 +13980,13 @@
     "sourceUserMessage": "Nutzernachricht",
     "sourceAgentAnswer": "Agentenantwort",
     "moreSources": "Weitere Möglichkeiten",
-    "conversationTitle": "Gespräch"
+    "conversationTitle": "Gespräch",
+    "editor": {
+      "conversation": "Gespräch",
+      "conversationHint": "Die Nachricht und der Kontext, die der Agent erhält.",
+      "expectations": "Erwartetes Verhalten",
+      "expectationsHint": "Was eine gute Antwort enthält und wie sie geprüft wird."
+    }
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

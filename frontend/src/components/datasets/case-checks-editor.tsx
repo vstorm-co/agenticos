@@ -101,14 +101,17 @@ export function CaseChecksEditor({ checks, onChange, disabled = false }: CaseChe
   return (
     <div className="space-y-2">
       {checks.map((check, index) => (
-        <div key={index} className="flex items-start gap-2">
+        <div
+          key={index}
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-3"
+        >
           <Select
             value={check.type}
             disabled={disabled || !isKnownCheck(check.type)}
             onValueChange={(type) => change(index, { type, value: "", rest: {} })}
           >
             <SelectTrigger
-              className="w-44 shrink-0"
+              className="col-span-2 w-full min-w-0"
               aria-label={t("checkTypeOf", { number: index + 1 })}
             >
               <SelectValue />

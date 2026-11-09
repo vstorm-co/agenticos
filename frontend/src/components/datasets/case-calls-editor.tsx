@@ -41,7 +41,7 @@ function ArgRows({
           <FormField
             htmlFor={`${prefix}-${index}-key`}
             label={t("argumentName")}
-            className="min-w-0 basis-full sm:w-40 sm:shrink-0 sm:basis-auto"
+            className="min-w-0 basis-full sm:w-28 sm:shrink-0 sm:basis-auto"
           >
             <Input
               value={arg.key}
@@ -117,12 +117,12 @@ export function CaseCallsEditor({ calls, onChange, knownTools = [] }: CaseCallsE
         ))}
       </datalist>
       {calls.map((call, index) => (
-        <div key={index} className="space-y-1.5">
+        <div key={index} className="min-w-0 space-y-3 rounded-lg border p-3">
           <div className="flex min-w-0 items-center gap-2">
             <Input
               list={listId}
               value={call.tool}
-              className="min-w-0 flex-1 font-mono text-base sm:w-56 sm:flex-none md:text-xs"
+              className="min-w-0 flex-1 font-mono text-base md:text-xs"
               aria-label={t("callTool", { number: index + 1 })}
               placeholder={TOOL_EXAMPLE}
               spellCheck={false}

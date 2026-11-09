@@ -514,8 +514,5 @@ it("disables comparison when the draft matches the published version", () => {
   agentState.liveSpec = DRAFT;
   render(<StartEvalDialog agentId="agent-1" target="compare" onOpenChange={vi.fn()} />);
   expect(screen.getByRole("radio", { name: /No changes/ })).toBeDisabled();
-  expect(screen.getByRole("radio", { name: /How the version people/ })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
+  expect(screen.getByRole("radio", { name: /How the version people/ })).toBeChecked();
 });

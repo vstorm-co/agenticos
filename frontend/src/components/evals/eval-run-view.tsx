@@ -111,7 +111,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     .map((item) => item.case_id);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-5 pb-6">
       {/* No PageHeader here, so the page's help sits beside the way back. */}
       <div className="flex items-center justify-between gap-2">
         <BackLink

@@ -21,6 +21,8 @@ export function GradingCard({ title, description, dirty, tour, children }: Gradi
   return (
     <SettingsSection
       title={title}
+      description={description}
+      className="min-w-0"
       action={
         dirty ? (
           <Badge variant="outline" className="font-normal">
@@ -30,7 +32,6 @@ export function GradingCard({ title, description, dirty, tour, children }: Gradi
       }
     >
       <div className="space-y-4" data-tour={tour}>
-        <p className="text-muted-foreground text-sm">{description}</p>
         {children}
       </div>
     </SettingsSection>

@@ -293,7 +293,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
           </p>
         )}
       </div>
-      <DialogFooter>
+      <DialogFooter className="border-t">
         <Button variant="outline" onClick={onClose}>
           {tc("cancel")}
         </Button>

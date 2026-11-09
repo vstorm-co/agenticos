@@ -36,7 +36,7 @@ export function CaseHistoryEditor({ turns, onChange }: CaseHistoryEditorProps) {
               onValueChange={(role) => change(index, { role: role as TurnDraft["role"] })}
             >
               <SelectTrigger
-                className="w-36 min-w-0"
+                className="h-8 w-36 min-w-0"
                 aria-label={t("turnRole", { number: index + 1 })}
               >
                 <SelectValue />
@@ -56,8 +56,8 @@ export function CaseHistoryEditor({ turns, onChange }: CaseHistoryEditorProps) {
             </Button>
           </div>
           <Textarea
-            className="min-h-24 w-full min-w-0"
-            rows={3}
+            className="min-h-20 w-full min-w-0"
+            rows={2}
             placeholder={t("historyMessagePlaceholder")}
             value={turn.content}
             aria-label={t("turnContent", { number: index + 1 })}

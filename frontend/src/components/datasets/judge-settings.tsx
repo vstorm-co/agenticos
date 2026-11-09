@@ -3,8 +3,9 @@
 import { useTranslations } from "next-intl";
 
 import { Button, FormField, Input, MarkdownEditor } from "@/components/ui";
-import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { PipelineModelPicker } from "@/components/evals/pipeline-model-picker";
 import { useModelProviders } from "@/hooks/use-model-providers";
+import { MoreOptions } from "@/components/ui/more-options";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import type { DatasetScoring } from "@/types/scoring";
@@ -60,7 +61,7 @@ export function JudgeSettings({
         </p>
       )}
       <div className="space-y-6">
-        <ModelProfilePicker
+        <PipelineModelPicker
           profiles={profiles}
           profilesStatus={profilesStatus}
           value={judge.model_profile_id}
@@ -68,15 +69,17 @@ export function JudgeSettings({
           allowAdd={can(Perm.connectionsManage)}
           disabled={disabled}
         />
-        <MarkdownEditor
-          label={tAgent("instructions")}
-          toolbar={<h3 className="text-sm font-medium">{tAgent("instructions")}</h3>}
-          value={judge.instructions ?? defaultInstructions ?? ""}
-          onChange={(instructions) => onJudge({ ...judge, instructions })}
-          rows={8}
-          disabled={disabled}
-          inertImages
-        />
+        <MoreOptions label={tAgent("instructions")} defaultOpen={judge.instructions !== null}>
+          <MarkdownEditor
+            label={tAgent("instructions")}
+            toolbar={<h3 className="text-sm font-medium">{tAgent("instructions")}</h3>}
+            value={judge.instructions ?? defaultInstructions ?? ""}
+            onChange={(instructions) => onJudge({ ...judge, instructions })}
+            rows={8}
+            disabled={disabled}
+            inertImages
+          />
+        </MoreOptions>
       </div>
       <ScorerRow
         label={t("scorer.criteria")}

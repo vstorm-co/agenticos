@@ -27,7 +27,7 @@ import { ROUTES } from "@/lib/constants";
 import { isRunnable } from "@/lib/datasets";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { cn } from "@/lib/utils";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { useOrgStore } from "@/stores/org-store";
 import type { EvalRunRequest } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
@@ -172,7 +172,7 @@ export function StartEvalDialog({
   const dataset = runnable.find((item) => item.id === datasetId);
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+      <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("startTitle")}</DialogTitle>
           <DialogDescription>{t("startBody")}</DialogDescription>
@@ -251,7 +251,7 @@ export function StartEvalDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>

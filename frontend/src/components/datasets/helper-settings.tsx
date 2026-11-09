@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { PipelineModelPicker } from "@/components/evals/pipeline-model-picker";
 import {
   Button,
   Card,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { useDataset } from "@/hooks/use-datasets";
 import { useModelProviders } from "@/hooks/use-model-providers";
+import { MoreOptions } from "@/components/ui/more-options";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage } from "@/lib/api-error";
@@ -67,7 +68,7 @@ export function HelperSettings({
     discard: () => setDraft(stored[kind]),
   });
   return (
-    <Card data-tour={`datasets-${kind}-settings`}>
+    <Card className="min-w-0" data-tour={`datasets-${kind}-settings`}>
       <CardHeader>
         <CardTitle className="text-base">{t(`${kind}Title`)}</CardTitle>
         <CardDescription>{t(`${kind}Description`)}</CardDescription>
@@ -76,7 +77,7 @@ export function HelperSettings({
         {draft.model_profile_id === null && (
           <p className="text-muted-foreground text-sm">{t("modelFallback")}</p>
         )}
-        <ModelProfilePicker
+        <PipelineModelPicker
           profiles={profiles}
           profilesStatus={profilesStatus}
           value={draft.model_profile_id}
@@ -84,15 +85,17 @@ export function HelperSettings({
           allowAdd={can(Perm.connectionsManage)}
           disabled={disabled}
         />
-        <MarkdownEditor
-          label={ta("instructions")}
-          toolbar={<h3 className="text-sm font-medium">{ta("instructions")}</h3>}
-          value={draft.instructions ?? dataset.helper_defaults?.[kind] ?? ""}
-          rows={8}
-          inertImages
-          disabled={disabled}
-          onChange={(instructions) => setDraft((current) => ({ ...current, instructions }))}
-        />
+        <MoreOptions label={ta("instructions")} defaultOpen={draft.instructions !== null}>
+          <MarkdownEditor
+            label={ta("instructions")}
+            toolbar={<h3 className="text-sm font-medium">{ta("instructions")}</h3>}
+            value={draft.instructions ?? dataset.helper_defaults?.[kind] ?? ""}
+            rows={8}
+            inertImages
+            disabled={disabled}
+            onChange={(instructions) => setDraft((current) => ({ ...current, instructions }))}
+          />
+        </MoreOptions>
         {dirty && (
           <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
             <Button variant="outline" onClick={() => setDraft(stored[kind])} disabled={disabled}>

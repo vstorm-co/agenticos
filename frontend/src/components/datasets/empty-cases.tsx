@@ -36,7 +36,7 @@ export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: Empty
   return (
     <div>
       <ListCardEmpty icon={FlaskConical} title={t("noCases")} description={t("noCasesBody")} />
-      <div className="-mt-10 flex flex-wrap justify-center gap-2 pb-12">
+      <div className="flex flex-wrap justify-center gap-2 px-4 pb-8">
         <Button size="sm" onClick={onAddCase}>
           <Plus className="h-4 w-4" />
           {t("addCase")}

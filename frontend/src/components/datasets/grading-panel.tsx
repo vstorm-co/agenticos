@@ -148,59 +148,60 @@ export function GradingPanel({
         </div>
       )}
 
-      <GradingCard
-        title={t("passes.title")}
-        description={t("passes.description")}
-        dirty={dirty(PASSES)}
-      >
-        <ScorerRow
-          label={t("scorer.check")}
-          hint={t("checksHint")}
-          enabled={draft.checks.enabled}
-          mustPass={draft.checks.required}
-          coverage={of(dataset.stats.with_checks)}
-          onChange={(next) => set("checks", { ...draft.checks, ...next })}
-          disabled={disabled}
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)]">
+        <GradingCard
+          title={t("passes.title")}
+          description={t("passes.description")}
+          dirty={dirty(PASSES)}
         >
-          <fieldset className="space-y-2" disabled={disabled}>
-            <legend className="text-sm font-medium">{t("defaults")}</legend>
-            <CaseChecksEditor checks={defaults} onChange={setDefaults} disabled={disabled} />
-            {defaultsProblem && <p className="text-destructive-ink text-xs">{defaultsProblem}</p>}
-          </fieldset>
-        </ScorerRow>
-        <ScorerRow
-          label={t("scorer.trajectory")}
-          hint={t("trajectoryHint")}
-          enabled={draft.trajectory.enabled}
-          mustPass={draft.trajectory.required}
-          coverage={of(dataset.stats.with_tool_calls)}
-          onChange={(next) => set("trajectory", { ...draft.trajectory, ...next })}
-          disabled={disabled}
-        />
-      </GradingCard>
+          <ScorerRow
+            label={t("scorer.check")}
+            hint={t("checksHint")}
+            enabled={draft.checks.enabled}
+            mustPass={draft.checks.required}
+            coverage={of(dataset.stats.with_checks)}
+            onChange={(next) => set("checks", { ...draft.checks, ...next })}
+            disabled={disabled}
+          >
+            <fieldset className="space-y-2" disabled={disabled}>
+              <legend className="text-sm font-medium">{t("defaults")}</legend>
+              <CaseChecksEditor checks={defaults} onChange={setDefaults} disabled={disabled} />
+              {defaultsProblem && <p className="text-destructive-ink text-xs">{defaultsProblem}</p>}
+            </fieldset>
+          </ScorerRow>
+          <ScorerRow
+            label={t("scorer.trajectory")}
+            hint={t("trajectoryHint")}
+            enabled={draft.trajectory.enabled}
+            mustPass={draft.trajectory.required}
+            coverage={of(dataset.stats.with_tool_calls)}
+            onChange={(next) => set("trajectory", { ...draft.trajectory, ...next })}
+            disabled={disabled}
+          />
+        </GradingCard>
 
-      <GradingCard
-        title={t("judgeCard.title")}
-        description={t("judgeCard.description")}
-        dirty={dirty(JUDGING)}
-        tour="datasets-grading-judge"
-      >
-        <JudgeSettings
-          tagGroups={dataset.stats.tag_groups}
-          totalCases={dataset.case_count}
-          referenceCoverage={of(dataset.stats.with_reference)}
-          counterExampleCoverage={of(dataset.stats.with_counter_example)}
-          judge={draft.judge}
-          defaultInstructions={dataset.helper_defaults?.judge}
-          stored={stored.judge}
-          reference={draft.reference}
-          onJudge={(judge) => set("judge", judge)}
-          onReference={(reference) => set("reference", reference)}
-          disabled={modelBacked}
-          rules={rules}
-        />
-      </GradingCard>
-
+        <GradingCard
+          title={t("judgeCard.title")}
+          description={t("judgeCard.description")}
+          dirty={dirty(JUDGING)}
+          tour="datasets-grading-judge"
+        >
+          <JudgeSettings
+            tagGroups={dataset.stats.tag_groups}
+            totalCases={dataset.case_count}
+            referenceCoverage={of(dataset.stats.with_reference)}
+            counterExampleCoverage={of(dataset.stats.with_counter_example)}
+            judge={draft.judge}
+            defaultInstructions={dataset.helper_defaults?.judge}
+            stored={stored.judge}
+            reference={draft.reference}
+            onJudge={(judge) => set("judge", judge)}
+            onReference={(reference) => set("reference", reference)}
+            disabled={modelBacked}
+            rules={rules}
+          />
+        </GradingCard>
+      </div>
       <p className="text-muted-foreground text-xs">{t("mustPassRule")}</p>
 
       {canEdit && unsaved && (

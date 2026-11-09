@@ -14081,7 +14081,13 @@
     "sourceUserMessage": "Wiadomość użytkownika",
     "sourceAgentAnswer": "Odpowiedź agenta",
     "moreSources": "Inne sposoby dodania",
-    "conversationTitle": "Rozmowa"
+    "conversationTitle": "Rozmowa",
+    "editor": {
+      "conversation": "Rozmowa",
+      "conversationHint": "Wiadomość i kontekst, które otrzyma agent.",
+      "expectations": "Oczekiwane zachowanie",
+      "expectationsHint": "Co powinna zawierać dobra odpowiedź i jak ją sprawdzić."
+    }
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

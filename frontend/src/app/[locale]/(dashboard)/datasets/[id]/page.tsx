@@ -311,7 +311,14 @@ export default function DatasetPage({ params }: PageProps) {
                   cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
                 />
               ) : cases.cases.length === 0 ? (
-                <EmptyCases datasetId={id} />
+                <EmptyCases
+                  datasetId={id}
+                  onAddCase={
+                    editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
+                  }
+                  onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
+                  onGenerate={editable ? () => showTab("generated") : undefined}
+                />
               ) : (
                 <div className="flex flex-1 flex-col gap-4">
                   <CasesTable
@@ -356,7 +363,7 @@ export default function DatasetPage({ params }: PageProps) {
             </TabsContent>
           )}
           {dataset.can_edit && (
-            <TabsContent value="settings" className="flex flex-1 flex-col gap-4">
+            <TabsContent value="settings" className="grid items-start gap-4 xl:grid-cols-2">
               <HelperSettings dataset={dataset} kind="generator" />
               <HelperSettings dataset={dataset} kind="improver" />
             </TabsContent>

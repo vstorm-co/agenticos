@@ -14308,7 +14308,13 @@
     "sourceUserMessage": "User message",
     "sourceAgentAnswer": "Agent answer",
     "moreSources": "More ways to add",
-    "conversationTitle": "Conversation"
+    "conversationTitle": "Conversation",
+    "editor": {
+      "conversation": "Conversation",
+      "conversationHint": "The message and context the agent receives.",
+      "expectations": "Expected behavior",
+      "expectationsHint": "What a good answer includes, and how to check it."
+    }
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",
