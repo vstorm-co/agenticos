@@ -108,12 +108,14 @@ from app.schemas.skill_version import (
 )
 from app.services import skill_check_rules as rules
 from app.services.access import AGENT, DATASET, accessible_ids
+from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
 from app.services.notifications import NotificationService
+from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
 from app.services.skill_versions import SkillVersionService, manifest_of
 
@@ -2126,7 +2128,10 @@ class SkillCheckService:
         """Add the questions of recent answers that loaded the skill, as test questions.
 
         A rated-up answer is kept as the reference, any other as the counter-example
-        - an answer a person rated down or that failed is the one not to give.
+        - an answer a person rated down or that failed is the one not to give. Each
+        question is asked once: an answer a person rated outranks one that only
+        failed, and of two opposite ratings one stands, so one agent's good answer
+        and another's bad one never make the same question both ways.
         """
         from app.services.authoring_evidence import EvidenceService
 
@@ -2134,14 +2139,22 @@ class SkillCheckService:
         answers = await conversation_repo.last_answers_of_runs(
             self.db, [run.run_id for run in pack.runs], organization_id=ctx.organization_id
         )
-        ratings = {run.run_id: run.rating for run in pack.runs}
+        ranked = sorted(
+            (run for run in pack.runs if run.run_id in answers),
+            key=lambda run: run.rating == 0,
+        )
         answer_as: dict[UUID, AnswerAs] = {
-            message_id: "reference_answer" if ratings[run_id] > 0 else "counter_example"
-            for run_id, message_id in answers.items()
+            answers[run.run_id]: "reference_answer" if run.rating > 0 else "counter_example"
+            for run in ranked
         }
         if answer_as:
             await self.datasets.add_from_messages(
-                ctx, dataset_id, list(answer_as), answer_as=answer_as, limit=TEST_SET_FROM_EVIDENCE
+                ctx,
+                dataset_id,
+                list(answer_as),
+                answer_as=answer_as,
+                limit=TEST_SET_FROM_EVIDENCE,
+                one_per_question=True,
             )
 
     async def create_test_set(
@@ -2174,6 +2187,10 @@ class SkillCheckService:
             ),
             skill_id=skill.id,
         )
+        if await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
+            # The questions' answers are graded as an agent's test set's are, by
+            # the default judge, since no one agent's model is the one to avoid.
+            created = await ScoringService(self.db).judge_by_reference(ctx, created.id, None)
         if data.from_evidence:
             await self._add_evidence(ctx, skill, created.id, window_days=data.window_days)
             return await self.datasets.read(ctx, created.id)

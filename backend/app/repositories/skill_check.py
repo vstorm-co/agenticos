@@ -8,10 +8,12 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
+from app.db.models.eval_run import ArmRole, EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
 from app.db.models.skill_check import AgentState, CheckStatus, SkillCheck, SkillCheckAgent
 from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_version import SkillVersion
 from app.repositories.skill_usage import used
 
 
@@ -169,6 +171,63 @@ async def agents_for_runs(
         )
     )
     return list(result.scalars().all())
+
+
+class CheckAnswer(NamedTuple):
+    """An answer a check's agent gave, with the skill text one side of its stage served.
+
+    `proposed` is the candidate side; `version` the stored version that side read -
+    the line's for the current side, and for the proposed side the main version a
+    pinned agent's update would move to, `None` for a text not yet a version.
+    """
+
+    skill_id: UUID
+    check_id: UUID
+    proposed: bool
+    version: int | None
+
+
+async def check_answers(
+    db: AsyncSession, score_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, CheckAnswer]:
+    """Of these scores, the ones of answers a check's stage gave, with the side each is."""
+    if not score_ids:
+        return {}
+    base = aliased(SkillVersion)
+    candidate = aliased(SkillVersion)
+    rows = await db.execute(
+        select(
+            EvalRunCase.case_score_id,
+            SkillCheck.skill_id,
+            SkillCheck.id,
+            EvalRunArm.role,
+            base.number,
+            candidate.number,
+        )
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .join(
+            SkillCheckAgent,
+            or_(
+                SkillCheckAgent.skill_set_run_id == EvalRunCase.eval_run_id,
+                SkillCheckAgent.dataset_run_id == EvalRunCase.eval_run_id,
+            ),
+        )
+        .join(SkillCheck, SkillCheck.id == SkillCheckAgent.check_id)
+        .join(base, base.id == SkillCheck.base_version_id)
+        .outerjoin(candidate, candidate.id == SkillCheck.candidate_version_id)
+        .where(
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.case_score_id.in_(score_ids),
+            SkillCheck.organization_id == organization_id,
+        )
+    )
+    answers: dict[UUID, CheckAnswer] = {}
+    for score_id, skill_id, check_id, role, current, proposed in rows.tuples().all():
+        if score_id is None:
+            continue
+        mine = role == ArmRole.CANDIDATE.value
+        answers[score_id] = CheckAnswer(skill_id, check_id, mine, proposed if mine else current)
+    return answers
 
 
 async def running(db: AsyncSession, *, limit: int) -> list[tuple[UUID, UUID]]:

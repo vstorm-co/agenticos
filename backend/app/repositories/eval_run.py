@@ -386,6 +386,24 @@ async def list_cases(
     return list(result.scalars().all())
 
 
+async def asked_counts(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """How many questions each run asks, by run; a run with none yet is left out."""
+    if not eval_run_ids:
+        return {}
+    result = await db.execute(
+        select(EvalRunCase.eval_run_id, func.count(func.distinct(EvalRunCase.case_id)))
+        .where(
+            EvalRunCase.eval_run_id.in_(eval_run_ids),
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.attempt == 0,
+        )
+        .group_by(EvalRunCase.eval_run_id)
+    )
+    return dict(result.tuples().all())
+
+
 async def case_of_agent_run(
     db: AsyncSession, agent_run_id: UUID, *, organization_id: UUID
 ) -> EvalRunCase | None:

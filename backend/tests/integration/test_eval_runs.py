@@ -54,8 +54,10 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.run_manifest import RunManifest
+from app.db.models.skill_check import SkillCheck, SkillCheckAgent
+from app.db.models.skill_version import SkillVersion
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_run_repo
+from app.repositories import authoring_repo, eval_run_repo, skill_check_repo
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
@@ -76,6 +78,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
+from tests.integration.test_skill_bindings import _skill as _a_skill
 
 pytestmark = pytest.mark.anyio
 
@@ -2025,6 +2028,126 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     withdrawn = await service.get(ctx, v7.id)
     assert withdrawn.outcome is not None
     assert withdrawn.outcome.regressions_confirmed == 1
+
+
+async def _skill_check_stage(
+    db: AsyncSession, ctx: AuthContext, agent: Agent
+) -> tuple[SkillCheck, ProposalCheckRecord]:
+    """A running skill check of `agent`, and the record its stage's eval run carries."""
+    skill = await _a_skill(db, ctx)
+    assert skill.latest_version_id is not None
+    check = SkillCheck(
+        organization_id=ctx.organization_id,
+        skill_id=skill.id,
+        base_version_id=skill.latest_version_id,
+        candidate_description="How refunds work.",
+        candidate_content="Proposed text",
+        candidate_hash="c" * 64,
+        description_changed=False,
+        mode="quick",
+        source="manual",
+        status="running",
+        expected_usd=Decimal(0),
+        at_most_usd=Decimal(0),
+        created_by_user_id=ctx.user_id,
+    )
+    db.add(check)
+    await db.flush()
+    return check, ProposalCheckRecord(
+        kind="skill", base_version=7, suggestions=1, skill_check_id=check.id
+    )
+
+
+async def _checked_run(db: AsyncSession, ctx: AuthContext):
+    """v7 asked a dataset as a skill check's stage, beside v6 in the same run, breaking a
+    question v6 answers."""
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=10)
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(improvement_partition="holdout")
+    )
+    check, record = await _skill_check_stage(db, ctx, agent)
+    v7 = await EvalRunService(db).start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, baseline_version=6, paired_baseline=True),
+        proposal_check=record,
+    )
+    db.add(
+        SkillCheckAgent(
+            organization_id=ctx.organization_id,
+            check_id=check.id,
+            agent_id=agent.id,
+            agent_version=7,
+            state="running",
+            dataset_run_id=v7.id,
+            expected_usd=Decimal(0),
+            at_most_usd=Decimal(0),
+        )
+    )
+    await db.flush()
+    await _run_to_end(db, Model(db, breaks="Question 0"), v7.id, ctx)
+    return check, dataset, v7
+
+
+async def test_a_skill_checks_regression_its_re_asks_confirmed_outlasts_a_verdict_on_one_answer(
+    db,
+) -> None:
+    """A person decides the answer they read; the re-asks that confirmed the regression
+    keep their own grades, so the check's stage stays worse."""
+    ctx = await _owner(db)
+    _, _, v7 = await _checked_run(db, ctx)
+    service = EvalRunService(db)
+    assert (await service.compare(ctx, v7.id)).regressions_confirmed == 1
+
+    await _decide(db, v7.id, "Question 0", passed=True)
+
+    compared = await service.compare(ctx, v7.id)
+    assert (compared.regressions_confirmed, compared.verdict) == (1, "worse")
+
+
+async def test_a_skill_checks_regression_waits_for_a_person_marked_as_the_proposed_text(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    check, dataset, v7 = await _checked_run(db, ctx)
+
+    assert (await EvalRunService(db).get(ctx, v7.id)).routed_to_review == 1
+    queue = await ScoringService(db).review_queue(ctx)
+    [waiting] = [item for item in queue.items if item.dataset_id == dataset.id]
+    assert waiting.question == "Question 0"
+    assert waiting.skill_check is not None
+    assert waiting.skill_check.model_dump() == {
+        "skill_id": check.skill_id,
+        "check_id": check.id,
+        "arm": "proposed",
+        "version": None,
+    }
+    current = await db.scalar(
+        select(EvalRunCase.case_score_id)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .where(EvalRunCase.eval_run_id == v7.id, EvalRunArm.role == "baseline")
+        .limit(1)
+    )
+    assert current is not None
+    base = await db.get(SkillVersion, check.base_version_id)
+    assert base is not None
+    answers = await skill_check_repo.check_answers(
+        db, [current], organization_id=ctx.organization_id
+    )
+    assert (answers[current].proposed, answers[current].version) == (False, base.number)
+
+
+async def test_a_run_counts_the_questions_it_asks_once_each(db) -> None:
+    ctx = await _owner(db)
+    _, _, v7 = await _checked_run(db, ctx)
+
+    asked = await eval_run_repo.asked_counts(db, [v7.id], organization_id=ctx.organization_id)
+
+    assert asked == {v7.id: 10}
+    assert await eval_run_repo.asked_counts(db, [], organization_id=ctx.organization_id) == {}
 
 
 async def test_runs_of_the_draft_as_it_stands_now(db) -> None:
