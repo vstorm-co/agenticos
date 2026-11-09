@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.61.1] - 2026-11-09
+
 ### Fixed
 
 - **A step stays in the loop it belongs to (#2770).** A For each body was
@@ -20836,7 +20838,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.1...HEAD
+[1.61.1]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...v1.61.1
 [1.61.0]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...v1.61.0
 [1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
 [1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
