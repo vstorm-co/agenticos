@@ -539,7 +539,11 @@ before will not compare with the ones graded after.
 
 ### Review { #review }
 
-Review starts as a compact list; expand an answer to inspect its evidence and grading. The decisions say **Answer is fine (the judge was wrong)** and **Answer is wrong**. After saving, the row stays in its place, collapsed, with the effective outcome and updated run/suite result where readable. Its note can become a criterion without switching to All results, and the decision can be withdrawn there.
+Review starts as a compact list; expand an answer to inspect its evidence and grading. The decisions say **Answer is fine (the judge was wrong)** - or **Answer is fine (the grading was wrong)** where no judge graded it - and **Answer is wrong**.
+
+Each answer says where it came from: an eval run, grading by hand, or a side of a skill's check (the proposed text or the current version), and which re-ask it was, so one question answered several times reads as several distinct rows; a skill check's answers are headed as the check's.
+
+After saving, the row stays in its place, collapsed, with the effective outcome and updated run/suite result where readable. Its note can become a criterion without switching to All results, and the decision can be withdrawn there.
 
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it

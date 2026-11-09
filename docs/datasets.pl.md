@@ -1,5 +1,5 @@
 ---
-source_sha: "e05612aec339"
+source_sha: "77ca8cd38151"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -571,7 +571,11 @@ wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
 ### Przegląd { #review }
 
-Przegląd otwiera zwięzłą listę; rozwiń odpowiedź, aby obejrzeć materiał źródłowy i oceny. Decyzje to **Odpowiedź jest poprawna (sędzia się pomylił)** oraz **Odpowiedź jest błędna**. Po zapisie wiersz pozostaje na miejscu, zwinięty, z obowiązującą oceną i przeliczonym wynikiem runu lub suity, jeśli można je odczytać. Notatkę można zmienić w kryterium bez przechodzenia do wszystkich wyników, a decyzję wycofać w tym samym miejscu.
+Przegląd otwiera zwięzłą listę; rozwiń odpowiedź, aby obejrzeć materiał źródłowy i oceny. Decyzje to **Odpowiedź jest poprawna (sędzia się pomylił)** - albo **Odpowiedź jest poprawna (ocena była błędna)**, gdy żaden sędzia jej nie oceniał - oraz **Odpowiedź jest błędna**.
+
+Każda odpowiedź mówi, skąd pochodzi: z runu ewaluacji, z oceny ręcznej albo z jednej strony sprawdzenia skilla (proponowany tekst albo obecna wersja), i która to powtórka, więc jedno pytanie zadane kilka razy to kilka rozróżnialnych wierszy; odpowiedzi ze sprawdzenia skilla mają nagłówek sprawdzenia.
+
+Po zapisie wiersz pozostaje na miejscu, zwinięty, z obowiązującą oceną i przeliczonym wynikiem runu lub suity, jeśli można je odczytać. Notatkę można zmienić w kryterium bez przechodzenia do wszystkich wyników, a decyzję wycofać w tym samym miejscu.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
