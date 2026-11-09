@@ -712,16 +712,16 @@ class TestAMoveToMain:
             )
         assert read_before is not None
 
-    async def test_one_that_helped_nobody_stops(self, db, call_price, monkeypatch):
+    async def test_one_that_helped_nobody_waits_at_its_result(self, db, call_price, monkeypatch):
         _checked(db, monkeypatch)
         ctx = await _owner(db)
         run, _, _ = await _at_changes(db, ctx, TO_MAIN)
         await _check_now(db, ctx, run)
         await db.refresh(run)
 
-        stopped = await _settle(db, run, "no_better")
+        ready = await _settle(db, run, "no_better")
 
-        assert (stopped.status, stopped.stop_reason) == ("stopped", "no_change")
+        assert (ready.status, ready.stop_reason) == ("ready", None)
 
 
 class TestWhatAMergeIsNot:

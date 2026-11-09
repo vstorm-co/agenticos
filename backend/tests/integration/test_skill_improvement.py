@@ -1434,7 +1434,7 @@ class TestCheckAndResult:
             ("passed", "ready", None, "better"),
             ("needs_ack", "ready", None, "better"),
             ("blocked", "ready", None, "regression"),
-            ("no_better", "stopped", "no_change", "no_change"),
+            ("no_better", "ready", None, "no_change"),
         ],
     )
     async def test_a_finished_check_becomes_the_attempts_result(
@@ -1451,9 +1451,41 @@ class TestCheckAndResult:
         assert (run.status, run.stop_reason) == (status, stop)
         [attempt] = read.iterations
         assert (attempt.check_verdict, attempt.verdict) == (verdict, measured)
-        assert read.outcomes == (
-            [CheckOutcome.APPLY, CheckOutcome.DISCARD] if status == "ready" else []
+        assert read.outcomes == [CheckOutcome.APPLY, CheckOutcome.DISCARD]
+
+    @pytest.mark.parametrize(
+        ("first", "then"), [("blocked", "no_better"), ("no_better", "blocked")]
+    )
+    async def test_a_verdict_a_person_overturns_leaves_the_session_where_that_verdict_would(
+        self, db, evidence, monkeypatch, first, then
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        service = SkillImprovementService(db)
+
+        async def judged(verdict: str) -> SkillImprovementRun:
+            run = await _at_changes(db, ctx)
+            await _check_now(db, ctx, run)
+            return await _settle(db, run, status="done", verdict=verdict)
+
+        straight = await judged(then)
+        overturned = await judged(first)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=overturned.id, number=1
         )
+        assert iteration is not None and iteration.skill_check_id is not None
+        check = await db.get(SkillCheck, iteration.skill_check_id)
+        assert check is not None
+        check.verdict = then
+        await service.refresh_check_verdict(check, CheckVerdict(then))
+
+        reads = [await service.read(ctx, run.skill_id, run.id) for run in (straight, overturned)]
+        waiting = {item.id for item in await service.awaiting(ctx)}
+
+        assert [
+            (read.status, read.stage, read.stop_reason, read.outcomes, read.id in waiting)
+            for read in reads
+        ] == [("ready", "judging", None, [CheckOutcome.APPLY, CheckOutcome.DISCARD], True)] * 2
 
     async def test_a_check_cancelled_elsewhere_fails_the_step(self, db, evidence, monkeypatch):
         _checked(db, monkeypatch)

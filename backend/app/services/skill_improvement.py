@@ -1415,8 +1415,8 @@ class SkillImprovementService:
     async def refresh_check_verdict(self, check: SkillCheck, verdict: CheckVerdict) -> None:
         """Copy a judged check's new verdict onto the attempt it measured.
 
-        Only the attempt's record changes: where the session went on that verdict
-        stays, and its Result step reads the check itself.
+        Only the attempt's record changes: every verdict leaves the session at its
+        result, and the Result step reads its outcomes from the check itself.
         """
         iteration = await skill_improvement_repo.iteration_for_check(
             self.db, check.id, organization_id=check.organization_id
@@ -1869,8 +1869,9 @@ class SkillImprovementService:
     async def _judge(self, run: SkillImprovementRun) -> None:
         """Carry the attempt's check into its result once every agent of the line is in.
 
-        A catch-up waits for main alone too. It only has to leave nobody worse, since what
-        it brings in is main's own change: no better passes there.
+        Every verdict waits for a person at the result, where the check's outcomes say
+        what it allows: a person overturning one of its answers later changes those
+        outcomes, never where the session stands. A catch-up waits for main alone too.
         """
         iteration = await self._iteration(run)
         check = await self._check(run)
@@ -1916,11 +1917,6 @@ class SkillImprovementService:
                 "ended_at": datetime.now(UTC),
             },
         )
-        if verdict is CheckVerdict.NO_BETTER and run.purpose != Purpose.CATCH_UP.value:
-            await self._move(
-                run, rules.Transition(Status.STOPPED, Stage.JUDGING, StopReason.NO_CHANGE)
-            )
-            return
         await skill_improvement_repo.update_run(
             self.db, run=run, values={"best_iteration_id": iteration.id}
         )
