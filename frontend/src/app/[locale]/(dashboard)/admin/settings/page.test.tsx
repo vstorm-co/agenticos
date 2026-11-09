@@ -42,7 +42,10 @@ function queryWrapper() {
   };
 }
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 const save =
   vi.fn<(changes: DeploymentSettingsPatch, callbacks: { onSuccess: () => void }) => void>();
 let settings: DeploymentSettings | null = null;

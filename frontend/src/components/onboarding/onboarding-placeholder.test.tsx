@@ -6,7 +6,7 @@ vi.mock("@/components/layout/auth-guard", () => ({
 }));
 vi.mock("@/components/layout/active-org-guard", () => ({ ActiveOrgGuard: () => null }));
 vi.mock("@/components/layout/account-locale", () => ({ AccountLocale: () => null }));
-vi.mock("./start-hub", () => ({ StartHub: () => <h1>First task</h1> }));
+vi.mock("./start-entry", () => ({ StartEntry: () => <h1>First task</h1> }));
 it("routes historical onboarding links into the working start hub", () => {
   render(<OnboardingPlaceholder />);
   expect(screen.getByRole("heading", { name: "First task" })).toBeVisible();

@@ -74,6 +74,12 @@ class ConversationShareCreate(BaseSchema):
     generate_link: bool = Field(default=False, description="Generate a public share link")
 
 
+class ConversationShareUpdate(BaseSchema):
+    """Change what a share with a person lets them do."""
+
+    permission: Literal["view", "edit"] = Field(description="Access level")
+
+
 class ConversationShareRead(BaseSchema):
     """Schema for reading a conversation share."""
 

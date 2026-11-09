@@ -283,6 +283,10 @@ def _chat(
 
     with (
         patch("app.services.conversation_turns.claim", new=admitted),
+        patch(
+            "app.services.agent_session.member_repo.get",
+            new=AsyncMock(return_value=SimpleNamespace(role="member")),
+        ),
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
@@ -4195,3 +4199,53 @@ class TestStarterSetupReply:
         assert "Architect" in events[2][1]["text"]
         if saved is None:
             assert events[3][1]["code"] == "message_save_failed"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "kind,field,payload",
+    [
+        ("ask_user_response", "_ask_user_future", {"answers": ["yes"]}),
+        ("connect_account_response", "_connect_future", {"connected": True}),
+        ("computer_access_response", "_computer_future", {"granted": True}),
+    ],
+)
+async def test_a_live_prompt_cannot_resume_after_conversation_write_access_is_revoked(
+    kind, field, payload
+):
+    from app.core.exceptions import NotFoundError
+
+    session = _session()
+    session.current_conversation_id = _CONVERSATION
+    session.websocket.close = AsyncMock()
+    future = asyncio.get_running_loop().create_future()
+    setattr(session, field, future)
+    with (
+        patch.object(session, "_chat_context", AsyncMock()),
+        patch("app.services.agent_session.ConversationService") as service,
+    ):
+        service.return_value.get_conversation = AsyncMock(
+            side_effect=NotFoundError(message="Conversation not found")
+        )
+        await session.handle_frame({"type": kind, **payload})
+    assert not future.done()
+    session.websocket.close.assert_awaited_once_with(
+        code=4003, reason="Conversation write access revoked"
+    )
+
+
+async def test_a_live_prompt_rechecks_write_access_before_applying_the_answer():
+    session = _session()
+    session.current_conversation_id = _CONVERSATION
+    future = asyncio.get_running_loop().create_future()
+    session._connect_future = future
+    with (
+        patch.object(session, "_chat_context", AsyncMock()),
+        patch("app.services.agent_session.ConversationService") as service,
+    ):
+        read = AsyncMock()
+        service.return_value.get_conversation = read
+        await session.handle_frame({"type": "connect_account_response", "connected": True})
+    assert future.result() is True
+    assert read.await_args.kwargs["for_write"] is True
+    assert read.await_args.kwargs["turn"] is True

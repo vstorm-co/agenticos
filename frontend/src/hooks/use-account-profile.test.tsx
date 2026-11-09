@@ -57,6 +57,7 @@ it("updates the account portrait and refreshes its image only after an accepted 
   const saved: User = {
     id: "u-1",
     email: "member@example.com",
+    email_verified: false,
     is_active: true,
     created_at: "2026-01-01T00:00:00Z",
     avatar_url: "avatars/u-1.png",

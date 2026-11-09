@@ -1385,6 +1385,39 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def conversation_shared(
+        self,
+        *,
+        recipient: UUID,
+        organization_id: UUID,
+        conversation_id: UUID,
+        title: str | None,
+        sharer: str,
+        actor_user_id: UUID,
+    ) -> None:
+        """A conversation was shared with one person.
+
+        One occurrence per conversation and recipient, so sharing it again after
+        a revoke does not tell them twice. The link opens the conversation.
+        """
+        shown = title or "A conversation"
+        await self._center.write(
+            recipients=[recipient],
+            event_type=NotificationEventType.RESOURCE_SHARED,
+            occurrence_id=f"conversation:{conversation_id}:{recipient}",
+            summary=f"{sharer} shared '{shown}' with you.",
+            context_url=self._link(f"/chat?id={conversation_id}", organization_id),
+            render_context={
+                "resource_kind": "conversation",
+                "resource_id": str(conversation_id),
+                "resource_name": shown,
+                "shared_by": sharer,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            use_savepoint=True,
+        )
+
     async def mcp_server_down(
         self, connection: McpConnection, *, organization_id: UUID, since: datetime
     ) -> None:

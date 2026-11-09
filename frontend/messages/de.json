@@ -1544,7 +1544,11 @@
       "unread": "Neue Antwort",
       "unreadHeading": "Ungelesen",
       "unnamedProject": "Ein Projekt",
-      "apiFilterLabel": "API-Gespräche ausblenden"
+      "apiFilterLabel": "API-Gespräche ausblenden",
+      "sharedHeading": "Mit Ihnen geteilt",
+      "sharedLoading": "Geteilte Unterhaltungen werden geladen…",
+      "sharedFailed": "Geteilte Unterhaltungen konnten nicht geladen werden.",
+      "retryShared": "Geteilte Unterhaltungen erneut laden"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -2394,7 +2398,23 @@
       "notice": "Einrichtungsantwort · Kein KI-Aufruf und keine Nutzungsgebühren beim Anbieter.",
       "ownerHint": "Dein Workspace-Administrator kann KI für das Team verbinden. Du brauchst keinen eigenen Schlüssel.",
       "contact": "Administrator kontaktieren"
-    }
+    },
+    "fork": "In neue Unterhaltung abzweigen",
+    "forkedToast": "Unterhaltung abgezweigt",
+    "failedForkConversation": "Unterhaltung konnte nicht abgezweigt werden",
+    "forkedFrom": "Abgezweigt aus <link>{title}</link>",
+    "untitledFork": "Unbenannte Unterhaltung",
+    "leaveShared": "Aus meinen Chats entfernen",
+    "leftShared": "Aus Ihren Chats entfernt",
+    "failedLeaveShared": "Unterhaltung konnte nicht entfernt werden",
+    "conversationViewOnly": "Schreibgeschützt mit Ihnen geteilt",
+    "accessChanged": "Zugriff geändert",
+    "failedToChangeAccess": "Zugriff konnte nicht geändert werden",
+    "accessLevelFor": "Zugriffsstufe für {name}",
+    "accessChecking": "Zugriff auf die Unterhaltung wird geprüft…",
+    "accessFailed": "Der Zugriff auf diese Unterhaltung konnte nicht geprüft werden",
+    "accessRetry": "Erneut versuchen",
+    "forking": "Unterhaltung wird verzweigt…"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -6490,7 +6510,7 @@
       "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen.",
       "prefArtifactVersionPublished": "App aktualisiert",
       "prefArtifactVersionPublishedTrigger": "Eine App, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt.",
-      "prefResourceShared": "Mit Ihrer Gruppe geteilt",
+      "prefResourceShared": "Mit Ihnen oder Ihrer Gruppe geteilt",
       "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind.",
       "prefBudgetWarning": "Abteilungsbudget bei 80 %",
       "prefBudgetWarningTrigger": "Eine Abteilung, die Sie leiten, hat 80 % ihres monatlichen Budgets verbraucht. Administratoren werden über jede Abteilung informiert.",

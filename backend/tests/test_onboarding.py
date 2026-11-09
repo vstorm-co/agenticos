@@ -351,6 +351,7 @@ async def test_existing_chat_activity_suppresses_a_new_start_without_claiming_su
     )
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("present", [False, True])
 async def test_activity_query_is_personal_and_tenant_scoped(present: bool) -> None:
     db = AsyncMock()

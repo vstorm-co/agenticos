@@ -1,21 +1,26 @@
 """Conversation repository."""
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 from uuid import UUID, uuid5
 
+from pydantic import JsonValue
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
     Integer,
     Numeric,
+    Text,
     and_,
     case,
     cast,
     distinct,
     exists,
     func,
+    literal,
     or_,
     select,
     type_coerce,
@@ -29,8 +34,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
 from app.db.models.chat_file import ChatFile
@@ -469,7 +476,7 @@ async def participation_claims(
 # sidebar fetched and decoded it for thirty rows on every refresh. `raiseload`, so a
 # caller that starts reading one of them from a listed row fails in a test rather
 # than lazily loading per row.
-_LISTED_COLUMNS = (
+LISTED_COLUMNS = (
     Conversation.id,
     Conversation.user_id,
     Conversation.organization_id,
@@ -479,6 +486,8 @@ _LISTED_COLUMNS = (
     Conversation.origin,
     Conversation.created_at,
     Conversation.updated_at,
+    Conversation.forked_from_conversation_id,
+    Conversation.forked_from_message_id,
 )
 
 
@@ -509,7 +518,7 @@ def _ordering(columns: dict[str, Any], sort_by: str, sort_dir: str) -> Any:
     return column.nulls_last()
 
 
-def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
+def favourited_by(user_id: UUID) -> ColumnElement[bool]:
     """Whether this reader has starred the conversation the query is over.
 
     An `EXISTS` rather than a join, for the reason `agent_id` is one in
@@ -804,7 +813,7 @@ async def get_conversations_by_user(
     """
     query = (
         select(Conversation)
-        .options(load_only(*_LISTED_COLUMNS, raiseload=True))
+        .options(load_only(*LISTED_COLUMNS, raiseload=True))
         .where(Conversation.organization_id == organization_id)
     )
     if user_id:
@@ -822,7 +831,7 @@ async def get_conversations_by_user(
         for_model=for_model,
     ):
         query = query.where(condition)
-    orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
+    orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
     orders.append(_ordering(_sort_columns(), sort_by, sort_dir))
     query = query.order_by(*orders).offset(skip).limit(limit)
     result = await db.execute(query)
@@ -956,6 +965,500 @@ async def create_conversation(
     await db.flush()
     await db.refresh(conversation)
     return conversation
+
+
+class ForkRowCounts(NamedTuple):
+    """Counts in a bounded prefix, saturated at each requested limit plus one."""
+
+    messages: int
+    tool_calls: int
+
+
+async def lock_fork_history(
+    db: AsyncSession,
+    *,
+    source: Conversation,
+    through: Message,
+    message_limit: int,
+    tool_call_limit: int,
+) -> ForkRowCounts | None:
+    """Lock the source and its bounded prefix without loading any transcript payload.
+
+    Parent and message locks also fence new messages and calls through their foreign
+    keys. Existing call rows are locked separately, so a draft edit cannot grow the
+    payload between measurement and copying. Missing source/answer means it was
+    deleted since authorization; oversized prefixes return counts above a limit.
+    The caller holds these locks through its transaction, including the copy.
+    """
+    parent = await db.scalar(
+        select(Conversation)
+        .options(defer(Conversation.summary_messages, raiseload=True), raiseload("*"))
+        .execution_options(populate_existing=True)
+        .where(
+            Conversation.id == source.id,
+            Conversation.user_id == source.user_id,
+            Conversation.organization_id == source.organization_id,
+        )
+        .with_for_update()
+    )
+    if parent is None:
+        return None
+    answer = await db.scalar(
+        select(Message)
+        .options(
+            load_only(
+                Message.id, Message.conversation_id, Message.role, Message.ordinal, raiseload=True
+            ),
+            raiseload("*"),
+        )
+        .execution_options(populate_existing=True)
+        .where(
+            Message.id == through.id,
+            Message.conversation_id == source.id,
+            Message.role == "assistant",
+        )
+        .with_for_update()
+    )
+    if answer is None:
+        return None
+    message_ids = list(
+        (
+            await db.scalars(
+                select(Message.id)
+                .where(Message.conversation_id == source.id, Message.ordinal <= through.ordinal)
+                .order_by(Message.ordinal)
+                .limit(message_limit + 1)
+                .with_for_update()
+            )
+        ).all()
+    )
+    tool_ids = (
+        await db.scalars(
+            select(ToolCall.id)
+            .where(ToolCall.message_id.in_(message_ids))
+            .order_by(ToolCall.id)
+            .limit(tool_call_limit + 1)
+            .with_for_update()
+        )
+    ).all()
+    return ForkRowCounts(len(message_ids), len(tool_ids))
+
+
+async def has_message_after(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+    """Whether the current checklist could include work after this fork point."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Message.conversation_id == source_id,
+                    Message.ordinal > ordinal,
+                )
+            )
+        )
+    )
+
+
+async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int) -> int:
+    """Measure the locked prefix's UTF-8 payload in SQL, before loading or inserting it.
+
+    Called only after `lock_fork_history` has bounded and locked every row. Include
+    tool arguments/results, attachment text and the summary when it will be copied.
+    """
+    message_ids = select(Message.id).where(
+        Message.conversation_id == source_id, Message.ordinal <= ordinal
+    )
+    message_bytes = (
+        select(
+            func.coalesce(
+                func.sum(
+                    func.octet_length(func.coalesce(Message.content, ""))
+                    + func.octet_length(func.coalesce(Message.thinking, ""))
+                    + func.octet_length(func.coalesce(Message.attachment_context, ""))
+                    + func.octet_length(func.coalesce(cast(Message.parts, Text), ""))
+                ),
+                0,
+            )
+        )
+        .where(Message.id.in_(message_ids))
+        .scalar_subquery()
+    )
+    tool_bytes = (
+        select(
+            func.coalesce(
+                func.sum(
+                    func.octet_length(func.coalesce(cast(ToolCall.args, Text), ""))
+                    + func.octet_length(func.coalesce(ToolCall.result, ""))
+                    + func.octet_length(ToolCall.tool_name)
+                    + func.octet_length(ToolCall.tool_call_id)
+                    + func.octet_length(func.coalesce(ToolCall.tool_id, ""))
+                ),
+                0,
+            )
+        )
+        .where(ToolCall.message_id.in_(message_ids))
+        .scalar_subquery()
+    )
+    summary_bytes = (
+        select(
+            func.octet_length(func.coalesce(Conversation.title, ""))
+            + func.octet_length(func.coalesce(cast(Conversation.plan_items, Text), ""))
+            + case(
+                (
+                    Conversation.summary_ordinal <= ordinal,
+                    func.octet_length(func.coalesce(cast(Conversation.summary_messages, Text), "")),
+                ),
+                else_=0,
+            )
+        )
+        .where(Conversation.id == source_id)
+        .scalar_subquery()
+    )
+    return (
+        await db.execute(select(cast(message_bytes + tool_bytes + summary_bytes, BigInteger)))
+    ).scalar_one()
+
+
+class ForkSummary(NamedTuple):
+    messages: object
+    stored_bytes: int
+
+
+async def fork_summary(db: AsyncSession, *, source_id: UUID, ordinal: int) -> ForkSummary | None:
+    """Read only an eligible summary, after the prefix has passed its SQL byte quota."""
+    row = (
+        await db.execute(
+            select(
+                Conversation.summary_messages,
+                func.octet_length(cast(Conversation.summary_messages, Text)),
+            ).where(
+                Conversation.id == source_id,
+                Conversation.summary_ordinal <= ordinal,
+                Conversation.summary_messages.is_not(None),
+            )
+        )
+    ).one_or_none()
+    return ForkSummary(row[0], row[1]) if row is not None else None
+
+
+async def has_fork_visual_images(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+    """Whether copying this prefix would retain references to source-only visual blobs."""
+    images = ToolCall.args["images"]
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    ToolCall.message_id.in_(
+                        select(Message.id).where(
+                            Message.conversation_id == source_id, Message.ordinal <= ordinal
+                        )
+                    ),
+                    _tool_named(("draw", "revise_visual")),
+                    case(
+                        (func.jsonb_typeof(images) == "array", func.jsonb_array_length(images)),
+                        else_=0,
+                    )
+                    > 0,
+                )
+            )
+        )
+    )
+
+
+async def read_candidates(
+    db: AsyncSession, *, organization_id: UUID, ids: Collection[UUID]
+) -> list[Conversation]:
+    """Tenant-scoped metadata for one bounded access-gate batch."""
+    return list(
+        (
+            await db.scalars(
+                select(Conversation)
+                .options(load_only(*LISTED_COLUMNS, raiseload=True))
+                .where(Conversation.organization_id == organization_id, Conversation.id.in_(ids))
+            )
+        ).all()
+    )
+
+
+async def channel_thread_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
+    """Which candidate threads still have a channel whose membership can be checked."""
+    return set(
+        (
+            await db.scalars(
+                select(Conversation.id)
+                .join(ChannelSession, ChannelSession.conversation_id == Conversation.id)
+                .where(Conversation.id.in_(ids))
+                .distinct()
+            )
+        ).all()
+    )
+
+
+async def trigger_log_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
+    """Narrow ownerless candidates to actual trigger logs before per-agent access checks."""
+    return set(
+        (
+            await db.scalars(
+                select(Conversation.id)
+                .join(AgentTrigger, AgentTrigger.conversation_id == Conversation.id)
+                .where(Conversation.id.in_(ids))
+                .distinct()
+            )
+        ).all()
+    )
+
+
+class ForkVolume(NamedTuple):
+    member_bytes: int
+    organization_bytes: int
+
+
+async def retained_fork_volume(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> ForkVolume:
+    """Serialize admission and count retained copies, including source-less forks.
+
+    The transaction lock remains held through insertion and commit. Deletion
+    removes a charge with its row; rollback cannot leave a reservation behind.
+    """
+    await hold_subject(db, LockScope.CONVERSATION_FORK_STORAGE_PER_ORG, organization_id)
+    row = (
+        await db.execute(
+            select(
+                func.coalesce(
+                    func.sum(Conversation.fork_copy_bytes).filter(Conversation.user_id == user_id),
+                    0,
+                ),
+                func.coalesce(func.sum(Conversation.fork_copy_bytes), 0),
+            ).where(
+                Conversation.organization_id == organization_id, Conversation.fork_copy_bytes > 0
+            )
+        )
+    ).one()
+    return ForkVolume(int(row[0]), int(row[1]))
+
+
+async def fork_summary_bytes(db: AsyncSession, summary: list[dict[str, JsonValue]]) -> int:
+    """Measure exactly what PostgreSQL will store, including expanded JSONB numbers."""
+    return (
+        await db.execute(select(func.octet_length(cast(literal(summary, type_=JSONB), Text))))
+    ).scalar_one()
+
+
+async def _fork_agent_attribution(
+    db: AsyncSession, *, source_id: UUID, through: Message, messages: Sequence[Message]
+) -> dict[UUID, tuple[UUID | None, UUID | None]]:
+    """Recover missing assistant attribution without inventing an ambiguous author.
+
+    Linked runs identify an exact version. Older unlinked rows can recover only
+    the sole agent known in the prefix; delegates and later runs are not evidence.
+    """
+    missing = [
+        message for message in messages if message.role == "assistant" and message.agent_id is None
+    ]
+    if not missing:
+        return {}
+    run_ids = {message.run_id for message in missing if message.run_id is not None}
+    linked = {
+        run_id: (agent_id, version_id)
+        for run_id, agent_id, version_id in (
+            await db.execute(
+                select(AgentRun.id, AgentRun.agent_id, AgentRun.agent_version_id).where(
+                    AgentRun.id.in_(run_ids),
+                    AgentRun.conversation_id == source_id,
+                    AgentRun.parent_run_id.is_(None),
+                )
+            )
+        ).all()
+    }
+    evidence = union_all(
+        select(Message.agent_id).where(
+            Message.conversation_id == source_id,
+            Message.ordinal <= through.ordinal,
+            Message.agent_id.is_not(None),
+        ),
+        select(AgentRun.agent_id).where(
+            AgentRun.conversation_id == source_id,
+            AgentRun.created_at <= through.created_at,
+            AgentRun.parent_run_id.is_(None),
+        ),
+    ).subquery()
+    agents = (await db.scalars(select(evidence.c.agent_id).distinct().limit(2))).all()
+    fallback = (agents[0], None) if len(agents) == 1 else (None, None)
+    return {message.id: linked.get(message.run_id, fallback) for message in missing}
+
+
+async def fork_conversation(
+    db: AsyncSession,
+    *,
+    source: Conversation,
+    through: Message,
+    copy_bytes: int,
+    restored_summary: list[dict[str, JsonValue]] | None = None,
+) -> Conversation:
+    """A new conversation holding `source`'s messages up to and including `through`.
+
+    Owned by the source's owner, in its organization and project, with the same
+    title. Each message is copied with its tool calls, in the order it was
+    written, and flushed one at a time: the ordinal comes from an identity, and
+    one multi-row insert does not promise to hand it out in the order of the
+    rows.
+
+    What a copy leaves behind is what belongs to the source's runs, readers or
+    storage rather than to its history: the run and its cost, attachments, the
+    server a tool call reached, and a part's pointer at the source's workspace -
+    which would name the source to anybody the fork is shared with, and lead
+    them to files they cannot open. A reply to a message that was not copied
+    loses its target.
+
+    The source's summary comes too when it ends at or before the fork point:
+    a long conversation replays its summary and the turns after it, and
+    without it the fork's model would read only the recent window of turns
+    and lose everything older. It is re-anchored on the copy of the last turn
+    it covers, since ordinals are new. The service restores externalized media
+    before supplying `restored_summary`, so its bytes survive source deletion.
+    A summary that reaches past the fork point
+    covers turns the fork does not have, and is left behind.
+    """
+    fork = Conversation(
+        user_id=source.user_id,
+        organization_id=source.organization_id,
+        title=source.title,
+        project_id=source.project_id,
+        forked_from_conversation_id=source.id,
+        forked_from_message_id=through.id,
+        fork_copy_bytes=copy_bytes,
+        plan_items=deepcopy(source.plan_items),
+    )
+    db.add(fork)
+    await db.flush()
+    originals = (
+        (
+            await db.execute(
+                select(Message)
+                .where(Message.conversation_id == source.id, Message.ordinal <= through.ordinal)
+                .options(selectinload(Message.tool_calls))
+                .execution_options(populate_existing=True)
+                .order_by(Message.ordinal.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    attribution = await _fork_agent_attribution(
+        db, source_id=source.id, through=through, messages=originals
+    )
+    copied: dict[UUID, UUID] = {}
+    for original in originals:
+        agent_id, version_id = attribution.get(
+            original.id, (original.agent_id, original.agent_version_id)
+        )
+        copy = Message(
+            conversation_id=fork.id,
+            role=original.role,
+            content=original.content,
+            thinking=original.thinking,
+            model_name=original.model_name,
+            parts=_without_source_workspace(original.parts, source.id),
+            attachment_context=original.attachment_context,
+            context_used_tokens=original.context_used_tokens,
+            agent_id=agent_id,
+            agent_version_id=version_id,
+            channel_identity_id=original.channel_identity_id,
+            author_user_id=original.author_user_id,
+            reply_to_message_id=copied.get(original.reply_to_message_id)
+            if original.reply_to_message_id is not None
+            else None,
+            interrupted=original.interrupted,
+            guardrail_refused=original.guardrail_refused,
+            created_at=original.created_at,
+            tool_calls=[
+                ToolCall(
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    tool_id=call.tool_id,
+                    presentation_kind=call.presentation_kind,
+                    args=call.args,
+                    result=call.result,
+                    status=call.status,
+                    started_at=call.started_at,
+                    completed_at=call.completed_at,
+                    duration_ms=call.duration_ms,
+                )
+                for call in original.tool_calls
+            ],
+        )
+        db.add(copy)
+        await db.flush()
+        copied[original.id] = copy.id
+    summary, summary_ordinal = (
+        await db.execute(
+            select(Conversation.summary_messages, Conversation.summary_ordinal).where(
+                Conversation.id == source.id
+            )
+        )
+    ).one()
+    if summary is not None and summary_ordinal is not None and summary_ordinal <= through.ordinal:
+        covered = [original.id for original in originals if original.ordinal <= summary_ordinal]
+        fork.summary_messages = restored_summary if restored_summary is not None else summary
+        fork.summary_ordinal = (
+            await db.scalar(select(Message.ordinal).where(Message.id == copied[covered[-1]]))
+            if covered
+            else 0
+        )
+        await db.flush()
+    await db.refresh(fork)
+    return fork
+
+
+def _without_source_workspace(
+    parts: list[dict[str, object]] | None, source_id: UUID
+) -> list[dict[str, object]] | None:
+    """A message's parts with any pointer at the source conversation's workspace removed."""
+    if parts is None:
+        return None
+    kept: list[dict[str, object]] = []
+    for part in parts:
+        origin = part.get("file_source")
+        if (
+            isinstance(origin, dict)
+            and origin.get("kind") == "conversation"
+            and str(origin.get("id")) == str(source_id)
+        ):
+            part = {key: value for key, value in part.items() if key != "file_source"}
+        kept.append(part)
+    return kept
+
+
+async def run_ids_through(db: AsyncSession, *, conversation_id: UUID, ordinal: int) -> set[UUID]:
+    """The runs that wrote this conversation's messages up to and including `ordinal`."""
+    result = await db.execute(
+        select(Message.run_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.ordinal <= ordinal,
+            Message.run_id.is_not(None),
+        )
+        .distinct()
+    )
+    return {run_id for run_id in result.scalars().all() if run_id is not None}
+
+
+async def owned_titles(
+    db: AsyncSession, *, owner_id: UUID, conversation_ids: Collection[UUID]
+) -> dict[UUID, str | None]:
+    """The title of each of these conversations that `owner_id` owns, by id.
+
+    One query for a page of forks naming their sources: a source that is gone or
+    belongs to somebody else is simply absent.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(Conversation.id, Conversation.title).where(
+            Conversation.id.in_(list(conversation_ids)), Conversation.user_id == owner_id
+        )
+    )
+    return dict(result.tuples().all())
 
 
 async def ensure_workflow_conversation(
@@ -1323,6 +1826,20 @@ async def mark_nightly_reads(
             .execution_options(synchronize_session="fetch")
         )
     await db.flush()
+
+
+async def get_fork_point(db: AsyncSession, message_id: UUID) -> Message | None:
+    """Read only an answer's identity and position before applying copy quotas."""
+    return await db.scalar(
+        select(Message)
+        .where(Message.id == message_id)
+        .options(
+            load_only(
+                Message.id, Message.conversation_id, Message.role, Message.ordinal, raiseload=True
+            ),
+            raiseload("*"),
+        )
+    )
 
 
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:

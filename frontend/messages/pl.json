@@ -589,7 +589,11 @@
       "unread": "Nowa odpowiedź",
       "unreadHeading": "Nieprzeczytane",
       "unnamedProject": "Projekt",
-      "apiFilterLabel": "Ukryj rozmowy z API"
+      "apiFilterLabel": "Ukryj rozmowy z API",
+      "sharedHeading": "Udostępnione Tobie",
+      "sharedLoading": "Ładowanie udostępnionych rozmów…",
+      "sharedFailed": "Nie udało się wczytać udostępnionych rozmów.",
+      "retryShared": "Wczytaj udostępnione rozmowy ponownie"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -1542,7 +1546,23 @@
       "notice": "Odpowiedź konfiguracyjna · Bez wywołania modelu AI i kosztu użycia dostawcy.",
       "ownerHint": "Administrator workspace może podłączyć AI dla całego zespołu. Nie musisz podawać własnego klucza.",
       "contact": "Skontaktuj się z administratorem"
-    }
+    },
+    "fork": "Rozgałęź do nowej rozmowy",
+    "forkedToast": "Rozmowa rozgałęziona",
+    "failedForkConversation": "Nie udało się rozgałęzić rozmowy",
+    "forkedFrom": "Rozgałęzienie rozmowy <link>{title}</link>",
+    "untitledFork": "Rozmowa bez tytułu",
+    "leaveShared": "Usuń z moich czatów",
+    "leftShared": "Usunięto z twoich czatów",
+    "failedLeaveShared": "Nie udało się usunąć rozmowy",
+    "conversationViewOnly": "Udostępniona Tobie tylko do odczytu",
+    "accessChanged": "Zmieniono dostęp",
+    "failedToChangeAccess": "Nie udało się zmienić dostępu",
+    "accessLevelFor": "Poziom dostępu dla {name}",
+    "accessChecking": "Sprawdzanie dostępu do rozmowy…",
+    "accessFailed": "Nie udało się sprawdzić dostępu do tej rozmowy",
+    "accessRetry": "Spróbuj ponownie",
+    "forking": "Tworzenie odgałęzienia rozmowy…"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -3445,7 +3465,7 @@
       "avatarColourHint": "Pokazywany jako Twój awatar, dopóki nie wgrasz zdjęcia.",
       "prefArtifactVersionPublished": "Aplikacja zaktualizowana",
       "prefArtifactVersionPublishedTrigger": "Aplikacja, którą obserwujesz, dostaje nową wersję - opublikowaną ponownie przez agenta albo przywróconą przez człowieka.",
-      "prefResourceShared": "Udostępnione Twojej grupie",
+      "prefResourceShared": "Udostępnione Tobie lub Twojej grupie",
       "prefResourceSharedTrigger": "Coś - agent, skill, wiedza, aplikacja - zostaje udostępnione grupie, w której jesteś.",
       "prefBudgetWarning": "Budget działu na 80%",
       "prefBudgetWarningTrigger": "Dział, którym kierujesz, wykorzystał 80% miesięcznego budgetu. Administratorzy dostają informację o każdym dziale.",
