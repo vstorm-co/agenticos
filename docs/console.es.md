@@ -1,5 +1,5 @@
 ---
-source_sha: "fb9a68f0777d"
+source_sha: "531a01aeaaa3"
 ---
 
 # La consola { #the-console }
@@ -873,6 +873,8 @@ de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
 
 Los detalles de la organización tienen cinco pestañas: **Members** para personas e invitaciones; **Workspace** para perfil y ajustes de voz predeterminados; **Budget and approvals** para gastos y acceso; **Proactivity** para sugerencias, supervisión y entrega; y **AI & services** para Architect y servicios del sistema. Cada formulario mantiene sus permisos. Quienes gestionan presupuestos acceden a AI & services incluso sin poder configurar Architect. La selección se guarda en la URL, cambiar de pestaña conserva los borradores y los enlaces antiguos `?tab=voice` abren Workspace.
+
+Al iniciar sesión, las invitaciones dirigidas al correo de la cuenta también aparecen en la consola y el onboarding, sin abrir el enlace del mensaje. La persona elige una organización y acepta explícitamente; Más tarde mantiene disponible el acceso a Invitaciones. Solo aparecen invitaciones vigentes al correo actual, sin enlaces compartidos ni organizaciones de las que ya se es miembro. Aceptar cambia a la organización elegida y abre su bienvenida. El servidor no devuelve el token de invitación en esta bandeja.
 
 Los puntos ámbar señalan pestañas de organización y tarjetas de voz, sugerencias nocturnas, mantenimiento de memoria y Architect cuando falta configuración o las sugerencias están desactivadas. Al pasar el cursor o enfocar el punto aparece una explicación; pulsarlo la mantiene abierta. Los indicadores usan valores guardados, desaparecen al completar la configuración y respetan los permisos de edición. Las sugerencias desactivadas se presentan como una opción, no como un error. La tarjeta de notificaciones iPhone también señala la falta de una clave Apple. La preferencia de movimiento reducido desactiva la animación.
 

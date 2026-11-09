@@ -512,6 +512,7 @@ export const qk = {
     detail: (id: string) => ["context", id] as const,
   },
   invitations: {
+    received: (user: string) => ["invitations", "received", user] as const,
     all: () => ["invitations"] as const,
     list: (orgId: string) => ["invitations", orgId] as const,
   },

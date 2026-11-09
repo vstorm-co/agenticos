@@ -454,7 +454,25 @@
     "description": "Bir kuruluşa katılmanız için davet edildiniz.",
     "failedTitle": "Davet kabul edilemedi",
     "redirecting": "Kuruluşlarınıza yönlendiriliyorsunuz...",
-    "title": "Ekip daveti"
+    "title": "Ekip daveti",
+    "received": {
+      "title": "Ekibin seni bekliyor",
+      "description": "Hesabının e-posta adresi bu çalışma alanlarına davet edildi. Katılmak istediğini seç.",
+      "open": "Davetler ({count})",
+      "role": "Rolün: {role}",
+      "join": "Katıl",
+      "joining": "Katılıyor…",
+      "later": "Daha sonra",
+      "failed": "Davet kabul edilemedi. Süresi dolmuş veya geri çekilmiş olabilir. Yeniden dene.",
+      "roles": {
+        "owner": "Sahip",
+        "admin": "Yönetici",
+        "builder": "Oluşturucu",
+        "operator": "Operatör",
+        "member": "Üye",
+        "viewer": "İzleyici"
+      }
+    }
   },
   "knowledgeBases": {
     "active": "Etkin",

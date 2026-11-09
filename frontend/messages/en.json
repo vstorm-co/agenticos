@@ -3566,7 +3566,25 @@
     "description": "You've been invited to join an organization.",
     "failedTitle": "Failed to accept invitation",
     "redirecting": "Redirecting to your organizations...",
-    "title": "Team invitation"
+    "title": "Team invitation",
+    "received": {
+      "title": "Your team is waiting",
+      "description": "You have been invited to these workspaces using your account’s email. Choose where you want to join.",
+      "open": "Invitations ({count})",
+      "role": "Your role: {role}",
+      "join": "Join workspace",
+      "joining": "Joining…",
+      "later": "Later",
+      "failed": "Could not accept this invitation. It may have expired or been withdrawn. Try again.",
+      "roles": {
+        "owner": "Owner",
+        "admin": "Administrator",
+        "builder": "Builder",
+        "operator": "Operator",
+        "member": "Member",
+        "viewer": "Viewer"
+      }
+    }
   },
   "kb": {
     "addIntegration": "Add integration",

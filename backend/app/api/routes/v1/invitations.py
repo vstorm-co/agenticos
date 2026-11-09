@@ -36,6 +36,7 @@ from app.schemas.organization import (
     InvitationStaged,
     InvitationStageRequest,
     InviteLinkCreate,
+    ReceivedInvitation,
 )
 
 org_router = APIRouter(dependencies=[PUBLIC])
@@ -182,6 +183,27 @@ async def revoke_invitation_by_id(
     browser history. An invitation belonging to another organization answers 404.
     """
     await service.revoke_by_id(org_id, invitation_id, requester_id=ctx.subject_id)
+
+
+@token_router.get("/invitations/received", response_model=list[ReceivedInvitation])
+async def received_invitations(service: InvitationSvc, user: CurrentUser) -> Any:
+    """List live invitations addressed to the signed-in account, across organizations.
+
+    No organization membership or active organization is required. Shareable links,
+    expired invitations and existing memberships are excluded; bearer tokens never leave the server.
+    """
+    return await service.received(user.id)
+
+
+@token_router.post(
+    "/invitations/received/{invitation_id}/accept", response_model=InvitationAccepted
+)
+async def accept_received_invitation(
+    invitation_id: UUID, service: InvitationSvc, user: CurrentUser
+) -> Any:
+    """Accept an addressed invitation by id, after checking the account's current email."""
+    invite = await service.accept_received(invitation_id, user.id)
+    return InvitationAccepted(organization_id=invite.organization_id)
 
 
 @token_router.post("/invitations/stage", response_model=InvitationStaged)

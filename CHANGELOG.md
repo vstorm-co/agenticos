@@ -28,6 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Show pending email invitations after sign-in, with explicit acceptance and organization welcome without needing the emailed link.
+
 - Give Architect the shared model-setup card and a normal chat before model setup, including persisted setup replies in its widget and full chat.
 
 - Guide setup through one decision at a time with a scripted AgenticOS companion,

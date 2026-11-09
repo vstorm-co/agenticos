@@ -16,6 +16,7 @@ from app.core.exceptions import (
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import Invitation, InvitationStatus
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
+from app.schemas.organization import ReceivedInvitation
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.invitation_admission import admits_anyone
@@ -27,6 +28,38 @@ logger = logging.getLogger(__name__)
 class InvitationService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def received(self, user_id: UUID) -> list[ReceivedInvitation]:
+        person = await user_repo.get_by_id(self.db, user_id)
+        if person is None:
+            raise NotFoundError(message="User not found", details={"user_id": user_id})
+        rows = await invitation_repo.received(self.db, email=person.email, user_id=user_id)
+        return [
+            ReceivedInvitation(
+                id=invite.id,
+                organization_id=organization.id,
+                organization_name=organization.name,
+                role=invite.role,
+                expires_at=invite.expires_at,
+            )
+            for invite, organization in rows
+        ]
+
+    async def accept_received(self, invitation_id: UUID, user_id: UUID) -> Invitation:
+        person = await user_repo.get_by_id(self.db, user_id)
+        invite = await invitation_repo.get_by_id(self.db, invitation_id)
+        if (
+            person is None
+            or invite is None
+            or invite.email is None
+            or invite.email.lower() != person.email.lower()
+        ):
+            raise NotFoundError(
+                message="Invitation not found", details={"invitation_id": invitation_id}
+            )
+        # The existing acceptance locks and revalidates status, expiry and the
+        # account's current address before creating membership atomically.
+        return await self.accept(invite.token, accepting_user_id=user_id)
 
     async def invite(
         self,
@@ -218,7 +251,7 @@ class InvitationService:
         if invite is None or not admits_anyone(invite):
             raise NotFoundError(message="Invitation not found or no longer valid")
 
-    async def accept(self, token: str, accepting_user_id: UUID):
+    async def accept(self, token: str, accepting_user_id: UUID) -> Invitation:
         # Locked for the rest of the request: the `used_count`/`max_uses` guard
         # below and the increment in `record_use` are a check-then-act, and two
         # accepts of a one-use link arriving together would otherwise both pass

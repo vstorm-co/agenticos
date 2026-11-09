@@ -1720,7 +1720,25 @@
     "description": "Zostałeś zaproszony do organizacji.",
     "acceptSuccess": "Dołączono do organizacji!",
     "redirecting": "Przekierowuję do Twoich organizacji...",
-    "failedTitle": "Nie udało się zaakceptować zaproszenia"
+    "failedTitle": "Nie udało się zaakceptować zaproszenia",
+    "received": {
+      "title": "Twój zespół czeka",
+      "description": "Na adres e-mail Twojego konta wysłano zaproszenia do tych organizacji. Wybierz, do której chcesz dołączyć.",
+      "open": "Zaproszenia ({count})",
+      "role": "Twoja rola: {role}",
+      "join": "Dołącz",
+      "joining": "Dołączanie…",
+      "later": "Później",
+      "failed": "Nie udało się przyjąć zaproszenia. Mogło wygasnąć lub zostać wycofane. Spróbuj ponownie.",
+      "roles": {
+        "owner": "Właściciel",
+        "admin": "Administrator",
+        "builder": "Twórca",
+        "operator": "Operator",
+        "member": "Członek",
+        "viewer": "Obserwator"
+      }
+    }
   },
   "kb": {
     "addIntegration": "Dodaj integrację",

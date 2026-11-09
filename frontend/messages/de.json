@@ -3566,7 +3566,25 @@
     "description": "Sie wurden eingeladen, einer Organisation beizutreten.",
     "failedTitle": "Einladung konnte nicht angenommen werden",
     "redirecting": "Weiterleitung zu Ihren Organisationen …",
-    "title": "Team-Einladung"
+    "title": "Team-Einladung",
+    "received": {
+      "title": "Dein Team wartet",
+      "description": "Für die E-Mail-Adresse deines Kontos liegen Einladungen zu diesen Organisationen vor. Wähle, wo du beitreten möchtest.",
+      "open": "Einladungen ({count})",
+      "role": "Deine Rolle: {role}",
+      "join": "Beitreten",
+      "joining": "Beitritt…",
+      "later": "Später",
+      "failed": "Die Einladung konnte nicht angenommen werden. Sie ist möglicherweise abgelaufen oder zurückgezogen worden. Versuche es erneut.",
+      "roles": {
+        "owner": "Inhaber",
+        "admin": "Administrator",
+        "builder": "Ersteller",
+        "operator": "Operator",
+        "member": "Mitglied",
+        "viewer": "Betrachter"
+      }
+    }
   },
   "kb": {
     "addIntegration": "Integration hinzufügen",

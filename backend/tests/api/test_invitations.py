@@ -69,6 +69,18 @@ def service() -> MagicMock:
     stub.revoke = AsyncMock(return_value=invitation)
     stub.ensure_stageable = AsyncMock(return_value=None)
     stub.accept = AsyncMock(return_value=invitation)
+    stub.accept_received = AsyncMock(return_value=invitation)
+    stub.received = AsyncMock(
+        return_value=[
+            {
+                "id": invitation.id,
+                "organization_id": invitation.organization_id,
+                "organization_name": "Acme",
+                "role": invitation.role,
+                "expires_at": invitation.expires_at,
+            }
+        ]
+    )
     return stub
 
 
@@ -311,3 +323,27 @@ async def test_a_member_without_members_manage_cannot_invite(
 
     assert response.status_code == 403
     service.invite.assert_not_called()
+
+
+async def test_received_invitations_need_no_organization_and_expose_no_token(client, service):
+    response = await client.get(f"{settings.API_V1_STR}/invitations/received")
+    assert response.status_code == 200
+    assert response.json()[0]["organization_name"] == "Acme"
+    assert _TOKEN not in response.text
+    assert "token" not in response.json()[0]
+    service.received.assert_awaited_once()
+
+
+async def test_recipient_accepts_by_id_without_returning_a_bearer_token(client, service):
+    response = await client.post(
+        f"{settings.API_V1_STR}/invitations/received/{_INVITATION_ID}/accept"
+    )
+    assert response.status_code == 200
+    assert response.json() == {"organization_id": str(_ORGANIZATION_ID)}
+    assert service.accept_received.await_args.args[0] == _INVITATION_ID
+
+
+async def test_received_invitations_require_authentication(client):
+    app.dependency_overrides.pop(deps.get_current_user)
+    response = await client.get(f"{settings.API_V1_STR}/invitations/received")
+    assert response.status_code == 401
