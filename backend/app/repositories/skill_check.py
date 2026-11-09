@@ -153,6 +153,24 @@ async def agent_for_run(
     ).scalar_one_or_none()
 
 
+async def agents_for_runs(
+    db: AsyncSession, eval_run_ids: Collection[UUID], *, organization_id: UUID
+) -> list[SkillCheckAgent]:
+    """The check agents one of whose stages is one of these eval runs."""
+    if not eval_run_ids:
+        return []
+    result = await db.execute(
+        select(SkillCheckAgent).where(
+            SkillCheckAgent.organization_id == organization_id,
+            or_(
+                SkillCheckAgent.skill_set_run_id.in_(eval_run_ids),
+                SkillCheckAgent.dataset_run_id.in_(eval_run_ids),
+            ),
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def running(db: AsyncSession, *, limit: int) -> list[tuple[UUID, UUID]]:
     """Checks still running in every organization, as `(organization_id, id)`, oldest first.
 

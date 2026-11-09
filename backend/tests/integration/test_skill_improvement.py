@@ -40,6 +40,7 @@ from app.db.models.skill_check import (
     CheckOutcome,
     CheckSource,
     CheckStatus,
+    CheckVerdict,
     SkillCheck,
 )
 from app.db.models.skill_improvement import SkillImprovementRun
@@ -1400,6 +1401,32 @@ class TestCheckAndResult:
         run = await _settle(db, run)
 
         assert (run.status, run.stage) == ("running", "evaluating")
+
+    async def test_a_persons_verdict_rewrites_the_attempts_result_and_not_where_it_went(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        service = SkillImprovementService(db)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+        )
+        assert iteration is not None and iteration.skill_check_id is not None
+        check = await db.get(SkillCheck, iteration.skill_check_id)
+        assert check is not None
+        # A check still running has given the attempt nothing to rewrite.
+        await service.refresh_check_verdict(check, CheckVerdict.PASSED)
+        assert iteration.check_verdict is None
+        run = await _settle(db, run, status="done", verdict="blocked")
+
+        await service.refresh_check_verdict(check, CheckVerdict.PASSED)
+
+        read = await service.read(ctx, run.skill_id, run.id)
+        [attempt] = read.iterations
+        assert (attempt.check_verdict, attempt.verdict) == ("passed", "better")
+        assert (read.status, read.stage) == (run.status, run.stage)
 
     @pytest.mark.parametrize(
         ("verdict", "status", "stop", "measured"),

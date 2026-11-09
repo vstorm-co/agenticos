@@ -1,5 +1,5 @@
 ---
-source_sha: "8165780dbb47"
+source_sha: "243437bddc6f"
 ---
 
 # Skills { #skills }
@@ -327,6 +327,13 @@ und eine Regression, die eine Stufe allein bestätigt, zählt, was immer die and
 fand.
 Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
 Held-out-Fragen des Agents.
+
+Das Urteil einer Person in der [Prüfwarteschlange](datasets.md#review) über eine
+Antwort, die eine Prüfung bewertet hat, beurteilt diesen Agent neu: seine Zahlen,
+das Urteil der Prüfung und das Ergebnis des Improve-Versuchs, den die Prüfung
+gemessen hat, folgen diesem Urteil. Eine entschiedene Prüfung behält ihre
+Entscheidung, und ein Agent, den die Prüfung nicht ausführen konnte, bleibt
+unbekannt.
 
 Der Anteil jedes Agents sind seine eigenen Eval-Runs, abgerechnet über sein
 Budget. Die Schätzung nennt einen Preis, wahrscheinlich und höchstens, und vor

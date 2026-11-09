@@ -1412,6 +1412,27 @@ class SkillImprovementService:
                     },
                 )
 
+    async def refresh_check_verdict(self, check: SkillCheck, verdict: CheckVerdict) -> None:
+        """Copy a judged check's new verdict onto the attempt it measured.
+
+        Only the attempt's record changes: where the session went on that verdict
+        stays, and its Result step reads the check itself.
+        """
+        iteration = await skill_improvement_repo.iteration_for_check(
+            self.db, check.id, organization_id=check.organization_id
+        )
+        if (
+            iteration is None
+            or iteration.skill_check_id != check.id
+            or iteration.check_verdict is None
+        ):
+            return
+        await skill_improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={"check_verdict": verdict.value, "verdict": _VERDICTS[verdict].value},
+        )
+
     async def wake_for_check(self, check_id: UUID, *, organization_id: UUID) -> None:
         """Advance the session a finished check belongs to, rather than at the next sweep."""
         iteration = await skill_improvement_repo.iteration_for_check(

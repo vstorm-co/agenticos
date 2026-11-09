@@ -292,6 +292,11 @@ stage confirmed on its own counts whatever the other found. Every question of th
 skill's set is held out, and a quick check samples only the agent's held-out
 questions.
 
+A person's verdict in the [review queue](datasets.md#review) on an answer a
+check graded judges that agent again: its counts, the check's verdict and the
+result of the Improve attempt the check measured follow the verdict. A decided
+check keeps its decision, and an agent the check could not run stays unknown.
+
 Each agent's share is its own eval runs, billed to that agent. The estimate gives
 one price, most likely and at most, and names before the start the agents whose
 budget cannot cover it. Starting needs `runs:view` and edit access to the skill.

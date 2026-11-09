@@ -1,5 +1,5 @@
 ---
-source_sha: "8165780dbb47"
+source_sha: "243437bddc6f"
 ---
 
 # Skills { #skills }
@@ -316,6 +316,12 @@ regresión que una etapa confirmó por sí sola cuenta, sea lo que sea que hall�
 otra. Todas las
 preguntas del conjunto del skill son held-out, y una comprobación rápida solo
 toma preguntas held-out del agent.
+
+El veredicto de una persona en la [cola de revisión](datasets.md#review) sobre una
+respuesta que una comprobación calificó vuelve a juzgar a ese agent: sus
+recuentos, el veredicto de la comprobación y el resultado del intento de Improve
+que la comprobación midió siguen ese veredicto. Una comprobación decidida conserva
+su decisión, y un agent que la comprobación no pudo ejecutar sigue desconocido.
 
 La parte de cada agent son sus propios runs de evals, cargados a su budget. La
 estimación da un precio, lo más probable y como mucho, y nombra antes de empezar

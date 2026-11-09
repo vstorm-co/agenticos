@@ -1155,6 +1155,55 @@ class SkillCheckService:
                 dedupe_key=f"{row.check_id}:{eval_run_id}",
             )
 
+    async def recompute_after_review(self, organization_id: UUID, eval_run_ids: list[UUID]) -> None:
+        """Judge again the agents whose stage runs a person's verdict just changed.
+
+        Each check is read as the person who started it, never with the reviewer's
+        access. An agent a check could not run stays as it is; a decided check keeps
+        its decision and shows what its runs now say. A check still running gets its
+        verdict when its last agent settles.
+        """
+        rows = await skill_check_repo.agents_for_runs(
+            self.db, eval_run_ids, organization_id=organization_id
+        )
+        for check_id in sorted({row.check_id for row in rows}):
+            check = await skill_check_repo.get(
+                self.db, check_id, organization_id=organization_id, lock=True
+            )
+            if check is None or check.status == CheckStatus.CANCELLED.value:
+                continue
+            try:
+                ctx = await job_context(
+                    self.db,
+                    organization_id=organization_id,
+                    user_id=check.created_by_user_id,
+                    api_key_id=check.created_by_api_key_id,
+                )
+            except AuthenticationError:
+                ctx = None
+            if ctx is None:
+                continue
+            agents = await skill_check_repo.list_agents(
+                self.db, [check.id], organization_id=organization_id
+            )
+            for row in agents:
+                if _rejudged(row, eval_run_ids):
+                    try:
+                        await self._judge(ctx, check, row)
+                    except AuthorizationError, NotFoundError:
+                        continue
+            states = [AgentState(row.state) for row in agents]
+            if check.status == CheckStatus.RUNNING.value or not all(s.settled for s in states):
+                continue
+            verdict = rules.verdict(states)
+            if verdict.value == check.verdict:
+                continue
+            await skill_check_repo.update(self.db, row=check, values={"verdict": verdict.value})
+            if check.source == CheckSource.SESSION.value:
+                from app.services.skill_improvement import SkillImprovementService
+
+                await SkillImprovementService(self.db).refresh_check_verdict(check, verdict)
+
     async def _check(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, lock: bool = False
     ) -> SkillCheck:
@@ -2150,6 +2199,16 @@ def _chosen_for_fork(
             agent_ids=via,
         )
     return [by_agent[agent_id] for agent_id in picked]
+
+
+def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
+    """Whether a verdict on one of these runs changes what this agent's row says."""
+    if not {row.skill_set_run_id, row.dataset_run_id} & set(eval_run_ids):
+        return False
+    state = AgentState(row.state)
+    if state is AgentState.UNKNOWN:
+        return row.unknown_reason == UnknownReason.INCONCLUSIVE.value
+    return state.settled
 
 
 def _run_of(row: SkillCheckAgent, kind: StageKind) -> UUID | None:

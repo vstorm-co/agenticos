@@ -1,5 +1,5 @@
 ---
-source_sha: "8165780dbb47"
+source_sha: "243437bddc6f"
 ---
 
 # Skille { #skills }
@@ -304,6 +304,12 @@ razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
 regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi. Każde
 pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
 held-out agenta.
+
+Werdykt osoby w [kolejce przeglądu](datasets.md#review) na odpowiedź ocenioną
+przez sprawdzenie ocenia tego agenta od nowa: jego liczby, werdykt sprawdzenia i
+wynik próby Improve, którą sprawdzenie mierzyło, idą za tym werdyktem.
+Rozstrzygnięte sprawdzenie zachowuje swoją decyzję, a agent, którego sprawdzenie
+nie mogło uruchomić, zostaje nieznany.
 
 Część każdego agenta to jego własne runy evali, rozliczane z jego budżetu.
 Estymacja podaje jedną cenę, najpewniej i najwyżej, i przed startem wymienia

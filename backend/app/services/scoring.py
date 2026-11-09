@@ -1195,6 +1195,9 @@ class ScoringService:
             from app.services.improvement_pipeline import ImprovementPipelineService
 
             await ImprovementPipelineService(self.db).recompute_after_review(ctx, affected)
+            from app.services.skill_check import SkillCheckService
+
+            await SkillCheckService(self.db).recompute_after_review(ctx.organization_id, affected)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

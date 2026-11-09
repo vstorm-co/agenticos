@@ -20,6 +20,7 @@ from app.agents.capabilities.skills import SkillBodyFile
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthenticationError,
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
@@ -707,6 +708,161 @@ class TestTheRule:
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert {row.unknown_reason for row in read.agents} == {"failed"}
         assert read.verdict is CheckVerdict.NO_BETTER
+
+
+async def _stage_runs(db: AsyncSession, lab: Lab, check_id: uuid.UUID, agent: Agent):
+    """The eval runs the check ran for `agent`, each stage it reached."""
+    rows = await skill_check_repo.list_agents(
+        db, [check_id], organization_id=lab.ctx.organization_id
+    )
+    [row] = [row for row in rows if row.agent_id == agent.id]
+    return [run_id for run_id in (row.skill_set_run_id, row.dataset_run_id) if run_id]
+
+
+class TestAPersonsVerdict:
+    """A person's verdict on an answer a stage graded changes what the check says."""
+
+    @pytest.mark.parametrize("source", [CheckSource.MANUAL, CheckSource.SESSION])
+    async def test_a_regression_a_person_overturns_lets_the_change_pass(
+        self, db, monkeypatch, source
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(), source=source)
+        evals.outcomes = {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(broken=1)}
+        assert (await _run_to_end(service, evals, lab, check.id)).verdict is CheckVerdict.BLOCKED
+
+        evals.outcomes[lab.b.id] = Outcome()
+        await service.recompute_after_review(
+            lab.ctx.organization_id, await _stage_runs(db, lab, check.id, lab.b)
+        )
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        states = {row.agent.name: row.state for row in read.agents}
+        assert states == {"A": "better", "B": "no_change", "C": "no_change"}
+        assert (read.status, read.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
+
+    async def test_a_verdict_on_a_run_no_check_asked_changes_nothing(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.b.id: Outcome(broken=1)}
+        await _run_to_end(service, evals, lab, check.id)
+        evals.outcomes = {}
+
+        await service.recompute_after_review(lab.ctx.organization_id, [])
+        await service.recompute_after_review(lab.ctx.organization_id, [uuid.uuid4()])
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert read.verdict is CheckVerdict.BLOCKED
+
+    async def test_an_agent_whose_run_failed_stays_unknown(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        for run in evals.runs.values():
+            run.status = EvalRunStatus.FAILED.value
+        await service.advance(check.id, lab.ctx.organization_id)
+        evals.outcomes = {lab.a.id: Outcome(fixed=2)}
+
+        await service.recompute_after_review(lab.ctx.organization_id, list(evals.runs))
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert {row.unknown_reason for row in read.agents} == {"failed"}
+        assert read.verdict is CheckVerdict.NO_BETTER
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("starter", ["gone", "key_revoked"])
+    async def test_a_check_nobody_may_read_any_more_is_left_as_it_was(
+        self, db, monkeypatch, starter
+    ):
+        """The reviewer's own access never reads the agents of somebody else's check."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.b.id: Outcome(broken=1)}
+        await _run_to_end(service, evals, lab, check.id)
+        evals.outcomes = {}
+
+        async def job_context(*_: Any, **__: Any) -> AuthContext | None:
+            if starter == "key_revoked":
+                raise AuthenticationError(message="Key gone")
+            return None
+
+        monkeypatch.setattr(skill_check_module, "job_context", job_context)
+        await service.recompute_after_review(lab.ctx.organization_id, list(evals.runs))
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert read.verdict is CheckVerdict.BLOCKED
+
+    async def test_an_agent_the_starter_may_no_longer_read_keeps_its_result(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.b.id: Outcome(broken=1)}
+        await _run_to_end(service, evals, lab, check.id)
+        evals.outcomes = {}
+
+        async def refused(*_: Any, **__: Any) -> None:
+            raise AuthorizationError(message="No access")
+
+        monkeypatch.setattr(SkillCheckService, "_judge", refused)
+        await service.recompute_after_review(lab.ctx.organization_id, list(evals.runs))
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert {row.agent.name: row.state for row in read.agents}["B"] == "worse"
+        assert read.verdict is CheckVerdict.BLOCKED
+
+    async def test_a_cancelled_check_is_left_as_it_was(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        await service.cancel(lab.ctx, lab.skill.id, check.id)
+
+        await service.recompute_after_review(lab.ctx.organization_id, list(evals.runs))
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert (read.status, read.verdict) == (CheckStatus.CANCELLED, None)
+
+    async def test_a_running_check_gets_its_verdict_when_its_last_agent_settles(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+
+        async def sample(_self, _ctx, _skill, _agent_id, _dataset, _words, _allowed=None, **_):
+            return [uuid.uuid4()]
+
+        monkeypatch.setattr(SkillCheckService, "_sample", sample)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+        evals.outcomes[lab.b.id] = Outcome()
+
+        await service.recompute_after_review(
+            lab.ctx.organization_id, await _stage_runs(db, lab, check.id, lab.b)
+        )
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert {row.agent.name: row.state for row in read.agents}["B"] == "no_change"
+        assert (read.status, read.verdict) == (CheckStatus.RUNNING, None)
+        read = await _run_to_end(service, evals, lab, check.id)
+        assert read.verdict is CheckVerdict.PASSED
 
 
 class TestDeciding:
