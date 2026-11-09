@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Update the backend runtime, development and documentation dependencies from
+  #2836. Keep Soup Sieve below 4 to preserve HTML parsing inside templates, and
+  refresh the distributed third-party notices.
+
 ## [1.61.4] - 2026-11-09
 
 ### Fixed
