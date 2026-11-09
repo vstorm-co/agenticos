@@ -21,6 +21,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A step stays in the loop it belongs to (#2770).** A For each body was
+  whatever the loop's **Each item** port's wires reached, so deleting a wire
+  inside a body moved the steps after it out of the loop, and a second wire from
+  that port, which no view drew, made publishing fail with "A loop's body must
+  start at exactly one loop item step". Each step now names its loop
+  (`scope_id`), the loop has no **Each item** port, and a body starts at its
+  **Loop item**. A new loop comes with its **Loop item** and **Loop result**,
+  which go only with the loop; a step added or pasted in a body stays there; and
+  deleting a loop deletes its body. Publishing refuses a body step **Loop item**
+  never reaches. Migration `0301_workflow_loop_scope` rewrites stored drafts,
+  versions and test-run snapshots, moving an extra wire from the old port onto
+  the body's **Loop item**; a graph sent or imported in the old shape is read the
+  same way. See [Workflows](docs/workflows.md#connections-and-foreach-scope).
+
 - Tool failures now keep actionable structured details through model continuation,
   approval resume and saved transcripts: named missing fields, allowed values,
   numeric and collection bounds, safe compiler diagnostics, correction examples,

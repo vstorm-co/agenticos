@@ -10,7 +10,7 @@ import { NodePicker } from "@/components/workflows/picker";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
-import { pasteFromClipboard } from "./use-canvas-shortcuts";
+import { usePasteFromClipboard } from "./use-canvas-shortcuts";
 
 /** Where on the canvas the picker opens, in pixels from the canvas's top left. */
 export interface PanePoint {
@@ -41,6 +41,7 @@ export function PanePicker({
   const t = useTranslations("workflows");
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
   const clipboard = useWorkflowEditorStore((state) => state.clipboard);
+  const paste = usePasteFromClipboard(catalog);
   const offered = useMemo(
     () => catalog.filter((definition) => isAddableInScope(definition, scopePath)),
     [catalog, scopePath],
@@ -80,9 +81,7 @@ export function PanePicker({
               </FooterAction>
             )}
             {clipboard !== null && (
-              <FooterAction
-                onClick={act(() => pasteFromClipboard(useWorkflowEditorStore.getState()))}
-              >
+              <FooterAction onClick={act(paste)}>
                 <Clipboard aria-hidden="true" className="size-3.5" />
                 {t("menuPaste")}
               </FooterAction>

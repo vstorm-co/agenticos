@@ -88,7 +88,6 @@ describe("the steps around a step", () => {
         {
           scope_node_id: "b",
           body_node_ids: ["c"],
-          entry_port: "body",
           exit_node_id: "b",
           exit_port: "done",
         },
