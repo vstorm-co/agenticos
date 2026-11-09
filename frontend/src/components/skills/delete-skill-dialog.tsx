@@ -205,7 +205,7 @@ export function DeleteSkillDialog({
             disabled={deleting}
             onClick={confirming ? () => setConfirming(false) : onClose}
           >
-            {confirming ? t("back") : used ? t("close") : t("cancel")}
+            {confirming ? t("back") : t("cancel")}
           </Button>
           {!used && (
             <Button
