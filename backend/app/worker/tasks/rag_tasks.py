@@ -1723,6 +1723,10 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         try:
             status = "done" if not failed else "error"
             summary = _sync_summary(failed, notes)
+            # The source before its log: deleting a source holds it and then
+            # reaches its logs through their foreign key, and the other order
+            # deadlocks with that, recording a finished run as stopped (#2745).
+            await sync_source_repo.lock(db, UUID(source_id))
             log = await sync_svc.complete_sync(
                 log_id,
                 status=status,

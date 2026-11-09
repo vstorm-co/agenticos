@@ -21,6 +21,14 @@ from app.worker.jobs import BasePurge
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """No connectors unless a teardown test explicitly supplies one."""
     monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
@@ -2038,3 +2046,40 @@ async def test_custom_embedding_endpoint_requires_connection_authority():
     )
     with pytest.raises(BadRequestError):
         await service._embedding_url(_ctx(), "openai", "https://example.com/v1")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("scope", "role", "grant", "owned", "admin", "expected"),
+    [
+        ("org", "member", GrantLevel.READ, False, False, False),
+        ("org", "viewer", GrantLevel.EDIT, False, False, True),
+        ("org", "member", None, True, False, True),
+        ("app", "owner", None, False, False, False),
+        ("app", "viewer", None, False, True, True),
+        ("personal", "viewer", None, True, False, True),
+        ("personal", "owner", None, False, False, False),
+    ],
+)
+async def test_detail_reports_effective_write_access(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    role: str,
+    grant: GrantLevel | None,
+    owned: bool,
+    admin: bool,
+    expected: bool,
+) -> None:
+    ctx = _ctx(role=role, app_admin=admin)
+    kb = _readable_kb("handbook")
+    kb.scope = scope
+    kb.visibility = Visibility.PRIVATE.value
+    kb.organization_id = ctx.organization_id
+    kb.owner_user_id = ctx.user_id if owned else uuid.uuid4()
+    monkeypatch.setattr(
+        "app.repositories.resource_grant_repo.get_level", AsyncMock(return_value=grant)
+    )
+    detail = await KnowledgeBaseService(mock_db_session).describe(kb, ctx=ctx)
+    assert detail.model_dump(mode="json")["can_edit"] is expected
+    assert detail.id == kb.id

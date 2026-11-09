@@ -31,8 +31,8 @@ may change after this revision, and this one must keep converting the same way.
 nothing reaches from `loop.item` - possible only after the upgrade - is outside
 the body again under the old reading, as it was before this revision.
 
-Revision ID: 0296_workflow_loop_scope
-Revises: 0295_tool_approval_consent
+Revision ID: 0301_workflow_loop_scope
+Revises: 0300_unfiled_writer_provenance
 """
 
 import json
@@ -45,8 +45,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0296_workflow_loop_scope"
-down_revision: str | Sequence[str] | None = "0295_tool_approval_consent"
+revision: str = "0301_workflow_loop_scope"
+down_revision: str | Sequence[str] | None = "0300_unfiled_writer_provenance"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "cc88ed3eb4e4"
 ---
 
 # La API HTTP { #the-http-api }
@@ -62,6 +62,24 @@ búsqueda en sus conversaciones anteriores, ni los sitios en los que el navegado
 guarda sus inicios de sesión, ni el espacio de trabajo del sandbox ligado al
 usuario. Quien tiene la clave es un script, no esa persona, así que el run
 responde como en un widget público.
+
+Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
+
+**El trabajo que actúa como tú también lo configuras con una clave que emitiste
+tú.** Una clave que creaste, o el token de un cliente MCP que autorizaste, puede
+crear y cambiar tus propias [rutinas](triggers.md) que actúan como tú
+(`runs_as_creator`) y tus [watches](console.md), revisar las fuentes de una rutina
+y publicar un agente sin retirar el consentimiento de las rutinas que actúan como
+tú. La ejecución de esa rutina sigue sujeta a sus fuentes revisadas y su
+presupuesto. No puede hacerlo la credencial de ejecución de un agente fuera de tu
+chat privado, ni un administrador que te suplante.
+
+Las conversaciones también son públicas: `GET /api/v1/conversations` lista los
+chats del emisor (`runs:view`), y `POST /api/v1/conversations` con `title` y
+`PATCH /api/v1/conversations/{id}` abren y renombran uno (`agents:run`), por
+ejemplo un chat temático en el que responde una rutina.
+`POST /api/v1/me/mcp-connections/{id}/test` comprueba una conexión propia y
+actualiza sus herramientas (`agents:run`).
 
 La consulta de conexiones también es pública y de solo lectura:
 `GET /sandbox-connections`, `GET /sandbox-connections/runtimes` y
@@ -341,6 +359,34 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 Esto inicia un run de la versión publicada del workflow y responde `201` de
 inmediato; los nodos se ejecutan en segundo plano. `"mode": "test"` ejecuta en
 su lugar el borrador actual, desde cualquier trigger, y exige `workflows:edit`.
+
+Antes de llamar, lee `GET /api/v1/workflows/{id}/input-schema` con
+`workflows:view`. Devuelve el `version_id` publicado y una lista `entries` con
+`entry_node_id`, `trigger` e `input_schema` efectivo para cada entrada Manual, API,
+Called by a workflow o Form. Pasa `version_id` para inspeccionar una versión
+publicada concreta. Los contratos JSON Schema se devuelven sin cambios; los campos
+simples se representan como JSON Schema y las entradas sin tipado devuelven
+`{"type": "object"}`. Usa el contrato de la entrada deseada y pasa su
+`entry_node_id` al iniciar.
+
+Los campos simples `integer` existentes exigen además tokens enteros JSON:
+se acepta `1`, pero se rechazan `1.0` y `1e0`. El descubrimiento los marca con
+`x-agenticos-strict-integer: true`, también dentro de los campos opcionales
+que admiten null. JSON Schema ordinario no puede imponer esta distinción de
+representación, por lo que validar solo el esquema no basta para esos campos;
+la admisión del servidor es definitiva. Los contratos JSON Schema sin procesar
+usan la semántica estándar de integer.
+
+El [contrato de entrada JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+opcional se comprueba antes de admitir el run. Una discrepancia responde
+`422 WORKFLOW_RUN_INPUT_INVALID` con rutas de campos y mensajes en `error.details.fields`;
+no se crea ningún run. Cada entrada tiene `field` y `message`; las rutas anidadas
+de la petición incluyen índices de arrays, por ejemplo `input.items.0.sku`.
+Para quienes ya usan la API, `error.details.problems` conserva también `field`,
+`message` y `type` con rutas relativas al objeto de entrada. El contrato procede
+de la versión publicada actual o del borrador para `"mode": "test"`. Se aplica
+igual por WebSocket y MCP y cuando llama otro workflow.
+
 `deadline_seconds` (hasta
 treinta días) fija un plazo que se comprueba cada vez que un nodo va a
 despacharse: el primer nodo pendiente tras cumplirse hace fallar el run con

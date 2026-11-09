@@ -607,7 +607,50 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0}},
+            {"params": {"limit": 100, "skip": 0, "for_model": True}},
+        ),
+    ),
+    (
+        "test_my_connection",
+        {"connection_id": "00000000-0000-0000-0000-000000000002"},
+        ("POST", "/me/mcp-connections/00000000-0000-0000-0000-000000000002/test", {}),
+    ),
+    (
+        "list_conversations",
+        {"search": "Geopolityka", "limit": 5},
+        (
+            "GET",
+            "/conversations",
+            {"params": {"limit": 5, "search": "Geopolityka", "for_model": True}},
+        ),
+    ),
+    (
+        "create_conversation",
+        {"title": "GitHub daily"},
+        ("POST", "/conversations", {"json": {"title": "GitHub daily"}}),
+    ),
+    (
+        "update_proactivity_settings",
+        {
+            "watch_min_minutes": 20,
+            "briefing_hour": 10,
+            "monthly_limit_usd": "30",
+            "briefing_enabled": True,
+            "briefing_days": [1, 3],
+        },
+        (
+            "PATCH",
+            f"/orgs/{ORG}",
+            {
+                "json": {
+                    "proactive_watch_min_minutes": 20,
+                    "proactive_enabled": True,
+                    "proactive_days": [1, 3],
+                    "proactive_hour": 10,
+                    "proactive_timing": "fixed",
+                    "proactive_limit_usd": "30",
+                }
+            },
         ),
     ),
     # Only what the person said: a field left out stays as the account has it.
@@ -792,7 +835,7 @@ CALLS.extend(
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
-    if tool == "list_projects":
+    if tool in ("list_projects", "list_conversations"):
         api.request.return_value = {"items": [], "total": 0}
     await server.call_tool(tool, arguments)
 
@@ -1032,6 +1075,7 @@ class TestWhatNeverWaitsForApproval:
         assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
+        assert tools["test_my_connection"].writes and not tools["test_my_connection"].ungated
 
     @pytest.mark.security
     async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
@@ -1648,3 +1692,44 @@ async def test_routine_notification_override_and_inheritance_are_mutually_exclus
             },
         )
     api.request.assert_not_awaited()
+
+
+async def test_proactivity_settings_need_something_to_change(server: FastMCP, api: MagicMock):
+    with pytest.raises(Exception, match="at least one setting"):
+        await server.call_tool("update_proactivity_settings", {})
+    api.request.assert_not_called()
+
+
+async def test_proactivity_settings_need_an_organization(api: MagicMock):
+    api.request.return_value = {}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    with pytest.raises(ValueError, match="names no organization"):
+        await tools["update_proactivity_settings"](watches_enabled=True)
+
+
+async def test_a_conversation_listing_carries_only_ids_titles_and_dates(api: MagicMock):
+    api.request.return_value = {
+        "total": 1,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u", "x": 1}],
+    }
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["list_conversations"]() == {
+        "total": 1,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u"}],
+    }
+
+
+async def test_a_connection_check_names_its_tools(api: MagicMock):
+    api.request.return_value = {"ok": True, "error": None, "tools": [{"name": "search"}]}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["test_my_connection"](connection_id=uuid.uuid4()) == {
+        "ok": True,
+        "error": None,
+        "tools": ["search"],
+    }
+
+
+def test_proactivity_tool_explains_both_required_scopes(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "update_proactivity_settings")
+    assert tool.function.__doc__ is not None
+    assert "`org:settings` and `budgets:manage`" in tool.function.__doc__

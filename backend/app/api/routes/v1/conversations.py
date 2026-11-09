@@ -16,8 +16,10 @@ from app.api.deps import (
     ProjectSvc,
     VisualSvc,
     WorkspaceSvc,
+    key_needs,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
@@ -102,7 +104,11 @@ async def get_shared_conversation(
     return await share_service.get_by_token(token)
 
 
-@router.get("", response_model=ConversationList)
+@router.get(
+    "",
+    response_model=ConversationList,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
 async def list_conversations(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -110,6 +116,9 @@ async def list_conversations(
     auth: Auth,
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum conversations to return"),
+    for_model: bool = Query(
+        False, description="Omit conversations containing guardrail-refused turns"
+    ),
     search: str | None = Query(default=None, description="Search by title"),
     agent_id: UUID | None = Query(default=None, description="Only threads this agent answered in"),
     include_archived: bool = Query(False, description="Include archived conversations"),
@@ -156,11 +165,17 @@ async def list_conversations(
         hide_channels=hide_channels,
         project_id=project_id,
         reader=auth,
+        for_model=for_model,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
 
-@router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def create_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -287,7 +302,11 @@ async def get_visual_image(
     return visual_image_response(data, media_type)
 
 
-@router.patch("/{conversation_id}", response_model=ConversationRead)
+@router.patch(
+    "/{conversation_id}",
+    response_model=ConversationRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def update_conversation(
     conversation_id: UUID,
     data: ConversationUpdate,

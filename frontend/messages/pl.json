@@ -804,11 +804,11 @@
       "knowledgeBaseSearch": "Wyszukiwanie w bazie wiedzy",
       "listed": "{named, select, no {Wylistował…} other {Wylistował {subject}}}",
       "listing": "{named, select, no {Listuje…} other {Listuje {subject}}}",
-      "loadSkill": "Wczytaj skill",
+      "loadSkill": "Czytaj skill",
       "loading": "Wczytywanie…",
       "availableSkills": "Dostępne skille",
       "lookingThroughSkills": "Przegląda skille",
-      "loadingSkill": "Wczytuje skill",
+      "loadingSkill": "Czyta skill",
       "lookedFor": "{named, select, no {Szukał…} other {Szukał {subject}}}",
       "lookingAtChannel": "Przegląda kanał",
       "lookingAtChannelMembers": "Sprawdza, kto jest na kanale",
@@ -1012,7 +1012,10 @@
           "unavailableOption": "{value} (niedostępny)",
           "effortUnsupported": "Model nie oferuje tej opcji"
         },
-        "off": "Wyłączone"
+        "off": "Wyłączone",
+        "asksFirst": "Zapyta przy pierwszej wiadomości",
+        "noCloud": "Ten agent pracuje na Twoim komputerze, więc nie ma przestrzeni w chmurze. Wybierz folder albo cały komputer.",
+        "agentComputerConsent": "Dozwolone dla {agent} w każdej rozmowie na tym komputerze. Polecenia działają bez osobnych natywnych pytań. Możesz cofnąć dostęp tutaj; uprawnienia systemu nadal obowiązują."
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",
@@ -1515,7 +1518,19 @@
     "approvalRememberedEmpty": "Brak zapamiętanych akceptacji.",
     "approvalRememberForget": "Pytaj ponownie",
     "approvalRememberFailed": "Nie udało się usunąć zgody. Spróbuj ponownie.",
-    "approvalRememberRetry": "Spróbuj ponownie"
+    "approvalRememberRetry": "Spróbuj ponownie",
+    "localAccess": {
+      "continue": "Dostęp udzielony - kontynuuj.",
+      "title": "Gdzie {agent} może pracować?",
+      "description": "{agent} potrzebuje plików z Twojego komputera do tej prośby. Wybór zapamiętamy dla tego agenta; zmienisz lub cofniesz to później w Chat controls → Work on.",
+      "computer": "Cały komputer",
+      "computerHint": "Może czytać i zmieniać pliki wszędzie, gdzie ma dostęp Twoje konto, i uruchamiać polecenia jako Ty. Komputer poprosi o potwierdzenie.",
+      "folder": "Wybierz folder",
+      "folderHint": "Pracuje tylko w wybranym folderze.",
+      "cancel": "Nie teraz",
+      "agentUnavailable": "Nie udało się wczytać wybranego agenta. Spróbuj ponownie.",
+      "failed": "Nie udało się ustawić dostępu na tym komputerze"
+    }
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -2359,7 +2374,7 @@
       "inCategoryUse": "Kategorie już w użyciu",
       "inTagUse": "Tagi już w użyciu",
       "mcpToolLoad": "Te serwery MCP dają modelowi {count} narzędzi przy każdym zapytaniu - to około {tokens, number} tokenów, zanim ktokolwiek coś napisze, i więcej narzędzi, niż model dobrze rozróżnia. Wyszukiwanie narzędzi chowa je, dopóki agent nie poszuka konkretnego.",
-      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi",
+      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi MCP",
       "agentDescriptionLabel": "Opis",
       "agentNameLabel": "Nazwa",
       "agentNameRequired": "Agent potrzebuje nazwy.",
@@ -3685,7 +3700,8 @@
         "queued": "W kolejce",
         "running": "W toku",
         "waiting_approval": "Czeka na zatwierdzenie",
-        "waiting_retry": "Ponawia"
+        "waiting_retry": "Ponawia",
+        "waiting_for_user": "Czeka na odpowiedź"
       },
       "nodeStatus": {
         "cancelled": "Anulowany",
@@ -4232,7 +4248,11 @@
       "replyMailboxUnavailable": "Wybrana skrzynka niedostępna",
       "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach.",
       "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)",
-      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane."
+      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane.",
+      "runQuestionsTitle": "Twój agent potrzebuje odpowiedzi, aby kontynuować",
+      "runQuestionsFailed": "Nie udało się wczytać pytań.",
+      "runQuestionsRetry": "Spróbuj ponownie",
+      "startRunSchema": "Oczekiwany schemat wejścia"
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -4379,7 +4399,6 @@
     "everySixHours": "Co 6 h",
     "failedCount": "{count} z błędem",
     "ingestedCount": "{count} pobranych",
-    "integration": "Integracja",
     "leaveEmptyAutoGenerate": "Zostaw puste, aby wygenerować automatycznie",
     "loading": "Wczytywanie…",
     "modeFull": "Pełna",
@@ -5497,6 +5516,9 @@
     }
   },
   "teams": {
+    "organizationLabel": "Organizacja",
+    "organizationSwitcher": "Zmień organizację, obecna: {name}",
+    "selectOrganization": "Wybierz organizację",
     "acmeCom": "acme.com",
     "approvalWaiver": "Pomijanie zatwierdzeń w czacie",
     "approvalWaiverDescription": "Czy rozmowa może działać bez zatrzymywania się na zatwierdzenia.",
@@ -6389,6 +6411,10 @@
         "title": "Znajdź serwer",
         "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
       },
+      "organization-switcher": {
+        "title": "Wybierz swoją organizację",
+        "body": "Ta nazwa wskazuje organizację, w której pracujesz. Otwórz menu, aby zmienić organizację, zarządzać organizacjami lub utworzyć nową. Agenty, wiedza i aktywność zmieniają się wraz z wyborem."
+      },
       "notification-bell": {
         "title": "Bądź na bieżąco",
         "body": "Nieudany run, prośba o zatwierdzenie czekająca na Ciebie, budżet bliski wyczerpania, wiadomość od administratora aplikacji - wszystko trafia tutaj, z osobnym przełącznikiem w aplikacji i mailem dla rodzajów, które można wyłączyć w Ustawieniach."
@@ -6852,6 +6878,14 @@
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
+      },
+      "workflow-run-questions": {
+        "title": "Odpowiedz agentowi",
+        "body": "Agent w tym workflow może poprosić o wyjaśnienie. Odpowiedz tutaj, aby wznowić zapisaną rozmowę i kontynuować workflow."
+      },
+      "workflow-input-contract": {
+        "title": "Określ oczekiwane dane wejściowe",
+        "body": "Wyzwalacze Ręcznie, API i Wywołany przez workflow obsługują proste pola lub kontrakt JSON Schema Draft 2020-12. Schemat obsługuje zagnieżdżone wartości i jest sprawdzany przed rozpoczęciem runu."
       }
     },
     "chooseLanguage": "Język",
@@ -7027,6 +7061,7 @@
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
     "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
+    "finishConsentInBrowser": "Dokończ logowanie w przeglądarce i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
     "consentTabBlocked": "Przeglądarka zablokowała kartę logowania. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
     "fromRegistry": "Rejestr",
     "fromRegistryHint": "Z publicznego rejestru MCP. Nikt tutaj go nie sprawdzał: opis pochodzi od wydawcy i nie ma wskazówek, jakiego poświadczenia wymaga.",
@@ -7696,13 +7731,15 @@
     "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
     "templatesFewer": "Pokaż mniej",
     "local": {
+      "useAllowed": "Użyj dozwolonego folderu",
+      "allRoutines": "Wszystkie moje routines",
       "label": "Pracuj na",
       "hint": "Każde uruchomienie pracuje w folderze na twoim komputerze przez aplikację desktopową albo w piaskownicy agenta. Gdy aplikacja jest zamknięta, uruchomienie na nią czeka.",
       "elsewhereHint": "Każde uruchomienie pracuje w tym folderze na twoim komputerze. Zmienisz go w aplikacji desktopowej na tym komputerze.",
       "sandbox": "Piaskownica agenta",
       "pick": "Wybierz folder…",
       "useSandbox": "Użyj piaskownicy",
-      "routineHint": "Wybierz folder i operacje. Zapis poprosi ten komputer o zgodę wyłącznie dla tej rutyny.",
+      "routineHint": "Wybierz folder i operacje. Za pierwszym razem ten komputer zapyta raz o zgodę dla wszystkich twoich rutyn w tym folderze; kolejne rutyny w nim nie wymagają już zgody.",
       "read": "Odczyt",
       "write": "Zapis",
       "execute": "Uruchamianie poleceń",
@@ -8761,8 +8798,8 @@
     "addSeparateModel": "Dodaj osobny model",
     "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany.",
     "backendComputerLabel": "Komputer",
-    "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
-    "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
+    "backendComputerDetail": "Używa komputera osoby; zgoda raz na agenta w aplikacji desktopowej.",
+    "backendComputerConsent": "Każda osoba wybiera folder albo Cały komputer przy pierwszej wiadomości do tego agenta w aplikacji desktopowej; wybór jest zapamiętywany dla agenta. To ustawienie nie daje dostępu i nie zapisuje osobistej ścieżki. Czat w przeglądarce wymaga aplikacji desktopowej dla tego obszaru roboczego.",
     "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
     "unavailableTitle": "Agent niedostępny",
     "unavailableDescription": "Sprawdź wybraną organizację. Agent może należeć do innej organizacji, być usunięty albo nie być już Tobie udostępniony.",
@@ -9181,6 +9218,26 @@
       "max_results": {
         "title": "Dopasowań na wyszukiwanie",
         "description": "Ile dopasowań zwraca lokalne wyszukiwanie; ignorowane przy wyszukiwaniu natywnym."
+      },
+      "defer_capabilities": {
+        "title": "Odrocz narzędzia capability",
+        "description": "Ukryj kwalifikujące się narzędzia włączonych capability do chwili, gdy agent ich wyszuka. Wyłączenie pozostawia narzędzia capability widoczne."
+      },
+      "defer_mcp_servers": {
+        "title": "Odrocz narzędzia MCP",
+        "description": "Ukryj kwalifikujące się narzędzia powiązanych serwerów MCP do chwili, gdy agent ich wyszuka. Wyłączenie pozostawia narzędzia MCP widoczne."
+      },
+      "exclude_capabilities": {
+        "title": "Zawsze widoczne capability",
+        "description": "Identyfikatory capability, których narzędzia pozostają widoczne, oddzielone przecinkami, np. knowledge lub visuals. Te capability nadal muszą być włączone."
+      },
+      "exclude_mcp_servers": {
+        "title": "Zawsze widoczne serwery MCP",
+        "description": "Prefiksy przestrzeni nazw narzędzi MCP, które pozostają widoczne, oddzielone przecinkami, np. github_work lub agenticos. Użyj prefiksu przed nazwą narzędzia, zastępując łączniki podkreśleniami."
+      },
+      "exclude_tools": {
+        "title": "Zawsze widoczne narzędzia",
+        "description": "Nazwy narzędzi widoczne dla modelu, które mają pozostać widoczne, oddzielone przecinkami. Użyj zmienionych nazw narzędzi capability i pełnych nazw narzędzi MCP z prefiksem, np. github_work_list_issues."
       }
     },
     "web_fetch": {
@@ -10057,7 +10114,13 @@
         "boolean": "Tak lub nie",
         "date": "Data",
         "choice": "Wybór"
-      }
+      },
+      "contractFormat": "Kontrakt wejścia",
+      "simpleFields": "Proste pola",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Wybierz proste pola lub kontrakt JSON Schema. Oba zapisane formaty są zachowane, dopóki ten wyzwalacz pozostaje otwarty; tylko wybrany format jest zapisywany w workflow.",
+      "schemaHint": "Użyj JSON Schema Draft 2020-12 dla zagnieżdżonych obiektów, tablic i referencji. Dane są sprawdzane przed rozpoczęciem runu.",
+      "schemaInvalid": "Wpisz obiekt JSON. Ta zmiana nie została zapisana."
     },
     "pickerHostLabel": "Host sandboxa",
     "pickerHostDefault": "Domyślny host organizacji",
@@ -10253,7 +10316,7 @@
     "templateUnknown": "{placeholder} nie wskazuje niczego, co ten krok może czytać.",
     "templatePreview": "Podgląd:",
     "templateSuggestions": "Wartości z wcześniejszych kroków",
-    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi wejściowymi sprawdzanymi względem tych pól. Kroki po nim czytają je jako payload.",
+    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi sprawdzanymi względem tego kontraktu wejścia. Kroki po nim czytają dane jako payload.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Wybierz workflow",
     "pickerWorkflowNone": "Żaden workflow nie jest jeszcze opublikowany z wyzwalaczem Called by a workflow.",
@@ -11572,7 +11635,8 @@
     "revoked": "Klucz unieważniony",
     "couldNotLoad": "Nie udało się wczytać kluczy API",
     "emptyTitle": "Nie masz jeszcze kluczy API",
-    "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code."
+    "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code.",
+    "personalConsentWhy": "Osobista zgoda nie należy do gotowych zestawów. Aby ten klucz lub aplikacja mogły zatwierdzać rutyny i obserwacje korzystające z Twoich osobistych połączeń i danych, wybierz personal:consent w zestawie Własny."
   },
   "mcpOauth": {
     "title": "{client} chce działać w twoim imieniu",
@@ -11967,7 +12031,7 @@
     "tool_search": {
       "name": "Wyszukiwanie narzędzi",
       "does": "Agent z wieloma narzędziami znajduje właściwe wtedy, gdy go potrzebuje, zamiast czytać wszystkie za każdym razem.",
-      "example1": "Agent podłączony do kilku serwerów MCP z dziesiątkami narzędzi",
+      "example1": "Agent z wieloma włączonymi capability i powiązanymi serwerami MCP",
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie dodaje narzędzi; tylko ukrywa je, dopóki agent ich nie poszuka."
     },
@@ -13205,7 +13269,8 @@
     "disconnectHelp": "Odłączenie usuwa kopię poświadczeń z AgenticOS i zatrzymuje zadania. Grant ChatGPT unieważnisz też w ustawieniach ChatGPT. Zadania harmonogramów i kanałów nie korzystają z tych kont.",
     "personalAccount": "Konto osobiste: {label}",
     "baseRevision": "Snapshot workspace: {revision}",
-    "chatHelp": "Podłącz tutaj swoje konto do prywatnych zadań coding w chmurze. Tool Coding agent musi używać trybu Private cloud task with my account. Lokalny coding na desktopie korzysta z osobnego logowania."
+    "chatTitle": "Twoje konto {name}",
+    "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać."
   },
   "mirage": {
     "folders": "Foldery",

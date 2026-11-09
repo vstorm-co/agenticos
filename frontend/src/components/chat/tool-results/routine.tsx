@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { useFormatter, useTranslations } from "next-intl";
 
 import { TriggerRow } from "@/components/triggers/trigger-row";
@@ -19,7 +21,7 @@ export function writtenRoutines(calls: readonly ToolCall[]): RoutineReference[] 
   const routines = new Map<string, RoutineReference>();
   for (const call of calls) {
     if (
-      !["agenticos_create_routine", "agenticos_update_routine"].includes(call.name) ||
+      !["agenticos_create_routine", "agenticos_update_routine"].includes(toolLookupName(call)) ||
       call.status !== "completed"
     )
       continue;

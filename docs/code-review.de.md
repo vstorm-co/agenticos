@@ -1,10 +1,39 @@
 ---
-source_sha: "8e9c61803442"
+source_sha: "7bc9680c19e3"
 ---
 
 # Automatisches Pull-Request-Review { #automated-pull-request-review }
 
-!!! warning "Der Reviewer ist auf Pull Requests abgeschaltet — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
+## CodeRabbit (Installation erforderlich) { #coderabbit-requires-installation }
+
+Die Datei `.coderabbit.yaml` schlägt Review-Einstellungen vor; ihr Merge
+installiert oder autorisiert CodeRabbit nicht. Ein Maintainer mit den nötigen
+Organisationsrechten muss die GitHub App für dieses Repository installieren oder
+genehmigen. Siehe die [GitHub-Einrichtungsanleitung](https://docs.coderabbit.ai/platforms/github-com).
+
+Sobald die App installiert und aktiviert ist, erhalten geeignete Pull Requests
+auf den Default-Branch automatische Reviews, sofern sie keine Entwürfe sind.
+Entwürfe werden übersprungen. Die Konfiguration verwendet ausgewogenes Feedback
+(`chill`) und deaktiviert automatische Genehmigungen, Änderungsanforderungen
+und Gedichte.
+
+Automatische inkrementelle Reviews bei weiteren Pushes sind deaktiviert. Nach
+dem Push von Korrekturen fordern Sie mit `@coderabbitai review` ein inkrementelles
+Review oder mit `@coderabbitai full review` ein neues Review des gesamten Pull
+Requests an. Siehe die [Steuerung automatischer Reviews](https://docs.coderabbit.ai/configuration/auto-review).
+
+Inline-Befunde erzeugen Review-Stränge. Das bestehende Ruleset von `main` verlangt,
+dass diese vor dem Merge aufgelöst werden; eine Antwort allein löst sie nicht auf.
+Diese Konfiguration fügt keinen erforderlichen Status-Check hinzu und ändert
+keinen Branch-Schutz.
+
+CodeRabbit und die Codex-GitHub-Integration sind vom unten beschriebenen
+eigenen GitHub-Actions-Workflow unabhängig. Diese Konfiguration aktiviert oder
+deaktiviert keinen der bestehenden Reviewer.
+
+## Eigener Review-Workflow { #custom-review-workflow }
+
+!!! warning "Der eigene Workflow ist auf Pull Requests abgeschaltet — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
 
     Seit dem Abend des 2026-08-05 starb jeder Lauf etwa zwölf Sekunden nach
     Beginn von `Review the diff` (`codex exited with code 1`), schloss mit
@@ -24,8 +53,10 @@ source_sha: "8e9c61803442"
     project has reached its configured enforced spend limit`, und das ist eine
     Einstellung im OpenAI-Projekt, nicht in diesem Repository.
 
-    Bis der Trigger zurück ist, ist das Review vor einem Merge ein menschliches,
-    plus der lokale Befehl `/review` in `.claude/commands/review.md`.
+    Dieser eigene Workflow reviewt Pull Requests erst wieder automatisch, wenn
+    sein Trigger wiederhergestellt ist. Menschliche Reviews und der lokale
+    Befehl `/review` in `.claude/commands/review.md` bleiben verfügbar; separat
+    installierte GitHub-Integrationen arbeiten unabhängig davon.
 
 Eine GitHub Action reviewt Pull Requests gegen **den Standard dieses Repositories
 selbst**. Sie ist kein Linter mit angehängtem Sprachmodell: Der Prompt in
@@ -61,7 +92,7 @@ ist die zweite Hälfte dieser Seite.
 
 | Trigger | Wer | Anmerkung |
 |---|---|---|
-| `workflow_dispatch` mit einer Pull-Request-Nummer | Schreibzugriff | Manuell, zum Testen. **Der einzige heute aktive Trigger** |
+| `workflow_dispatch` mit einer Pull-Request-Nummer | Schreibzugriff | Manuell, zum Testen. **Der einzige heute aktive Trigger dieses Workflows** |
 | Ein Pull Request wird geöffnet, wiedereröffnet oder als bereit markiert | automatisch | Entwürfe werden übersprungen. Entfernt durch [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 | Das Label `ai-review` wird gesetzt | jeder mit Schreibzugriff | Auf Zuruf. Entfernt durch [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 

@@ -178,7 +178,7 @@ class NightlyLook:
 
     async def due(self, organization_id: UUID, user_id: UUID, *, now: datetime) -> bool:
         """Whether this person has not been looked at for most of a day."""
-        last = await agent_run_repo.last_proactive_run_at(
+        last = await agent_run_repo.last_nightly_run_at(
             self.db, organization_id=organization_id, user_id=user_id
         )
         return last is None or now - last >= timedelta(hours=20)
@@ -195,9 +195,6 @@ class NightlyLook:
         if agent is None:
             return 0
         now = datetime.now(UTC)
-        last = await agent_run_repo.last_proactive_run_at(
-            self.db, organization_id=organization_id, user_id=user_id
-        )
         requests = await self._past_the_input_edge(
             organization_id,
             await conversation_repo.person_requests_since(
@@ -208,8 +205,16 @@ class NightlyLook:
                 limit=MAX_REQUESTS,
             ),
         )
-        new_since_last = last is None or any(request.decided_at > last for request in requests)
-        if not new_since_last and member.personal_starters:
+        content_hashes = {
+            request.message.id: hashlib.sha256(request.message.content.encode()).hexdigest()
+            for request in requests
+        }
+        has_unread = any(
+            (request.message.nightly_read_by_user_id, request.message.nightly_read_content_hash)
+            != (user_id, content_hashes[request.message.id])
+            for request in requests
+        )
+        if not has_unread and member.personal_starters:
             return 0
 
         notes = await memory_repo.list_for_owner(
@@ -219,7 +224,7 @@ class NightlyLook:
             owner_key=person_owner_key(user_id),
             limit=MAX_NOTES,
         )
-        routines = await agent_trigger_repo.prompts_created_by(
+        routines = await agent_trigger_repo.routine_prompts_for_screening(
             self.db, organization_id=organization_id, user_id=user_id
         )
         connections, _ = await mcp_connection_repo.list_for_user(
@@ -236,7 +241,11 @@ class NightlyLook:
                 }
                 for note in notes
             ],
-            "their_routines": [prompt[:_CLIP] for prompt in routines],
+            "their_routines": [
+                routine.prompt[:_CLIP]
+                for routine in routines
+                if _passes(routine.spec, routine.prompt)
+            ],
             "connected_services": sorted({connection.name for connection in connections}),
             "role_packs": [
                 {"id": pack.id, "name": pack.name, "description": pack.description}
@@ -250,12 +259,18 @@ class NightlyLook:
             output_type=NightlyReading,
             instructions=_INSTRUCTIONS,
             prompt=json.dumps(material, ensure_ascii=False, default=str),
-            # From before the read: a run ending after it was left out, and only a
-            # time ahead of that end makes the next look count it as new.
+            # Due time belongs to this look; per-message receipts decide what
+            # was read, including prompts whose verdict arrives after this read.
             started_at=now,
         )
         if reading is None:
             return 0
+        await conversation_repo.mark_nightly_reads(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            content_hashes=content_hashes,
+        )
         return await self._record(organization_id, user, member, reading, now=now)
 
     async def _past_the_input_edge(

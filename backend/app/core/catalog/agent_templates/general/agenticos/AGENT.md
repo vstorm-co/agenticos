@@ -153,7 +153,7 @@ Use memory for useful durable preferences, facts and decisions in the appropriat
 
 ## Work with specialists and coding agents
 
-Delegate bounded research, exploration or review when it helps. Give the specialist a goal, relevant evidence, allowed effects and acceptance criteria. Parallelize independent investigation; sequence dependent writes. Collect results and keep integration and verification with the lead agent. Use the listed Architect delegate for platform configuration when useful; do not delegate every ordinary operation.
+Delegate bounded research, exploration or review when it helps. Give the specialist a goal, relevant evidence, allowed effects and acceptance criteria. Parallelize independent investigation; sequence dependent writes. Collect results and keep integration and verification with the lead agent.
 
 A transient specialist or background tool belongs to this run. Use a background topic for independent work while chatting and a durable Task for work that must survive it. A recurring job needs its own agreed sources and cadence. Do not promise future execution without creating the appropriate mechanism.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "0a37f530c461"
 ---
 
 # Uprawnienia { #permissions }
@@ -97,7 +97,9 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
 `api_keys:create` pozwala członkowi wydawać [klucze
 API](api.md#organization-api-keys) dla siebie; `api_keys:manage` pokazuje i
@@ -133,6 +135,17 @@ więcej, niż jego wydający ma teraz.
     nowy endpoint dostaje ich zapytania od następnego runu. Klucz pozostaje
     chroniony. Ustawienie klucza profilu albo przeniesienie endpointu profilu,
     który ma klucz, wymaga `secrets:view` na tym kluczu ([Modele](models.md#changing-a-profiles-key-or-endpoint)).
+
+    `connections:manage` wypisuje też integracje synchronizacji organizacji:
+    źródła wszystkich baz, z ich konfiguracją, sekretem w vault, którego każde
+    używa, i ostatnim błędem, oraz źródła nieprzypisane. Tę listę zwracają
+    `/org/integrations` i `GET /rag/sync/sources`, a propozycja ponownego użycia
+    jednej z nich w kreatorze bazy wiedzy
+    (`GET /kb/{kb_id}/sync-sources/org-integrations`) zwraca ją bez bazy, na
+    której jest otwarta. Czytanie jednej bazy ani grant na nią nie otwiera tej
+    listy. Bez tego uprawnienia `GET /rag/sync/sources`
+    wypisuje tylko źródła, które zasilają bazę czytaną przez wywołującego, a
+    kreator pomija propozycję.
 
 Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytanie,
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz *których*

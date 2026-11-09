@@ -44,7 +44,7 @@ starts, is refused at publish.
 
 Its **Input fields** make the input a contract. A field has a name, a type - text, list of text,
 number, whole number, yes or no, date or choice - and whether it is required. With
-none, a run takes any JSON object. With some, **Start a run** asks for each by name,
+neither fields nor a schema, a run takes any JSON object. With fields, **Start a run** asks for each by name,
 a run whose input misses one, sends one of the wrong type or sends one not declared
 is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
@@ -63,11 +63,121 @@ is available on Manual, Form and Called by a workflow triggers.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### JSON Schema input contracts { #json-schema-input-contracts }
+
+For nested input, set the trigger's `config.input_schema` to a JSON Schema
+Draft 2020-12 document. **API request**, **Manual** and **Called by a workflow**
+accept this alternative to simple `fields`. Use one contract at a time: a schema
+and a nonempty `fields` list cannot be combined. Public **Form** triggers keep
+their simple-field contract.
+
+The contract supports nested objects, arrays of objects, `enum`, `required`,
+string lengths (`minLength` and `maxLength`), array lengths (`minItems` and
+`maxItems`) and `additionalProperties`. Reuse definitions with `$defs` and local
+`$ref` references. References must resolve inside the same document; external
+references are refused and never fetched. An absolute or relative URI is allowed
+when it resolves to a resource already supplied in the document. No user-defined Python model or caller
+framework is needed.
+
+Workflow input is always a JSON object. Publication rejects a contract when its
+explicit root `type`, `const`, `enum`, static local `$ref`, or
+`allOf`/`anyOf`/`oneOf` constraints prove that no object can satisfy it. This
+conservative compatibility check is not a general proof that a schema is
+satisfiable: restrictions involving `not`, conditionals or `$dynamicRef` can
+remain undecided and are checked against actual input at admission. Primitive
+and array subschemas remain supported inside object properties.
+
+Put this configuration on a trigger to accept a customer and one or more order
+lines:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publishing freezes the schema inside the workflow version. Input is checked
+against that version's contract before a run is admitted, including API,
+WebSocket, MCP and child-workflow calls; tests use the draft's contract. Invalid
+input returns `WORKFLOW_RUN_INPUT_INVALID` with field paths and messages. The
+schema does not coerce values or insert defaults. With neither simple fields nor
+a schema, including an empty schema object, the existing untyped JSON-object
+input is preserved.
+
+Raw schemas are limited to 256 KiB at publication. Before admission, the
+serialized JSON validation request containing the schema and input must fit
+1 MiB. Validation runs in an isolated process with a two-second deadline,
+including startup. Each API or worker event loop permits at most two concurrent
+validations; when both slots are busy, admission is refused immediately with
+`429`. Existing simple-field contracts continue to validate inline.
+
+Linux additionally enforces a 256 MiB address-space limit and a CPU limit.
+Native macOS development retains the CPU and wall-clock limits, but has no
+address-space limit because Darwin does not support `RLIMIT_AS`.
+
+A timeout, validator memory exhaustion or validation protocol-size limit refuses admission with
+`422 WORKFLOW_RUN_INPUT_INVALID`, naming `input` in `error.details.fields` and
+`validation_limit` as the legacy problem's `type`. Validator startup failure,
+abnormal exit (including termination by an OS resource limit), or invalid output
+returns `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Neither refusal creates a
+run. Diagnostics are limited to 50 entries and 4 KiB of UTF-8 JSON. When either
+limit is reached, the final entry summarizes truncation. Diagnostics never quote submitted values.
+
+Schemas or regular expressions exceeding validator nesting or repetition
+limits are refused at publication instead of producing a server error.
+
+Callers can inspect the effective contract before execution through the
+[workflow input-schema API](../api.md#running-a-workflow) or
+[MCP discovery](../mcp.md#workflow-and-table-tools). Existing simple-field
+contracts are also exposed as JSON Schema.
+
+HTTP discovery exposes only the first **Called by a workflow** entry, with the default entry first, because child-workflow calls cannot select another entry. Platform MCP discovery exposes only Manual/API entries supported by its run tool.
+
+Standalone `then`/`else` branches and branches excluded by a literal boolean
+`if` are checked for reference safety but do not create runtime recursion edges.
+
+Contracts using `$dynamicRef` are limited to 2048 resolver contexts and
+64 distinct resources in a dynamic scope during publication checks. Exceeding
+either limit produces an explicit configuration refusal.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its
 runs page. It hands the graph what **API request** does and takes the same input
-fields, which the editor asks for before the run starts.
+fields or JSON Schema contract. The editor asks for input before the run starts.
 
 ### trigger.chat { #trigger-chat }
 
@@ -111,8 +221,9 @@ access to the table.
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Started by another workflow's `workflow.run` step, with
-the fields it declares - the same fields as **Manual** - and never by hand or over
-the API. The caller's input is checked against them before the run starts.
+the input contract it declares - simple fields or JSON Schema, as on **Manual** -
+and never by hand or over the API. The caller's input is checked against that
+contract before the run starts.
 
 ### trigger.form { #trigger-form }
 
@@ -658,6 +769,10 @@ run history. The run is recorded with the surface `workflow`. Bound `sources`
 are appended to the prompt as numbered context. An approval-gated tool call
 parks the step, and the decision resumes the same agent run.
 
+The existing `ask_user_question` tool also parks this step. The workflow shows `waiting_for_user`; its question card is available in the originating chat and run view. Only the person asked can answer. Answers are saved before the workflow continuation is queued, and resume the pending tool call under the current workflow budget. Reloading the page does not discard the question. Cancelling the workflow closes its waiting agent runs; unanswered questions expire after `QUESTION_EXPIRY_HOURS` (24 by default).
+
+This applies to the step’s own agent when a signed-in person is behind the run. Public-origin runs have no person to ask. Delegates still need a live question surface. If a model batches a question with an approval-gated call, approval takes priority and that question is treated as declined when the approval resumes.
+
 `inline` configures the agent in the step instead of `agent`, and exactly one of
 the two is set. The spec is the step's, versioned with the graph: the first run
 creates an agent owned by the workflow, kept out of the catalog and reached
@@ -679,6 +794,7 @@ and an answer with no object where one was asked for fails it with
 |---|---|
 | Completed | Completed |
 | Awaiting approval | Waits, then resumes the same run |
+| Awaiting answer | Waits for the person, then resumes the same conversation |
 | Budget exceeded | `AGENT_BUDGET_EXCEEDED` |
 | Guardrail blocked | `AGENT_GUARDRAIL_BLOCKED` |
 | Otherwise | `AGENT_RUN_FAILED` |

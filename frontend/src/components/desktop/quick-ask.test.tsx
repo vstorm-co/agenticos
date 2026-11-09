@@ -6,8 +6,9 @@ import { useConversationStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
 import { QuickAsk } from "./quick-ask";
+import type { ComputerAccessRequest } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
-import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
+import type { ToolCall, PendingApproval, Decision, QueuedMessage, AskUserQuestion } from "@/types";
 
 const env = vi.hoisted(() => ({
   visualControls: false,
@@ -27,6 +28,10 @@ const env = vi.hoisted(() => ({
     isStopping: false,
     stopGeneration: vi.fn(),
     pendingApproval: null as PendingApproval | null,
+    pendingQuestions: null as AskUserQuestion[] | null,
+    sendAskUserResponses: vi.fn(),
+    pendingComputerAccess: null as ComputerAccessRequest | null,
+    sendComputerAccessResponse: vi.fn(),
     sendResumeDecisions: vi.fn(),
     queuedMessages: [] as QueuedMessage[],
     cancelQueued: vi.fn(),
@@ -178,6 +183,8 @@ beforeEach(() => {
   env.chat.isProcessing = false;
   env.chat.isConnected = true;
   env.chat.pendingApproval = null;
+  env.chat.pendingQuestions = null;
+  env.chat.pendingComputerAccess = null;
   env.chat.queuedMessages = [];
   env.listeners.clear();
   env.dictation.engine = "server";
@@ -187,6 +194,17 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("QuickAsk question answers", () => {
+  it("disables question answers while disconnected", async () => {
+    env.chat.isConnected = false;
+    env.chat.pendingQuestions = [
+      { question: "How formal?", options: [{ label: "Casual" }], allowCustom: true },
+    ];
+    render(<QuickAsk initialConversationId="c" />);
+    expect(await screen.findByRole("button", { name: /Casual/ })).toBeDisabled();
+  });
+});
 
 describe("QuickAsk", () => {
   it("asks on Enter, and keeps Shift+Enter for a new line", async () => {
@@ -898,4 +916,10 @@ it("cancels selected native files across logout and refuses parallel attachment 
   view.rerender(<QuickAsk />);
   await act(async () => finish([]));
   expect(env.chat.sendMessage).not.toHaveBeenCalled();
+});
+
+it("declines computer access instead of waiting on a dialog outside Quick Ask", async () => {
+  env.chat.pendingComputerAccess = { reason: "Read local files" };
+  render(<QuickAsk />);
+  await waitFor(() => expect(env.chat.sendComputerAccessResponse).toHaveBeenCalledWith(false));
 });

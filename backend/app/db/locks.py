@@ -21,7 +21,11 @@ from enum import IntEnum, unique
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+
+#: The SQLSTATE of a `NOWAIT` refused or a `lock_timeout` run out.
+LOCK_NOT_AVAILABLE = "55P03"
 
 
 @unique
@@ -38,6 +42,8 @@ class LockScope(IntEnum):
     #: A collection name's claim-and-create against its vector-table drop (#1355),
     #: and a chunk write with no base through its commit (#2747).
     COLLECTION_TEARDOWN = 3
+    #: Runtime vector DDL, in its own transaction after a writer holds its target.
+    COLLECTION_DDL = 30
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so
     #: two nominations racing each found no sibling to clear and both set it.
@@ -214,6 +220,36 @@ async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
     answer, because `hashtext` and the scope are the whole key.
     """
     await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))
+
+
+async def hold_name_within(db: AsyncSession, scope: LockScope, name: str, *, wait_ms: int) -> bool:
+    """Take the lock for a string subject, waiting no longer than `wait_ms`.
+
+    :func:`hold_name` for a request, where waiting costs a pooled connection for as
+    long as the holder takes: enough such waiters starve every other request. True
+    means this transaction holds it until it ends, exactly as `hold_name` would.
+    False means it was still held when the wait ran out, and the caller answers
+    that rather than waiting on.
+
+    A `lock_timeout` running out is an error, and an error aborts the transaction,
+    so the wait has a savepoint of its own. Rolling that back leaves the session
+    usable and undoes the setting; releasing it keeps both the lock, which belongs
+    to the transaction from there, and the setting, so it is put back first: a
+    later statement of this transaction waits as it would have (`SET LOCAL`, as
+    `set_config(..., true)`). `wait_ms` must be at least 1: Postgres reads `0` as no
+    limit.
+    """
+    try:
+        async with db.begin_nested():
+            setting = await db.scalar(select(func.current_setting("lock_timeout")))
+            await db.execute(select(func.set_config("lock_timeout", f"{wait_ms}ms", True)))
+            await hold_name(db, scope, name)
+            await db.execute(select(func.set_config("lock_timeout", setting, True)))
+    except DBAPIError as failed:
+        if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
+            raise
+        return False
+    return True
 
 
 async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:

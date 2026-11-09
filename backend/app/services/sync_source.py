@@ -167,14 +167,12 @@ class SyncSourceService:
         # `rag-source-sync --all` are deployment-wide by design. Every HTTP
         # caller passes `ctx.organization_id`.
         organization_id: UUID | None = None,
-        collection_name: str | None = None,
         is_active: bool | None = None,
     ) -> SyncSourceList:
-        """List sync sources for an org, optionally filtered by KB collection."""
+        """List sync sources for an org."""
         sources = await sync_source_repo.get_all(
             self.db,
             organization_id=organization_id,
-            collection_name=collection_name,
             is_active=is_active,
         )
         return self.as_list(sources)

@@ -113,7 +113,7 @@ export function SyncSourceWizard({
 }: SyncSourceWizardProps) {
   const t = useTranslations("rag");
   const tErrors = useTranslations("errors");
-  const [mode, setMode] = useState<Mode>("new");
+  const [chosenMode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
   const [form, setForm] = useState<SyncSourceCreate>(() =>
     editing
@@ -181,6 +181,9 @@ export function SyncSourceWizard({
     ? connectors.filter((c) => c.type === editing.connector_type)
     : connectors.filter((c) => c.enabled);
   const hasOrgIntegrations = !editing && orgIntegrations.length > 0;
+  // The list can empty while this is open - a member losing `connections:manage`,
+  // or the last integration going - and the toggle back to "new" goes with it.
+  const mode = hasOrgIntegrations ? chosenMode : "new";
   const changes = editing ? syncSourceChanges(editing, form) : null;
 
   const selectedIntegration = orgIntegrations.find((i) => i.id === cloneSourceId);
@@ -208,17 +211,17 @@ export function SyncSourceWizard({
       : selectedConnector;
 
   const handleCloneSubmit = async () => {
-    if (!cloneSourceId || !defaultCollection) return;
+    if (!selectedIntegration || !defaultCollection) return;
     await onClone?.(
-      cloneSourceId,
+      selectedIntegration.id,
       defaultCollection,
-      cloneName.trim() || `${selectedIntegration?.name ?? t("integration")} (${defaultCollection})`,
+      cloneName.trim() || `${selectedIntegration.name} (${defaultCollection})`,
     );
   };
 
   const canAdvance = (() => {
     if (mode === "clone") {
-      return Boolean(cloneSourceId) && Boolean(defaultCollection);
+      return Boolean(selectedIntegration) && Boolean(defaultCollection);
     }
     if (step === "source") return Boolean(form.connector_type) && Boolean(form.name.trim());
     if (step === "configure") {
@@ -416,7 +419,7 @@ export function SyncSourceWizard({
               which decides the same thing for a credential somebody else
               scoped. Not on the earlier steps: the sentence names a collection
               and a credential, and neither is chosen yet. */}
-          {(mode === "clone" ? Boolean(cloneSourceId) : step === "schedule") && (
+          {(mode === "clone" ? Boolean(selectedIntegration) : step === "schedule") && (
             <SourceAudienceNotice
               scope={target?.scope}
               collectionName={target?.name}

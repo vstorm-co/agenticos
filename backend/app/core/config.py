@@ -103,6 +103,7 @@ class Settings(BaseSettings):
         return value.rstrip("/")
 
     DEBUG: bool = False
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     DB_ECHO: bool = (
         False  # Set DB_ECHO=true to log SQL queries (latency + log-noise drain by default)
     )
@@ -308,6 +309,7 @@ class Settings(BaseSettings):
     EVENT_LOOP_WEDGED_AFTER: float = 15.0
 
     LOGFIRE_TOKEN: str | None = None
+    LOGFIRE_CONSOLE: bool = False
     LOGFIRE_SERVICE_NAME: str = "agenticos"
     LOGFIRE_ENVIRONMENT: str = "development"
     # Where a stored trace id can be *read*. `LOGFIRE_TOKEN` is a write

@@ -1,5 +1,5 @@
 ---
-source_sha: "9d46f3e89ce9"
+source_sha: "087a50c95d4c"
 title: "Tłumacz dokumenty z własną terminologią"
 description: "Przypisz agentowi glosariusz z dziesięcioma terminami i sprawdź, czy każdy termin zostaje zastosowany, terminy bez tłumaczenia i liczby zostają nietknięte, a niejednoznaczność jest oznaczona, a nie po cichu rozstrzygnięta."
 ---
@@ -108,7 +108,7 @@ Czytaj polski tekst z glosariuszem, termin po terminie. Nie ufaj podsumowaniu, k
 
 !!! example "Zapisano na v0.0.504, 25 września 2026"
 
-    Model: Claude Sonnet 4.6 przez OpenRouter. Agent wywołał `load_capability` dla `fenwick-glossary`, a potem przetłumaczył cały dokument w jednej odpowiedzi. Wszystkie pięć terminów z glosariusza zostało przetłumaczonych poprawnie, a wszystkie pięć terminów bez tłumaczenia, w tym `workspace`, `API key` i `sandbox` w polskich zdaniach, zostało po angielsku. `EUR 50,000` i `03/04/2026` zostały skopiowane bez zmian. Koszt: 0,017 USD.
+    Model: Claude Sonnet 4.6 przez OpenRouter. Agent wywołał `read_skill` dla `fenwick-glossary`, a potem przetłumaczył cały dokument w jednej odpowiedzi. Wszystkie pięć terminów z glosariusza zostało przetłumaczonych poprawnie, a wszystkie pięć terminów bez tłumaczenia, w tym `workspace`, `API key` i `sandbox` w polskich zdaniach, zostało po angielsku. `EUR 50,000` i `03/04/2026` zostały skopiowane bez zmian. Koszt: 0,017 USD.
 
     Po tłumaczeniu agent dodał oznaczoną uwagę: przy odczycie dzień/miesiąc 03/04/2026 to 3 kwietnia 2026 (użyte w tłumaczeniu), a przy odczycie miesiąc/dzień to 4 marca 2026. Zalecił potwierdzenie, o którą datę chodziło. Bez załączonego pliku wczytał glosariusz, a potem poprosił o dokument, zamiast tłumaczyć nic.
 

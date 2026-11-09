@@ -975,8 +975,8 @@
     "addSeparateModel": "Add separate model",
     "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
     "backendComputerLabel": "Computer",
-    "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
-    "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
+    "backendComputerDetail": "Use the person’s computer, approved once per agent in the desktop app.",
+    "backendComputerConsent": "Each person chooses a folder or Whole computer the first time they message this agent in the desktop app; the choice is remembered for the agent. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
     "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
     "unavailableTitle": "Agent unavailable",
     "unavailableDescription": "Check the selected organization. This agent may belong to another organization, have been removed, or no longer be shared with you.",
@@ -1276,7 +1276,10 @@
           "unavailableOption": "{value} (unavailable)",
           "effortUnsupported": "Not offered by this model"
         },
-        "off": "Off"
+        "off": "Off",
+        "asksFirst": "Asks on first message",
+        "noCloud": "This agent works on your computer, so it has no cloud workspace. Choose a folder or the whole computer.",
+        "agentComputerConsent": "Allowed for {agent} in every conversation on this computer. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply."
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -1632,11 +1635,11 @@
       "knowledgeBaseSearch": "Knowledge Base Search",
       "listed": "{named, select, no {Listed…} other {Listed {subject}}}",
       "listing": "{named, select, no {Listing…} other {Listing {subject}}}",
-      "loadSkill": "Load Skill",
+      "loadSkill": "Read Skill",
       "loading": "Loading…",
       "availableSkills": "Available Skills",
       "lookingThroughSkills": "Looking through the skills",
-      "loadingSkill": "Loading a skill",
+      "loadingSkill": "Reading a skill",
       "lookedFor": "{named, select, no {Looked for…} other {Looked for {subject}}}",
       "lookingAtChannel": "Looking at the channel",
       "lookingAtChannelMembers": "Looking at who is in the channel",
@@ -2367,7 +2370,19 @@
     "approvalRememberedEmpty": "No remembered approvals.",
     "approvalRememberForget": "Ask again",
     "approvalRememberFailed": "Could not forget this approval. Try again.",
-    "approvalRememberRetry": "Retry"
+    "approvalRememberRetry": "Retry",
+    "localAccess": {
+      "continue": "Access granted - please continue.",
+      "title": "Where may {agent} work?",
+      "description": "{agent} needs files on your computer for this request. Your choice is remembered for this agent; change or revoke it later under Chat controls → Work on.",
+      "computer": "Whole computer",
+      "computerHint": "It may read and change files anywhere your account can, and run commands as you. Your computer asks you to confirm.",
+      "folder": "Choose a folder",
+      "folderHint": "It works only inside the folder you pick.",
+      "cancel": "Not now",
+      "agentUnavailable": "The selected agent could not be loaded. Try again.",
+      "failed": "Could not set up access on this computer"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -4145,6 +4160,7 @@
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
     "finishConsentThenReturn": "Finish in the tab that opened, then come back - the server appears here once it is authorised.",
+    "finishConsentInBrowser": "Finish signing in in your browser, then come back - the server appears here once it is authorised.",
     "consentTabBlocked": "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
@@ -4791,6 +4807,10 @@
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
+      "organization-switcher": {
+        "title": "Choose your organization",
+        "body": "The name here is the organization you're working in. Open the menu to switch organizations, manage them or create another. Agents, knowledge and activity follow your selection."
+      },
       "notification-bell": {
         "title": "Stay in the loop",
         "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
@@ -5254,6 +5274,14 @@
       "chat-coding-accounts": {
         "title": "Your coding accounts",
         "body": "Connect Codex or Claude Code without leaving the chat. These are your private cloud accounts; local desktop tools keep their own sign-in."
+      },
+      "workflow-run-questions": {
+        "title": "Answer the agent",
+        "body": "An agent in this workflow can ask for clarification. Answer here to continue its saved conversation and let the workflow proceed."
+      },
+      "workflow-input-contract": {
+        "title": "Define the expected input",
+        "body": "A Manual, API or Called by a workflow trigger can use simple fields or a JSON Schema Draft 2020-12 contract. The schema supports nested values and is checked before a run starts."
       }
     },
     "chooseLanguage": "Language",
@@ -5371,7 +5399,8 @@
         "budget_exceeded": "Budget spent",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "succeeded": "Succeeded"
+        "succeeded": "Succeeded",
+        "waiting_for_user": "Waiting for user"
       },
       "nodeStatus": {
         "pending": "Pending",
@@ -5891,7 +5920,11 @@
       "replyMailboxUnavailable": "Selected mailbox unavailable",
       "replyMailboxConnect": "Connect Gmail or Outlook in Integrations first.",
       "replySharedMailbox": "Shared Outlook mailbox (optional)",
-      "startRunListHint": "One item per line. Blank lines are ignored."
+      "startRunListHint": "One item per line. Blank lines are ignored.",
+      "runQuestionsTitle": "Your agent needs an answer to continue",
+      "runQuestionsFailed": "The questions could not be loaded.",
+      "runQuestionsRetry": "Try again",
+      "startRunSchema": "Expected input schema"
     },
     "retention": {
       "title": "Data retention",
@@ -6322,7 +6355,7 @@
       "inCategoryUse": "Categories already in use",
       "inTagUse": "Tags already in use",
       "mcpToolLoad": "These MCP servers give the model {count} tools on every request - roughly {tokens, number} tokens before anyone types, and more tools than a model chooses between well. Tool search keeps them out of the way until the agent looks one up.",
-      "mcpToolLoadEnable": "Turn on Tool search",
+      "mcpToolLoadEnable": "Enable MCP tool search",
       "agentDescriptionLabel": "Description",
       "agentNameLabel": "Name",
       "agentNameRequired": "An agent needs a name.",
@@ -7754,7 +7787,6 @@
     "everySixHours": "Every 6h",
     "failedCount": "{count} failed",
     "ingestedCount": "{count} ingested",
-    "integration": "Integration",
     "leaveEmptyAutoGenerate": "Leave empty to auto-generate",
     "loading": "Loading…",
     "modeFull": "Full",
@@ -8212,6 +8244,9 @@
     "loading": "Loading"
   },
   "teams": {
+    "organizationLabel": "Organization",
+    "organizationSwitcher": "Switch organization, current: {name}",
+    "selectOrganization": "Select organization",
     "acmeCom": "acme.com",
     "approvalWaiver": "Waiving approvals in chat",
     "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",
@@ -8859,13 +8894,15 @@
     "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
     "templatesFewer": "Show fewer",
     "local": {
+      "useAllowed": "Use the allowed folder",
+      "allRoutines": "All my routines",
       "label": "Work on",
       "hint": "Each fire works in a folder on your computer through the desktop app, or in the agent's sandbox. A fire waits for the app if it is closed.",
       "elsewhereHint": "Each fire works in this folder on your computer. Change it from the desktop app on that computer.",
       "sandbox": "The agent's sandbox",
       "pick": "Choose a folder…",
       "useSandbox": "Use the sandbox",
-      "routineHint": "Choose a folder and operations. Saving asks this computer to approve this routine only.",
+      "routineHint": "Choose a folder and operations. The first time, this computer asks once to let all your routines work there; later routines in that folder need no approval.",
       "read": "Read",
       "write": "Write",
       "execute": "Run commands",
@@ -9342,7 +9379,13 @@
         "boolean": "Yes or no",
         "date": "Date",
         "choice": "Choice"
-      }
+      },
+      "contractFormat": "Input contract",
+      "simpleFields": "Simple fields",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Choose simple fields or a JSON Schema contract. Each saved format is kept while this trigger stays open; only the selected format is saved to the workflow.",
+      "schemaHint": "Use JSON Schema Draft 2020-12 for nested objects, arrays and references. Inputs are checked before a run starts.",
+      "schemaInvalid": "Enter a JSON object. This edit was not saved."
     },
     "pickerHostLabel": "Sandbox host",
     "pickerHostDefault": "The organization's default host",
@@ -9538,7 +9581,7 @@
     "templateUnknown": "{placeholder} names nothing this step can read.",
     "templatePreview": "Preview:",
     "templateSuggestions": "Values from earlier steps",
-    "triggerHintCall": "Another workflow's Run a workflow step starts this one with its input, checked against these fields. The steps after it read them as payload.",
+    "triggerHintCall": "Another workflow's Run a workflow step starts this one with its input, checked against this input contract. The steps after it read the input as payload.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Choose a workflow",
     "pickerWorkflowNone": "No workflow is published starting from Called by a workflow yet.",
@@ -10857,7 +10900,8 @@
     "revoked": "Key revoked",
     "couldNotLoad": "Could not load your API keys",
     "emptyTitle": "No API keys yet",
-    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code."
+    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code.",
+    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom."
   },
   "mcpOauth": {
     "title": "{client} wants to act as you",
@@ -11252,7 +11296,7 @@
     "tool_search": {
       "name": "Tool search",
       "does": "Lets an agent with many tools find the right one when it needs it, instead of reading all of them every time.",
-      "example1": "An agent connected to several MCP servers with dozens of tools",
+      "example1": "An agent with many enabled capabilities and bound MCP servers",
       "needs": "Nothing extra.",
       "never": "Never adds a tool; it only hides tools until the agent looks for one."
     },
@@ -11774,6 +11818,26 @@
       "max_results": {
         "title": "Matches per search",
         "description": "How many matches the local search returns; ignored for native search."
+      },
+      "defer_capabilities": {
+        "title": "Defer capability tools",
+        "description": "Hide eligible tools from enabled capabilities until the agent searches for them. Off keeps capability tools visible."
+      },
+      "defer_mcp_servers": {
+        "title": "Defer MCP tools",
+        "description": "Hide eligible tools from bound MCP servers until the agent searches for them. Off keeps MCP tools visible."
+      },
+      "exclude_capabilities": {
+        "title": "Always-visible capabilities",
+        "description": "Comma-separated capability IDs whose tools stay visible, such as knowledge or visuals. These capabilities must still be enabled."
+      },
+      "exclude_mcp_servers": {
+        "title": "Always-visible MCP servers",
+        "description": "Comma-separated MCP tool namespace prefixes whose tools stay visible, such as github_work or agenticos. Use the prefix before the tool name, with hyphens replaced by underscores."
+      },
+      "exclude_tools": {
+        "title": "Always-visible tools",
+        "description": "Comma-separated model-facing tool names to keep visible. Use renamed capability tool names and fully prefixed MCP tool names, such as github_work_list_issues."
       }
     },
     "web_fetch": {
@@ -13430,7 +13494,8 @@
     "disconnectHelp": "Disconnect removes AgenticOS’s copy and stops its tasks. Revoke a ChatGPT grant at OpenAI from ChatGPT Settings. Scheduled and channel jobs do not use these accounts.",
     "personalAccount": "Personal account: {label}",
     "baseRevision": "Workspace snapshot: {revision}",
-    "chatHelp": "Connect your account here for private cloud coding. The agent’s Coding agent tool must use Private cloud task with my account. Local desktop coding uses its own sign-in."
+    "chatTitle": "Your {name} account",
+    "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it."
   },
   "mirage": {
     "folders": "Folders",

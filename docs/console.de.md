@@ -1,5 +1,5 @@
 ---
-source_sha: "cd5a3c0d3d72"
+source_sha: "bab7134d4c72"
 ---
 
 # Die Konsole { #the-console }
@@ -182,7 +182,9 @@ Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nac
 Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
 **Meine Beobachtungen** liest nur persönliche verbundene Konten und sendet
 Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
-`/routines?tab=watches` öffnet die Beobachtungen.
+`/routines?tab=watches` öffnet die Beobachtungen. Eine Prüfung stellt höchstens
+30 Modellanfragen, lange Ergebnisse werden gekürzt; so bleibt eine Beobachtung
+eines großen Workspace günstig.
 
 Organisation → Proaktivität trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
 
@@ -220,6 +222,13 @@ Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nenne
 eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
 und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
 Briefing.
+
+Der Organisationswechsler steht unter dem Logo oben in der Seitenleiste und zeigt
+den Namen und Avatar der aktiven Organisation. Öffnen Sie ihn, um die
+Organisation zu wechseln, Organisationen zu verwalten oder eine neue anzulegen.
+In der eingeklappten Seitenleiste bleibt der Avatar als Wechsler erhalten; das
+Menü auf dem Smartphone bietet dasselbe Bedienelement. Die Kontoeinstellungen
+bleiben im Kontomenü unten.
 
 Die Suche steht oberhalb der Navigationsziele; am Computer ist ihr Tastenkürzel
 sichtbar. Benachrichtigungen und Kontomenü bleiben unterhalb der scrollbaren Liste.
@@ -374,7 +383,7 @@ AgenticOS, Architect und die Vorgaben für neue Agenten enthalten keine Werkzeug
 
 Beide Startagenten und neue Konsolenagenten enthalten Watch a command, Background topics, Work while tools run, begrenzte Suche in früheren Gesprächen und lokale BM25-Werkzeugsuche mit fünf Ergebnissen. Sie erhalten research-, explore- und review-Spezialisten, dynamische Spezialisten und automatische sync/async-Delegation. Monitore benötigen eine dauerhafte Shell und enden mit dem Turn; Hintergrundthemen bleiben danach bestehen. Frühere Gespräche werden nur bei Bedarf durchsucht: zuerst Ausschnitte, dann begrenzte Transkriptfenster. Gruppen und unbeaufsichtigte Läufe können keine private Historie durchsuchen.
 
-Nur der mitgelieferte AgenticOS enthält Computer use, Webbrowser und Coding agent. Desktop-Steuerung und Programmierung verwenden standardmäßig den genehmigten Desktop; Sandbox-Programmierung benötigt konfigurierte Zugangsdaten. Auch der mitgelieferte Browser verwendet den gekoppelten Desktop; alternativ kann ein Administrator einen Browser-Endpunkt des Deployments konfigurieren. Neue Agenten erben die gemeinsame Einrichtung ohne diese drei Werkzeuge. AgenticOS pinnt den veröffentlichten Architect; unveränderte Pins werden aktualisiert, eigene bleiben geschützt.
+Nur der mitgelieferte AgenticOS enthält Computer use, Webbrowser und Coding agent. Desktop-Steuerung und Programmierung verwenden standardmäßig den genehmigten Desktop; Sandbox-Programmierung benötigt konfigurierte Zugangsdaten. Auch der mitgelieferte Browser verwendet den gekoppelten Desktop; alternativ kann ein Administrator einen Browser-Endpunkt des Deployments konfigurieren. Neue Agenten erben die gemeinsame Einrichtung ohne diese drei Werkzeuge. AgenticOS beantwortet Plattformfragen direkt mit seinem Leitfaden und AgenticOS MCP. Die Vorgaben pinnen Architect nicht mehr; die Aktualisierung entfernt den unveränderten mitgelieferten Pin und behält eigene Delegierte.
 
 Jede Organisation erhält **AgenticOS** für allgemeine Aufgaben und **Architect**
 für die Einrichtung der Plattform. Beide haben Gedächtnis. Neue Agenten in der
@@ -984,7 +993,7 @@ Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen 
 
 Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis.
 
-Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt weiterhin nur für eine Unterhaltung. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
+Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt für eine Unterhaltung oder für einen Agenten, wenn dieser auf Ihrem Computer arbeitet. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 
 Die Benachrichtigungsstummschaltung hat ein Glockensymbol; das Eingabefeld wiederholt die Ordner- und Zugriffsanzeige nicht mehr. Agentenporträts überlappen in voller Größe und spreizen sich in der erweiterten Chatliste beim Darüberfahren leicht auf.
 
@@ -993,4 +1002,4 @@ Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständ
 Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder Initialen in der gewählten Farbe, wenn kein Bild hinterlegt ist. Der Bildzugriff in diesem Bereich bleibt auf Deployment-Administratoren beschränkt; der reguläre Avatar-Endpunkt verlangt weiterhin eine Mitgliedschaft.
 
 
-**Chat controls → Model → Coding accounts** zeigt deine Claude-Code- und Codex-Verbindungen mit Logos und Zustimmungsstatus. Verbinde oder verwalte ein Konto direkt im Chat; dieselben Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.
+**Chat controls → Tools & files** zeigt das Coding-Konto, das ein Agent braucht, wenn sein Coding agent als **Private cloud task with my account** läuft: nur diesen Harness, mit Logo und Zustimmungsstatus. Verbinde oder verwalte es direkt im Chat; alle Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.

@@ -69,6 +69,10 @@ jobs:
             cargo clippy --locked --manifest-path "$crate/Cargo.toml" --all-targets -- -D warnings
             cargo test --locked --manifest-path "$crate/Cargo.toml"
           done
+      - name: Optimized GLib iterator regression
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cargo test --locked --config 'profile.test.package.glib.opt-level=2' --manifest-path desktop/src-tauri/Cargo.toml --lib variant_string_iteration_remains_sound_when_optimized
       - name: Prepare coding tools without host Node or npm
         timeout-minutes: 15
         shell: bash

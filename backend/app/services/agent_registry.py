@@ -18,7 +18,7 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import yaml
@@ -116,6 +116,8 @@ from app.schemas.agent import (
     CapabilityEnabled,
     DelegationTree,
     DelegationTreeNode,
+    LocalCodingAgent,
+    PublishedCodingAgent,
     PublishedModel,
     TemplateIndustryRead,
     TemplateInstallResult,
@@ -1016,6 +1018,22 @@ def _published_models(
     }
 
 
+def _local_coding_agent(binding: PublishedCodingAgent | None) -> LocalCodingAgent | None:
+    """The coding agent a version runs in the person's own folder, where it does."""
+    if binding is None or binding.runs_on != "this_computer":
+        return None
+    return LocalCodingAgent(harness=binding.harness, access=binding.access)
+
+
+def _personal_coding_harness(
+    binding: PublishedCodingAgent | None,
+) -> Literal["claude_code", "codex"] | None:
+    """The harness a version runs as a private cloud task on the person's account."""
+    if binding is None or binding.runs_on != "personal_sandbox":
+        return None
+    return binding.harness
+
+
 def _yaml_refusal(exc: yaml.YAMLError) -> str:
     """Where the document stopped parsing, without quoting any of it.
 
@@ -1326,7 +1344,8 @@ class AgentRegistryService:
         published_capabilities = await agent_repo.published_capabilities(
             self.db, version_ids=version_ids
         )
-        local_agents = await agent_repo.published_local_coding_agents(
+        coding_agents = await agent_repo.published_coding_agents(self.db, version_ids=version_ids)
+        local_workspaces = await agent_repo.published_local_workspaces(
             self.db, version_ids=version_ids
         )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
@@ -1373,9 +1392,17 @@ class AgentRegistryService:
                 published_capabilities=published_capabilities.get(agent.current_version_id, [])
                 if agent.current_version_id
                 else [],
-                local_coding_agent=(
-                    local_agents.get(agent.current_version_id) if agent.current_version_id else None
+                local_coding_agent=_local_coding_agent(
+                    coding_agents.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
                 ),
+                personal_coding_harness=_personal_coding_harness(
+                    coding_agents.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
+                ),
+                local_workspace=agent.current_version_id in local_workspaces,
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
@@ -3125,15 +3152,16 @@ class AgentRegistryService:
         A new version put in front of their trigger by somebody else - a publish
         an environment follows, a promotion, a rollback - could read their mailbox
         with their connections, so their consent does not carry over to it; their
-        own publishes keep it (#2027) - in person only. Through one of their API
-        keys, or by an administrator impersonating them, it is somebody else's
-        publish: the rule `agent_trigger._acts_as_themselves` sets for granting
-        the consent holds for keeping it.
+        own publishes keep it (#2027) - in person, which includes a key or MCP
+        token they issued. By an administrator impersonating them, or an agent's
+        run credential, it is somebody else's publish: the rule
+        `agent_trigger._acts_as_themselves` sets for granting the consent holds
+        for keeping it.
 
         An explicitly pinned routine keeps its immutable spec, so changing the
         default or an environment does not withdraw its unchanged consent.
         """
-        in_person = ctx.api_key_id is None and current_impersonator() is None
+        in_person = ctx.acts_in_person and current_impersonator() is None
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
             self.db, agent_id=agent.id, kept_for=ctx.user_id if in_person else None
         )

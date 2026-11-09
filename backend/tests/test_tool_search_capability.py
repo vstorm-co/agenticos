@@ -14,6 +14,7 @@ from pydantic_ai.capabilities import ToolSearch
 from app.agents.capabilities import build, get
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.tool_search import ToolSearchConfig, build_tool_search
+from app.core.exceptions import BadRequestError
 
 
 def _built(config: dict | None = None) -> ToolSearch[object]:
@@ -41,6 +42,22 @@ class TestStrategy:
 
 
 class TestConfig:
+    def test_existing_config_preserves_mcp_only_deferral(self) -> None:
+        config = ToolSearchConfig.model_validate({"strategy": "keywords", "max_results": 5})
+        assert config.defer_mcp_servers is True
+        assert config.defer_capabilities is False
+        assert config.exclude_capabilities == []
+        assert config.exclude_mcp_servers == []
+        assert config.exclude_tools == []
+
+    @pytest.mark.parametrize(
+        "field", ["exclude_capabilities", "exclude_mcp_servers", "exclude_tools"]
+    )
+    def test_exclusions_require_names_at_config_validation(self, field: str) -> None:
+        with pytest.raises(BadRequestError) as exc:
+            get("tool_search").validate_config({field: [42]})
+        assert exc.value.details["fields"][0]["field"] == f"config.{field}.0"
+
     def test_max_results_is_bounded(self):
         """A local search that returns nothing, or the whole toolset, is not a search."""
         with pytest.raises(ValidationError):

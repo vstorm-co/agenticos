@@ -857,7 +857,7 @@ class WorkflowExposureService:
             return thanks
         problems = input_problems(config, submission.values)
         if problems:
-            raise WorkflowRunInputInvalidError(problems=problems)
+            raise WorkflowRunInputInvalidError(problems=problems, root="values")
         run, _entry = await self.runs.admit_pinned(
             ctx,
             workflow,
@@ -969,9 +969,10 @@ class WorkflowExposureService:
         again starts nothing twice. `False` when the organization had too much work
         in flight to admit one: the poll then keeps its place, and reads the same
         messages again a minute later. So does a workflow at its own limit on runs
-        under way - unless runs waiting for an approval hold it, which can last
-        hours: the message is then skipped for that workflow, logged and audited, so
-        it cannot hold the place of the mailbox's other readers.
+        under way - unless runs waiting for a person hold it, which can last hours
+        (an approval, or a chat-started run parked on a question): the message is
+        then skipped for that workflow, logged and audited, so it cannot hold the
+        place of the mailbox's other readers.
         """
         if not events:
             return True
@@ -1183,13 +1184,18 @@ class WorkflowExposureService:
             # other reader of the mailbox and fire the agent triggers again, so the
             # message is skipped for this workflow, logged and audited. A run needing
             # attention holds the ceiling only while one of its branches is still
-            # executing, and waits for a person just as long.
+            # executing, and waits for a person just as long. A chat-started run
+            # parked on a question holds it the same way.
             waiting = await workflow_run_repo.count_live_runs_with_status(
                 self.db,
                 organization_id=exposure.organization_id,
                 workflow_id=exposure.workflow_id,
                 mode=WorkflowRunMode.REAL.value,
-                statuses=(WorkflowRunStatus.WAITING_APPROVAL, WorkflowRunStatus.NEEDS_ATTENTION),
+                statuses=(
+                    WorkflowRunStatus.WAITING_APPROVAL,
+                    WorkflowRunStatus.WAITING_FOR_USER,
+                    WorkflowRunStatus.NEEDS_ATTENTION,
+                ),
             )
             if not waiting:
                 return False
@@ -1199,6 +1205,13 @@ class WorkflowExposureService:
                 workflow_id=exposure.workflow_id,
                 mode=WorkflowRunMode.REAL.value,
                 statuses=(WorkflowRunStatus.WAITING_APPROVAL,),
+            )
+            questioning = await workflow_run_repo.count_live_runs_with_status(
+                self.db,
+                organization_id=exposure.organization_id,
+                workflow_id=exposure.workflow_id,
+                mode=WorkflowRunMode.REAL.value,
+                statuses=(WorkflowRunStatus.WAITING_FOR_USER,),
             )
             self._log_mail_refusal(exposure, source, exc)
             await record_audit(
@@ -1210,9 +1223,13 @@ class WorkflowExposureService:
                 target_id=str(exposure.workflow_id),
                 details={
                     "exposure_id": str(exposure.id),
-                    "reason": "runs_waiting_for_approval"
-                    if approving
-                    else "runs_needing_attention",
+                    "reason": (
+                        "runs_waiting_for_approval"
+                        if approving
+                        else "runs_waiting_for_user"
+                        if questioning
+                        else "runs_needing_attention"
+                    ),
                 },
             )
             return True

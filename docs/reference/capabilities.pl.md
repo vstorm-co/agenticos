@@ -1,5 +1,5 @@
 ---
-source_sha: "c60a0a5cad27"
+source_sha: "fe652977b769"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -277,17 +277,13 @@ istotną, po jednym skillu naraz — alternatywą jest pole instrukcji rosnące 
 długo, aż każdy run płaci za każdą procedurę. Zobacz [Skille](../skills.md), czym
 jest skill i jak trafia do organizacji.
 
-**Każdy podpięty skill jest osobną capability.** Jego nazwa i opis siedzą w
-katalogu, który model czyta w każdej turze, a treść model wciąga narzędziem
-`load_capability` — należącym do samego frameworka agentowego, dlatego nie ma go na
-liście powyżej i dlatego spec nie może go przyznać, obramkować ani przemianować.
-`read_skill_resource` to jedyne narzędzie, które ta capability wnosi, i pojawia się
-tylko wtedy, gdy przynajmniej jeden podpięty skill wiezie plik obok swoich
-instrukcji.
-
-Narzędzie pochodzi z `pydantic-ai-skills`, więc jego nazwa i sformułowania należą do
-kogoś innego. Test dryfu porównuje to, co deklaruje rejestr, z narzędziami, które
-model faktycznie dostaje — i to on zgłosi dzień, w którym to się stanie.
+**Każdy podpięty skill pozostaje natywną odroczoną capability.** Model widzi
+katalog dostępnych skilli i otwiera treść przez `read_skill`. Adapter platformy
+zachowuje natywny stan ładowania, zgody i odtwarzanie rozmów, także starszych.
+Polityki zgód zachowują stały klucz `load_capability`; zwykłe nadpisania narzędzi
+nie zmieniają nazwy loadera należącego do frameworka. `read_skill_resource` czyta
+pliki pomocnicze i pojawia się tylko wtedy, gdy podpięty skill taki plik zawiera.
+Test dryfu porównuje narzędzie plikowe biblioteki z rejestrem.
 
 `run_skill_script` jest wyłączone, a nie wystawione: pliki skilla trafiają do runa
 pod `/workspace/skills/`, gdzie uruchamia je własne `execute`
@@ -1628,6 +1624,8 @@ odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadanie
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
 
+**Nazwane sesje.** Każde zadanie wskazuje `session` - `main`, gdy nie wskazuje żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną, a niezależne sesje działają równolegle, gdy agent wywołuje narzędzie kilka razy naraz. `fresh_session` zaczyna jedną sesję od nowa. Na tym komputerze sesja może też wybrać `harness` - Claude Code albo Codex, na logowaniu tego komputera - oraz `folder` wewnątrz folderu czatu, więc dwa projekty albo oba harnessy pracują jednocześnie. W sandboxie i w prywatnym zadaniu w chmurze jedynym harnessem jest ten z bindingu, bo należy do niego klucz albo konto.
+
 **Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
 
 Kolejne zadania ładują tę samą sesję rozmowy; `fresh_session` jawnie zaczyna od nowa. Korekta przerywa turę ACP i kontynuuje tę samą sesję po potwierdzeniu zatrzymania. Identyfikatory sesji pozostają poza repozytorium i są usuwane po odłączeniu. Niewycenione zadania subskrypcji, także rozpoczęte zadania zakończone błędem, oznaczają koszt runu jako dolną granicę. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
@@ -2482,6 +2480,11 @@ Wersja 14 specyfikacji usuwa zapisane powiązania `virtual_tables` podczas wczyt
 
 ## Workflowy { #workflows }
 
+Odkrywanie przez `list_workflows` ma limit 32 KiB zakodowanego JSON, wliczając
+kontrakty wejścia. Większa odpowiedź zwraca odmowę zamiast częściowej listy.
+Wybierz mniej workflow lub mniejsze kontrakty w powiązaniu albo sprawdź
+endpoint HTTP schematu wejścia poza kontekstem agenta.
+
 Pozwala agentowi uruchamiać opublikowane [workflowy](../workflows.md), które wskazuje
 jego binding, i czytać, jak poszły. Panel w Builderze wypisuje workflowy organizacji,
 po wierszu na każdy, a zaznaczony wiersz to ten, który agent może uruchomić. Workflow
@@ -2731,6 +2734,11 @@ niezależnie od tego, czy kiedykolwiek je wywoła.
 |---|---|---|
 | `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignorowane przez wyszukiwanie natywne |
+| `defer_capabilities` | `false` | odraczaj kwalifikujące się narzędzia funkcyjne włączonych capability |
+| `defer_mcp_servers` | `true` | odraczaj narzędzia powiązanych serwerów MCP |
+| `exclude_capabilities` | `[]` | identyfikatory capability, których narzędzia pozostają widoczne |
+| `exclude_mcp_servers` | `[]` | znormalizowane prefiksy narzędzi MCP, których narzędzia pozostają widoczne |
+| `exclude_tools` | `[]` | widoczne nazwy narzędzi po dodaniu prefiksu i zmianie nazwy, które pozostają widoczne |
 
 **`local_bm25`** szereguje lokalnie identyfikatory, opisy i schematy argumentów narzędzi u każdego providera. Uwzględnia rzadkość słów i długość tekstu, premiuje identyfikatory, zwraca tylko pasujące dozwolone narzędzia i nie wywołuje modelu ani embeddingów. Limit wyników nadal obowiązuje.
 
@@ -2744,19 +2752,35 @@ niezależnie od tego, czy kiedykolwiek je wywoła.
   działania, który autor przyjmuje, nazywając jeden z nich — `auto` nie zawodzi w
   ten sposób nigdy.
 
-**To włączenie tego odracza zestawy narzędzi MCP.** Capability i odraczanie to dwie
-połowy jednej decyzji: biblioteczne `ToolSearch` jest bezczynne, gdy nic nie jest
-odroczone, a odroczone narzędzie bez wyszukiwania, które by je znalazło, to
-narzędzie, którego model nigdy nie wywoła. Związanie `tool_search` jest więc tym, co
-oznacza zestawy narzędzi podłączonych serwerów do odroczonego ładowania — własne
-narzędzia rejestru zostają widoczne, będąc nieliczne i wybrane per agent. Agent,
-który tego nie wiąże, nie płaci nic i widzi wszystkie narzędzia jak wcześniej.
+**Wybierz grupy narzędzi do odroczenia.** Wartości domyślne zachowują działanie
+istniejących speców: narzędzia MCP są odroczone, a narzędzia capability pozostają
+widoczne. Włącz `defer_capabilities`, aby odraczać także kwalifikujące się
+narzędzia funkcyjne włączonych capability. Wyłącz `defer_mcp_servers`, aby
+odraczać tylko narzędzia capability, albo włącz obie grupy razem. Agent bez
+wyszukiwania narzędzi widzi swoje narzędzia tak jak wcześniej.
+
+**Wykluczenia pozostawiają narzędzia widoczne od pierwszego żądania.** Wpisz
+identyfikatory capability w `exclude_capabilities`, całe przestrzenie nazw
+narzędzi MCP w `exclude_mcp_servers` lub końcowe nazwy narzędzi w `exclude_tools`.
+Połączenie o nazwie `github-work` używa przestrzeni nazw `github_work`; osobiste
+powiązanie używa rzeczywistej przestrzeni nazw konta, zwykle klucza katalogowego,
+takiego jak `notion`. Kilka osobistych kont może mieć różne przestrzenie nazw.
+Dla pojedynczego narzędzia MCP uwzględnij prefiks, np. `github_work_search`, oraz
+nazwę nadaną przez zmianę nazwy w powiązaniu. Wykluczenia wpływają na widoczność;
+listy dozwolonych narzędzi połączenia i powiązania nadal kontrolują dostęp.
+
+Natywne narzędzia providera i hooki capability pozostają aktywne. Skille zachowują
+własne odkrywanie przez `read_skill`. Głos w czasie rzeczywistym nie używa
+odraczania przez wyszukiwanie narzędzi. Jeśli każde narzędzie pozostaje widoczne,
+wyszukiwanie nie ma odroczonego katalogu do odkrycia.
 
 **Builder mówi, kiedy warto.** Gdy powiązania MCP agenta dają razem więcej niż 30
 narzędzi - według listy dozwolonych narzędzi powiązania, a bez niej według tego, co
 serwer wymienił przy ostatnim sprawdzeniu - zakładka MCP pokazuje ostrzeżenie z
-przybliżoną liczbą tokenów i przycisk, który wiąże wyszukiwanie narzędzi. Nigdy nie
-wiąże go sam: odraczanie zmienia to, co widzi model, więc decyzja należy do edytora.
+przybliżoną liczbą tokenów i przycisk włączający wyszukiwanie narzędzi MCP. Dodaje
+on wyszukiwanie narzędzi lub włącza odraczanie MCP w istniejącej konfiguracji,
+zachowując wykluczenia i ustawienia capability. Nigdy nie włącza odraczania sam:
+zmienia to, co widzi model, więc decyzja należy do edytora.
 
 **Odraczanie zmienia to, co widzi model, nigdy tożsamość narzędzia.** Odnalezione
 narzędzie MCP przychodzi pod swoją prawdziwą, prefiksowaną nazwą, więc
@@ -2764,7 +2788,7 @@ narzędzie MCP przychodzi pod swoją prawdziwą, prefiksowaną nazwą, więc
 nazwy z powiązania nadal go dosięga; `ToolSearch` siedzi najbardziej na zewnątrz i
 czyta nazwy, które zmiana nazwy już nałożyła.
 
-**Nie wymaga mierzenia.** Dwie lokalne strategie działają w Pythonie i nie wydają
+**Nie wymaga mierzenia.** Lokalne strategie działają w Pythonie i nie wydają
 tokenów; wyszukiwanie natywne działa wewnątrz własnego żądania providera, którego
 zużycie mierzy już [strażnik budżetu](../governance.md); a rundy odkrywania to
 zwykłe żądania do modelu, opakowane przez tego samego strażnika. Jedyny kształt,
@@ -2830,8 +2854,30 @@ tylko to, co nowe w jego własnej turze, więc historia kolejnej tury nie odtwar
 wiadomości z runa `guardrail_blocked`, niezależnie od tego, które sprawdzenie go
 zatrzymało. W jej miejscu model czyta krótką notkę, że guardrail zatrzymał tę turę,
 bez treści wiadomości i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
-pokazuje osobie to, co wpisała. Wyszukiwanie w dawnych rozmowach
-(`conversation_search`) jeszcze nie pomija tych wiadomości.
+pokazuje osobie to, co wpisała. Odmowa kroku agenta w workflow oznacza też
+konkretną wiadomość źródłową z czatu. Wyszukiwanie w dawnych rozmowach
+(`conversation_search`) pomija odrzucone wiadomości w dopasowaniach, fragmentach
+i odczycie transkryptu. Narzędzia nie otrzymują tytułu rozmowy zawierającej
+odrzuconą turę, także gdy tytuł zapisano wcześniej.
+
+Ponowienia i wywołane workflow zachowują powiązanie odmowy z wiadomością. Nie
+dziedziczą miejsca dostarczenia odpowiedzi ani dostępu do workspace czatu źródłowego.
+Jeśli nowo odrzucona tura była już skompaktowana, zapisane podsumowanie, które ją
+obejmuje, jest usuwane, aby kolejna historia odbudowała się z notką o odmowie.
+Wzmianki rozmów korzystają z tej samej filtrowanej listy, aby ich etykiety nie
+powtarzały modelowi odrzuconej treści.
+
+Trwająca już kompakcja nie może przywrócić do cache tury odrzuconej później.
+Aktualizacja jednorazowo odbudowuje istniejące podsumowania; oryginalne wiadomości
+pozostają.
+
+Każdy run sprawdza aktualność historii przed każdym żądaniem do modelu, również po wykonaniu narzędzi. Kroki agenta, modelu i decyzji w workflow sprawdzają też wspólne źródło czatu przed startem; zakolejkowany krok nie może użyć źródła odrzuconego ani usuniętego. Podsumowania voice i nowe sesje realtime korzystają z tej samej kontroli wersji.
+
+Harnessy kodujące sprawdzają ten sam kontekst przed uruchomieniem i przed każdym promptem ACP, również po korekcie zadania.
+
+Jeśli wcześniejsza tura zostanie odrzucona, gdy run czeka na akceptację lub
+odpowiedź, run zatrzyma się przed ponownym wykonaniem narzędzi lub wywołaniem
+modelu. Zacznij nową turę, aby kontynuować z aktualną, przefiltrowaną historią.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
@@ -2965,17 +3011,24 @@ odmówiła, i działa dalej.
 
 Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
 domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
-wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
-dowiaduje się, że osoba odmówiła.
+wyłączyć. Samodzielny run agenta bez kanału pytań — z harmonogramu, webhooka
+lub API — otrzymuje informację, że osoba odmówiła.
 
-Pytanie bez odpowiedzi nie przerywa pracy agenta na dobre. Jeśli osoba odejdzie z
-otwartą kartą, run parkuje się na niej — w historii runów jako **Oczekuje na
-odpowiedź** — a karta wraca, gdy ta osoba ponownie otworzy rozmowę, na dowolnym
-urządzeniu. Odpowiedź wznawia run od miejsca, w którym się zatrzymał. Odpowiedzieć
-może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
-`GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
+W czacie konsoli run zapisuje pytania i wstrzymuje się przed wyświetleniem karty
+— w historii runów jako **Oczekuje na odpowiedź**. Przełączenie czatu, odświeżenie
+strony lub otwarcie rozmowy na innym urządzeniu przywraca kartę bez odpowiedzi.
+Konsola wysyła odpowiedź przez aktywne połączenie czatu, dzięki czemu delegat może
+zadawać dalsze pytania podczas kontynuacji. Karta bez połączenia czeka na jego
+przywrócenie.
+
+Odpowiedzieć może tylko osoba, której zadano pytanie. Klienci API mogą używać
+`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
+
+W kroku agenta workflow to samo narzędzie zapisuje rozmowę i wstrzymuje workflow ze stanem **Oczekiwanie na użytkownika**. Odpowiedz w widoku runa workflow lub czacie źródłowym. Odpowiedź zostaje zapisana, a worker workflow wznawia ten sam run agenta, zachowując jego budżet i wcześniejsze wyniki narzędzi. Klienci workflow odczytują `GET /workflow-runs/{run_id}/questions` i wysyłają `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` ze zwykłym obiektem `responses`. Każdy wpis wskazuje `workflow_run_id` właściciela; użyj tego identyfikatora, odpowiadając na pytanie z workflow wywołanego synchronicznie.
+
+Karty pytań są widoczne tylko wtedy, gdy nadal masz uprawnienie do uruchamiania workflow, do którego należą. Grant **use** na konkretny workflow również pozwala odpowiedzieć; inna osoba z dostępem do podglądu nie może odpowiadać w Twoim imieniu.
 
 ## Wersje robocze { #drafts }
 
@@ -3254,3 +3307,9 @@ Wpis decyzji może przechowywać ustrukturyzowane dowody: sytuację, wybór, alt
 W **Ustawienia → Pamięć** przeczytaj dowody i zapisz zaobserwowany wynik przez korektę. Korekta dopisuje nowy wpis; wcześniejszy epizod i jego pochodzenie pozostają w historii. Konsolidacja deterministyczna nie zamienia epizodów w ogólne reguły. Usuwanie pamięci usuwa ich treść razem z wpisami; eksport danych osobistych ją uwzględnia.
 
 **Przygotuj przypadek Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź. Sprawdź tekst, usuń informacje, które muszą pozostać prywatne, i jawnie zatwierdź pobranie jednego rekordu JSONL. Pola `input`, `reference_answer`, `tags` i `note` odpowiadają importerowi zbiorów w [PR Improve #2172](https://github.com/vstorm-co/agenticos/pull/2172). Zaimportuj plik do zbioru Improve po instalacji tej funkcji, przeprowadź ocenę i tam zaakceptuj/opublikuj zmiany. Ten eksport nie tworzy zbioru, nie uruchamia optymalizatora ani nie publikuje instrukcji automatycznie.
+
+Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
+
+Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
+
+ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.

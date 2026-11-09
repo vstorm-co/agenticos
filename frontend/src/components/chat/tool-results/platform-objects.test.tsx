@@ -103,3 +103,13 @@ it("does not hide an unexpected parser failure as an empty object list", () => {
     parse.mockRestore();
   }
 });
+
+it("shows current platform results only with server-owned provenance", () => {
+  const created = call("agenticos_create_project", { id, name: "Plan" });
+  expect(platformObjects([{ ...created, presentation_kind: "platform" }])).toHaveLength(1);
+  expect(platformObjects([{ ...created, presentation_kind: "generic" }])).toEqual([]);
+  expect(platformObjects([{ ...created, tool_id: "create_chart" }])).toEqual([]);
+  const refusal = call("agenticos_create_project", { error: { message: "Refused" } });
+  expect(platformCallError({ ...refusal, presentation_kind: "platform" })).toBe("Refused");
+  expect(platformCallError({ ...refusal, presentation_kind: "generic" })).toBeNull();
+});

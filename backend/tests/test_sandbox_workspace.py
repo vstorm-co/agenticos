@@ -680,6 +680,18 @@ class TestOpeningAndClosing:
 
         assert await service.open(AgentSpec(name="Plain"), ctx=_ctx(), identity=_identity()) is None
 
+    async def test_a_computer_workspace_with_none_chosen_is_refused_or_deferred(
+        self, mock_db_session
+    ):
+        """Refused where nobody can be asked; deferred where the run can ask on use."""
+        service = SandboxWorkspaceService(mock_db_session)
+        spec = _spec(backend="local")
+
+        with pytest.raises(BadRequestError, match="uses your computer"):
+            await service.open(spec, ctx=_ctx(), identity=_identity())
+        opened = await service.open(spec, ctx=_ctx(), identity=_identity(), defer_local=True)
+        assert opened is None
+
     async def test_a_run_scoped_state_workspace_needs_no_row(self, monkeypatch, mock_db_session):
         created = AsyncMock()
         monkeypatch.setattr(workspace_repo, "create", created)
@@ -5758,15 +5770,18 @@ class TestLocalDeviceSelection:
         )
         monkeypatch.setattr(device_hub, "wait_for", wait)
         service = SandboxWorkspaceService(mock_db_session)
+        identity = _identity()
         result = await service.open(
             _spec(),
             ctx=ctx,
-            identity=_identity(),
+            identity=identity,
             local=LocalTarget(folder="/approved", mode=mode, device_id=session),
         )
         assert result is not None and result.local
         assert result.row_id is None
         assert result.workspace.backend.session_id == session
+        # The run's agent rides along: the app may hold consent for that agent.
+        assert result.workspace.backend._agent_id == identity.agent_id
         wait.assert_awaited_once_with(ctx.user_id, session, timeout=0)
         assert "/approved" in result.briefing
         await service.close(result)

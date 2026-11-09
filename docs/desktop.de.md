@@ -1,12 +1,14 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "b0d63e54b2c9"
 ---
 
 # Die Desktop-App { #the-desktop-app }
 
 Die native OAuth-Anmeldung verwendet S256 PKCE. Die App behält einen privaten Verifier; der Callback enthält nur dessen öffentliche Challenge. Der Verifier wird im Inhalt der Austauschanfrage gesendet, niemals in einer URL. Abmelden entfernt native Benachrichtigungsvorschauen auf dem Telefon.
 
-Beim Trennen, Abmelden, erneuten Koppeln oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
+Beim Trennen, Abmelden oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Gemeinsame Ordnerfreigaben für Routinen bleiben bei Sitzungsablauf und erneuter Kopplung mit demselben verifizierten Konto und Server erhalten. Bis zur erneuten Identitätsprüfung bleiben sie inaktiv; explizites Trennen, Abmelden oder ein Server- oder Kontowechsel entfernt sie.
+
+Ein veröffentlichter Delegat, der diesen Computer benötigt, kann im selben Chat um Freigabe bitten, auch wenn der Hauptagent in der Cloud läuft. Die Zustimmung gehört dem Hauptagenten, der den Lauf startet. Lokale Coding-Delegaten verlangen Vollzugriff; verschachtelte Delegaten nutzen den freigegebenen Gerätearbeitsbereich, ohne ihn anderen Cloud-Delegaten zugänglich zu machen. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
 
 AgenticOS läuft im Browser, und so nutzen es die meisten. Die Desktop-App ist für
 alle, die mehr davon auf dem eigenen Computer wollen: die Konsole in einem eigenen
@@ -179,6 +181,12 @@ Die lokale Ansicht zeigt gespeicherte Instanzen, Adressen und ihren Laufstatus.
 unterbrochene Installation mit ihren vorhandenen Dateien und Schlüsseln. Start,
 Stop und Update im Menü betreffen die verbundene verwaltete Instanz. Die Verbindung
 zu einem extern gestarteten Entwicklungsstack macht diesen nicht appverwaltet.
+
+Eine lokale Instanz betreibt API, Worker, Konsole, Datenbank und Redis, aber
+keinen Sandbox-Dienst, keinen Browser-Dienst und keinen Objektspeicher. Agenten
+erhalten den reinen Datei-Workspace. Wählen Sie unter **Chat controls → Tools & files**
+**Work on → This computer** für Ordnerzugriff und **Browser → Local browser**
+zum Browsen. **Computer use** gibt Bildschirm, Maus und Tastatur separat frei.
 
 Metadaten liegen in `local-instances.json` im Konfigurationsverzeichnis; neue
 Instanzdateien unter `local-stacks/<id>/` im Datenverzeichnis. Bestehende
@@ -369,7 +377,9 @@ die Geräteverbindung nicht trennen. Größere Schreibvorgänge werden vor der
 Kodierung und Übertragung der Dateidaten abgelehnt.
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
-wenn `bwrap` installiert ist.
+wenn `bwrap` mit Unterstützung für `--bind-fd` installiert ist. Die App hält bis zum Sandbox-Start ein ohne Folgen symbolischer Links geöffnetes Verzeichnishandle fest. Umbenennen oder Ersetzen des Ordners durch einen symbolischen Link kann das genehmigte Verzeichnis dadurch nicht ändern. Unter Linux werden Umgebungsvariablen der Aufgabe innerhalb der Sandbox gesetzt, nicht in ihrem Startprozess; ihre Werte werden über einen privaten Deskriptor übergeben.
+
+Der Stammpfad eines Routine-Ordners darf keine symbolischen Links oder Junctions enthalten. Wählen Sie im Dialog den tatsächlichen Ordner; die Hintergrundzulassung löst keine Links im Stammpfad auf.
 
 **Der Computer entscheidet, nicht der Server.** Die gewählten Ordner mit ihren
 Modi stehen in den Einstellungen der App, und jede Operation nennt einen Ordner und
@@ -378,7 +388,9 @@ ein Modus, der weiter geht als erlaubt, oder ein Pfad, der aus dem Ordner
 herausführt, wird auf dem Computer abgelehnt, egal was der Server verlangt hat. Die
 Wahl wird je Unterhaltung gespeichert. Neue Chats übernehmen die letzten Ordner-
 und Werkzeugeinstellungen dieses Kontos und dieser Organisation; Projekteinstellungen
-haben Vorrang. Die Zustimmung zum gesamten Computer wird niemals übernommen.
+haben Vorrang. Die im Chat erteilte Zustimmung zum gesamten Computer wird niemals
+übernommen; eine einem Agenten erteilte Zustimmung gilt für diesen Agenten (siehe
+**Gesamter Computer**).
 
 **Nur Ihre eigenen Runs.** Ein Chat erreicht Ihren Computer nur, wenn er Ihr
 eigener ist - nie ein API-Schlüssel, ein Widget-Besucher oder der Chat eines
@@ -395,20 +407,33 @@ Tray, dass ein Agent auf diesem Computer arbeitet.
 Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abgelaufene Sitzungen verweigern neue Arbeit; der Heartbeat schließt auch inaktive Verbindungen. Laufende Operationen werden beim Schließen der Desktop-Verbindung abgebrochen.
 
 Im Builder speichert **Sandbox → Computer** `backend: local` ohne Pfad oder
-native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ohne
-Auswahl bittet der Run darum, statt eine Cloud-Sandbox zu öffnen. Beim Erstellen
+native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ein
+solcher Agent hat keinen Cloud-Workspace, daher bietet **Work on** für ihn keine
+Cloud an.
+
+Du kannst ihm
+schreiben, bevor du etwas erlaubst: Er beantwortet, was keine Dateien braucht, und
+erst wenn eine Anfrage deine Dateien braucht, fragt er, wo er arbeiten darf -
+**Gesamter Computer** oder ein Ordner. Der Lauf wartet auf deine Wahl, danach setzt
+der Chat von selbst mit den Dateien fort. Die Antwort wird für diesen Agenten auf
+diesem Computer gespeichert, sodass seine späteren Chats ohne Nachfrage dort
+beginnen. In der Web-Konsole, wo es keinen Computer freizugeben gibt, sagt er, dass
+er deine Dateien nicht erreicht. Beim Erstellen
 eines Projekts öffnet **Projekt-Sandbox → Computer · Ihre Dateien** die persönliche
 Ordnerauswahl; andere Mitglieder behalten den gemeinsamen Projekt-Workspace.
 
 **Gesamter Computer.** Im Desktop-Chat ist **Gesamter Computer** ohne
-Ordnerauswahl verfügbar. Eine native Warnung erlaubt den Zugriff für dieses Gespräch:
+Ordnerauswahl verfügbar. Eine native Warnung erlaubt den Zugriff: Für einen
+Agenten mit dem Workspace **Computer** nennt die Warnung den Agenten, und die
+Zustimmung gilt für ihn in jedem Gespräch; sonst gilt sie für dieses Gespräch.
 Dateiwerkzeuge erreichen absolute Pfade im Rahmen Ihres Kontos; Befehle laufen als
 Sie, ohne einzelne native Bestätigungen. Systemberechtigungen und Freigaberegeln des
 Agents gelten weiterhin. **Zugriff auf den gesamten Computer widerrufen** oder
 **Cloud** blockiert neue Operationen; laufende Befehle werden nicht abgebrochen.
-Die Zustimmung übersteht Neustarts, gilt für diesen Server und dieses Gespräch und
-wird bei einem Entwurf mit der ersten Operation gebunden. Ein neuer Chat braucht
-eine eigene Zustimmung. Dieser Modus durchsucht das Heimatverzeichnis nicht und
+Die Zustimmung übersteht Neustarts und gilt für diesen Server und den Agenten oder
+das Gespräch; bei einem Entwurf wird die Zustimmung eines Gesprächs mit der ersten
+Operation gebunden. Ein neuer Chat mit einem anderen Agenten braucht eine eigene
+Zustimmung. Dieser Modus durchsucht das Heimatverzeichnis nicht und
 sammelt Dateien nicht automatisch als Anhänge.
 
 Lokale Browser- und Dateiwerkzeuge sind im Desktop-Chat auch ohne Browser- oder
@@ -492,9 +517,13 @@ seiner eigenen öffentlichen Adresse.
 ## Was sie bewusst nicht tut { #what-it-deliberately-does-not-do }
 
 - **Kein Navigationswächter.** Ein Link, der den Origin des Servers verlässt,
-  öffnet sich im Fenster, weil ein OAuth-Ablauf - das Verbinden eines MCP-Servers -
-  zur selben Webview zurückkehren muss, damit sein Cookie ankommt. Der Fenstertitel
-  nennt jeden anderen Host, den es zeigt.
+  öffnet sich im Fenster, weil manche OAuth-Abläufe - das Verbinden eines Kontos für
+  ein Terminal - zur selben Webview zurückkehren müssen, damit ihr Cookie ankommt.
+  Der Fenstertitel nennt jeden anderen Host, den es zeigt. Das Verbinden eines
+  MCP-Servers gehört nicht dazu: Seine Zustimmung öffnet sich in Ihrem eigenen
+  Browser, wo Ihre Anmeldungen und Passkeys sind, weil der Callback allein durch
+  seinen `state` authentifiziert wird. Schließen Sie sie dort ab und kehren Sie
+  zurück; der Server erscheint in der App, sobald er autorisiert ist.
 
 - **Kein dauerhafter Zugriff.** Das Verknüpfen des Computers gewährt für sich
   nichts: Ein Run erreicht nur die Ordner, die Sie gewählt haben, in den Modi, die
@@ -527,7 +556,7 @@ Einrichtung aktualisieren den Status automatisch.
 
 Wählen Sie in der Desktop-App unter **Chat-Steuerung → Werkzeuge und Dateien → Programmieragent** entweder **Claude Code** oder **Codex**, auch wenn die veröffentlichte Fähigkeit deaktiviert ist oder fehlt. Die App richtet lokale Dateiwerkzeuge ein und öffnet die native Ordnerauswahl, sofern der aktuelle Ordner noch keinen Vollzugriff hat. Abbrechen behält die bisherigen Einstellungen bei. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her.
 
-Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Oben steht das Modell, darunter Tools und Dateien. Klappen Sie **Work on** für den Ordnerzugriff und **Einstellungen** für Freigaben und Benachrichtigungen auf.
+Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Ihre Tabs sind **Modell**, **Werkzeuge und Dateien** (Programmieragent, Work on, Browser, Computer use und Skills) und **Einstellungen** (Freigaben und Benachrichtigungen).
 
 Wähle für die Capability **Coding agent** die Option **On this computer**, einen
 Ordner unter **Work on** und vollständigen Zugriff. Die native Zustimmung wird für
@@ -535,12 +564,12 @@ diesen Agenten, Ordner, die Adapterversion und Verbindung gespeichert. Entfernen
 oder erneutes Auswählen des Ordners löscht die Zustimmung und stoppt dort laufende
 Agenten; Konto- und Serverwechsel löschen Zustimmungen ebenfalls. Der Adapter
 läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis,
-keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen
-Coding agent. Aufgabenfreigaben und Systemberechtigungen gelten weiterhin.
+keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet auch einen
+Coding agent, im Heimatordner oder einem Ordner darin. Aufgabenfreigaben und Systemberechtigungen gelten weiterhin.
 
 Die Capability-Freigabe gilt einmal pro Aufgabe. `edit` erlaubt angefragte Aktionen; `read_only` verweigert Änderungen. Claude deaktiviert im Lesemodus die Umgehung von Berechtigungen und bietet nur Lesewerkzeuge an. Codex wählt seine native schreibgeschützte Sandbox. Lokale Agents verwenden ihre eigenen Modelleinstellungen. Abonnementnutzung bleibt unbepreist; die angezeigten Run-Kosten sind eine Untergrenze.
 
-Weitere Aufgaben setzen die Harness-Sitzung für dieselbe Unterhaltung, denselben Agent, Ordner, Account und dieselbe Zugriffsrichtlinie fort. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
+Weitere Aufgaben setzen die benannte Sitzung (`main`, wenn eine Aufgabe keine nennt) für dieselbe Unterhaltung, denselben Agent, Harness, Ordner, Account und dieselbe Zugriffsrichtlinie fort; mehrere Sitzungen laufen gleichzeitig, bis zu acht auf einem Computer, jede im Chat-Ordner oder einem Ordner darin. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
 
 Eine während der lokalen Aufgabe gesendete Korrektur unterbricht den aktuellen ACP-Turn. Sobald der Adapter den Stopp bestätigt, setzt dieselbe Sitzung mit der Korrektur fort. Das Transkript hält die angewendete Korrektur fest. Nach Abschluss eingehende Nachrichten bleiben für den übergeordneten Agent verfügbar.
 
@@ -695,12 +724,26 @@ Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrü
 
 ## Lokale Routinen { #local-routines }
 
-Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Anschließend bestätigt die Desktop-App nativ deren ID, Organisation, Server, Ordner und Vorgänge. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+Die Ablehnung eines Ersatzcomputers beweist keinen Widerruf auf dem freigegebenen Computer: Er kann einfach offline sein. Der Eigentümer erhält einen deduplizierten Hinweis zum Verbinden oder Prüfen des Zugriffs; Routine und Ereignisdaten warten weiter. Eine Ablehnung der ursprünglich gewählten aktiven Sitzung stoppt die Routine weiterhin zur Prüfung.
 
-**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Erneute Kopplung, Trennung, Abmeldung oder Serverwechsel löscht die Freigaben. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
+Unter Linux prüft die App vor dem Anbieten von Ordnerschreibzugriff oder dem Start eines Sandbox-Befehls, ob bubblewrap `--bind-fd` unterstützt. Fehlende, ungeeignete oder nicht antwortende Builds werden abgewiesen; aktualisieren Sie bubblewrap für diesen Modus.
+
+Die JSON-Datei der Routinefreigaben wird gegen ihren aktuellen SHA-256-Fingerabdruck im Betriebssystem-Schlüsselbund geprüft. Änderungen oder das Wiederherstellen einer Kopie vor dem Widerruf gewähren keinen Zugriff. Ein nicht verfügbarer Schlüsselbund oder eine Abweichung blockiert Routinen. **Upgrade:** ältere Freigaben haben keinen Fingerabdruck und benötigen neue Zustimmung: Computer explizit trennen, erneut koppeln und Routinen prüfen. Derselbe Reset behebt einen unterbrochenen Schreibvorgang; die App vertraut ungeprüften Dateien niemals automatisch.
+
+Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Beim ersten Mal fragt die Desktop-App einmal nativ, ob **alle deine Routinen** in dieser Organisation in diesem Ordner und seinen Unterordnern mit diesen Vorgängen arbeiten dürfen; wähle deinen Benutzerordner für den ganzen Computer.
+
+Jede spätere Routine in diesem Ordner wird ohne Nachfrage gespeichert, und die Erlaubnis gilt auch nach App-Updates und erneuter Anmeldung. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+
+**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Ein Wechsel des Servers oder Kontos löscht die Freigaben; eine Freigabe für eine einzelne Routine aus einer älteren App endet außerdem mit ihrer Sitzung. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
 
 Ist genau der bestätigte Computer vor der Ausführung offline, wartet eine dauerhafte Aktivierung in PostgreSQL. Die Routine zeigt die Anzahl wartender Aktivierungen. Zeitplan- und manuelle Auslösungen werden währenddessen zusammengefasst; unterschiedliche eingehende Ereignisse behalten ihren Kontext und ihre Aktivierungs-ID. Der bestehende Minuten-Worker prüft die Wiederverbindung. Bereitschaftsprüfungen rufen kein Modell auf und verbrauchen keine Fehlstartversuche. Die Zulassung wird mit dem Lauf vor dem ersten Modellaufruf festgeschrieben. Eine gestartete Aktivierung wird nach einem Worker-Absturz nicht automatisch wiederholt; ein ungewisser Datei- oder Befehlsvorgang erzeugt keinen neuen Lauf.
 
 Pause, geänderte Aufgabe oder lokale Berechtigung, Löschung und Ablauf der Routine stornieren alte wartende Arbeit statt sie auf einen anderen Ordner umzulenken. Eine widerrufene Gerätesitzung benötigt Prüfung. Drei tote oder verlorene Aufträge vor der Zulassung stoppen die Routine und erzeugen einen Vorfall für die besitzende Person. Der fehlgeschlagene Ereigniskontext bleibt in deren Datenexport verfügbar. Gestartete und stornierte Kontexte werden sofort gelöscht. Abgeschlossene Metadaten und fehlgeschlagene Kontexte folgen der Laufaufbewahrung der Organisation; aktive Offline-Arbeit bleibt bis Zulassung, Stornierung oder Löschung erhalten.
 
 API, Worker und Desktop gemeinsam aktualisieren und alte Worker vor Aktivierung des Vertrags leeren. Ältere Desktops bestätigen keine Routine-Freigaben; bestehende lokale Routinen benötigen ausdrückliche Prüfung. Migration `0272_routine_device_waits.py` ergänzt Wartezustände ohne neue Routine-Identität. Vor einem Downgrade lokale Routinen pausieren und deren Aufträge leeren: der Downgrade löscht wartenden Kontext und führt ihn nicht aus. Ältere geparkte lokale Läufe ohne Ziel-Snapshot benötigen einen neuen Lauf.
+
+Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
+
+Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
+
+ Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.

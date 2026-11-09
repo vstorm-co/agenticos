@@ -164,7 +164,8 @@ snapshot you meant to keep.
 Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
 event, with its configured tools; runs appear in Activity. **My watches** only
 reads your personal connected accounts and sends findings to your private Inbox.
-Each tab has its own creation controls. `/routines?tab=watches` opens watches.
+Each check makes at most 30 model requests, with long results trimmed, so a watch
+on a large workspace stays cheap. Each tab has its own creation controls. `/routines?tab=watches` opens watches.
 
 Organization → Proactivity separates suggestions, monitoring, shared limits, delivery timing and welcome messages. Unsaved changes can be discarded. Background services show status and usage, with model and budget controls expanded per service.
 
@@ -197,6 +198,12 @@ What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct
 message from each of its Slack, Teams and Mattermost bots that knows you list
 what is new. Each finding is in one briefing only.
+
+The organization switcher sits below the brand at the top of the sidebar and shows
+the active organization's name and avatar. Open it to switch organizations or
+reach the organization management and creation actions. The collapsed sidebar
+keeps the avatar as the switcher; the phone menu offers the same control. Account
+settings stay in the account menu at the bottom.
 
 Search stays above the sidebar's destinations, with its keyboard shortcut visible
 on a computer. Notifications and the account menu stay below the scrolling list.
@@ -333,7 +340,7 @@ AgenticOS, Architect and new-agent defaults do not include scratch planning tool
 
 Both starters and new console agents include Watch a command, Background topics, Work while tools run, bounded past-conversation search and tool search using local BM25 with five results. They include research, explore and review specialists, dynamic specialists and automatic sync/async delegation. Monitors end with the turn and require a persistent shell; background topics survive the turn. Past conversations are searched only on demand, with snippets before bounded transcript windows; group chats and unattended runs cannot search private history.
 
-Only the shipped AgenticOS includes Computer use, the web browser and Coding agent. Computer use and coding default to the approved desktop; sandbox coding needs its own configured credential. The shipped browser also uses the paired desktop; an administrator can instead configure a deployment browser endpoint. New console agents inherit the common setup without these three tools. AgenticOS pins the published Architect; untouched pins follow shipped refreshes while custom pins remain protected.
+Only the shipped AgenticOS includes Computer use, the web browser and Coding agent. Computer use and coding default to the approved desktop; sandbox coding needs its own configured credential. The shipped browser also uses the paired desktop; an administrator can instead configure a deployment browser endpoint. New console agents inherit the common setup without these three tools. AgenticOS answers platform questions directly using its guide and AgenticOS MCP. The shipped defaults no longer pin Architect; an untouched shipped pin is removed on refresh, while custom delegates remain protected.
 
 Every organization gets **AgenticOS**, a general-purpose coworker, and
 **Architect**, the platform setup assistant. Both include memory. New agents
@@ -882,7 +889,7 @@ A newer stable AgenticOS release highlights that version with a green dot. Click
 
 After sign-in, **What’s new** shows the installed version’s public GitHub release notes once per account on this device. It waits for onboarding dialogs to close. Dismissing it marks that version as read; missing notes or a failed request do not interrupt the session. Features in a newer, uninstalled release appear only behind the update notice.
 
-Chat controls remember the model, permission mode and desktop tool preferences for this account and organization across chats. Project file settings take precedence. Whole-computer consent remains specific to one conversation. Approval waivers still require the current permission and organization policy. Agent setting (or Cloud for files) is disabled when the published agent lacks that capability; no local alternative is enabled automatically. Local tools can be switched off by clicking their selected option.
+Chat controls remember the model, permission mode and desktop tool preferences for this account and organization across chats. Project file settings take precedence. Whole-computer consent belongs to one conversation, or to one agent when that agent works on your computer. Approval waivers still require the current permission and organization policy. Agent setting (or Cloud for files) is disabled when the published agent lacks that capability; no local alternative is enabled automatically. Local tools can be switched off by clicking their selected option.
 
 Muting notifications has a bell icon; the composer no longer repeats the local folder/access badge. Multi-agent portraits overlap at full size and spread slightly on hover in the expanded chat list.
 
@@ -891,4 +898,4 @@ List footers stay at the bottom of their panel, with a solid background and cons
 The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.
 
 
-**Chat controls → Model → Coding accounts** shows your Claude Code and Codex connections with their logos and consent status. Connect or manage an account without leaving the chat; the same accounts appear under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.
+**Chat controls → Tools & files** shows the coding account an agent needs when its Coding agent runs as **Private cloud task with my account**: only that harness, with its logo and consent status. Connect or manage it without leaving the chat; every account appears under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.

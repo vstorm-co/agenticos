@@ -50,6 +50,7 @@ from app.services.agent_chat import (
     requested_testing,
 )
 from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
+from app.services.message_history import ModelHistory
 
 pytestmark = pytest.mark.anyio
 
@@ -255,13 +256,14 @@ async def _run(
     request_connection: Any = None,
     steering: Any = None,
     on_sandbox_wait: Any = None,
+    history: list[ModelMessage] | None = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
         organization_id=organization_id or uuid.uuid4(),
         agent_id=agent_id or uuid.uuid4(),
         user_input=user_input,
-        message_history=[],
+        message_history=[] if history is None else history,
         conversation_id=conversation_id,
         prompt_message_id=prompt_message_id,
         on_run_open=on_run_open,
@@ -294,11 +296,17 @@ class TestKeepingASummary:
             )
         )
 
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
         with _runner(prepared):
-            turn = await _run(_db())
+            turn = await _run(
+                db, conversation_id=uuid.uuid4(), history=ModelHistory([], revision=7)
+            )
 
         assert turn.summarized_history is not None
         assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+
+        assert turn.history_revision == 7
 
     async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
         """The one place media piles up is this blob, so the capability that

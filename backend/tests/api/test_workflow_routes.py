@@ -881,3 +881,66 @@ async def test_another_tenants_workflow_is_a_not_found_for_the_server_list(
     # The lookup is scoped to the caller's organization, so another tenant's id finds nothing.
     assert fetched.call_args.kwargs["organization_id"] == _ORGANIZATION_ID
     listed.assert_not_called()
+
+
+async def test_input_schema_discovery_uses_the_published_version_and_is_public(
+    viewer_client: OpenClient,
+) -> None:
+    from app.api.public_api import public_operations
+
+    workflow = _workflow(current_version_id=uuid.uuid4())
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="trigger.manual",
+        definition_version=1,
+        config={
+            "input_schema": {
+                "type": "object",
+                "required": [" code "],
+                "properties": {" code ": {"const": " value ", "pattern": " value "}},
+            }
+        },
+        layout=NodePosition(x=0, y=0),
+    )
+    graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+    version = MagicMock(
+        id=workflow.current_version_id, workflow_id=workflow.id, graph=graph.model_dump(mode="json")
+    )
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+        patch(_GRANT, new=AsyncMock(return_value=GrantLevel.READ)),
+    ):
+        async with viewer_client() as http:
+            response = await http.get(
+                _url(f"/{workflow.id}/input-schema"), params={"version_id": str(version.id)}
+            )
+    assert response.status_code == 200
+    assert response.json() == {
+        "workflow_id": str(workflow.id),
+        "version_id": str(version.id),
+        "entries": [
+            {
+                "entry_node_id": str(entry.id),
+                "trigger": entry.definition_id,
+                "input_schema": entry.config["input_schema"],
+            }
+        ],
+    }
+    assert (
+        "get",
+        f"{settings.API_V1_STR}/workflows/{{workflow_id}}/input-schema",
+    ) in public_operations(app.routes)
+
+
+@pytest.mark.security
+async def test_an_inaccessible_input_contract_is_not_disclosed(viewer_client: OpenClient) -> None:
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=_workflow())),
+        patch(_GRANT, new=AsyncMock(return_value=None)),
+        patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock()) as fetched,
+    ):
+        async with viewer_client() as http:
+            response = await http.get(_url(f"/{uuid.uuid4()}/input-schema"))
+    assert response.status_code == 404
+    fetched.assert_not_awaited()

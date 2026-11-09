@@ -23,6 +23,7 @@
  * module cannot reach one (#446).
  */
 
+import { toolLookupName, type ToolIdentity } from "./tool-identity";
 import { callSummary } from "./approval-view";
 
 import type { DelegationStep } from "@/types";
@@ -182,8 +183,10 @@ export function toolStep(
   finished: boolean,
   t: Translate,
   servers: readonly McpServerRef[] = [],
+  identity?: ToolIdentity,
 ): ToolStep {
-  const fromMcp = mcpCall(name, servers);
+  const lookup = toolLookupName(identity ?? { name });
+  const fromMcp = identity?.tool_id == null ? mcpCall(name, servers) : null;
   if (fromMcp !== null) {
     // External service names identify where effects land. Platform operations
     // already have an object mark and the agent's context, so their verb leads.
@@ -195,6 +198,13 @@ export function toolStep(
       detail: mcpSubject(args),
       kind: "mcp",
       logoDomain: fromMcp.domain,
+    };
+  }
+  if (lookup !== name) {
+    return {
+      label: titleWords(name),
+      detail: subjectOf(lookup, args, t),
+      kind: toolEntry(lookup)?.kind ?? "tool",
     };
   }
   const entry = toolEntry(name);
@@ -236,7 +246,7 @@ function finishedLabel(
   args: Record<string, unknown> | undefined,
   t: Translate,
 ): string {
-  if (name === "load_capability") {
+  if (name === "read_skill" || name === "load_capability") {
     const skill = text((args ?? {}).id);
     if (skill !== null) return titleWords(skill);
   }

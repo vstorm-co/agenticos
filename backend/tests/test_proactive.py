@@ -487,9 +487,7 @@ def _request(content: str) -> PersonRequest:
 
 class TestTheNightlyLook:
     @staticmethod
-    def _patches(
-        *, user=None, member=True, agent=True, last=None, requests=(), reading=None, starters=None
-    ):
+    def _patches(*, user=None, member=True, agent=True, requests=(), reading=None, starters=None):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
         thinker.think = AsyncMock(return_value=reading)
@@ -508,16 +506,12 @@ class TestTheNightlyLook:
                     ),
                 ),
                 patch(
-                    f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
-                    new=AsyncMock(return_value=last),
-                ),
-                patch(
                     f"{NIGHTLY}.conversation_repo.person_requests_since",
                     new=AsyncMock(return_value=list(requests)),
                 ),
                 patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
                 patch(
-                    f"{NIGHTLY}.agent_trigger_repo.prompts_created_by",
+                    f"{NIGHTLY}.agent_trigger_repo.routine_prompts_for_screening",
                     new=AsyncMock(return_value=[]),
                 ),
                 patch(
@@ -533,6 +527,7 @@ class TestTheNightlyLook:
                     f"{NIGHTLY}.NotificationService",
                     return_value=MagicMock(suggestions_ready=AsyncMock()),
                 ),
+                patch(f"{NIGHTLY}.conversation_repo.mark_nightly_reads", new=AsyncMock()),
             ],
         }
 
@@ -549,7 +544,6 @@ class TestTheNightlyLook:
         names = [
             "get",
             "member",
-            "last",
             "requests",
             "notes",
             "routines",
@@ -558,11 +552,12 @@ class TestTheNightlyLook:
             "starters",
             "propose",
             "notify",
+            "mark_read",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
     async def test_a_quiet_week_with_first_messages_written_costs_nothing(self):
-        made, thinker, _ = await self._look(starters=["a"], last=datetime.now(UTC), requests=())
+        made, thinker, _ = await self._look(starters=["a"], requests=())
 
         assert made == 0
         thinker.think.assert_not_awaited()
@@ -671,7 +666,7 @@ class TestTheNightlyLook:
     async def test_a_person_is_due_once_most_of_a_day_has_passed(self, last, due):
         now = datetime.now(UTC)
         with patch(
-            f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
+            f"{NIGHTLY}.agent_run_repo.last_nightly_run_at",
             new=AsyncMock(return_value=None if last is None else now - last),
         ):
             assert await NightlyLook(MagicMock()).due(ORG, USER, now=now) is due

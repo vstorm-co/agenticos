@@ -23,7 +23,7 @@ Only raw JSON is read here: a graph already built from model instances is in
 the new shape by construction. That JSON is not validated yet, so a node or an
 edge whose ids or ports could not key a lookup is left as it was, for field
 validation to refuse rather than to fail on here.
-`alembic/versions/0296_workflow_loop_scope.py` holds a frozen copy of this
+`alembic/versions/0301_workflow_loop_scope.py` holds a frozen copy of this
 conversion for the rows stored before it.
 """
 

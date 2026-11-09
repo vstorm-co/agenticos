@@ -1,5 +1,5 @@
 ---
-source_sha: "512bef978a71"
+source_sha: "99083acac729"
 ---
 
 # Eine Capability hinzufügen { #add-a-capability }
@@ -162,6 +162,8 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   des Tools sein — wer entscheidet, was eine Approval braucht, und das Modell,
   das entscheidet, wann es handelt, sollten denselben Text lesen, nicht zwei
   Umschreibungen, die auseinanderlaufen.
+Gespeicherte Werkzeugaufrufe behalten diese stabile `id` als `tool_id`, neben dem tatsächlichen vom Modell aufgerufenen Namen. Chat-Ansichten und geteilte Zeichnungen nutzen diese Identität, sodass eine Umbenennung pro Agent ihre Ansicht nach dem Neuladen behält. Ältere Aufrufe ohne ID verwenden den gespeicherten Namen; neue externe MCP-Aufrufe erhalten eine ausdrücklich generische Darstellung und können keine eingebaute Ansicht allein über den Namen beanspruchen.
+
 - **`config_schema`** erzeugt das Formular im Builder und wird beim
   Veröffentlichen validiert, sodass ein schlechter Wert scheitert, während jemand
   auf ein Formular schaut, statt mitten in einem Run. Jedes Feld bekommt einen

@@ -24,6 +24,7 @@ from app.repositories import (
 from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDetailRead,
     KnowledgeBaseList,
     KnowledgeBaseRead,
     KnowledgeBaseUpdate,
@@ -552,6 +553,13 @@ class KnowledgeBaseService:
             raise _no_knowledge_base(kb_id)
         return kb
 
+    async def describe(self, kb: KnowledgeBase, *, ctx: AuthContext) -> KnowledgeBaseDetailRead:
+        """Serialize an authorized row with the write decision used by mutations."""
+        read = KnowledgeBaseRead.model_validate(kb)
+        return KnowledgeBaseDetailRead(
+            **read.model_dump(), can_edit=await writable_kb(self.db, ctx, kb)
+        )
+
     async def get_for_write(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, resolved for a caller about to change it.
 
@@ -626,7 +634,7 @@ class KnowledgeBaseService:
                 named embedding configuration disagrees with the one the
                 collection already indexes with.
             AlreadyExistsError: If the collection name is already held outside
-                this caller's reach.
+                this caller's reach, or is busy and worth asking for again.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
         collection_name = data.collection_name or _derive_collection_name(data.name)

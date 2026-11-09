@@ -33,6 +33,7 @@ import {
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
+import { WorkflowRunQuestions } from "@/components/workflows/runs/run-questions";
 import { RunAnswer } from "@/components/workflows/runs/run-answer";
 import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
 import { StepLogs } from "@/components/workflows/logs/step-logs";
@@ -318,6 +319,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
           <AlertTitle>{problem.code}</AlertTitle>
           <AlertDescription>{problem.message}</AlertDescription>
         </Alert>
+      )}
+
+      {live && nodes.some((node) => node.status === "waiting") && (
+        <WorkflowRunQuestions runId={run.id} />
       )}
 
       <div className="grid min-h-[34rem] flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">

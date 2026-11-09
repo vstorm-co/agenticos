@@ -21,6 +21,7 @@ from sqlalchemy import (
     or_,
     select,
     table,
+    text,
     tuple_,
     union_all,
 )
@@ -38,7 +39,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
-from app.db.vector_tables import VECTOR_TABLE_PREFIX, validate_collection_name
+from app.db.vector_tables import VECTOR_TABLE_PREFIX, VectorWriterKind, validate_collection_name
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ class CollectionScope:
     tenant: UUID | None
     # Whether rows filed under no base are this base's - see `in_collection_scope`.
     takes_unfiled: bool
+    operator_unfiled_only: bool = False
 
     @classmethod
     def of(cls, kb: KnowledgeBase) -> Self:
@@ -99,6 +101,7 @@ class CollectionScope:
             collection_name=kb.collection_name,
             tenant=vectors.tenant,
             takes_unfiled=vectors.takes_unfiled,
+            operator_unfiled_only=vectors.operator_unfiled_only,
         )
 
 
@@ -111,10 +114,10 @@ def in_collection_scope(scope: CollectionScope) -> ColumnElement[bool]:
     even by the same name. A row filed under none - a deployment-wide sync, an
     upload from before documents recorded their base, a base since deleted - is
     attributed by the tag its vectors carry: an app-scoped base takes those with
-    no organization, an organization's or personal base in an organization those
+    no organization and explicit operator origin, an organization's or personal base in an organization those
     with its organization. A personal base outside any organization takes none:
     its own rows are always filed under it, and the unfiled rows with no
-    organization are the app scope's.
+    organization require explicit operator provenance for an app-scoped base.
 
     The one definition the listing, the ingestion counts and the per-document
     checks share, so a document cannot be counted in one base and opened
@@ -122,8 +125,15 @@ def in_collection_scope(scope: CollectionScope) -> ColumnElement[bool]:
     """
     owned: ColumnElement[bool] = RAGDocument.knowledge_base_id == scope.knowledge_base_id
     if scope.takes_unfiled:
-        owned = or_(owned, _unfiled_of(scope.tenant))
+        owned = or_(owned, _taken_unfiled(scope))
     return and_(RAGDocument.collection_name == scope.collection_name, owned)
+
+
+def _taken_unfiled(scope: CollectionScope) -> ColumnElement[bool]:
+    unfiled = _unfiled_of(scope.tenant)
+    if scope.operator_unfiled_only:
+        unfiled = and_(unfiled, RAGDocument.writer_kind == VectorWriterKind.OPERATOR)
+    return unfiled
 
 
 def _unfiled_of(tenant: UUID | None) -> ColumnElement[bool]:
@@ -240,6 +250,7 @@ async def create(
     embedding_model: str | None = None,
     organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
+    writer_kind: VectorWriterKind = VectorWriterKind.DOCUMENT,
 ) -> RAGDocument:
     """Create a new RAG document record, claimed by `sync_source_id` when a sync opens it."""
     doc = RAGDocument(
@@ -258,6 +269,7 @@ async def create(
         embedding_model=embedding_model,
         organizational_unit=organizational_unit,
         initiated_by_user_id=initiated_by_user_id,
+        writer_kind=writer_kind,
     )
     db.add(doc)
     await db.flush()
@@ -807,7 +819,7 @@ async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) 
     """
     return await _delete_returning(
         db,
-        and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
+        and_(RAGDocument.collection_name == scope.collection_name, _taken_unfiled(scope)),
     )
 
 
@@ -880,7 +892,15 @@ async def table_holds_unfiled_outside(db: AsyncSession, scope: CollectionScope) 
     outside = _CHUNK_METADATA["knowledge_base_id"].astext.is_(None)
     if scope.takes_unfiled:
         tenant = None if scope.tenant is None else str(scope.tenant)
-        outside = and_(outside, _CHUNK_METADATA["organization_id"].astext.is_distinct_from(tenant))
+        taken = _CHUNK_METADATA["organization_id"].astext.is_not_distinct_from(tenant)
+        if scope.operator_unfiled_only:
+            taken = and_(
+                taken,
+                _CHUNK_METADATA["writer_kind"].astext.is_not_distinct_from(
+                    VectorWriterKind.OPERATOR
+                ),
+            )
+        outside = and_(outside, ~taken)
     return await _table_holds(db, scope.collection_name, outside)
 
 
@@ -988,20 +1008,20 @@ async def stored_vector_ids_at_clear(
     owned = metadata["knowledge_base_id"].astext == str(kb.id)
     if takes_unfiled:
         tenant = str(kb.vector_tenant) if kb.vector_tenant is not None else None
-        owned = or_(
-            owned,
-            and_(
-                metadata["knowledge_base_id"].astext.is_(None),
-                metadata["organization_id"].astext == tenant,
-            ),
+        unfiled = and_(
+            metadata["knowledge_base_id"].astext.is_(None),
+            metadata["organization_id"].astext == tenant,
         )
+        if kb.vector_scope.operator_unfiled_only:
+            unfiled = and_(unfiled, metadata["writer_kind"].astext == VectorWriterKind.OPERATOR)
+        owned = or_(owned, unfiled)
     result = await db.scalars(select(document_id).select_from(runtime).where(owned).distinct())
     return list(result.all())
 
 
 async def hold_for_vector_write(
     db: AsyncSession, document_id: UUID, *, collection: str, knowledge_base_id: UUID | None
-) -> bool:
+) -> VectorWriterKind | None:
     """Hold the tracking row through the chunk commit, or refuse a cleared document.
 
     The base lock alone cannot reject a stale insert after a default was cleared:
@@ -1012,7 +1032,7 @@ async def hold_for_vector_write(
     tenant's rows under the name it drops (`mark_unindexed`, #2568).
     """
     result = await db.execute(
-        select(RAGDocument.id)
+        select(RAGDocument.writer_kind)
         .where(
             RAGDocument.id == document_id,
             RAGDocument.collection_name == collection,
@@ -1021,4 +1041,116 @@ async def hold_for_vector_write(
         )
         .with_for_update(read=True, key_share=True)
     )
-    return result.first() is not None
+    kind = result.scalar_one_or_none()
+    return VectorWriterKind(kind) if kind is not None else None
+
+
+@dataclass(frozen=True)
+class UnfiledProvenanceCounts:
+    """Aggregate global unfiled origins; no content or user identifiers."""
+
+    operator: int
+    document: int
+    legacy_unknown: int
+    confirmable: int
+    tracked_operator: int = 0
+    tracked_document: int = 0
+    tracked_legacy_unknown: int = 0
+    tracked_confirmable: int = 0
+
+
+# A missing owner is never proof of an operator. A known tracking row also
+# protects old chunks whose metadata has not yet recorded their document origin.
+_CONFIRMABLE_UNFILED = """
+    metadata->>'organization_id' IS NULL
+    AND metadata->>'knowledge_base_id' IS NULL
+    AND (metadata->>'writer_kind' IS NULL OR metadata->>'writer_kind' = 'legacy_unknown')
+    AND NOT EXISTS (
+        SELECT 1 FROM rag_documents docs
+        WHERE docs.collection_name = :collection
+          AND docs.vector_document_id = chunks.parent_doc_id
+          AND (docs.writer_kind <> 'legacy_unknown'
+               OR docs.knowledge_base_id IS NOT NULL OR docs.organization_id IS NOT NULL
+               OR docs.initiated_by_user_id IS NOT NULL)
+    )
+"""
+
+
+async def unfiled_provenance_counts(
+    db: AsyncSession, collection_name: str
+) -> UnfiledProvenanceCounts:
+    """Audit a single operator-selected collection without needing an embedder."""
+    validate_collection_name(collection_name, metadata=Base.metadata)
+    tracked = (
+        await db.execute(
+            select(
+                func.count().filter(RAGDocument.writer_kind == VectorWriterKind.OPERATOR),
+                func.count().filter(RAGDocument.writer_kind == VectorWriterKind.DOCUMENT),
+                func.count().filter(RAGDocument.writer_kind == VectorWriterKind.LEGACY_UNKNOWN),
+                func.count().filter(
+                    RAGDocument.writer_kind == VectorWriterKind.LEGACY_UNKNOWN,
+                    RAGDocument.initiated_by_user_id.is_(None),
+                ),
+            ).where(RAGDocument.collection_name == collection_name, _unfiled_of(None))
+        )
+    ).one()
+    name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
+        return UnfiledProvenanceCounts(0, 0, 0, 0, *tracked)
+    result = await db.execute(
+        text(
+            f"""SELECT
+                count(*) FILTER (WHERE metadata->>'writer_kind' = 'operator'),
+                count(*) FILTER (WHERE metadata->>'writer_kind' = 'document'),
+                count(*) FILTER (WHERE metadata->>'writer_kind' IS DISTINCT FROM 'operator'
+                                  AND metadata->>'writer_kind' IS DISTINCT FROM 'document'),
+                count(*) FILTER (WHERE {_CONFIRMABLE_UNFILED})
+            FROM public.{name} AS chunks
+            WHERE metadata->>'organization_id' IS NULL
+              AND metadata->>'knowledge_base_id' IS NULL"""  # noqa: S608 - validated identifier
+        ),
+        {"collection": collection_name},
+    )
+    operator, document, unknown, confirmable = result.one()
+    return UnfiledProvenanceCounts(operator, document, unknown, confirmable, *tracked)
+
+
+async def confirm_operator_unfiled(db: AsyncSession, collection_name: str) -> int:
+    """Confirm unknown global chunks only; caller holds the ingestion-name lock.
+
+    The tracking rows are held before runtime writes, in ingestion/teardown order.
+    A tracked write reads its persisted origin under its own hold, so an ingestion
+    that parsed before this confirmation cannot later overwrite the decision.
+    """
+    validate_collection_name(collection_name, metadata=Base.metadata)
+    name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
+    await db.execute(
+        select(RAGDocument.id)
+        .where(RAGDocument.collection_name == collection_name)
+        .with_for_update()
+    )
+    count = 0
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is not None:
+        result = await db.execute(
+            text(
+                f"""WITH confirmed AS (
+                    UPDATE public.{name} AS chunks
+                    SET metadata = jsonb_set(coalesce(metadata, '{{}}'::jsonb), '{{writer_kind}}', '"operator"'::jsonb)
+                    WHERE {_CONFIRMABLE_UNFILED} RETURNING 1
+                ) SELECT count(*) FROM confirmed"""  # noqa: S608 - validated identifier
+            ),
+            {"collection": collection_name},
+        )
+        count = result.scalar_one()
+    await db.execute(
+        sql_update(RAGDocument)
+        .where(
+            RAGDocument.collection_name == collection_name,
+            _unfiled_of(None),
+            RAGDocument.initiated_by_user_id.is_(None),
+            RAGDocument.writer_kind == VectorWriterKind.LEGACY_UNKNOWN,
+        )
+        .values(writer_kind=VectorWriterKind.OPERATOR)
+    )
+    await db.flush()
+    return count

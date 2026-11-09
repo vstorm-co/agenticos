@@ -137,7 +137,14 @@ class AssistantService:
                 )
                 agent = await self.registry.get(installer, row.agent_id)
         if row.enabled and agent.current_version_id is None:
-            agent = await self._publish_when_possible(ctx.organization_id, agent)
+            try:
+                async with self.db.begin_nested():
+                    agent = await self._publish_when_possible(ctx.organization_id, agent)
+            except AppException:
+                # Publish refusing the draft - a binding this deployment cannot
+                # serve - leaves it waiting, not every console load erroring.
+                logger.exception("Could not publish the assistant in %s", ctx.organization_id)
+                agent = await self.registry.get(installer, row.agent_id)
         return self._read(row, agent, can_use=can_use, can_configure=can_configure)
 
     async def signals(self, ctx: AuthContext) -> AssistantSignals:

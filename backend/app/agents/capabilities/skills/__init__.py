@@ -2,6 +2,7 @@
 
 from app.agents.capabilities._registry import (
     LOAD_CAPABILITY,
+    READ_SKILL,
     CapabilityBuildContext,
     CapabilityToolInfo,
     register,
@@ -21,11 +22,8 @@ __all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
     name="Skills",
     category="knowledge",
     description="Load the organization's written know-how on demand, one skill at a time.",
-    # The name comes from `pydantic-ai-skills` and is somebody else's to change;
-    # the drift test is what tells us when they did. What the tool *returns* is
-    # this repository's text - see `SKILL_TEXTS`. The skills themselves are not
-    # tools: each is a deferred capability the model opens with
-    # `load_capability`, so there is nothing here to gate or rename for them.
+    # The file tool belongs to the skills library; the loader is the native
+    # framework protocol with this platform's skill-specific presentation.
     tools=(
         *(
             # The summary each tool's text opens with, so the Builder shows the
@@ -33,13 +31,11 @@ __all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
             CapabilityToolInfo(id=tool_id, description=text.summary)
             for tool_id, text in SKILL_TEXTS.items()
         ),
-        # The framework's own, declared here because it is the tool that opens a
-        # skill and therefore the only place an approval gate on skills can sit.
-        # Pydantic AI provides it - nothing here builds or renames it - so it is
-        # in `DECLARED_AND_NOT_OFFERED` in the drift test, and `ApprovalGate`
-        # knows it by name rather than by capability id (#1704 review).
+        # Keep the stable policy id so existing published approvals survive.
+        # SkillLoader owns the model-facing name, outside ordinary overrides.
         CapabilityToolInfo(
             id=LOAD_CAPABILITY,
+            name=READ_SKILL,
             description="Open a skill and read its instructions.",
             side_effecting=False,
         ),

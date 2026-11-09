@@ -16,6 +16,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import conversation_repo
 from app.repositories.conversation import RunOutcome
+from app.schemas.conversation import ToolCallCreate
 from app.services.conversation import ConversationService
 from app.services.message_history import REFUSED_TURN
 
@@ -62,6 +63,7 @@ class MockConversation:
         self.messages: list[Any] = []
         self.summary_messages: list[dict[str, Any]] | None = None
         self.summary_ordinal: int | None = None
+        self.guardrail_revision = 0
         self.overhead_tokens: int | None = None
         self.reminder_state: dict[str, Any] | None = None
         self.plan_items: list[dict[str, Any]] | None = None
@@ -1855,6 +1857,21 @@ class TestConversationServiceToolCalls:
             assert written["mcp_connection_id"] == connection_id
 
     @pytest.mark.anyio
+    async def test_a_renamed_question_is_stored_awaiting_its_answer(
+        self, service: ConversationService
+    ) -> None:
+        msg_id = uuid4()
+        data = ToolCallCreate(tool_call_id="ask-1", tool_name="clarify", args={})
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.get_message_by_id = AsyncMock(return_value=MockMessage(id=msg_id))
+            repo.create_tool_call = AsyncMock()
+
+            await service.start_tool_call(msg_id, data, parked=True, awaiting_answer=True)
+
+        assert repo.create_tool_call.await_args.kwargs["tool_name"] == "clarify"
+        assert repo.create_tool_call.await_args.kwargs["status"] == "awaiting_answer"
+
+    @pytest.mark.anyio
     async def test_start_tool_call_verifies_message_exists(self, service: ConversationService):
         """start_tool_call raises NotFoundError when message not found."""
         mock_data = MagicMock()
@@ -2203,8 +2220,9 @@ class TestTheThreadAModelIsGivenBack:
 
         assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
 
+    @pytest.mark.parametrize("loader_label", ["Capability", "Skill"])
     async def test_loaded_skills_survive_without_replaying_large_or_failed_tool_results(
-        self, monkeypatch, capability_loads_repo
+        self, monkeypatch, capability_loads_repo, loader_label
     ):
         from pydantic_ai.messages import CapabilityLoadDeltaPart
 
@@ -2218,13 +2236,17 @@ class TestTheThreadAModelIsGivenBack:
             MockToolCall(
                 args={"id": "interview"},
                 result=json.dumps(
-                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                    {
+                        "message": f"{loader_label} 'interview' loaded. Its instructions, if any, follow."
+                    }
                 ),
             ),
             MockToolCall(
                 args={"id": "interview"},
                 result=json.dumps(
-                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                    {
+                        "message": f"{loader_label} 'interview' loaded. Its instructions, if any, follow."
+                    }
                 ),
             ),
             MockToolCall(args={"id": "missing"}, result="No capability found"),
@@ -2515,7 +2537,9 @@ class TestTheThreadAModelIsGivenBack:
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
-        await ConversationService(AsyncMock()).keep_summary(conversation.id, [{"kind": "request"}])
+        await ConversationService(AsyncMock()).keep_summary(
+            conversation.id, [{"kind": "request"}], expected_revision=0
+        )
 
         assert stored.await_args.kwargs["ordinal"] == 9
         assert stored.await_args.kwargs["messages"] == [{"kind": "request"}]
@@ -2529,7 +2553,9 @@ class TestTheThreadAModelIsGivenBack:
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
-        await ConversationService(AsyncMock()).keep_summary(uuid4(), [{"kind": "request"}])
+        await ConversationService(AsyncMock()).keep_summary(
+            uuid4(), [{"kind": "request"}], expected_revision=0
+        )
 
         stored.assert_not_awaited()
 
@@ -3125,3 +3151,12 @@ async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
         pytest.raises(BadRequestError),
     ):
         await service.add_message(conversation.id, data, organization_id=TEST_ORG_ID)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_an_unversioned_summary_cannot_replace_the_guarded_cache(monkeypatch):
+    stored = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "set_summary", stored)
+    await ConversationService(AsyncMock()).keep_summary(uuid4(), [], expected_revision=None)
+    stored.assert_not_awaited()

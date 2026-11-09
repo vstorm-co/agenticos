@@ -7,7 +7,10 @@ import { Button, Checkbox, FormField, Label } from "@/components/ui";
 import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
 import type { LocalTarget } from "@/lib/desktop/commands";
 
-/** A folder preview grants nothing; saving asks native consent for the actual routine ID. */
+/**
+ * A folder preview grants nothing. Saving reuses the person's permission for every
+ * routine when it covers the folder, and otherwise asks for it once, natively.
+ */
 export function LocalTargetField({
   value,
   onChange,
@@ -18,7 +21,8 @@ export function LocalTargetField({
   visible: boolean;
 }) {
   const t = useTranslations("triggers.local");
-  const { available, identity, supportsWrites, pick } = useRoutineLocalWork();
+  const { available, identity, supportsWrites, pick, grants } = useRoutineLocalWork();
+  const everyRoutine = grants.data?.find((grant) => grant.routine_id === null);
   if (!visible || (!available && value === null)) return null;
   const editable = available && identity?.device_id === value?.device_id;
   function operations(write: boolean, execute: boolean) {
@@ -44,6 +48,22 @@ export function LocalTargetField({
           {value && (
             <Button variant="outline" size="sm" onClick={() => onChange(null)}>
               {t("useSandbox")}
+            </Button>
+          )}
+          {available && everyRoutine && identity && value?.folder !== everyRoutine.root && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onChange({
+                  folder: everyRoutine.root,
+                  device_id: identity.device_id,
+                  mode: everyRoutine.operations.write ? "workspace_write" : "read_only",
+                  operations: everyRoutine.operations,
+                })
+              }
+            >
+              {t("useAllowed")}
             </Button>
           )}
           {available && (

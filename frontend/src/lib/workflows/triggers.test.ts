@@ -4,6 +4,7 @@ import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   declaredFields,
+  declaredInputSchema,
   entryGraph,
   isTrigger,
   sampleRunInput,
@@ -31,6 +32,18 @@ function graph(definitionId: string, config: Record<string, unknown> = {}): Work
 }
 
 describe("triggers", () => {
+  it("reads schema contracts only for manual, API and called workflow starts", () => {
+    const schema = {
+      type: "object",
+      properties: { rows: { type: "array", items: { type: "object" } } },
+    };
+    expect(declaredInputSchema(null)).toBeNull();
+    expect(declaredInputSchema(graph("trigger.manual"))).toBeNull();
+    expect(declaredInputSchema(graph("trigger.form", { input_schema: schema }))).toBeNull();
+    for (const trigger of ["trigger.manual", "core.input", "trigger.workflow_call"]) {
+      expect(declaredInputSchema(graph(trigger, { input_schema: schema }))).toBe(schema);
+    }
+  });
   it("tells a trigger by its category, and finds the graph's", () => {
     const trigger = { category: TRIGGER_CATEGORY } as NodeDefinition;
     expect(isTrigger(trigger)).toBe(true);

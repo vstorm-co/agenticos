@@ -114,6 +114,18 @@ class LocalCodingAgent(BaseSchema):
     access: Literal["edit", "read_only"]
 
 
+class PublishedCodingAgent(BaseSchema):
+    """A published version's coding agent binding: which harness, where, how far.
+
+    Defaults mirror the capability's own, so a binding that left a field out reads
+    as it runs.
+    """
+
+    harness: Literal["claude_code", "codex"] = "claude_code"
+    runs_on: Literal["sandbox", "personal_sandbox", "this_computer"] = "sandbox"
+    access: Literal["edit", "read_only"] = "edit"
+
+
 class PublishedModel(BaseSchema):
     """The model an agent's published version runs on.
 
@@ -247,6 +259,24 @@ class AgentRead(BaseSchema):
             "computer, or null when it runs none there. Read off the frozen spec, filled by "
             "the listing, so the chat's composer can say which agent will work in which "
             "folder before the person sends."
+        ),
+    )
+    personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs as a private cloud task "
+            "on the initiating person's own account, or null when it runs none that way. "
+            "Filled by the listing, so the chat can offer to connect that account where "
+            "the agent needs it."
+        ),
+    )
+    local_workspace: bool = Field(
+        default=False,
+        description=(
+            "Whether the published version's workspace is the person's own computer "
+            "(a sandbox binding on the local backend). Such an agent has no cloud "
+            "workspace, so the desktop chat asks for a folder or the whole computer "
+            "before its first run. Filled by the listing."
         ),
     )
     published_model: PublishedModel | None = Field(
@@ -880,6 +910,8 @@ class RunStep(BaseSchema):
         description="The provider's id for the call, so a surface can match it to a step it drew."
     )
     tool_name: str
+    tool_id: str | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     result: str | None = Field(
         default=None,

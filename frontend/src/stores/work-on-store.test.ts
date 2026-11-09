@@ -169,3 +169,24 @@ it("does not overwrite existing model choices with a draft when adopting a topic
   store.adopt("existing");
   expect(store.codingPreferencesFor("existing")).toEqual({ model: "existing", effort: "low" });
 });
+
+it("revoking a folder forgets it for every agent and conversation without touching other folders", () => {
+  const store = useWorkOnStore.getState();
+  store.rememberForAgent("A", target);
+  store.rememberForAgent("B", target);
+  store.rememberForAgent("C", { ...target, folder: "/other" });
+  store.set("chat", target);
+  store.set(null, target);
+  store.forgetFolder(target.folder);
+  expect(store.agentTargetFor("A")).toBeNull();
+  expect(store.agentTargetFor("B")).toBeNull();
+  expect(store.agentTargetFor("C")?.folder).toBe("/other");
+  expect(store.targetFor("chat")).toBeNull();
+  expect(store.targetFor(null)).toBeNull();
+});
+it("an agent-specific choice does not become a global folder default", () => {
+  const store = useWorkOnStore.getState();
+  store.set("agent-chat", target, false);
+  expect(store.explicitTargetFor("agent-chat")).toEqual(target);
+  expect(store.targetFor("unrelated")).toBeNull();
+});

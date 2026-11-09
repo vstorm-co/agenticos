@@ -1,5 +1,5 @@
 ---
-source_sha: "71cd0f76685e"
+source_sha: "c38c8588f596"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -610,15 +610,38 @@ obsługiwane.
 
 Wszystkie endpointy źródeł synchronizacji leżą pod `/api/v1/rag/sync/`.
 Wypisanie listy wymaga `collections:view`, a wszystko, co zmienia źródło, wymaga
-`collections:edit` — w obu przypadkach wobec kolekcji, do której źródło należy;
-rola administratora w tym nie występuje. Zobacz
+`collections:edit`. Rola administratora w tym nie występuje. Poniższe akapity
+mówią, do których źródeł sięga każda z tych operacji. Zobacz
 [kto może sięgnąć do kolekcji](../file-processing.md#who-may-reach-a-collection).
+
+`GET /api/v1/rag/sync/sources` wypisuje wszystkie źródła Twojej organizacji, także
+nieprzypisane, tylko z `connections:manage`, tak jak `/org/integrations`. Bez
+niego lista ma tylko źródła, które zasilają bazę, którą możesz czytać, a
+`collection_name` musi wskazywać kolekcję, którą możesz czytać, inaczej odpowiedź
+to 404. Jeśli bez tego uprawnienia tworzysz lub odłączasz nieprzypisane źródło,
+zachowaj jego identyfikator z odpowiedzi, bo żadna lista Ci go nie pokaże. Lista
+istniejących integracji, którą kreator bazy wiedzy proponuje do ponownego użycia,
+też wymaga `connections:manage`. Zobacz [Uprawnienia](../permissions.md).
+
+Aby zaktualizować, usunąć lub uruchomić źródło przez
+`/api/v1/rag/sync/sources/{id}`, musisz też mieć prawo zapisu do bazy, którą to
+źródło zasila. Dotyczy to też `PATCH`, który ustawia `collection_name` na `null`.
+Nieprzypisane źródło wymaga tylko Twojej organizacji. `/org/integrations`
+zarządza źródłami na poziomie organizacji i zamiast tego wymaga
+`connections:manage`.
+
+Historia synchronizacji i log uruchomień źródła pokazują uruchomienia źródeł
+Twojej organizacji, także przez bazę o zasięgu aplikacji, którą czyta każda
+organizacja. Administrator platformy widzi też źródła innych organizacji w
+bazach, które czyta. Uruchomienie bez źródła, na przykład synchronizacja lokalna
+albo uruchomienie, którego źródło usunięto, jest wypisywane po nazwie kolekcji
+każdemu, kto tę kolekcję czyta.
 
 ### CRUD źródeł synchronizacji { #sync-sources-crud }
 
 | Metoda | Endpoint | Opis |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | Wypisuje wszystkie skonfigurowane źródła synchronizacji |
+| `GET` | `/api/v1/rag/sync/sources` | Wypisuje źródła synchronizacji (wszystkie z `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Tworzy nowe źródło synchronizacji |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Zmienia istniejące źródło synchronizacji |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Usuwa źródło synchronizacji |

@@ -106,16 +106,28 @@ it("keeps the previous setting when the person cancels the folder picker", async
   expect(useWorkOnStore.getState().codingFor("coding-chat")).toBeNull();
   expect(useWorkOnStore.getState().targetFor("coding-chat")).toBeNull();
 });
-it("replaces whole-computer consent with a folder grant after explicit folder selection", async () => {
-  useWorkOnStore
-    .getState()
-    .set("coding-chat", { folder: "/home", mode: "full_access", computer_grant: "whole" });
+it("keeps whole-computer consent for a coding agent without asking for a folder", async () => {
+  const whole = { folder: "/home", mode: "full_access", computer_grant: "whole" } as const;
+  useWorkOnStore.getState().set("coding-chat", whole);
   view();
   await userEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
   await waitFor(() =>
     expect(useWorkOnStore.getState().codingFor("coding-chat")).toBe("claude_code"),
   );
-  expect(env.revoke).toHaveBeenCalledWith("whole");
+  expect(env.pick).not.toHaveBeenCalled();
+  expect(env.revoke).not.toHaveBeenCalled();
+  expect(useWorkOnStore.getState().targetFor("coding-chat")).toEqual(whole);
+  expect(screen.queryByText("A project folder is required to continue.")).toBeNull();
+});
+
+it("replaces whole-computer consent with a folder only when one is chosen", async () => {
+  useWorkOnStore
+    .getState()
+    .set("coding-chat", { folder: "/home", mode: "full_access", computer_grant: "whole" });
+  view();
+  await userEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Choose a folder" }));
+  await waitFor(() => expect(env.revoke).toHaveBeenCalledWith("whole"));
   expect(useWorkOnStore.getState().targetFor("coding-chat")?.computer_grant).toBeUndefined();
 });
 
@@ -136,6 +148,7 @@ it("preserves whole-computer consent when the person cancels the folder picker",
   env.pick.mockResolvedValue(null);
   view();
   await userEvent.click(screen.getByRole("radio", { name: "Codex" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Choose a folder" }));
   await waitFor(() => expect(env.pick).toHaveBeenCalledOnce());
   expect(env.revoke).not.toHaveBeenCalled();
   expect(useWorkOnStore.getState().targetFor("coding-chat")).toEqual(original);

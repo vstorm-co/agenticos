@@ -331,6 +331,9 @@ async def get_conversation_transcript(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    for_model: bool = Query(
+        False, description="Omit guardrail-refused turns and quoted reply excerpts"
+    ),
 ) -> Any:
     """One of the caller's own conversations, turn by turn (#2122).
 
@@ -348,6 +351,7 @@ async def get_conversation_transcript(
         organization_id=ctx.organization_id,
         user_id=ctx.subject_id,
         ctx=ctx,
+        for_model=for_model,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
@@ -500,6 +504,10 @@ async def answer_run(
     resume, and its answer comes back in the response. On a run asked in a chat the
     answer is also posted to that chat (`continues_in_chat`), unless the room no
     longer admits the asker or the chat has started over.
+
+    For a workflow agent step, answers are saved and its owning workflow step
+    is queued instead. The workflow worker resumes the same agent conversation
+    under its current budget; this request does not run the model.
     """
     continued = await parked.answer(ctx, run_id, data.responses)
     return await run_result(

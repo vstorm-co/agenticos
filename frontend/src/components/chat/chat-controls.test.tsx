@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   orgLoaded: true,
   pathname: "/chat",
   openPage: vi.fn(),
+  personalHarness: null as "claude_code" | "codex" | null,
 }));
 
 vi.mock("@/hooks/use-shell", () => ({
@@ -56,6 +57,13 @@ vi.mock("@/stores", () => ({
   useConversationStore: (pick: (state: unknown) => unknown) =>
     pick({ currentConversationId: state.conversationId }),
   useOrgStore: (pick: (state: unknown) => unknown) => pick({ activeOrgId: "org-1" }),
+  useAgentSelectionStore: (pick: (state: unknown) => unknown) =>
+    pick({ selectedAgentId: "agent-1" }),
+}));
+vi.mock("@/hooks/use-agents", () => ({
+  useAgents: () => ({
+    agents: [{ id: "agent-1", personal_coding_harness: state.personalHarness }],
+  }),
 }));
 
 // The agent's own-account section is tested on its own, and reads hooks this
@@ -63,8 +71,9 @@ vi.mock("@/stores", () => ({
 vi.mock("./remembered-approvals", () => ({ RememberedApprovals: () => null }));
 vi.mock("./your-connections", () => ({ YourConnections: () => null }));
 vi.mock("@/components/settings/coding-accounts", () => ({
-  CodingAccounts: ({ compact }: { compact?: boolean }) =>
-    compact ? <section aria-label="Coding accounts" /> : null,
+  PersonalCodingAccount: ({ harness }: { harness: string }) => (
+    <section aria-label={`Your ${harness} account`} />
+  ),
 }));
 
 // The picker is tested on its own; here it only needs to be able to choose.
@@ -101,6 +110,7 @@ beforeEach(() => {
   state.orgLoaded = true;
   state.pathname = "/chat";
   state.openPage = vi.fn();
+  state.personalHarness = null;
 });
 
 describe("the page's tips", () => {
@@ -324,17 +334,20 @@ it("keeps the composer controls free of a duplicate folder badge", () => {
   expect(trigger()).toBeVisible();
 });
 
-it("separates preferences from model and tools and can return without losing them", async () => {
+it("separates model, tools and preferences and can return without losing them", async () => {
   state.desktop = true;
   open();
   await userEvent.click(trigger());
+  expect(screen.getByRole("button", { name: /pick a model/ })).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Work environment" })).toBeNull();
+  await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
   expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
-  expect(screen.queryByRole("radiogroup")).toBeNull();
+  expect(screen.queryByRole("button", { name: /pick a model/ })).toBeNull();
   await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
   expect(screen.queryByRole("region", { name: "Work environment" })).toBeNull();
   expect(screen.getByRole("radiogroup")).toBeVisible();
   expect(screen.getByText("Conversation notifications")).toBeVisible();
-  await userEvent.click(screen.getByRole("tab", { name: "Model" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
   expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
 });
 
@@ -394,8 +407,37 @@ it("uses an anchored panel without blocking the rest of the chat", async () => {
   expect(document.body.style.pointerEvents).not.toBe("none");
 });
 
-it("promotes coding accounts in the web chat model tab", async () => {
+it("offers no tools tab on the web for an agent that needs no account of the person's", async () => {
   open();
-  await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
-  expect(screen.getByRole("region", { name: "Coding accounts" })).toBeVisible();
+  await userEvent.click(trigger());
+  expect(screen.queryByRole("tab", { name: "Tools & files" })).toBeNull();
+});
+
+it("offers the one coding account the agent codes on, under tools and not the model", async () => {
+  state.personalHarness = "codex";
+  open();
+  await userEvent.click(trigger());
+  expect(screen.queryByRole("region", { name: "Your codex account" })).toBeNull();
+  await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
+  expect(screen.getByRole("region", { name: "Your codex account" })).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Your claude_code account" })).toBeNull();
+});
+
+it("returns to Model when the selected agent no longer offers Tools", async () => {
+  state.personalHarness = "codex";
+  const view = render(<ChatControls />);
+  await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
+  state.personalHarness = null;
+  view.rerender(<ChatControls />);
+  expect(screen.getByRole("tab", { name: "Model" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByText(/pick a model/)).toBeVisible();
+});
+
+it("keeps both personal account connections reachable for an agent that delegates", async () => {
+  open({ agentCapabilities: ["subagents"] });
+  await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
+  expect(screen.getByRole("region", { name: "Your codex account" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Your claude_code account" })).toBeVisible();
 });
