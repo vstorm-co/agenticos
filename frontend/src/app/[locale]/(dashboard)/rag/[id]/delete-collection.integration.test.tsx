@@ -115,7 +115,7 @@ function serve({ documentsTotal = 57, sources = [] as unknown[], isDefault = fal
     }
     // Whatever the dashboard chrome asks for on the way past.
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
-    return { ...COLLECTION, is_default: isDefault };
+    return { ...COLLECTION, is_default: isDefault, can_edit: held.includes(Perm.collectionsEdit) };
   });
 }
 

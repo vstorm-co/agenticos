@@ -27,7 +27,7 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KBScope
 from app.db.session import get_db_context
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorScope, VectorWriterKind
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.knowledge_base import KnowledgeBaseService
@@ -76,7 +76,9 @@ def get_rag_services() -> tuple[
     vector_store = process_vector_store(settings, embedder)
     processor = DocumentProcessor(settings=settings)
     retrieval = RetrievalService(vector_store=vector_store, settings=settings)
-    ingestion = IngestionService(processor=processor, vector_store=vector_store)
+    ingestion = IngestionService(
+        processor=processor, vector_store=vector_store, writer_kind=VectorWriterKind.OPERATOR
+    )
     return settings, vector_store, processor, retrieval, ingestion
 
 
@@ -209,6 +211,7 @@ async def ingest_path_async(
                     await documents.hold_ingestion_name(collection)
                     rag_doc = await documents.create_document(
                         collection_name=collection,
+                        writer_kind=VectorWriterKind.OPERATOR,
                         filename=filepath.name,
                         filesize=filepath.stat().st_size,
                         filetype=filepath.suffix.lstrip(".").lower(),
@@ -869,3 +872,52 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
         await drain(timeout=_SYNC_TIMEOUT_SECONDS)
 
     asyncio.run(_sync())
+
+
+@command("rag-unfiled-provenance", help="Audit or explicitly confirm legacy operator imports")
+@click.argument("collection")
+@click.option(
+    "--confirm-operator",
+    is_flag=True,
+    help="Confirm unknown global unfiled data as an operator import",
+)
+@click.option("--yes", "-y", is_flag=True, help="Skip the operator confirmation prompt")
+def rag_unfiled_provenance(collection: str, confirm_operator: bool, yes: bool) -> None:
+    """Audit one collection; confirmation can make its old chunks readable by all members."""
+    if confirm_operator and not yes:
+        click.confirm(
+            "I have inspected this collection and confirm its unknown global unfiled data "
+            "is an operator import intended for every organization. Continue?",
+            abort=True,
+        )
+    try:
+        asyncio.run(_unfiled_provenance(collection, confirm_operator=confirm_operator))
+    except AppException as exc:
+        raise click.ClickException(exc.message) from exc
+
+
+async def _unfiled_provenance(collection: str, *, confirm_operator: bool) -> None:
+    count = 0
+    async with get_db_context() as db:
+        service = RAGDocumentService(db)
+        if confirm_operator:
+            count = await service.confirm_operator_unfiled(collection)
+        counts = await service.audit_unfiled_provenance(collection)
+    if confirm_operator:
+        success(f"Confirmed {count} legacy chunk(s) as operator imports in '{collection}'.")
+    click.echo(
+        json.dumps(
+            {
+                "collection": collection,
+                "operator": counts.operator,
+                "document": counts.document,
+                "legacy_unknown": counts.legacy_unknown,
+                "confirmable": counts.confirmable,
+                "tracked_operator": counts.tracked_operator,
+                "tracked_document": counts.tracked_document,
+                "tracked_legacy_unknown": counts.tracked_legacy_unknown,
+                "tracked_confirmable": counts.tracked_confirmable,
+            },
+            sort_keys=True,
+        )
+    )

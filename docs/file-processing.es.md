@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "1aaedaaa4081"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -485,6 +485,10 @@ flowchart TD
     La fila `RAGDocument` se escribe **primero** y los cuatro pasos intermedios
     se ejecutan en una tarea en segundo plano con una sesión propia - por eso una
     subida responde `202 {"status": "processing"}` en vez de esperar.
+
+Las primeras escrituras simultáneas en una misma colección esperan a que
+su tabla e índices se creen en una sola transacción. Si la creación falla,
+la transacción se revierte y una escritura en espera puede crear la tabla.
 
 Hay dos direcciones a las que puede llegar una subida —
 `POST /rag/collections/{name}/ingest` y `POST /kb/{kb_id}/documents` — y las dos
@@ -1117,10 +1121,39 @@ una conexión a la base de datos y suficientes de ellas hacen rechazar todas las
 Un borrado espera a que termine la escritura.
 
 Una base personal fuera de una organización no toma ningún fragmento sin asignar,
-aunque un fragmento que nombran sus propias filas se va con ella. Un fragmento antiguo
-sin base, sin organización y sin fila no se distingue del de un operador: también
-conserva la tabla, se queda hasta `rag-drop <name>` y es del ámbito de la aplicación,
-así que una base app-scoped con ese nombre lo lee.
+aunque los fragmentos identificados por sus propias filas se eliminan con ella.
+Un fragmento antiguo sin base, organización ni fila de seguimiento tiene un origen
+desconocido. Conserva la tabla, pero **una base de ámbito de aplicación no puede
+leerlo**, aunque un administrador adopte el nombre ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+Una base de ámbito de aplicación solo adopta fragmentos globales sin asignar y filas
+de seguimiento con `writer_kind: operator`. Las nuevas escrituras de `rag-ingest` y
+sincronizaciones CLI registran ese origen; la ingestión de la plataforma registra
+`document`, que persiste al eliminar un usuario o una base. La migración
+`0300_unfiled_writer_provenance.py` no confía en etiquetas de origen antiguas,
+conserva las atribuciones documentales ciertas y aísla los datos ambiguos como
+`legacy_unknown`. Las lecturas sin asignar de una organización siguen limitadas a su tenant.
+
+**Tras actualizar:** audita una colección conservada desde la shell del servidor.
+El comando solo necesita la base de datos y muestra recuentos agregados, nunca contenido:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Solo después de inspeccionar la fuente y confirmar que los datos globales sin
+asignar de origen desconocido son una importación del operador para todas las
+organizaciones, ejecuta:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+Requiere confirmación interactiva (`--yes` la sustituye para automatizaciones).
+La actualización es atómica y repetible; omite fragmentos y filas con origen
+documental conocido. Mantén aislados los datos dudosos; vuelve a importarlos en su
+base autorizada o elimínalos con el procedimiento del operador `rag-drop <name>`.
+Adoptar el nombre en la consola nunca confirma el origen de los datos.
 
 En otro caso, y siempre con `rag-drop`, el trabajo de limpieza elimina la tabla. Las
 filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos, porque

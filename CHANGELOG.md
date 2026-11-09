@@ -19,6 +19,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.59.1] - 2026-11-09
+
+### Fixed
+
+- Knowledge sync failures now show their error on the dashboard. Knowledge-base
+  write controls follow effective access to that base, including edit grants,
+  instead of the member's organization-wide permission (#2772).
+
+## [1.59.0] - 2026-11-09
+
+### Changed
+
+- **Breaking: global unfiled knowledge needs operator provenance.** App-scoped
+  bases no longer publish or clear ambiguous legacy chunks merely by claiming a
+  retained collection name. New CLI imports record operator origin; tracked
+  ingestions retain document origin after their owner or base is deleted.
+  Migration `0300_unfiled_writer_provenance.py` preserves certain document
+  ownership and quarantines unknown data. Operators must audit retained imports
+  with `agenticos cmd rag-unfiled-provenance <name>` and, only after inspecting
+  their source, explicitly use `--confirm-operator` to share unknown operator
+  imports with every organization. Known document data is never promoted by
+  that command. Re-ingest private data into its authorized base instead (#2773).
+
+## [1.58.3] - 2026-11-08
+
+### Fixed
+
+- Desktop and mobile native dependencies use an immutable GTK-compatible backport of the GLib string iterator soundness fix (RUSTSEC-2024-0429). The mobile build no longer enables the legacy HTML path that pulled vulnerable `rand` 0.7.3 (RUSTSEC-2026-0097).
+
+## [1.58.2] - 2026-11-08
+
+### Fixed
+
+- Concurrent first ingests into the same new collection no longer fail on PostgreSQL catalog uniqueness. Table and index creation is serialized per collection, and a rolled-back creator releases waiting writes (#2774).
+
 ## [1.58.1] - 2026-11-08
 
 ### Fixed
@@ -20634,7 +20669,11 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...HEAD
+[1.59.1]: https://github.com/vstorm-co/agenticos/compare/v1.59.0...v1.59.1
+[1.59.0]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...v1.59.0
+[1.58.3]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...v1.58.3
+[1.58.2]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...v1.58.2
 [1.58.1]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...v1.58.1
 [1.58.0]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
