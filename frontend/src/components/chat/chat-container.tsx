@@ -262,9 +262,11 @@ export function ChatContainer({
 
   // The one agent a conversation used, when it used exactly one. Recovered from the
   // conversation rather than the message, which is the only source history has left.
-  const conversationAgents = conversations.find(
-    (conversation) => conversation.id === currentConversationId,
-  )?.agents;
+  const conversationAgents = [
+    listed?.agents,
+    sharedConversation?.agents,
+    access.conversation?.agents,
+  ].find((agents) => agents !== undefined && agents.length > 0);
   const soleAgentId = conversationAgents?.length === 1 ? conversationAgents[0]?.id : undefined;
 
   // Opening a thread addresses the composer to the agent it was had with - in a

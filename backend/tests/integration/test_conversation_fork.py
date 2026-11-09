@@ -552,3 +552,169 @@ async def test_forking_before_a_later_answer_cannot_copy_a_checklist_from_the_fu
             ),
         )
     assert len((await db.scalars(select(Conversation.id))).all()) == 1
+
+
+@pytest.mark.parametrize("linked", [False, True])
+async def test_a_fork_preserves_a_legacy_threads_recovered_agent(
+    db: AsyncSession, linked: bool
+) -> None:
+    from datetime import timedelta
+
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+
+    source = await _source(db)
+    agent = Agent(
+        organization_id=source.organization_id,
+        owner_user_id=source.user_id,
+        name="Finance",
+        slug="finance",
+        draft_spec=AgentSpec(name="Finance").model_dump(mode="json"),
+    )
+    delegate = Agent(
+        organization_id=source.organization_id,
+        owner_user_id=source.user_id,
+        name="Delegate",
+        slug="delegate",
+        draft_spec=AgentSpec(name="Delegate").model_dump(mode="json"),
+    )
+    db.add_all([agent, delegate])
+    await db.flush()
+    started = datetime.now(UTC) - timedelta(minutes=1)
+    run = AgentRun(
+        organization_id=source.organization_id,
+        agent_id=agent.id,
+        conversation_id=source.id,
+        status="completed",
+        created_at=started,
+    )
+    db.add(run)
+    await db.flush()
+    db.add(
+        AgentRun(
+            organization_id=source.organization_id,
+            agent_id=delegate.id,
+            conversation_id=source.id,
+            status="completed",
+            parent_run_id=run.id,
+            created_at=started,
+        )
+    )
+    await _turn(db, source, "user", "Budget?")
+    answer = await _turn(db, source, "assistant", "Ten", run_id=run.id if linked else None)
+    # A different agent called later must not leak into an older fork.
+    db.add(
+        AgentRun(
+            organization_id=source.organization_id,
+            agent_id=delegate.id,
+            conversation_id=source.id,
+            status="completed",
+            created_at=answer.created_at + timedelta(minutes=1),
+        )
+    )
+    await db.flush()
+    fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+    messages = await _messages(db, fork.id)
+    assert [message.agent_id for message in messages] == [None, agent.id]
+    assert messages[-1].agent_version_id is None
+    recovered = await conversation_repo.agents_in_conversations(db, [fork.id])
+    assert [row.id for row in recovered[fork.id]] == [agent.id]
+
+
+async def test_a_fork_does_not_guess_an_ambiguous_legacy_author(db: AsyncSession) -> None:
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+
+    source = await _source(db)
+    for name in ("Finance", "Support"):
+        agent = Agent(
+            organization_id=source.organization_id,
+            owner_user_id=source.user_id,
+            name=name,
+            slug=name.lower(),
+            draft_spec=AgentSpec(name=name).model_dump(mode="json"),
+        )
+        db.add(agent)
+        await db.flush()
+        db.add(
+            AgentRun(
+                organization_id=source.organization_id,
+                agent_id=agent.id,
+                conversation_id=source.id,
+                status="completed",
+                created_at=datetime(2025, 1, 1, tzinfo=UTC),
+            )
+        )
+    answer = await _turn(db, source, "assistant", "Old answer")
+    fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+    assert (await _messages(db, fork.id))[0].agent_id is None
+
+
+@pytest.mark.parametrize("literal_marker", [False, True])
+async def test_fork_summary_survives_deleting_the_sources_externalized_text_and_image(
+    db: AsyncSession, monkeypatch, tmp_path, literal_marker: bool
+) -> None:
+    from pydantic_ai.messages import (
+        BinaryContent,
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        UserPromptPart,
+    )
+    from pydantic_ai_harness.media import externalize_media
+
+    from app.agents.capabilities.media import OrganizationMediaStore, prefix_for
+    from app.core.config import settings
+    from app.core.permissions import AuthContext
+    from app.services.file_storage import LocalFileStorage
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "Compacted answer")
+    original = [
+        ModelRequest(
+            parts=[
+                UserPromptPart(
+                    content=[
+                        "standing instruction " * 100,
+                        BinaryContent(data=b"pixels" * 500, media_type="image/png"),
+                    ]
+                )
+            ]
+        )
+    ]
+    if literal_marker:
+        original[0].metadata = {
+            "caller": {"__harness_external_media__": True, "uri": "caller-data"}
+        }
+    dumped = ModelMessagesTypeAdapter.dump_python(original, mode="json")
+    source.summary_messages = await externalize_media(
+        dumped,
+        media_store=OrganizationMediaStore(source.organization_id, source.id),
+        threshold_bytes=100,
+    )
+    source.summary_ordinal = answer.ordinal
+    await db.flush()
+    fork = await ConversationService(db).fork(
+        source.id,
+        message_id=answer.id,
+        organization_id=source.organization_id,
+        user_id=source.user_id,
+        ctx=AuthContext(
+            user_id=source.user_id, organization_id=source.organization_id, role="owner"
+        ),
+    )
+    if not literal_marker:
+        assert fork.summary_messages == dumped
+    await LocalFileStorage(base_dir=tmp_path).delete_prefix(
+        prefix_for(source.organization_id, source.id)
+    )
+    await db.delete(source)
+    await db.flush()
+    assert (
+        ModelMessagesTypeAdapter.dump_python(
+            await ConversationService(db).model_history(fork.id, limit=200), mode="json"
+        )
+        == dumped
+    )

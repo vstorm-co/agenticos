@@ -793,6 +793,8 @@ The top of a fork says **Forked from** the original, with a link to it. Only you
 
 Forks are limited to 2,000 messages, 10,000 tool calls and 20 MiB of copied text and structured data, with at most ten requests per minute per member and organization. A conversation being updated may briefly refuse a fork; retry once the update finishes. Over-limit histories must be shortened before they can be copied.
 
+An eligible summary's externalized text and media are restored into the copy, so deleting the source does not remove that context. Restored content counts toward the 20 MiB limit. Restoration is limited to 100 external references and ten seconds; unavailable content or an exceeded limit refuses the fork without creating a partial copy.
+
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
 ### Background topics { #background-topics }

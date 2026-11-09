@@ -7,6 +7,7 @@ which says so in its own docstring) and must not be called from anywhere a
 member's request reaches.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
@@ -14,19 +15,21 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_ai.messages import (
     CapabilityLoadDeltaPart,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
 )
+from pydantic_ai_harness.media import externalize_media, restore_media
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.capabilities.media._store import BoundedOrganizationMediaStore, MediaReadLimitError
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
@@ -229,6 +232,9 @@ def model_context_check(
 MAX_FORK_MESSAGES = 2_000
 MAX_FORK_TOOL_CALLS = 10_000
 MAX_FORK_BYTES = 20 * 1024 * 1024
+MAX_FORK_MEDIA_READS = 100
+FORK_MEDIA_TIMEOUT = 10
+_FORK_SUMMARY = TypeAdapter(list[dict[str, JsonValue]])
 
 
 class ConversationService:
@@ -605,6 +611,24 @@ class ConversationService:
             await self._attach_share_permission(conversation, user_id=user_id)
         return conversation
 
+    async def get_metadata(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+    ) -> Conversation:
+        """Read authorized metadata, including agents recovered from legacy runs."""
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            ctx=ctx,
+        )
+        await self.attach_agents([conversation])
+        return conversation
+
     async def _attach_share_permission(
         self, conversation: Conversation, *, user_id: UUID | None
     ) -> None:
@@ -616,7 +640,11 @@ class ConversationService:
         another way.
         """
         permission = None
-        if user_id is not None and conversation.user_id != user_id:
+        if (
+            user_id is not None
+            and conversation.user_id != user_id
+            and conversation.project_id is None
+        ):
             share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
             permission = share.permission if share is not None else None
         conversation.share_permission = permission  # ty: ignore[unresolved-attribute]
@@ -1469,11 +1497,54 @@ class ConversationService:
                 message="This conversation is too large to fork",
                 details={"max_bytes": MAX_FORK_BYTES},
             )
-        fork = await conversation_repo.fork_conversation(self.db, source=source, through=answer)
+        summary = await self._restore_fork_summary(source, answer, payload_bytes=payload_bytes)
+        fork = await conversation_repo.fork_conversation(
+            self.db, source=source, through=answer, restored_summary=summary
+        )
         # Its owner made it a moment ago: it holds nothing they have not seen.
         await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=fork.id)
         await self._attach_fork_origins([fork], user_id=user_id)
         return fork
+
+    async def _restore_fork_summary(
+        self, source: Conversation, answer: Message, *, payload_bytes: int
+    ) -> list[dict[str, JsonValue]] | None:
+        """Inline source media before any insert; a failed restore refuses the copy."""
+        summary = await conversation_repo.fork_summary(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        )
+        if summary is None:
+            return None
+        try:
+            store = BoundedOrganizationMediaStore(
+                source.organization_id,
+                source.id,
+                max_bytes=MAX_FORK_BYTES - payload_bytes + summary.stored_bytes,
+                max_reads=MAX_FORK_MEDIA_READS,
+            )
+            async with asyncio.timeout(FORK_MEDIA_TIMEOUT):
+                restored = await restore_media(summary.messages, media_store=store)
+                # Escape literal marker-shaped caller data again: replay walks
+                # this stored snapshot once more. The unreachable threshold
+                # keeps every restored byte inline and never writes a blob.
+                restored = _FORK_SUMMARY.validate_python(
+                    await externalize_media(
+                        restored,
+                        media_store=store,
+                        threshold_bytes=2**63 - 1,
+                    )
+                )
+            size = len(json.dumps(restored, ensure_ascii=True).encode("utf-8"))
+            if payload_bytes - summary.stored_bytes + size > MAX_FORK_BYTES:
+                raise MediaReadLimitError("Restored summary exceeds the copy budget")
+        except (ValueError, OSError, TimeoutError) as failed:
+            # No clone rows exist yet. Never persist unresolved markers as a
+            # successful fork, or log the marker/payload in the public error.
+            raise BadRequestError(
+                message="This conversation's summary cannot be copied within the fork limits",
+                details={"max_bytes": MAX_FORK_BYTES, "max_media_references": MAX_FORK_MEDIA_READS},
+            ) from failed
+        return restored
 
     async def _attach_fork_origins(
         self, conversations: Sequence[Conversation], *, user_id: UUID | None

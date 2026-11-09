@@ -367,3 +367,46 @@ class TestOffloadingReachesEveryRunSurface:
         original = _history(PICTURE)
 
         assert await capability.externalize(original) == original
+
+
+@pytest.mark.parametrize("data", [b"", b"picture"])
+async def test_bounded_media_read_uses_the_source_prefix_and_checks_integrity(
+    tmp_path, monkeypatch, data
+):
+    from app.agents.capabilities.media._store import BoundedOrganizationMediaStore
+
+    storage = LocalFileStorage(base_dir=tmp_path)
+    monkeypatch.setattr("app.agents.capabilities.media._store.get_file_storage", lambda: storage)
+    organization_id, conversation_id = uuid4(), uuid4()
+    uri = await OrganizationMediaStore(organization_id, conversation_id, storage).put(data)
+    store = BoundedOrganizationMediaStore(
+        organization_id, conversation_id, max_bytes=len(data), max_reads=1
+    )
+    assert await store.get(uri) == data
+
+
+@pytest.mark.parametrize("chunks", [[b"too many bytes"], [b"bad"], []])
+async def test_bounded_media_read_rejects_growth_truncation_or_a_changed_digest(
+    monkeypatch, chunks
+):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents.capabilities.media._store import BoundedOrganizationMediaStore
+
+    closed = []
+
+    async def stream():
+        try:
+            for chunk in chunks:
+                yield chunk
+        finally:
+            closed.append(True)
+
+    storage = MagicMock(spec=LocalFileStorage)
+    storage.size = AsyncMock(return_value=3)
+    storage.open_range = AsyncMock(return_value=stream())
+    monkeypatch.setattr("app.agents.capabilities.media._store.get_file_storage", lambda: storage)
+    store = BoundedOrganizationMediaStore(uuid4(), uuid4(), max_bytes=10, max_reads=1)
+    with pytest.raises(ValueError, match="Media changed"):
+        await store.get(media_uri_for(b"old"))
+    assert closed == [True]

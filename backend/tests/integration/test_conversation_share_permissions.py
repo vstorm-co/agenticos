@@ -369,3 +369,52 @@ async def test_shared_sidebar_rows_do_not_load_conversation_working_state(db: As
     for field in ("summary_messages", "plan_items"):
         with pytest.raises(InvalidRequestError):
             getattr(rows[0], field)
+
+
+async def test_shared_favourites_are_ranked_before_the_page_limit_for_the_reader(
+    db: AsyncSession,
+) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.models.organization import OrganizationMember
+    from app.repositories import conversation as conversation_repo
+
+    owner, reader, other = await _user(db), await _user(db), await _user(db)
+    org = Organization(
+        name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+    )
+    db.add(org)
+    await db.flush()
+    db.add_all(
+        [OrganizationMember(organization_id=org.id, user_id=user.id) for user in (reader, other)]
+    )
+    old = Conversation(
+        user_id=owner.id,
+        organization_id=org.id,
+        title="Starred",
+        created_at=datetime(2025, 1, 1, tzinfo=UTC),
+    )
+    new = Conversation(user_id=owner.id, organization_id=org.id, title="Newer")
+    db.add_all([old, new])
+    await db.flush()
+    for user in (reader, other):
+        for row in (old, new):
+            await conversation_share_repo.create(
+                db, conversation_id=row.id, shared_by=owner.id, shared_with=user.id
+            )
+    await conversation_repo.set_favourite(
+        db, user_id=reader.id, conversation_id=old.id, favourite=True
+    )
+    assert [
+        row.id
+        for row in await conversation_share_repo.get_conversations_shared_with_user(
+            db, reader.id, limit=1
+        )
+    ] == [old.id]
+    assert [
+        row.id
+        for row in await conversation_share_repo.get_conversations_shared_with_user(
+            db, other.id, limit=1
+        )
+    ] == [new.id]
+    assert await conversation_share_repo.count_conversations_shared_with_user(db, reader.id) == 2

@@ -1,5 +1,5 @@
 ---
-source_sha: "1eac6123e9eb"
+source_sha: "2bacc20756cc"
 ---
 
 # La consola { #the-console }
@@ -842,6 +842,8 @@ Solo el propietario de la conversación puede bifurcarla: quien la tiene compart
 Arriba de una bifurcación aparece **Bifurcada de** con un enlace al original. Esa línea solo la ve usted: si comparte la bifurcación, la otra persona ve una conversación normal.
 
 Cada bifurcación admite hasta 2000 mensajes, 10 000 llamadas a herramientas y 20 MiB de texto y datos estructurados copiados, con un máximo de diez solicitudes por minuto por miembro y organización. Una conversación que se está actualizando puede rechazar temporalmente la bifurcación; vuelve a intentarlo cuando termine la actualización. Los historiales que superen los límites deben acortarse antes de copiarlos.
+
+El texto y los medios externalizados de un resumen válido se restauran dentro de la copia, por lo que eliminar el original no elimina ese contexto. El contenido restaurado cuenta para el límite de 20 MiB. La restauración admite hasta 100 referencias externas y diez segundos. Si falta contenido o se supera un límite, se rechaza la operación sin crear una copia parcial.
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
 

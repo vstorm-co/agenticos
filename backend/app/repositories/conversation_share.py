@@ -10,7 +10,7 @@ from sqlalchemy.orm import load_only
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.organization import OrganizationMember
-from app.repositories.conversation import LISTED_COLUMNS
+from app.repositories.conversation import LISTED_COLUMNS, favourited_by
 
 
 async def get_by_id(db: AsyncSession, share_id: UUID) -> ConversationShare | None:
@@ -118,6 +118,7 @@ async def get_conversations_shared_with_user(
             *_in_organization(organization_id),
         )
         .order_by(
+            favourited_by(user_id).desc(),
             func.coalesce(Conversation.updated_at, Conversation.created_at).desc(),
             Conversation.id.desc(),
         )

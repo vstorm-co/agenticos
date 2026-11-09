@@ -1,12 +1,13 @@
 """Conversation repository."""
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 from uuid import UUID, uuid5
 
+from pydantic import JsonValue
 from sqlalchemy import (
     BigInteger,
     ColumnElement,
@@ -514,7 +515,7 @@ def _ordering(columns: dict[str, Any], sort_by: str, sort_dir: str) -> Any:
     return column.nulls_last()
 
 
-def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
+def favourited_by(user_id: UUID) -> ColumnElement[bool]:
     """Whether this reader has starred the conversation the query is over.
 
     An `EXISTS` rather than a join, for the reason `agent_id` is one in
@@ -827,7 +828,7 @@ async def get_conversations_by_user(
         for_model=for_model,
     ):
         query = query.where(condition)
-    orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
+    orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
     orders.append(_ordering(_sort_columns(), sort_by, sort_dir))
     query = query.order_by(*orders).offset(skip).limit(limit)
     result = await db.execute(query)
@@ -1114,8 +1115,77 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
     ).scalar_one()
 
 
+class ForkSummary(NamedTuple):
+    messages: object
+    stored_bytes: int
+
+
+async def fork_summary(db: AsyncSession, *, source_id: UUID, ordinal: int) -> ForkSummary | None:
+    """Read only an eligible summary, after the prefix has passed its SQL byte quota."""
+    row = (
+        await db.execute(
+            select(
+                Conversation.summary_messages,
+                func.octet_length(cast(Conversation.summary_messages, Text)),
+            ).where(
+                Conversation.id == source_id,
+                Conversation.summary_ordinal <= ordinal,
+                Conversation.summary_messages.is_not(None),
+            )
+        )
+    ).one_or_none()
+    return ForkSummary(row[0], row[1]) if row is not None else None
+
+
+async def _fork_agent_attribution(
+    db: AsyncSession, *, source_id: UUID, through: Message, messages: Sequence[Message]
+) -> dict[UUID, tuple[UUID | None, UUID | None]]:
+    """Recover missing assistant attribution without inventing an ambiguous author.
+
+    Linked runs identify an exact version. Older unlinked rows can recover only
+    the sole agent known in the prefix; delegates and later runs are not evidence.
+    """
+    missing = [
+        message for message in messages if message.role == "assistant" and message.agent_id is None
+    ]
+    if not missing:
+        return {}
+    run_ids = {message.run_id for message in missing if message.run_id is not None}
+    linked = {
+        run_id: (agent_id, version_id)
+        for run_id, agent_id, version_id in (
+            await db.execute(
+                select(AgentRun.id, AgentRun.agent_id, AgentRun.agent_version_id).where(
+                    AgentRun.id.in_(run_ids),
+                    AgentRun.conversation_id == source_id,
+                    AgentRun.parent_run_id.is_(None),
+                )
+            )
+        ).all()
+    }
+    evidence = union_all(
+        select(Message.agent_id).where(
+            Message.conversation_id == source_id,
+            Message.ordinal <= through.ordinal,
+            Message.agent_id.is_not(None),
+        ),
+        select(AgentRun.agent_id).where(
+            AgentRun.conversation_id == source_id,
+            AgentRun.created_at <= through.created_at,
+            AgentRun.parent_run_id.is_(None),
+        ),
+    ).subquery()
+    agents = (await db.scalars(select(evidence.c.agent_id).distinct().limit(2))).all()
+    fallback = (agents[0], None) if len(agents) == 1 else (None, None)
+    return {message.id: linked.get(message.run_id, fallback) for message in missing}
+
+
 async def fork_conversation(
-    db: AsyncSession, *, source: Conversation, through: Message
+    db: AsyncSession,
+    *,
+    source: Conversation,
+    through: Message,
+    restored_summary: list[dict[str, JsonValue]] | None = None,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
 
@@ -1136,9 +1206,9 @@ async def fork_conversation(
     a long conversation replays its summary and the turns after it, and
     without it the fork's model would read only the recent window of turns
     and lose everything older. It is re-anchored on the copy of the last turn
-    it covers, since ordinals are new. Media the summary moved out of the
-    history stay keyed to the source, so the fork's model reads those as
-    references rather than files. A summary that reaches past the fork point
+    it covers, since ordinals are new. The service restores externalized media
+    before supplying `restored_summary`, so its bytes survive source deletion.
+    A summary that reaches past the fork point
     covers turns the fork does not have, and is left behind.
     """
     fork = Conversation(
@@ -1165,8 +1235,14 @@ async def fork_conversation(
         .scalars()
         .all()
     )
+    attribution = await _fork_agent_attribution(
+        db, source_id=source.id, through=through, messages=originals
+    )
     copied: dict[UUID, UUID] = {}
     for original in originals:
+        agent_id, version_id = attribution.get(
+            original.id, (original.agent_id, original.agent_version_id)
+        )
         copy = Message(
             conversation_id=fork.id,
             role=original.role,
@@ -1176,8 +1252,8 @@ async def fork_conversation(
             parts=_without_source_workspace(original.parts, source.id),
             attachment_context=original.attachment_context,
             context_used_tokens=original.context_used_tokens,
-            agent_id=original.agent_id,
-            agent_version_id=original.agent_version_id,
+            agent_id=agent_id,
+            agent_version_id=version_id,
             channel_identity_id=original.channel_identity_id,
             author_user_id=original.author_user_id,
             reply_to_message_id=copied.get(original.reply_to_message_id)
@@ -1214,7 +1290,7 @@ async def fork_conversation(
     ).one()
     if summary is not None and summary_ordinal is not None and summary_ordinal <= through.ordinal:
         covered = [original.id for original in originals if original.ordinal <= summary_ordinal]
-        fork.summary_messages = summary
+        fork.summary_messages = restored_summary if restored_summary is not None else summary
         fork.summary_ordinal = (
             await db.scalar(select(Message.ordinal).where(Message.id == copied[covered[-1]]))
             if covered

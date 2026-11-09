@@ -15,7 +15,7 @@ import type {
   ConversationShareListResponse,
 } from "@/types";
 
-/** How many shared conversations the chat sidebar lists: one page, the newest first. */
+/** How many shared conversations the chat sidebar lists: one page, favourites before recent activity. */
 const SHARED_IN_SIDEBAR = 50;
 // Sharing changes can come from another member with this page already open.
 const ACCESS_REFRESH_MS = 15_000;

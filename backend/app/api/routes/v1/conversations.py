@@ -272,6 +272,9 @@ async def fork_conversation(
     calls or 20 MiB. Conversations with a saved checklist require their latest
     answer with no later messages, so the checklist cannot come from later
     history (`400` otherwise).
+    Externalized summary content is restored within the same byte quota, at
+    most 100 references and ten seconds; unavailable or over-limit content
+    refuses the copy (`400`) without creating a partial fork.
     `409` means the history is busy and can be retried.
     `forked_from` on the response names the source, and is only ever
     set for the person who owns both. `429` past ten forks a minute per member
@@ -299,10 +302,9 @@ async def get_conversation_metadata(
     Uses the same tenant and reader access as the full conversation read.
     Transcript consumers should page `/conversations/{id}/messages` separately.
     """
-    return await conversation_service.get_conversation(
+    return await conversation_service.get_metadata(
         conversation_id,
         organization_id=active_org.id,
-        include_messages=False,
         user_id=current_user.id,
         ctx=ctx,
     )

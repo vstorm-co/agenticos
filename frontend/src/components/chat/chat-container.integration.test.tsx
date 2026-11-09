@@ -2002,3 +2002,51 @@ it("marks an open shared thread read again when its cached row receives another 
   );
   expect(client.getQueryData(key)).toMatchObject({ items: [{ unread: false }] });
 });
+
+it.each(["shared cache", "metadata"])(
+  "recovers a legacy shared thread's agent from %s",
+  async (source) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({
+            items: [{ id: "c-legacy", user_id: "someone-else", agents: [] }],
+            total: 1,
+          })
+        : url === "/conversations/c-legacy/metadata"
+          ? Promise.resolve({
+              id: "c-legacy",
+              share_permission: "edit",
+              agents: source === "metadata" ? [{ id: "a-fin", name: "Finance" }] : [],
+            })
+          : base(url),
+    );
+    if (source === "shared cache") {
+      client.setQueryData(qk.conversationShares.sharedWithMe(0, 50, "org-1", false), {
+        items: [{ id: "c-legacy", agents: [{ id: "a-fin", name: "Finance" }] }],
+        total: 1,
+      });
+    }
+    useAgentSelectionStore.setState({ selectedAgentId: "a-architect" });
+    useConversationStore.getState().setCurrentConversationId("c-legacy");
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "old",
+        conversation_id: "c-legacy",
+        role: "assistant",
+        content: "Legacy answer",
+        created_at: "2025-01-01T00:00:00Z",
+      },
+    ] as never);
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+    await waitFor(
+      () => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"),
+      SETTLE,
+    );
+  },
+);

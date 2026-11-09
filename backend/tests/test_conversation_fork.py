@@ -69,6 +69,7 @@ def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
         AsyncMock(return_value=conversation_repo.ForkRowCounts(1, 0)),
     )
     monkeypatch.setattr(conversation_repo, "fork_payload_bytes", AsyncMock(return_value=0))
+    monkeypatch.setattr(conversation_repo, "fork_summary", AsyncMock(return_value=None))
     return service
 
 
@@ -116,7 +117,11 @@ class TestTheOwnerForks:
 
         fork = await _fork(service, source, answer.id)
 
-        assert copy.await_args.kwargs == {"source": source, "through": answer}
+        assert copy.await_args.kwargs == {
+            "source": source,
+            "through": answer,
+            "restored_summary": None,
+        }
         assert fork.forked_from.conversation_id == source.id
         assert fork.forked_from.title == "Source"
 
@@ -318,5 +323,85 @@ async def test_lock_conflicts_are_retryable_but_database_bugs_remain_errors(
     monkeypatch.setattr(conversation_repo, "lock_fork_history", AsyncMock(side_effect=failure))
     expected = DBAPIError if sqlstate == "XX000" else ConcurrentChangeError
     with pytest.raises(expected):
+        await _fork(service, source, answer.id)
+    copy.assert_not_awaited()
+
+
+@pytest.mark.parametrize("permission", ["view", "edit"])
+async def test_project_metadata_ignores_legacy_direct_share(service, monkeypatch, permission):
+    from app.repositories import conversation_share_repo
+
+    source = _conversation(user_id=uuid4(), project_id=uuid4())
+    source.share_permission = permission
+    share = AsyncMock(return_value=SimpleNamespace(permission=permission))
+    monkeypatch.setattr(conversation_share_repo, "get_share", share)
+    await service._attach_share_permission(source, user_id=OWNER_ID)
+    assert source.share_permission is None
+    share.assert_not_awaited()
+
+
+async def test_metadata_attaches_recovered_agents_without_loading_history(service, monkeypatch):
+    source = _conversation()
+    read = AsyncMock(return_value=source)
+    monkeypatch.setattr(service, "get_conversation", read)
+    attach = AsyncMock()
+    monkeypatch.setattr(service, "attach_agents", attach)
+    assert (
+        await service.get_metadata(source.id, organization_id=ORG_ID, user_id=OWNER_ID, ctx=_ctx())
+        is source
+    )
+    attach.assert_awaited_once_with([source])
+    assert "include_messages" not in read.await_args.kwargs
+
+
+@pytest.mark.parametrize(
+    "failure", ["missing", "size", "serialized_size", "count", "timeout", "shape"]
+)
+async def test_externalized_summary_failure_refuses_before_creating_rows(
+    service, monkeypatch, tmp_path, failure
+):
+    import asyncio
+
+    from pydantic_ai_harness.media import externalize_media
+
+    from app.agents.capabilities.media import OrganizationMediaStore
+    from app.core.config import settings
+    from app.services import conversation as conversation_service
+    from app.services.file_storage import LocalFileStorage
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
+    source = _conversation()
+    answer = _message(source)
+    copy = _forkable(monkeypatch, service, source, answer)
+    store = OrganizationMediaStore(ORG_ID, source.id)
+    original = [{"part_kind": "text", "content": "x" * 200}]
+    summary = await externalize_media(original, media_store=store, threshold_bytes=100)
+    monkeypatch.setattr(
+        conversation_repo,
+        "fork_summary",
+        AsyncMock(return_value=conversation_repo.ForkSummary(summary, 50)),
+    )
+    if failure == "missing":
+        await LocalFileStorage(base_dir=tmp_path).delete_prefix(f"media/{ORG_ID}/{source.id}")
+    elif failure == "size":
+        monkeypatch.setattr(conversation_service, "MAX_FORK_BYTES", 100)
+    elif failure == "serialized_size":
+        monkeypatch.setattr(conversation_service, "MAX_FORK_BYTES", 155)
+    elif failure == "count":
+        monkeypatch.setattr(conversation_service, "MAX_FORK_MEDIA_READS", 0)
+    elif failure == "timeout":
+
+        async def slow(*args, **kwargs):
+            await asyncio.sleep(10)
+
+        monkeypatch.setattr(LocalFileStorage, "size", slow)
+        monkeypatch.setattr(conversation_service, "FORK_MEDIA_TIMEOUT", 0.001)
+    else:
+        monkeypatch.setattr(
+            conversation_repo,
+            "fork_summary",
+            AsyncMock(return_value=conversation_repo.ForkSummary({"invalid": "shape"}, 50)),
+        )
+    with pytest.raises(BadRequestError, match="summary cannot be copied"):
         await _fork(service, source, answer.id)
     copy.assert_not_awaited()
