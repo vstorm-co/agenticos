@@ -1002,7 +1002,7 @@ async def stored_vector_ids_at_clear(
     name = f"{VECTOR_TABLE_PREFIX}{kb.collection_name}"
     if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
         return []
-    document_id = column("parent_doc_id", String)
+    document_id = column("parent_doc_id", String())
     metadata = column("metadata", JSONB)
     runtime = table(name, document_id, metadata, schema="public")
     owned = metadata["knowledge_base_id"].astext == str(kb.id)

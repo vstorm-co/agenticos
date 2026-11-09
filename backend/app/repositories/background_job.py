@@ -366,9 +366,9 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> JobStatus | 
             finished_at=_finished_unless_queued(),
             last_error=(
                 "the worker stopped while it ran (attempt "
-                + cast(BackgroundJob.attempts, String)
+                + cast(BackgroundJob.attempts, String())
                 + " of "
-                + cast(BackgroundJob.max_attempts, String)
+                + cast(BackgroundJob.max_attempts, String())
                 + ")"
             ),
             lease_until=None,

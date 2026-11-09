@@ -22,11 +22,11 @@ dependencies = [
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.143.2",
     "uvicorn[standard]>=0.54.0",
-    "pydantic[email]>=2.14.1",
-    "pydantic-settings>=2.16.0",
-    "python-multipart>=0.0.20",
+    "pydantic[email]>=2.14.3",
+    "pydantic-settings>=2.16.2",
+    "python-multipart>=0.0.33",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.4.0",
-    "sqlalchemy[asyncio]>=2.1.4",
+    "sqlalchemy[asyncio]>=2.1.8",
     "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
@@ -40,11 +40,11 @@ dependencies = [
     "greenlet>=3.5.5",
     "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
-    "authlib>=1.9.1",
+    "authlib>=1.9.5",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
-    "anyio>=4.15.1",
+    "anyio>=4.16.0",
     "redis>=8.1.0",
     "aiosmtplib>=5.1.3",
     # Starlette's requirement for `SessionMiddleware`, which `main.py` adds for
@@ -80,7 +80,7 @@ dependencies = [
     # search all build and send their own requests.
     "mcp>=2.3.0",
     # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
-    "fastmcp>=4.1.2",
+    "fastmcp>=4.1.6",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -89,8 +89,8 @@ dependencies = [
     # freeze the detectors and the model registry they read. Every agent also
     # wraps RepairToolArguments, whose json-repair dependency is selected by
     # its capability extra in the 0.64 release.
-    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.64.0",
-    "websockets>=15.0",
+    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.66.0",
+    "websockets>=17.4",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
     # `numpy` (24 MB) is installed - a real cost, taken deliberately (#155).
@@ -103,17 +103,19 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
-    "liteparse>=2.16.0",
+    "liteparse>=2.18.0",
     # `html.parse` reads markup with bs4's standard-library parser and picks
     # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
     # web-fetch extra; declared here so a release of it cannot drop them.
     "beautifulsoup4>=4.15.0",
-    "soupsieve>=2.9.2",
+    # Soup Sieve 4 hides template contents from document selectors; preserve
+    # html.parse links and matches until that major change is supported.
+    "soupsieve>=2.9.2,<4",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
-    "google-auth[requests]>=2.62.0",
-    "boto3>=1.43.114",
+    "google-auth[requests]>=2.62.1",
+    "boto3>=1.43.125",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -121,7 +123,7 @@ dependencies = [
     # because `app/core/pinned_http.py` imports it directly: the boundary is
     # wherever an object crosses into or out of a vendor SDK, and a library our
     # own code imports is one this manifest names (#1820).
-    "httpx[http2]>=0.28.0",
+    "httpx[http2]>=0.28.1",
     "httpx2>=2.13.1",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -133,7 +135,7 @@ dependencies = [
     "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.5",
-    "pydantic-monty>=1.1.0",
+    "pydantic-monty>=1.5.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
     # own capability list, `load_capability` opens a skill, and only
@@ -172,7 +174,7 @@ dependencies = [
     "subagents-pydantic-ai>=0.2.25",
     "cryptography>=50.0.2",
     "aiogram>=3.31.0,<4.0",
-    "slack-sdk>=3.45.0",
+    "slack-sdk>=3.46.0",
     # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
     # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
     # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
@@ -213,7 +215,7 @@ dependencies = [
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
-    "phonenumberslite>=9.0.41",
+    "phonenumberslite>=9.0.43",
     # The ingest pool's memory watchdog (#2219): the resident size of a job's child
     # process and of whatever it starts - LibreOffice for a conversion - so a parse
     # that grows past its limit is stopped and the parent says why. `/proc` alone
@@ -272,12 +274,12 @@ mirage = [
 dev = [
     # The `mirage` extra's pin, for the suite - see the extra.
     "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
-    "pytest>=9.0.0",
-    "anyio[trio]>=4.15.1",
+    "pytest>=9.2.0",
+    "anyio[trio]>=4.16.0",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.17.1",
-    "ty>=0.0.88",
+    "ruff>=0.17.4",
+    "ty>=0.0.99",
     "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -307,7 +309,7 @@ docs = [
     "mkdocs>=1.6.0",
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=1.0.7",
+    "mkdocstrings[python]>=1.0.8",
     # One build per locale from `<page>.<locale>.md` files sitting beside the
     # English source, so `/install/` keeps its URL and `/pl/install/` is added
     # rather than everything moving under `/en/`.
@@ -603,7 +605,7 @@ deprecated = "warn"
 # Optional deps imported inside try/except (pymupdf, docx, faker) and
 # feature-gated models referenced best-effort by the admin dashboard. These are
 # expected to be absent in some configs, so don't surface them at all.
-unresolved-import = "ignore"
+import-not-found = "ignore"
 # dict() overload matching on dynamic types from validators
 no-matching-overload = "warn"
 # Template uses mypy-style `# type: ignore` comments which ty doesn't recognize
@@ -1355,7 +1357,7 @@ unused-ignore-comment = "error"
 # faker), which are genuinely absent in some configurations. Nothing the
 # platform layer imports is optional, so here a name that does not resolve is a
 # typo or a dependency somebody dropped, and both should stop the build.
-unresolved-import = "error"
+import-not-found = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -2149,4 +2151,4 @@ exclude_also = [
 # CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
 # held a known advisory in the lock. xai-sdk reads versions with packaging's
 # stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
-override-dependencies = ["pydantic[email]>=2.14.1", "packaging>=26.3"]
+override-dependencies = ["pydantic[email]>=2.14.3", "packaging>=26.3"]

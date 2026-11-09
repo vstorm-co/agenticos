@@ -1114,7 +1114,7 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
         .scalar_subquery()
     )
     return (
-        await db.execute(select(cast(message_bytes + tool_bytes + summary_bytes, BigInteger)))
+        await db.execute(select(cast(message_bytes + tool_bytes + summary_bytes, BigInteger())))
     ).scalar_one()
 
 
@@ -1941,9 +1941,9 @@ async def conversation_cost(
     ).subquery()
     result = await db.execute(
         select(
-            type_coerce(func.coalesce(func.sum(costs.c.input_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(costs.c.output_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(costs.c.cost_usd), 0), Numeric),
+            type_coerce(func.coalesce(func.sum(costs.c.input_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(costs.c.output_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(costs.c.cost_usd), 0), Numeric()),
             func.bool_or(costs.c.cost_is_partial),
             func.count(costs.c.input_tokens),
         )
@@ -1978,11 +1978,11 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> Attributed:
     """
     result = await db.execute(
         select(
-            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
-            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric()),
+            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer()),
         ).where(Message.run_id == run_id)
     )
     input_tokens, output_tokens, cost_usd, cache_read, cache_write = result.one()
