@@ -115,6 +115,13 @@ Two things are versioned separately from this file and worth knowing about:
   preview that follows the entered name. Present member examples in a split view
   with source and result tabs; motion respects reduced-motion preferences.
 
+### Changed
+
+- Update Pydantic AI, its harness and skills integration, pricing data and
+  Logfire to the versions locked by the agent-framework dependency update.
+  Normalize wrapped question answers before saving a parked run so the
+  durable answer remains JSON data.
+
 ### Fixed
 
 - Shared conversation favourites and read receipts update immediately, including
