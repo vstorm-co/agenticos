@@ -13000,7 +13000,9 @@
       "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}",
       "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany.",
       "failedAlike": "Każdy przypadek zakończył się tym samym błędem, więc ten wynik nic nie mówi o odpowiedziach agenta. Popraw konfigurację i uruchom go ponownie: {error}",
-      "undecidedWhy": "Nierozstrzygnięty, dopóki każdy przypadek nie ma werdyktu: {ungraded, plural, =0 {} one {# nie ma czym go ocenić} few {# nie mają czym ich ocenić} many {# nie ma czym ich ocenić} other {# nie ma czym ich ocenić}}{both, select, true {, a } other {}}{incomplete, plural, =0 {} one {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} few {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} many {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} other {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis}}."
+      "undecidedWhy": "Nierozstrzygnięty, dopóki każdy przypadek nie ma werdyktu: {ungraded, plural, =0 {} one {# nie ma czym go ocenić} few {# nie mają czym ich ocenić} many {# nie ma czym ich ocenić} other {# nie ma czym ich ocenić}}{both, select, true {, a } other {}}{incomplete, plural, =0 {} one {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} few {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} many {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} other {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis}}.",
+      "tooFew": "{candidate} i {baseline} nie da się jeszcze porównać: oceniono za mało pytań kontrolnych, żeby zmierzyć zmianę.",
+      "tooFewInStage": "Ten etap ma za mało pytań kontrolnych, żeby ocenić go osobno. Sprawdzenie ocenia agenta na wszystkich jego etapach razem."
     },
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Przypadki, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
@@ -13300,7 +13302,18 @@
       "by": "Przeliczono po przeglądzie: {name} · {date}",
       "undone": "Przeliczono po wycofaniu decyzji: {name} · {date}",
       "reviewer": "osoba przeglądająca"
-    }
+    },
+    "checkStage": {
+      "title": "Etap sprawdzenia skilla {skill} na agencie {agent}. <check>Otwórz sprawdzenie</check>",
+      "aSkill": "(skill)",
+      "proposed": "Proponowany tekst",
+      "current": "Obecny tekst",
+      "currentVersion": "Obecna v{version}",
+      "currentFork": "Obecna „{fork}” v{version}",
+      "pooled": "Ten run jest jednym etapem sprawdzenia. Sprawdzenie ocenia każdego agenta na pytaniach kontrolnych ze wszystkich jego etapów razem, więc sam ten etap może powiedzieć mniej niż sprawdzenie."
+    },
+    "notAsked": "{count, plural, one {1 pytanie tego datasetu nie trafiło do próbki tego etapu, więc go nie zadano.} few {# pytania tego datasetu nie trafiły do próbki tego etapu, więc ich nie zadano.} many {# pytań tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.} other {# pytania tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.}}",
+    "runMetaStage": "{date} · wydano {cost}"
   },
   "steps": {
     "skills-gallery": {

@@ -13868,7 +13868,9 @@
       "firstPassRate": "First answers alone: {from} → {to}",
       "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change.",
       "failedAlike": "Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: {error}",
-      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}."
+      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}.",
+      "tooFew": "{candidate} and {baseline} cannot be compared yet: too few held-out questions were graded to measure a change.",
+      "tooFewInStage": "This stage has too few held-out questions to judge on its own. The check judges the agent on all its stages together."
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
@@ -14168,7 +14170,18 @@
       "by": "Re-evaluated after review by {name} · {date}",
       "undone": "Re-evaluated after review was undone by {name} · {date}",
       "reviewer": "a reviewer"
-    }
+    },
+    "checkStage": {
+      "title": "Stage of the check of {skill} on {agent}. <check>Open the check</check>",
+      "aSkill": "a skill",
+      "proposed": "Proposed text",
+      "current": "Current text",
+      "currentVersion": "Current v{version}",
+      "currentFork": "Current “{fork}” v{version}",
+      "pooled": "This run is one stage of the check. The check judges each agent on the held-out questions of all its stages together, so this stage alone can say less than the check."
+    },
+    "notAsked": "{count, plural, =1 {1 question of this dataset was not in this stage's sample, so it was not asked.} other {# questions of this dataset were not in this stage's sample, so they were not asked.}}",
+    "runMetaStage": "{date} · spent {cost}"
   },
   "remoteAgents": {
     "title": "Remote agents",

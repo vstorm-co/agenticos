@@ -13540,7 +13540,9 @@
       "firstPassRate": "Nur die ersten Antworten: {from} → {to}",
       "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen.",
       "failedAlike": "Jeder Fall ist auf dieselbe Weise gescheitert, daher sagt dieses Ergebnis nichts über die Antworten des Agenten. Behebe die Einrichtung und starte es erneut: {error}",
-      "undecidedWhy": "Nicht entschieden, bis jeder Fall ein Urteil hat: {ungraded, plural, =0 {} =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}{both, select, true {, und } other {}}{incomplete, plural, =0 {} =1 {1 Fall ließ sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder seine Versuche gingen unentschieden aus} other {# Fälle ließen sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder ihre Versuche gingen unentschieden aus}}."
+      "undecidedWhy": "Nicht entschieden, bis jeder Fall ein Urteil hat: {ungraded, plural, =0 {} =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}{both, select, true {, und } other {}}{incomplete, plural, =0 {} =1 {1 Fall ließ sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder seine Versuche gingen unentschieden aus} other {# Fälle ließen sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder ihre Versuche gingen unentschieden aus}}.",
+      "tooFew": "{candidate} und {baseline} lassen sich noch nicht vergleichen: Es wurden zu wenige zurückgehaltene Fragen bewertet, um eine Änderung zu messen.",
+      "tooFewInStage": "Diese Etappe hat zu wenige zurückgehaltene Fragen, um allein bewertet zu werden. Die Prüfung bewertet den Agent auf allen seinen Etappen zusammen."
     },
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
@@ -13840,7 +13842,18 @@
       "by": "Nach Prüfung durch {name} neu bewertet · {date}",
       "undone": "Nach Rücknahme der Prüfung durch {name} neu bewertet · {date}",
       "reviewer": "eine prüfende Person"
-    }
+    },
+    "checkStage": {
+      "title": "Etappe der Prüfung von {skill} auf {agent}. <check>Prüfung öffnen</check>",
+      "aSkill": "einem Skill",
+      "proposed": "Vorgeschlagener Text",
+      "current": "Aktueller Text",
+      "currentVersion": "Aktuelle v{version}",
+      "currentFork": "Aktueller „{fork}“ v{version}",
+      "pooled": "Dieser Run ist eine Etappe der Prüfung. Die Prüfung bewertet jeden Agent auf den zurückgehaltenen Fragen aller seiner Etappen zusammen, daher sagt diese Etappe allein weniger als die Prüfung."
+    },
+    "notAsked": "{count, plural, =1 {1 Frage dieses Datasets war nicht in der Stichprobe dieser Etappe und wurde nicht gestellt.} other {# Fragen dieses Datasets waren nicht in der Stichprobe dieser Etappe und wurden nicht gestellt.}}",
+    "runMetaStage": "{date} · {cost} ausgegeben"
   },
   "remoteAgents": {
     "title": "Remote Agents",
