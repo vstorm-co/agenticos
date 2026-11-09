@@ -14940,7 +14940,8 @@
       "running": "Läuft",
       "needs_you": "Ihre Entscheidung",
       "skipped": "Übersprungen",
-      "pending": "Noch nicht begonnen"
+      "pending": "Noch nicht begonnen",
+      "ended": "Ohne Änderungen beendet"
     },
     "paidRestartOwner": "Nur der Anfragende kann mit dem ursprünglichen Konto und den ursprünglichen Anmeldedaten kostenpflichtige Arbeit neu starten. Andere Bearbeiter können Ergebnisse prüfen oder eine eigene Sitzung starten.",
     "improveAgain": "Erneut verbessern",

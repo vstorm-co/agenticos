@@ -89,12 +89,17 @@ it("leaves nothing waiting or running on a session that has ended", () => {
   }
 });
 
-it("shows a rejected proposal as skipped, not accepted", () => {
-  expect(improvementStepStates({ ...SESSION, status: "rejected" })).toMatchObject({
-    changes: "skipped",
-    accept: "skipped",
+it("shows what an ended session wrote and checked as done, and only its decision as skipped", () => {
+  expect(improvementStepStates({ ...SESSION, status: "rejected" })).toEqual({
+    understand: "done",
+    changes: "done",
+    check: "done",
     result: "done",
+    accept: "skipped",
   });
+  expect(
+    improvementStepStates({ ...SESSION, status: "rejected", iterations: unmeasured }),
+  ).toMatchObject({ changes: "skipped", check: "skipped", result: "skipped", accept: "skipped" });
 });
 it.each(["failed", "cancelled", "stale"] as const)(
   "does not invent a baseline after %s unmeasured work",

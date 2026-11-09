@@ -110,25 +110,23 @@ export function improvementSteps(
           ? "pending"
           : accepted
             ? "done"
-            : session.status === "rejected"
-              ? "skipped"
-              : active && PROPOSING.includes(stage)
-                ? "running"
-                : merge
-                  ? CHECKING.includes(stage) || session.iterations.some((round) => round.verdict)
-                    ? "done"
-                    : active
-                      ? "pending"
-                      : "skipped"
-                  : session.stop_reason === "knowledge_only"
-                    ? "needs_you"
-                    : active
-                      ? attempt?.batch_id
-                        ? "done"
-                        : "pending"
-                      : session.iterations.some((round) => round.batch_id !== null)
-                        ? "done"
-                        : "skipped",
+            : active && PROPOSING.includes(stage)
+              ? "running"
+              : merge
+                ? CHECKING.includes(stage) || session.iterations.some((round) => round.verdict)
+                  ? "done"
+                  : active
+                    ? "pending"
+                    : "skipped"
+                : session.stop_reason === "knowledge_only"
+                  ? "needs_you"
+                  : active
+                    ? attempt?.batch_id
+                      ? "done"
+                      : "pending"
+                    : session.iterations.some((round) => round.batch_id !== null)
+                      ? "done"
+                      : "skipped",
     check:
       active && CHECKING.includes(stage)
         ? "running"
@@ -139,11 +137,15 @@ export function improvementSteps(
             : "skipped",
     result: open
       ? "pending"
-      : decided || session.status === "ready"
+      : accepted || session.status === "ready"
         ? "done"
-        : session.stop_reason === "knowledge_only"
-          ? "skipped"
-          : "needs_you",
+        : session.status === "rejected"
+          ? session.iterations.some((round) => round.verdict !== null)
+            ? "done"
+            : "skipped"
+          : session.stop_reason === "knowledge_only"
+            ? "skipped"
+            : "needs_you",
     accept: accepted
       ? "done"
       : hasCandidate(session)

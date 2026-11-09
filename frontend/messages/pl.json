@@ -15042,7 +15042,8 @@
       "running": "W trakcie",
       "needs_you": "Wymaga decyzji",
       "skipped": "Pominięto",
-      "pending": "Jeszcze nie rozpoczęto"
+      "pending": "Jeszcze nie rozpoczęto",
+      "ended": "Zakończono bez zmian"
     },
     "paidRestartOwner": "Płatną pracę może wznowić tylko autor sesji, korzystając z pierwotnego konta i poświadczeń. Inni redaktorzy mogą przejrzeć wyniki lub uruchomić własną sesję.",
     "improveAgain": "Popraw ponownie",

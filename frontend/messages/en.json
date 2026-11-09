@@ -15268,7 +15268,8 @@
       "running": "Running",
       "needs_you": "Needs you",
       "skipped": "Skipped",
-      "pending": "Not started"
+      "pending": "Not started",
+      "ended": "Ended without changes"
     },
     "paidRestartOwner": "Only the session requester using the original account and credentials can restart paid work. Other editors can review the results or start their own session.",
     "improveAgain": "Improve again",

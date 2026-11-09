@@ -196,6 +196,18 @@ describe("SkillImprovementPage", () => {
     expect(await screen.findByText("Line: main")).toBeVisible();
   });
 
+  it("marks what an ended session wrote and checked as done, and its end as ended", async () => {
+    state.session = skillSession({ status: "rejected", best_iteration_id: null });
+    mount();
+
+    expect(await screen.findByRole("button", { name: "Changes" })).toHaveAccessibleDescription(
+      "Done",
+    );
+    expect(screen.getByRole("button", { name: "Accept" })).toHaveAccessibleDescription(
+      "Ended without changes",
+    );
+  });
+
   it("leaves a result with nothing to accept to improve further or end", async () => {
     state.step = "result";
     state.session = skillSession({
