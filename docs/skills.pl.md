@@ -1,5 +1,5 @@
 ---
-source_sha: "8a39e7dc93f6"
+source_sha: "f267f18be219"
 ---
 
 # Skille { #skills }
@@ -264,10 +264,11 @@ skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
 ### O co pyta { #what-a-check-asks }
 
 Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie.
-Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
-pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
-**Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
-mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md).
+Każdy skill ma jeden zestaw, zaczynany na stronie skilla w sekcji **Pytania testowe**
+- z ostatnich odpowiedzi, które otworzyły skill, albo pusty - albo przez API,
+`POST /api/v1/skills/{id}/test-set`, albo przyciskiem **Dodaj pytania testowe** przy
+agencie, którego [Popraw](#improving-a-skill) nie mogło sprawdzić, i edytowany jak
+każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do skilla.
 
 Zestaw ocenia sędzia, porównując każdą odpowiedź z tą, którą ludzie ocenili w
 górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, którą
@@ -498,7 +499,9 @@ zmierzyć, nie został potwierdzony (`acknowledge_unknown`), i gdy agent został
 opublikowany ponownie albo main poszedł dalej od czasu sprawdzenia; zamyka ono
 sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
 sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
-wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
+wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła. Na stronie
+skilla **Zmień wersję** oferuje dla dokładnie tego przeniesienia **Najpierw sprawdź**:
+uruchamia sprawdzenie i wraca z jego wynikiem, który przeniesienie potem niesie.
 
 **Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji. Na stronie
 skilla pokazany fork ma przycisk doganiania, gdy main go wyprzedził, i przycisk
@@ -598,16 +601,26 @@ czyimś imieniu albo kończy się decyzją, którą ta osoba podejmuje sama.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
+**Te dołączone już tam są.** Repozytorium dostarcza pięć: trzy przykłady z
+rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — a do tego
 `artifact-pages`, który uczy agenta budować stronę dla capability
-[Aplikacje](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
+[Aplikacje](artifacts.md#the-library-set), oraz `visual-design`, który uczy go,
+kiedy i jak [rysować](artifacts.md#visuals) odpowiedź. Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
 bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
 widoczne dla organizacji.
 
 Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one po
+nazwa pasuje do dostarczonej biblioteki. Tych pięciu się nie wybiera — one po
 prostu przychodzą, raz, przy tworzeniu organizacji.
+
+**Architekt przynosi własne.** Konfiguracja [Architekta AI](console.md)
+organizacji instaluje też skille, które on czyta: dziesięć z półki software w
+galerii — `agenticos-guide`, `agent-design`, `agent-instructions`,
+`agent-testing`, `agent-budgets`, `model-choice`, `rag-setup`,
+`workflow-builder`, `virtual-tables` i `pydantic-ai-import` — obok dołączonego
+`visual-design`. Dlatego nowa organizacja ma na liście piętnaście skilli. To
+także zwykłe skille, a strona skilli oznacza jedenaście skilli Architekta
+odznaką `Architekt`, bo zmiana któregoś z nich zmienia sposób pracy Architekta.
 
 **I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
 edytować albo usunąć. Nic nie przywraca usuniętego.
@@ -663,10 +676,12 @@ profesjonalne, produkcja i logistyka. Po dziesięć w każdej.
 
 Wybierz branżę, a potem zainstaluj jeden skill albo całą półkę. Od tej chwili to
 zwykły skill, który organizacja posiada i edytuje, dokładnie jak dołączony.
+**Podgląd** pokazuje instrukcje skilla i pliki, z którymi przychodzi, zanim go
+zainstalujesz, a **Zainstalowany** otwiera własną kopię organizacji.
 
 !!! info "Galeria działa na zaproszenie i na tym polega cała różnica"
 
-    Dołączona czwórka mieszka w `app/core/catalog/skills/` i jest kopiowana
+    Dołączona piątka mieszka w `app/core/catalog/skills/` i jest kopiowana
     automatycznie do **każdej** organizacji. Galeria mieszka w
     `app/core/catalog/skill_gallery/` i nie jest kopiowana do **żadnej** — czyta
     ją ten sam parser, z drugiego katalogu, i nigdy nie jest seedowana.
@@ -711,7 +726,7 @@ nie przeczytał. Każdy katalog w `app/core/catalog/skills/` i
 
 ## Strona skilla { #a-skills-page }
 
-Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
+Otwórz skill z listy, żeby zobaczyć jego stronę. Ma cztery zakładki.
 
 **Agenci** to lista każdego agenta, który używa skilla, z wersją, którą dostaje:
 
@@ -731,7 +746,14 @@ którą pokazuje Historia i do której zapisuje Edycja.
 
 Każdy wiersz mówi, czy
 [sprawdzenie](#checking-a-change-on-every-agent) zmierzyło wersję, którą agent
-serwuje, i z jakim wynikiem; wersja nigdy na nim niesprawdzona jest **nieznana**.
+serwuje, i z jakim wynikiem. Wersja, której żadne sprawdzenie nie zmierzyło, jest
+**nieznana** tam, gdzie zmiana trafiła do agenta bez sprawdzenia - jego odpowiedzi
+korzystały z wcześniejszej wersji - i **jeszcze niesprawdzona** tam, gdzie agent nie
+odpowiadał z żadną inną.
+
+Pod tabelą **Pytania testowe** podają liczbę [pytań testowych](#what-a-check-asks)
+skilla i linkują do ich datasetu albo pozwalają je zacząć. Skill, którego nie używa
+żaden agent, w miejscu tabeli oferuje **Dodaj do agenta**.
 
 Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
 otwierał skill w ostatnich 30 dniach: jeden wykres dzień po dniu z agentami
@@ -741,11 +763,15 @@ użył skilla. Runy ewaluacji i panelu testowego Buildera się nie liczą.
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
 fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
 trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja inna
-niż ta, którą agent serwuje teraz, i której żadne sprawdzenie na nim nie zmierzyło,
-nie była tam sprawdzona, więc najpierw to potwierdzasz; przy wersji zmierzonej okno
-podaje wynik. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
+niż ta, którą agent serwuje teraz, której żadne sprawdzenie na nim nie zmierzyło i z
+którą wcześniej nie odpowiadał, nie była tam sprawdzona, więc najpierw to
+potwierdzasz albo naciskasz **Najpierw sprawdź**, gdy to przeniesienie przypiętego
+agenta na najnowszą wersję main; przy wersji zmierzonej okno podaje wynik. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
 podaje datę każdej wersji main do przypięcia, z linkiem do jej zmian. Kontrolkę
 widzą osoby, które mogą edytować agenta.
+
+**Treść** pokazuje, co wybrana linia serwuje teraz - opis, instrukcje i pliki - do
+przeczytania bez otwierania edytora.
 
 **Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
 (edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),
@@ -808,7 +834,8 @@ agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wyni
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
-Start mówi, ile odpowiedzi przeczyta i od ilu agentów. Mówi też, ile kosztuje
+Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
+służy linia. Mówi też, ile kosztuje
 dojście do pierwszej propozycji i każda kolejna próba. Limit wydatków jest wypełniony
 tak, żeby pokrył pierwszą propozycję i każdą próbę, jaką sesja może zrobić, i
 obejmuje całą sesję. Zanim zmiany zostaną
@@ -846,6 +873,8 @@ To, co proponuje Akceptacja, wynika z wyniku:
 - **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji,
   popraw dalej albo odrzuć. Na forku zostają tylko poprawianie dalej i odrzucenie,
   bo forka nie da się przypiąć.
+- **Nikt lepiej:** wynik i tak czeka na twoją decyzję i oferuje **Popraw dalej** i
+  **Odrzuć**, a na main także **Zapisz jako fork**.
 - **Niezależnie od wyniku**, na main, **Zapisz jako fork** robi fork ze zmianą:
   nadajesz mu nazwę i wybierasz agentów, którzy na niego przejdą - na początek
   tych, którym pomogła, innych albo nikogo. Forka nie da się rozwidlić ponownie.
@@ -943,7 +972,7 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 - Podpięcie skilla **wypożycza** go, więc publikujący musi móc go zobaczyć — a w
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
-  życzenie — w odróżnieniu od dołączonej trójki, która przychodzi sama.
+  życzenie — w odróżnieniu od dołączonej piątki, która przychodzi sama.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

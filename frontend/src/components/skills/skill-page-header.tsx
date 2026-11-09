@@ -2,18 +2,23 @@
 
 import { useId } from "react";
 import Link from "next/link";
-import { GitBranch, GitMerge, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { GitBranch, GitMerge, MoreHorizontal, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Badge,
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui";
+import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -27,6 +32,10 @@ import type { Skill } from "@/types/providers";
  * offered to an editor who may also read them, and so are catching the fork shown up
  * with main and moving it to main, which are checked the same way. New fork starts a
  * line of its own from main's newest version.
+ *
+ * On a fork the bar keeps what is done there often - Improve, Catch up, Edit - and the
+ * rare ones (moving it to main, returning its agents, a new fork, deleting the skill)
+ * wait under More, so seven buttons do not wrap onto a second row.
  */
 /** Where the fork shown merges with main. */
 export interface Merges {
@@ -70,6 +79,11 @@ export function SkillPageHeader({
 }) {
   const t = useTranslations("skills.page");
   const { can } = usePermissions();
+  // Improving and merging read the line's runs, so they are an editor's who may read them.
+  const merger = skill.can_edit === true && can(Perm.runsView);
+  // Improving and catching up call a model, which the organization may have switched off.
+  const aiOff = useAiAssistance().enabled === false;
+  const rare = merger && (merges?.toMain || merges?.empty || onReturn);
   return (
     <PageHeader
       title={<span className="font-mono">{skill.name}</span>}
@@ -86,40 +100,46 @@ export function SkillPageHeader({
       }
       actions={
         <>
-          {skill.can_edit && can(Perm.runsView) && (
-            <>
-              <Button variant="outline" asChild data-tour="skill-improve">
-                <Link href={improveHref}>
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  {line === null ? t("improve") : t("improveFork", { name: line })}
-                </Link>
-              </Button>
-              {merges?.empty && <NothingToMerge fork={merges.fork} />}
-              {merges?.catchUp && (
-                <Button variant="outline" asChild data-tour="skill-catch-up">
-                  <Link href={merges.catchUp}>
-                    <GitMerge className="h-4 w-4" aria-hidden />
-                    {t("catchUp", { name: merges.fork })}
-                  </Link>
-                </Button>
-              )}
-              {onReturn && (
-                <Button variant="outline" onClick={onReturn.open}>
-                  <GitMerge className="h-4 w-4" aria-hidden />
-                  {t("returnFork.button", { name: onReturn.fork })}
-                </Button>
-              )}
-              {merges?.toMain && (
-                <Button variant="outline" asChild>
-                  <Link href={merges.toMain}>
-                    <GitMerge className="h-4 w-4" aria-hidden />
-                    {t("toMain", { name: merges.fork })}
-                  </Link>
-                </Button>
-              )}
-            </>
+          {merger && aiOff && (
+            <Held
+              icon={Sparkles}
+              label={line === null ? t("improve") : t("improveFork", { name: line })}
+              reason={t("aiOff")}
+              tour="skill-improve"
+            />
           )}
-          {onFork && (
+          {merger && !aiOff && (
+            <Button variant="outline" asChild data-tour="skill-improve">
+              <Link href={improveHref}>
+                <Sparkles className="h-4 w-4" aria-hidden />
+                {line === null ? t("improve") : t("improveFork", { name: line })}
+              </Link>
+            </Button>
+          )}
+          {merger && merges?.empty && (
+            <Held
+              icon={GitMerge}
+              label={t("catchUp", { name: merges.fork })}
+              reason={t("nothingToMerge")}
+            />
+          )}
+          {merger && merges?.catchUp && aiOff && (
+            <Held
+              icon={GitMerge}
+              label={t("catchUp", { name: merges.fork })}
+              reason={t("aiOff")}
+              tour="skill-catch-up"
+            />
+          )}
+          {merger && merges?.catchUp && !aiOff && (
+            <Button variant="outline" asChild data-tour="skill-catch-up">
+              <Link href={merges.catchUp}>
+                <GitMerge className="h-4 w-4" aria-hidden />
+                {t("catchUp", { name: merges.fork })}
+              </Link>
+            </Button>
+          )}
+          {line === null && onFork && (
             <Button variant="outline" data-tour="skill-new-fork" onClick={onFork}>
               <GitBranch className="h-4 w-4" aria-hidden />
               {t("newFork.button")}
@@ -133,7 +153,7 @@ export function SkillPageHeader({
                 : t("editFork", { name: line })
               : t("open")}
           </Button>
-          {onDelete && (
+          {line === null && onDelete && (
             <Button
               variant="outline"
               className="text-destructive hover:text-destructive"
@@ -143,6 +163,52 @@ export function SkillPageHeader({
               {t("deleteSkill.button")}
             </Button>
           )}
+          {line !== null && (rare || onFork || onDelete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label={t("more")}>
+                  <MoreHorizontal className="h-4 w-4" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {merger && merges?.toMain && (
+                  <DropdownMenuItem asChild>
+                    <Link href={merges.toMain}>
+                      <GitMerge className="h-4 w-4" aria-hidden />
+                      {t("toMain", { name: merges.fork })}
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {merger && merges?.empty && (
+                  <DropdownMenuItem disabled title={t("nothingToMerge")}>
+                    <GitMerge className="h-4 w-4" aria-hidden />
+                    {t("toMain", { name: merges.fork })}
+                  </DropdownMenuItem>
+                )}
+                {merger && onReturn && (
+                  <DropdownMenuItem onSelect={onReturn.open}>
+                    <GitMerge className="h-4 w-4" aria-hidden />
+                    {t("returnFork.button", { name: onReturn.fork })}
+                  </DropdownMenuItem>
+                )}
+                {onFork && (
+                  <DropdownMenuItem onSelect={onFork}>
+                    <GitBranch className="h-4 w-4" aria-hidden />
+                    {t("newFork.button")}
+                  </DropdownMenuItem>
+                )}
+                {onDelete && (
+                  <DropdownMenuItem
+                    onSelect={onDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    {t("deleteSkill.button")}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </>
       }
     />
@@ -150,33 +216,42 @@ export function SkillPageHeader({
 }
 
 /**
- * Both merges, held until the fork has a version of its own to carry. Marked rather
- * than disabled, so the pointer and the keyboard both reach the reason.
+ * An action held back, with why: a fork with nothing of its own to merge yet, or AI
+ * assistance switched off. Marked rather than disabled, so the pointer and the keyboard
+ * both reach the reason.
  */
-function NothingToMerge({ fork }: { fork: string }) {
-  const t = useTranslations("skills.page");
+function Held({
+  icon: Icon,
+  label,
+  reason,
+  tour,
+}: {
+  icon: typeof GitMerge;
+  label: string;
+  reason: string;
+  tour?: string;
+}) {
   const hint = useId();
   return (
     <TooltipProvider>
       <span id={hint} className="sr-only">
-        {t("nothingToMerge")}
+        {reason}
       </span>
-      {[t("catchUp", { name: fork }), t("toMain", { name: fork })].map((label) => (
-        <Tooltip key={label}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              aria-disabled
-              aria-describedby={hint}
-              className="cursor-not-allowed opacity-50"
-            >
-              <GitMerge className="h-4 w-4" aria-hidden />
-              {label}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("nothingToMerge")}</TooltipContent>
-        </Tooltip>
-      ))}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            aria-disabled
+            aria-describedby={hint}
+            data-tour={tour}
+            className="cursor-not-allowed opacity-50"
+          >
+            <Icon className="h-4 w-4" aria-hidden />
+            {label}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{reason}</TooltipContent>
+      </Tooltip>
     </TooltipProvider>
   );
 }

@@ -2,14 +2,16 @@
 
 import { use, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, GitBranch, History } from "lucide-react";
+import { Bot, FileText, GitBranch, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AiAssistanceNotice } from "@/components/datasets/ai-assistance-notice";
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { NewForkDialog } from "@/components/skills/new-fork-dialog";
 import { ReturnForkDialog } from "@/components/skills/return-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
+import { SkillContent } from "@/components/skills/skill-content";
 import { SkillHistory } from "@/components/skills/skill-history";
 import {
   eachAgentOnce,
@@ -21,6 +23,7 @@ import { CheckRunning } from "@/components/skills/check-running";
 import type { CheckedDraft } from "@/components/skills/skill-check-dialog";
 import { SkillChecks } from "@/components/skills/skill-checks";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
+import { SkillTestQuestions } from "@/components/skills/skill-test-questions";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -36,7 +39,7 @@ import { Perm } from "@/types/permissions";
 import type { SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["agents", "history", "tree"];
+const TABS = ["agents", "content", "history", "tree"];
 
 /**
  * One skill: the agents that use it and the version each is served, every version
@@ -114,6 +117,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
+      {checks && <AiAssistanceNotice body={t("aiOff")} />}
       {checks && <CheckRunning skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
       <Tabs
         value={tab}
@@ -124,6 +128,10 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           <TabsTrigger value="agents" data-tour="skill-agents-tab">
             <Bot className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.agents")}
+          </TabsTrigger>
+          <TabsTrigger value="content" data-tour="skill-content-tab">
+            <FileText className="mr-1.5 size-4 shrink-0" aria-hidden />
+            {t("tabs.content")}
           </TabsTrigger>
           <TabsTrigger value="history" data-tour="skill-history-tab">
             <History className="mr-1.5 size-4 shrink-0" aria-hidden />
@@ -146,7 +154,25 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             shown={shown}
             onShow={(next) => setShowParam(next === "all" ? null : next)}
           />
+          <SkillTestQuestions
+            skillId={id}
+            canCreate={skill.can_edit === true && can(Perm.datasetsEdit)}
+          />
           {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
+        </TabsContent>
+        <TabsContent value="content">
+          <SkillContent
+            skillId={id}
+            versionId={fork === null ? base : (fork.latest?.id ?? fork.base.id)}
+            label={
+              fork === null
+                ? t("tree.number", { number: skill.version })
+                : t("tree.forkNumber", {
+                    name: fork.name,
+                    number: fork.latest?.number ?? fork.base.number,
+                  })
+            }
+          />
         </TabsContent>
         <TabsContent value="history" className="space-y-4">
           <SkillHistory

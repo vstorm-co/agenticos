@@ -778,7 +778,7 @@
     "noAgentToAddTo": "There is no agent to add it to yet.",
     "createAnAgent": "Create an agent",
     "openInBuilder": "Open in the Builder",
-    "addedToAgent": "{name} added to {agent}'s draft.",
+    "addedToAgent": "{name} added to the draft of {agent}.",
     "alreadyOnAgent": "{agent} already has {name}.",
     "usedByNobody": "Not used by any agent yet",
     "usedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
@@ -1098,7 +1098,8 @@
     "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
     "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
     "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
-    "alreadyHasIt": "Uses it"
+    "alreadyHasIt": "Uses it",
+    "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5618,6 +5619,14 @@
       "flow-skill-improvement-accept": {
         "title": "What you may do with it",
         "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
+      },
+      "skill-test-questions": {
+        "title": "Its test questions",
+        "body": "Questions every agent using the skill is asked when a change to it is checked. Start them here from recent answers, or empty, and edit them in the dataset."
+      },
+      "skill-content": {
+        "title": "What it says",
+        "body": "The description, instructions and files the line shown serves now, to read without opening the editor."
       }
     },
     "chooseLanguage": "Language",
@@ -7283,7 +7292,9 @@
       },
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "skillsUsed": "Skills used:",
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -8435,7 +8446,10 @@
         "public-sector": "Public sector and utilities",
         "legal": "Legal and professional services",
         "manufacturing": "Manufacturing and logistics"
-      }
+      },
+      "preview": "Preview",
+      "hidePreview": "Hide preview",
+      "files": "{count, plural, =1 {Comes with 1 file: {names}} other {Comes with # files: {names}}}"
     },
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
@@ -8451,7 +8465,8 @@
       "tabs": {
         "agents": "Agents",
         "history": "History",
-        "tree": "Version tree"
+        "tree": "Version tree",
+        "content": "Content"
       },
       "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
       "state": {
@@ -8480,7 +8495,8 @@
         "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
         "emptyShown": "No agent here.",
         "checked": "Checked on this version {when}: {state}",
-        "notChecked": "Unknown: no check measured this version on it"
+        "notChecked": "Unknown: this version reached it without a check",
+        "notCheckedYet": "Not checked yet"
       },
       "changeVersion": {
         "button": "Change version",
@@ -8498,7 +8514,7 @@
         "publishes": "This publishes a new version of {name} with only this change. Unfinished changes in its draft stay in the draft.",
         "cancel": "Cancel",
         "submit": "Change and publish",
-        "published": "Published. {count, plural, =0 {{name} has a new version.} other {{environments} now serve{count, plural, =1 {s} other {}} the new version of {name}.}}",
+        "published": "Published. {count, plural, =0 {{name} has a new version.} other {The new version of {name} now runs in {environments}.}}",
         "savedInDraft": "Saved in the draft of {name}. Publish it in the Builder.",
         "openBuilder": "Open the Builder",
         "savesToDraft": "You may edit {name} but not publish it, so this change goes into its draft. Somebody who may publish it does that from the Builder.",
@@ -8509,7 +8525,10 @@
         "leavesMain": "{name} stays on this version and stops getting new main versions.",
         "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}",
         "checkedOn": "{version} was checked on {name} {when}: {state}.",
-        "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change."
+        "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change.",
+        "answeredBefore": "{name} has answered with {version} before.",
+        "checkFirst": "Check first",
+        "environmentName": "“{name}”"
       },
       "history": {
         "title": "History of {line}",
@@ -8659,16 +8678,15 @@
       },
       "deleteSkill": {
         "title": "Delete {name}?",
-        "description": "Its versions and forks go with it. No agent uses it now.",
+        "description": "Its versions and forks go with it. No agent uses it now. Its test questions, if it has them, stay in Datasets as an ordinary dataset.",
         "used": "Agents use this skill. It is deleted only once it is off all of them: here, from all of them at once, or one by one in the Builder.",
         "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
-        "close": "OK",
         "cancel": "Cancel",
         "delete": "Delete",
         "checking": "Checking which agents use it…",
         "unread": "Which agents use it could not be read. A skill an agent uses is still refused.",
         "removeAndDelete": "{count, plural, =1 {Remove from 1 agent and delete} other {Remove from # agents and delete}}",
-        "removeBody": "{count, plural, =1 {The skill is taken off this agent, then deleted with its versions and forks. This cannot be undone.} other {The skill is taken off these # agents, then deleted with its versions and forks. This cannot be undone.}}",
+        "removeBody": "{count, plural, =1 {The skill is taken out of this agent's draft. Where a published version still uses it, a new version without it is published. Then the skill is deleted with its versions and forks; its test questions, if it has them, stay in Datasets as an ordinary dataset. This cannot be undone.} other {The skill is taken out of these # agents' drafts. Where a published version still uses it, a new version without it is published. Then the skill is deleted with its versions and forks; its test questions, if it has them, stay in Datasets as an ordinary dataset. This cannot be undone.}}",
         "removeConfirm": "Remove and delete",
         "back": "Back",
         "locked": "{count, plural, =1 {You may not change {names}, so it cannot be taken off here. Ask its owner, or remove it there in the Builder.} other {You may not change {names}, so it cannot be taken off here. Ask their owners, or remove it there in the Builder.}}",
@@ -8712,6 +8730,20 @@
         "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
         "show": "Show"
       },
+      "testQuestions": {
+        "title": "Test questions",
+        "count": "{count, plural, =0 {None yet} =1 {1 question} other {# questions}}",
+        "body": "Every agent using this skill is asked these when a change to it is checked, beside its own test questions.",
+        "open": "Open {name}",
+        "none": "This skill has no test questions yet. An agent with no test questions of its own cannot be checked when the skill changes.",
+        "askEditor": "Someone who may edit this skill and create datasets can add them.",
+        "hidden": "This skill has test questions, in a dataset you may not open."
+      },
+      "content": {
+        "title": "What it serves now"
+      },
+      "more": "More actions",
+      "aiOff": "Improve and catching a fork up with main ask a model to read the skill's answers, and AI assistance is switched off for this organization.",
       "checks": {
         "title": "Checks",
         "count": "{count, plural, =1 {1 check} other {# checks}}",
@@ -8777,6 +8809,8 @@
       "openSession": "Open the session",
       "progress": "{done} of {total} agents checked",
       "progressLabel": "Agents checked",
+      "updateChecked": "Checked. Go back to decide whether to move the agent.",
+      "backToChange": "Back to Change version",
       "backToEditing": "Back to editing",
       "improveFurther": "Improve further",
       "discardConfirm": {
@@ -8788,7 +8822,9 @@
       "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once."
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
-    "instructions": "Instructions"
+    "instructions": "Instructions",
+    "architect": "Architect",
+    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works."
   },
   "states": {
     "loading": "Loading"
@@ -8796,8 +8832,8 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "AI assistance",
-    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
-    "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator and the authoring assistant are refused. Deterministic checks and people's verdicts keep working.",
+    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and skills, merge a skill's fork with main and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
+    "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator, the authoring assistant, Improve for agents and skills, and catching a skill's fork up with main are refused. Deterministic checks, a skill's test questions and people's verdicts keep working.",
     "aiAssistanceOn": "AI assistance is on",
     "aiAssistanceOff": "AI assistance is off",
     "aiAssistanceFailed": "Could not change AI assistance",
@@ -12341,7 +12377,8 @@
       "team": "Team",
       "org": "Organization"
     },
-    "editedWhen": "edited {when}"
+    "editedWhen": "edited {when}",
+    "skillTestSet": "Skill's test questions"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",
@@ -14575,7 +14612,10 @@
         "context": "context file “{name}”",
         "mcpTools": "{count, plural, =0 {every tool of {server}} =1 {tool {tools} of {server}} other {tools {tools} of {server}}}, asking for approval where they write",
         "keeps": "Where the server asked for nothing, accepting makes every tool of it that writes ask for approval - not only the added ones. Undo puts the tools back and keeps them asking."
-      }
+      },
+      "skillBody": "Skill instructions",
+      "skillDescription": "Skill description",
+      "other": "Other change"
     },
     "evidence": {
       "none": "No evidence that could be checked.",
@@ -14752,7 +14792,8 @@
       "runsNow": "Runs now: {suites}.",
       "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
       "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
-      "nowhere": "No published agent reads it yet, so applying it changes no answers today."
+      "nowhere": "No published agent reads it yet, so applying it changes no answers today.",
+      "afterCheck": "Goes live for {agents} once a check on them lets it."
     },
     "result": {
       "open": "Review result",
@@ -15738,7 +15779,8 @@
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
       "add": "Add test questions",
       "addHint": "Written from answers where agents loaded the skill, so an agent without questions of its own can be checked next time.",
-      "grading": "Set up grading on {name}"
+      "grading": "Set up grading on {name}",
+      "empty": "Start an empty set"
     },
     "accept": {
       "title": "Accept",
@@ -15789,7 +15831,8 @@
       "reads": "{runs, plural, =1 {It reads 1 answer that loaded this line and was rated down or failed.} other {It reads # answers that loaded this line and were rated down or failed.}} {agents, plural, =1 {The line serves 1 agent.} other {The line serves # agents.}}",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not read.} other {# answers are from before skill loads were recorded and are not read.}}",
       "checkNamedLater": "Before the changes are checked, each agent they run on is named, and the ones they cannot run on, with the reason.",
-      "noEvidence": "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again."
+      "noEvidence": "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again.",
+      "aiOff": "Improve asks a model to read the skill's answers and write changes, and AI assistance is switched off for this organization."
     },
     "understand": {
       "title": "Understand",
@@ -15900,7 +15943,8 @@
       "start": {
         "catch_up": "Start the catch-up",
         "to_main": "Start the move"
-      }
+      },
+      "aiOff": "Merging a fork with main asks a model to merge the two texts, and AI assistance is switched off for this organization."
     },
     "mergeReading": "Reading the merge…",
     "mergeAgain": {

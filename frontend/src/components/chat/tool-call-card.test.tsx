@@ -200,7 +200,7 @@ describe("a tool call in the transcript", () => {
       ],
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
-      [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
+      [{ name: "load_capability", args: { id: "refund-policy" } }, "refund-policy"],
       [{ name: "load_capability", args: {} }, "Load Skill"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
@@ -300,7 +300,7 @@ describe("a tool call in the transcript", () => {
       result: JSON.stringify({ instructions: "# Skill: refunds\n\nCheck the order date." }),
     });
 
-    expect(screen.getByText("Refunds")).toBeInTheDocument();
+    expect(screen.getByText("refunds")).toBeInTheDocument();
     await open();
     expect(screen.getByText("Check the order date.")).toBeInTheDocument();
   });

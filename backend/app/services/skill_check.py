@@ -2228,12 +2228,25 @@ class SkillCheckService:
         return check
 
     async def test_set(self, ctx: AuthContext, skill_id: UUID) -> DatasetRead:
-        """The skill's own test questions. Raises NotFoundError when it has none."""
+        """The skill's own test questions.
+
+        Raises:
+            NotFoundError: It has none yet.
+            AuthorizationError: It has them, in a dataset the caller may not open -
+                said apart, so nobody is told to write a set that exists.
+        """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         dataset = await self._test_set(ctx, skill)
         if dataset is None:
             raise NotFoundError(
                 message="This skill has no test questions yet", details={"skill_id": skill.id}
+            )
+        if not await accessible_ids(
+            self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
+        ):
+            raise AuthorizationError(
+                message="This skill's test questions are in a dataset you may not open",
+                details={"reason": "test_set_hidden", "skill_id": skill.id},
             )
         return await self.datasets.read(ctx, dataset.id)
 

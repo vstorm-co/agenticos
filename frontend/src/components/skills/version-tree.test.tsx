@@ -80,6 +80,10 @@ describe("VersionTree", () => {
     expect(capture).not.toHaveBeenCalled();
     expect(compare).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("region", { name: "v2" })).toBeInTheDocument();
+    // The box's own name keeps the row: the control beside it is an icon, its words a tooltip.
+    expect(compare).toHaveTextContent("");
+    expect(compare).toHaveAttribute("title", "Comparing");
+    expect(screen.getByTitle("v3")).toHaveTextContent("v3");
 
     const press = (type: string, x: number) => {
       const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 10 });

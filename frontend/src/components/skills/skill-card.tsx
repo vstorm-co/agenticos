@@ -40,13 +40,22 @@ export function SkillCard({ skill }: SkillCardProps) {
               {skill.name}
             </span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
+            {skill.architect && (
+              <Badge variant="outline" title={t("architectHint")}>
+                {t("architect")}
+              </Badge>
+            )}
           </span>
           <span className="text-foreground/85 line-clamp-2 min-h-10 text-sm leading-relaxed">
             {skill.description}
           </span>
         </span>
       </Link>
-      <UsedBy agents={skill.used_by} className="text-foreground/85 mx-4 mb-3 gap-2" />
+      <UsedBy
+        agents={skill.used_by}
+        drafted={skill.drafted_by}
+        className="text-foreground/85 mx-4 mb-3 gap-2"
+      />
       <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {skill.category !== null && (

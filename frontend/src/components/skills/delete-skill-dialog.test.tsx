@@ -46,7 +46,7 @@ describe("DeleteSkillDialog", () => {
       "Used by 4 agents: Desk and Counter, and 2 you can't see.",
     );
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "OK" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -127,7 +127,9 @@ describe("DeleteSkillDialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Remove from 2 agents and delete" }));
     expect(onDelete).not.toHaveBeenCalled();
-    expect(screen.getByText(/taken off these 2 agents, then deleted/)).toBeInTheDocument();
+    expect(screen.getByText(/taken out of these 2 agents' drafts/)).toHaveTextContent(
+      /a new version without it is published.*test questions, if it has them, stay in Datasets/,
+    );
     expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "Desk",
       "Counter",

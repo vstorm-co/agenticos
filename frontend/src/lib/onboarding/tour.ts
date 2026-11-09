@@ -707,6 +707,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
+  {
+    id: "skill-test-questions",
+    page: SKILL_DETAIL,
+    target: "skill-test-questions",
+    activate: "skill-agents-tab",
+    permission: Perm.skillsView,
+  },
   // New fork is drawn only for an editor of this skill, which a role cannot tell.
   {
     id: "skill-new-fork",
@@ -714,6 +721,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "skill-new-fork",
     permission: Perm.skillsEdit,
     optional: true,
+  },
+  {
+    id: "skill-content",
+    page: SKILL_DETAIL,
+    target: "skill-content",
+    activate: "skill-content-tab",
+    permission: Perm.skillsView,
   },
   {
     id: "skill-history",

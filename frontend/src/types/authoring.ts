@@ -183,7 +183,13 @@ export interface FieldEffect {
 
 export interface Hunk {
   id: string;
-  kind: "instructions" | "tool_override" | "spec_field" | "create_skill";
+  kind:
+    | "instructions"
+    | "tool_override"
+    | "spec_field"
+    | "create_skill"
+    | "skill_body"
+    | "skill_description";
   origin: AuthoringKind;
   status: HunkStatus;
   old_text: string;

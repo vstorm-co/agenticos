@@ -10,6 +10,10 @@ import { skillSession } from "@/test-utils/skill-improvement";
 import { SkillStart } from "./skill-start";
 
 const push = vi.fn();
+const ai = vi.hoisted(() => ({ enabled: true as boolean | null }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useAiAssistance: () => ({ orgId: "o1", enabled: ai.enabled }),
+}));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push }),
@@ -45,6 +49,7 @@ function mount(forkId: string | null = null, fromRun: string | null = null) {
 }
 
 beforeEach(() => {
+  ai.enabled = true;
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue([]);
   vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
@@ -53,6 +58,15 @@ beforeEach(() => {
 });
 
 describe("SkillStart", () => {
+  it("says AI assistance is off rather than failing, and prices nothing", async () => {
+    ai.enabled = false;
+    mount();
+
+    expect(await screen.findByText(/AI assistance is switched off/)).toBeVisible();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("says what it reads and how many agents the line serves, before anything is spent", async () => {
     mount();
 
@@ -129,6 +143,15 @@ describe("SkillStart", () => {
       "/skills/k1/improve/s3",
     );
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("still leads to an open session while AI assistance is off", async () => {
+    ai.enabled = false;
+    vi.mocked(apiClient.get).mockResolvedValue([skillSession({ id: "s3", status: "waiting" })]);
+    mount();
+
+    expect(await screen.findByRole("link", { name: "Continue it" })).toBeVisible();
+    expect(screen.queryByText(/AI assistance is switched off/)).toBeNull();
   });
 
   it("says a single answer it reads in the singular", async () => {

@@ -1098,7 +1098,8 @@
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
     "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
-    "alreadyHasIt": "Verwendet ihn"
+    "alreadyHasIt": "Verwendet ihn",
+    "inDraftOf": "{more, plural, =0 {Im Entwurf von {names}, noch nicht veröffentlicht} other {In den Entwürfen von {names} und # weiteren, noch nicht veröffentlicht}}"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -5496,6 +5497,14 @@
       "flow-skill-improvement-accept": {
         "title": "Was Sie damit tun können",
         "body": "Anwenden, wenn niemand schlechter wurde. Wenn doch: diese auf ihrer Version lassen, einen Fork für die Agents anlegen, denen es half, weiter verbessern oder verwerfen."
+      },
+      "skill-test-questions": {
+        "title": "Seine Testfragen",
+        "body": "Fragen, die jeder Agent mit diesem Skill bekommt, wenn eine Änderung daran geprüft wird. Beginnen Sie sie hier mit aktuellen Antworten oder leer und bearbeiten Sie sie im Dataset."
+      },
+      "skill-content": {
+        "title": "Was er sagt",
+        "body": "Beschreibung, Anweisungen und Dateien, die die gezeigte Linie jetzt ausliefert, zum Lesen ohne den Editor zu öffnen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6584,7 +6593,9 @@
       },
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
-      "standaloneResponse": "Modellantwort"
+      "standaloneResponse": "Modellantwort",
+      "skillsUsed": "Genutzte Skills:",
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -8313,7 +8324,10 @@
         "public-sector": "Öffentlicher Sektor und Versorger",
         "legal": "Recht und freie Berufe",
         "manufacturing": "Produktion und Logistik"
-      }
+      },
+      "preview": "Vorschau",
+      "hidePreview": "Vorschau ausblenden",
+      "files": "{count, plural, =1 {Mit 1 Datei: {names}} other {Mit # Dateien: {names}}}"
     },
     "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
     "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
@@ -8329,7 +8343,8 @@
       "tabs": {
         "agents": "Agents",
         "history": "Verlauf",
-        "tree": "Versionsbaum"
+        "tree": "Versionsbaum",
+        "content": "Inhalt"
       },
       "agentCount": "{count, plural, =0 {Keine Agents} =1 {1 Agent} other {# Agents}}",
       "state": {
@@ -8358,7 +8373,8 @@
         "emptyFork": "Noch kein Agent verwendet Fork „{name}“. Verschieben Sie einen mit Version ändern dorthin.",
         "emptyShown": "Hier ist kein Agent.",
         "checked": "Auf dieser Version geprüft am {when}: {state}",
-        "notChecked": "Unbekannt: Keine Prüfung hat diese Version auf ihm gemessen"
+        "notChecked": "Unbekannt: Diese Version kam ohne Prüfung bei ihm an",
+        "notCheckedYet": "Noch nicht geprüft"
       },
       "changeVersion": {
         "button": "Version ändern",
@@ -8376,7 +8392,7 @@
         "publishes": "Das veröffentlicht eine neue Version von {name} nur mit dieser Änderung. Unfertige Änderungen in seinem Entwurf bleiben im Entwurf.",
         "cancel": "Abbrechen",
         "submit": "Ändern und veröffentlichen",
-        "published": "Veröffentlicht. {count, plural, =0 {{name} hat eine neue Version.} other {Die neue Version von {name} läuft jetzt in: {environments}.}}",
+        "published": "Veröffentlicht. {count, plural, =0 {{name} hat eine neue Version.} other {Die neue Version von {name} läuft jetzt in {environments}.}}",
         "savedInDraft": "Im Entwurf von {name} gespeichert. Veröffentlichen Sie ihn im Builder.",
         "openBuilder": "Builder öffnen",
         "savesToDraft": "Sie dürfen {name} bearbeiten, aber nicht veröffentlichen, deshalb geht diese Änderung in seinen Entwurf. Wer veröffentlichen darf, tut das im Builder.",
@@ -8387,7 +8403,10 @@
         "leavesMain": "{name} bleibt auf dieser Version und erhält keine neuen main-Versionen mehr.",
         "leavesMainFork": "{name} erhält keine neuen main-Versionen mehr.{behind, plural, =0 {} =1 { Fork „{fork}“ liegt 1 Version hinter main und hat diese Änderung nicht.} other { Fork „{fork}“ liegt # Versionen hinter main und hat deren Änderungen nicht.}}",
         "checkedOn": "{version} wurde auf {name} am {when} geprüft: {state}.",
-        "checksUnseen": "Ob {version} auf {name} geprüft wurde, wird Ihnen nicht angezeigt. Seine Antworten können sich ändern."
+        "checksUnseen": "Ob {version} auf {name} geprüft wurde, wird Ihnen nicht angezeigt. Seine Antworten können sich ändern.",
+        "answeredBefore": "{name} hat schon mit {version} geantwortet.",
+        "checkFirst": "Zuerst prüfen",
+        "environmentName": "„{name}“"
       },
       "history": {
         "title": "Verlauf: {line}",
@@ -8537,16 +8556,15 @@
       },
       "deleteSkill": {
         "title": "{name} löschen?",
-        "description": "Seine Versionen und Forks verschwinden mit ihm. Kein Agent verwendet ihn gerade.",
+        "description": "Seine Versionen und Forks verschwinden mit ihm. Kein Agent verwendet ihn gerade. Seine Testfragen, falls er welche hat, bleiben als gewöhnliches Dataset unter Datasets.",
         "used": "Agents nutzen diesen Skill. Er wird erst gelöscht, wenn keiner ihn mehr hat: hier für alle auf einmal oder einzeln im Builder.",
         "usedBy": "{named, select, yes {{count, plural, =1 {Verwendet von 1 Agent} other {Verwendet von # Agents}}: {names}{hidden, plural, =0 {.} =1 {, und 1, den Sie nicht sehen.} other {, und #, die Sie nicht sehen.}}} other {{hidden, plural, =1 {Verwendet von 1 Agent, den Sie nicht sehen.} other {Verwendet von # Agents, die Sie nicht sehen.}}}}",
-        "close": "OK",
         "cancel": "Abbrechen",
         "delete": "Löschen",
         "checking": "Es wird geprüft, welche Agents ihn verwenden…",
         "unread": "Welche Agents ihn verwenden, konnte nicht gelesen werden. Ein Skill, den ein Agent verwendet, wird trotzdem abgelehnt.",
         "removeAndDelete": "{count, plural, =1 {Von 1 Agent entfernen und löschen} other {Von # Agents entfernen und löschen}}",
-        "removeBody": "{count, plural, =1 {Der Skill wird von diesem Agent entfernt und dann mit seinen Versionen und Forks gelöscht. Das lässt sich nicht rückgängig machen.} other {Der Skill wird von diesen # Agents entfernt und dann mit seinen Versionen und Forks gelöscht. Das lässt sich nicht rückgängig machen.}}",
+        "removeBody": "{count, plural, =1 {Der Skill wird aus dem Entwurf dieses Agents entfernt. Nutzt ihn noch eine veröffentlichte Version, wird eine neue Version ohne ihn veröffentlicht. Dann wird der Skill mit seinen Versionen und Forks gelöscht; seine Testfragen, falls er welche hat, bleiben als gewöhnliches Dataset unter Datasets. Das lässt sich nicht rückgängig machen.} other {Der Skill wird aus den Entwürfen dieser # Agents entfernt. Wo ihn noch eine veröffentlichte Version nutzt, wird eine neue Version ohne ihn veröffentlicht. Dann wird der Skill mit seinen Versionen und Forks gelöscht; seine Testfragen, falls er welche hat, bleiben als gewöhnliches Dataset unter Datasets. Das lässt sich nicht rückgängig machen.}}",
         "removeConfirm": "Entfernen und löschen",
         "back": "Zurück",
         "locked": "{count, plural, =1 {Du darfst {names} nicht ändern, daher kann er hier nicht entfernt werden. Frag den Owner oder entferne ihn dort im Builder.} other {Du darfst {names} nicht ändern, daher kann er hier nicht entfernt werden. Frag ihre Owner oder entferne ihn dort im Builder.}}",
@@ -8590,6 +8608,20 @@
         "finished": "Eine Prüfung auf {total, plural, =1 {1 Agent} other {# Agents}} ist fertig und wartet auf deine Entscheidung.",
         "show": "Anzeigen"
       },
+      "testQuestions": {
+        "title": "Testfragen",
+        "count": "{count, plural, =0 {Noch keine} =1 {1 Frage} other {# Fragen}}",
+        "body": "Jeder Agent, der diesen Skill nutzt, bekommt diese Fragen, wenn eine Änderung am Skill geprüft wird, neben seinen eigenen Testfragen.",
+        "open": "{name} öffnen",
+        "none": "Dieser Skill hat noch keine Testfragen. Ein Agent ohne eigene Testfragen kann nicht geprüft werden, wenn sich der Skill ändert.",
+        "askEditor": "Hinzufügen kann sie, wer diesen Skill bearbeiten und Datasets anlegen darf.",
+        "hidden": "Dieser Skill hat Testfragen, in einem Dataset, das Sie nicht öffnen dürfen."
+      },
+      "content": {
+        "title": "Was er jetzt ausliefert"
+      },
+      "more": "Weitere Aktionen",
+      "aiOff": "Improve und das Aufholen eines Forks mit main lassen ein Modell die Antworten des Skills lesen, und AI assistance ist für diese Organisation ausgeschaltet.",
       "checks": {
         "title": "Prüfungen",
         "count": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
@@ -8655,6 +8687,8 @@
       "openSession": "Sitzung öffnen",
       "progress": "{done} von {total} Agents geprüft",
       "progressLabel": "Geprüfte Agents",
+      "updateChecked": "Geprüft. Gehen Sie zurück, um zu entscheiden, ob der Agent wechselt.",
+      "backToChange": "Zurück zum Versionswechsel",
       "backToEditing": "Zurück zum Bearbeiten",
       "improveFurther": "Weiter verbessern",
       "discardConfirm": {
@@ -8666,7 +8700,9 @@
       "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort."
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
-    "instructions": "Anweisungen"
+    "instructions": "Anweisungen",
+    "architect": "Architekt",
+    "architectHint": "Für den KI-Architekten installiert, der ihn liest. Eine Änderung verändert, wie der Architekt arbeitet."
   },
   "states": {
     "loading": "Wird geladen"
@@ -8674,8 +8710,8 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "KI-Unterstützung",
-    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten vorschlagen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
-    "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator und der Authoring-Assistent werden abgelehnt. Deterministische Prüfungen und Urteile von Menschen funktionieren weiter.",
+    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten und Skills vorschlagen, den Fork eines Skills mit main zusammenführen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
+    "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator, der Authoring-Assistent, Improve für Agenten und Skills und das Aufholen eines Skill-Forks mit main werden abgelehnt. Deterministische Prüfungen, die Testfragen eines Skills und Urteile von Menschen funktionieren weiter.",
     "aiAssistanceOn": "KI-Unterstützung ist an",
     "aiAssistanceOff": "KI-Unterstützung ist aus",
     "aiAssistanceFailed": "KI-Unterstützung konnte nicht geändert werden",
@@ -12013,7 +12049,8 @@
       "team": "Team",
       "org": "Organisation"
     },
-    "editedWhen": "bearbeitet {when}"
+    "editedWhen": "bearbeitet {when}",
+    "skillTestSet": "Testfragen des Skills"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",
@@ -14247,7 +14284,10 @@
         "context": "Kontextdatei „{name}“",
         "mcpTools": "{count, plural, =0 {jedes Tool von {server}} =1 {Tool {tools} von {server}} other {Tools {tools} von {server}}}, mit Freigabe, wo sie schreiben",
         "keeps": "Wo der Server nach nichts gefragt hat, lässt das Annehmen jedes seiner schreibenden Tools um Freigabe bitten - nicht nur die hinzugefügten. Rückgängig stellt die Tools wieder her und lässt sie weiter um Freigabe bitten."
-      }
+      },
+      "skillBody": "Anweisungen des Skills",
+      "skillDescription": "Beschreibung des Skills",
+      "other": "Andere Änderung"
     },
     "evidence": {
       "none": "Keine Belege, die sich prüfen ließen.",
@@ -14424,7 +14464,8 @@
       "runsNow": "Läuft jetzt: {suites}.",
       "atPromotion": "{suites} {count, plural, =1 {prüft} other {prüfen}} es bei der nächsten Promotion.",
       "suites": "{count, plural, =1 {1 Eval-Suite} other {# Eval-Suites}}",
-      "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten."
+      "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten.",
+      "afterCheck": "Geht für {agents} live, sobald eine Prüfung an ihnen es zulässt."
     },
     "result": {
       "open": "Ergebnis ansehen",
@@ -15410,7 +15451,8 @@
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",
       "add": "Testfragen hinzufügen",
       "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann.",
-      "grading": "Bewertung in {name} einrichten"
+      "grading": "Bewertung in {name} einrichten",
+      "empty": "Mit einem leeren Satz beginnen"
     },
     "accept": {
       "title": "Annehmen",
@@ -15461,7 +15503,8 @@
       "reads": "{runs, plural, =1 {Es liest 1 Antwort, die diese Linie geladen hat und negativ bewertet wurde oder fehlschlug.} other {Es liest # Antworten, die diese Linie geladen haben und negativ bewertet wurden oder fehlschlugen.}} {agents, plural, =1 {Die Linie bedient 1 Agent.} other {Die Linie bedient # Agents.}}",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gelesen.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gelesen.}}",
       "checkNamedLater": "Bevor die Änderungen geprüft werden, wird jeder Agent genannt, auf dem sie laufen, und die, auf denen sie nicht laufen können, mit Grund.",
-      "noEvidence": "Noch keine Antwort, die diese Linie geladen hat, wurde negativ bewertet oder schlug fehl, also gibt es nichts zu lernen. Bewerte im Chat eine Antwort negativ, in der ein Agent diesen Skill verwendet hat, und starte dann erneut."
+      "noEvidence": "Noch keine Antwort, die diese Linie geladen hat, wurde negativ bewertet oder schlug fehl, also gibt es nichts zu lernen. Bewerte im Chat eine Antwort negativ, in der ein Agent diesen Skill verwendet hat, und starte dann erneut.",
+      "aiOff": "Improve lässt ein Modell die Antworten des Skills lesen und Änderungen schreiben, und AI assistance ist für diese Organisation ausgeschaltet."
     },
     "understand": {
       "title": "Verstehen",
@@ -15572,7 +15615,8 @@
       "start": {
         "catch_up": "Nachziehen starten",
         "to_main": "Übernahme starten"
-      }
+      },
+      "aiOff": "Einen Fork mit main zusammenzuführen lässt ein Modell die beiden Texte zusammenführen, und AI assistance ist für diese Organisation ausgeschaltet."
     },
     "mergeReading": "Die Zusammenführung wird gelesen…",
     "mergeAgain": {

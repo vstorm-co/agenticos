@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { AddToAgent } from "@/components/agents/add-to-agent";
+import { shownState } from "@/components/skill-improvement/check-summary";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Badge, Button, DataTable, ListCard, type Column } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -13,7 +15,14 @@ import { cn, formatDate } from "@/lib/utils";
 import type { SkillAgentList, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { ChangeVersionDialog } from "./change-version-dialog";
 import { LineChips } from "./line-chips";
-import { bindingLabel, eachAgentOnce, isShown, readerKey, type ShownAgents } from "./skill-lines";
+import {
+  bindingLabel,
+  eachAgentOnce,
+  isShown,
+  neverMoved,
+  readerKey,
+  type ShownAgents,
+} from "./skill-lines";
 
 /** Each agent that uses the skill, the version it is served, and the way to move it. */
 export function SkillAgents({
@@ -56,7 +65,7 @@ export function SkillAgents({
       key: "agent",
       header: t("agentsTable.agent"),
       cell: (usage) => (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 max-sm:max-w-36">
           <AgentAvatar
             agentId={usage.agent.id}
             slug={usage.agent.slug}
@@ -83,6 +92,8 @@ export function SkillAgents({
     {
       key: "version",
       header: t("agentsTable.version"),
+      // On a phone the agent's name truncates first, so the binding is not broken a word a line.
+      className: "max-sm:min-w-40",
       cell: (usage) => <BindingCell usage={usage} seesChecks={seesChecks} />,
     },
     {
@@ -122,7 +133,14 @@ export function SkillAgents({
         getRowKey={readerKey}
         loading={agents === undefined && !error}
         error={error ? getErrorMessage(error, tErrors) : undefined}
-        empty={<p className="text-muted-foreground p-4 text-sm">{empty}</p>}
+        empty={
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <p className="text-muted-foreground text-sm">{empty}</p>
+            {shown === "all" && (
+              <AddToAgent resource={{ kind: "skill", id: skillId }} name={skillName} />
+            )}
+          </div>
+        }
       />
       {(agents?.hidden ?? 0) > 0 && (
         <p className="text-muted-foreground px-4 py-3 text-xs">
@@ -168,10 +186,12 @@ function BindingCell({ usage, seesChecks }: { usage: SkillAgentUsage; seesChecks
         >
           {usage.checked
             ? t("agentsTable.checked", {
-                state: tCheck(`state.${usage.checked.state}`),
+                state: tCheck(`state.${shownState(usage.checked.state)}`),
                 when: formatDate(usage.checked.at, locale),
               })
-            : t("agentsTable.notChecked")}
+            : neverMoved(usage)
+              ? t("agentsTable.notCheckedYet")
+              : t("agentsTable.notChecked")}
         </p>
       )}
       {usage.environments.map((environment) => (

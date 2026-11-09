@@ -8,6 +8,7 @@ result the test scripts per agent.
 
 import uuid
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -29,6 +30,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
@@ -40,7 +42,13 @@ from app.db.models.skill_check import (
     SkillCheckAgent,
     UnknownReason,
 )
-from app.repositories import dataset_repo, eval_run_repo, skill_check_repo, skill_proposal_repo
+from app.repositories import (
+    dataset_repo,
+    eval_run_repo,
+    skill_check_repo,
+    skill_proposal_repo,
+    skill_usage_repo,
+)
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     CandidateText,
@@ -49,6 +57,7 @@ from app.schemas.skill_check import (
     SkillCheckStart,
     SkillTestSetStart,
 )
+from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillForkCreate
 from app.services import skill_check as skill_check_module
 from app.services.eval_run import EvalRunService
@@ -1211,6 +1220,55 @@ class TestDeciding:
             row.checked is None and row.checked_versions == [] for row in unseen.items
         )
 
+    @pytest.mark.security
+    async def test_an_agent_is_told_which_versions_its_own_answers_used(self, db):
+        """A version an agent answered with before is not news to it; an eval's or a
+        Builder test's answer does not count, and only a reader of runs learns either."""
+        lab = await _lab(db)
+        served = lab.skill.latest_version_id
+        assert served is not None
+
+        async def answered(agent: Agent, **run: Any) -> None:
+            started = datetime.now(UTC)
+            row = AgentRun(
+                id=uuid.uuid4(),
+                organization_id=lab.ctx.organization_id,
+                agent_id=agent.id,
+                status="completed",
+                started_at=started,
+                **{"surface": RunSurface.WEB.value, "is_test": False, **run},
+            )
+            db.add(row)
+            await db.flush()
+            await skill_usage_repo.record_uses(
+                db,
+                [
+                    SkillUseRecord(
+                        agent_id=agent.id,
+                        skill_id=lab.skill.id,
+                        skill_version_id=served,
+                        loaded=True,
+                    )
+                ],
+                organization_id=lab.ctx.organization_id,
+                run_id=row.id,
+                started_at=started,
+            )
+
+        await answered(lab.a)
+        await answered(lab.b, surface=RunSurface.EVAL.value)
+        await answered(lab.b, is_test=True)
+
+        rows = {
+            row.agent.name: row
+            for row in (await SkillAgentService(db).agents(lab.ctx, lab.skill.id)).items
+        }
+        assert rows["A"].answered_with == [served]
+        assert rows["B"].answered_with == []
+        blind = replace(lab.ctx, key_scopes=frozenset(Perm) - {Perm.RUNS_VIEW})
+        unseen = await SkillAgentService(db).agents(blind, lab.skill.id)
+        assert all(row.answered_with == [] for row in unseen.items)
+
     async def test_fork_for_the_helped_moves_them_and_leaves_main(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()
@@ -1488,10 +1546,22 @@ class TestTestSet:
         created = await service.create_test_set(ctx, skill.id, SkillTestSetStart())
 
         assert (await service.test_set(ctx, skill.id)).id == created.id
+        assert created.skill_id == skill.id
         # Every question it gets is held out: it measures changes, nothing learns from it.
         assert created.improvement_holdout_share == 1
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
+
+    async def test_a_set_the_reader_may_not_open_is_said_apart_from_none(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx, name="tests-hidden")
+        await SkillCheckService(db).create_test_set(ctx, skill.id, SkillTestSetStart())
+        reader = replace(ctx, key_scopes=frozenset({Perm.SKILLS_VIEW}))
+
+        with pytest.raises(AuthorizationError) as refused:
+            await SkillCheckService(db).test_set(reader, skill.id)
+
+        assert refused.value.details["reason"] == "test_set_hidden"
 
 
 class TestAMergedText:

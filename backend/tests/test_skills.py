@@ -20,7 +20,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillVersionSource
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
-from app.services import skill_library
+from app.services import agent_templates, skill_library
 from app.services.skill_library import LibraryResource, LibrarySkill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
@@ -48,6 +48,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.services.skills.agents_serving_skills", no_skill_agents)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
+    monkeypatch.setattr("app.services.skills.agents_using", nowhere)
     monkeypatch.setattr("app.services.skills.agents_using_skill", AsyncMock(return_value=[]))
     monkeypatch.setattr(
         "app.services.skills.skill_version_repo.count_active_forks", AsyncMock(side_effect=no_forks)
@@ -407,10 +408,15 @@ class TestSkillManagement:
                 new=AsyncMock(return_value={"refunds", "our-own-thing"}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
+            patch(
+                f"{SKILLS_PATH}.skill_library.architect_names",
+                return_value=frozenset({"our-own-thing"}),
+            ),
         ):
             listing = await SkillService(_db()).list_readable(ctx)
 
         assert [item.built_in for item in listing.items] == [True, False]
+        assert [item.architect for item in listing.items] == [False, True]
         # The card peeks at the body without the listing carrying it: front
         # matter is dropped, because the card already shows the name.
         assert listing.items[0].excerpt == "# Refunds\n\nCheck the order first."
@@ -1490,20 +1496,38 @@ class TestSkillGallery:
         industry.id = "healthcare"
         industry.skills = [_bundled("patient-enquiry-triage"), _bundled("consent-explainer")]
 
+        installed = uuid.uuid4()
         with (
             patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"consent-explainer"}),
+                f"{SKILLS_PATH}.skill_repo.ids_by_name",
+                new=AsyncMock(return_value={"consent-explainer": installed}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.gallery", return_value=[industry]),
         ):
             gallery = await SkillService(_db()).gallery(_ctx())
 
         assert [i.id for i in gallery.industries] == ["healthcare"]
-        assert [(s.name, s.installed) for s in gallery.industries[0].skills] == [
-            ("patient-enquiry-triage", False),
-            ("consent-explainer", True),
+        assert [(s.name, s.installed, s.installed_id) for s in gallery.industries[0].skills] == [
+            ("patient-enquiry-triage", False, None),
+            ("consent-explainer", True, installed),
         ]
+
+    @pytest.mark.anyio
+    async def test_a_gallery_skill_is_read_before_it_is_installed(self):
+        entry = _bundled("consent-explainer", resources=("form.md",))
+        with patch(
+            f"{SKILLS_PATH}.skill_library.gallery_get",
+            side_effect=lambda key: entry if key == "healthcare/consent" else None,
+        ):
+            preview = await SkillService(_db()).gallery_preview("healthcare/consent")
+            with pytest.raises(NotFoundError):
+                await SkillService(_db()).gallery_preview("healthcare/missing")
+
+        assert (preview.name, preview.content, preview.files) == (
+            "consent-explainer",
+            "# consent-explainer",
+            ["form.md"],
+        )
 
     @pytest.mark.anyio
     async def test_installing_a_shelf_skips_what_is_there_and_reports_the_rest(self):
@@ -1620,6 +1644,14 @@ class TestTheGalleryOnDisk:
     by, or a name colliding with the auto-seeded library are all silent until an
     install produces the wrong thing in somebody's organization.
     """
+
+    def test_the_architect_s_skills_are_named_from_its_template(self):
+        """Every skill the Architect's template binds resolves to a shipped name."""
+        names = skill_library.architect_names()
+        template = agent_templates.get(agent_templates.ARCHITECT_KEY)
+        assert template is not None
+        assert len(names) == len(template.skills)
+        assert {"agenticos-guide", "visual-design"} <= names
 
     def test_every_shipped_gallery_skill_parses(self):
         from app.services import skill_library

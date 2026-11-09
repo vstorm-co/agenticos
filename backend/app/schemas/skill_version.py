@@ -240,6 +240,14 @@ class SkillAgentUsage(BaseSchema):
             "newest check first - so moving the agent to one says whether it was checked"
         ),
     )
+    answered_with: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "The skill's versions this agent's own answers have used - not an eval's, not "
+            "a Builder test's - so a version it never left reads as not checked yet rather "
+            "than unknown. Empty without `runs:view`."
+        ),
+    )
 
 
 class SkillAgentList(BaseSchema):

@@ -421,6 +421,7 @@ export const qk = {
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
+    galleryPreview: (key: string) => ["skills", "gallery", "preview", key] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
     versions: (skillId: string, forkId: string | null, skip: number) =>

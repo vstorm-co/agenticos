@@ -312,6 +312,7 @@ def _dataset_read(
         visibility=as_visibility(dataset.visibility),
         owner_user_id=dataset.owner_user_id,
         agent_id=dataset.agent_id,
+        skill_id=dataset.skill_id,
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,

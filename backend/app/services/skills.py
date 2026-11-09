@@ -44,9 +44,11 @@ from app.repositories import (
     skill_version_repo,
 )
 from app.repositories.skill import SkillSort
+from app.schemas.agent_run import RunSkillUseRead
 from app.schemas.skill import (
     GalleryIndustryRead,
     GalleryInstallResult,
+    GallerySkillPreview,
     GallerySkillRead,
     SkillGallery,
     SkillList,
@@ -66,6 +68,7 @@ from app.services import skill_library
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
 from app.services.resource_usage import (
     agents_serving_skills,
+    agents_using,
     agents_using_skill,
     groups_sharing,
     in_use_by,
@@ -99,7 +102,9 @@ def improver_skill_chars(skills: Sequence[Skill], used: Mapping[UUID, set[UUID]]
     return sum(min(len(skill.content), SKILL_BODY_CHARS) for skill in skills if skill.id in used)
 
 
-def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
+def _summary(
+    skill: Skill, bundled_names: frozenset[str], architect_names: frozenset[str]
+) -> SkillSummary:
     """A skill as the listing shows it.
 
     `built_in` is a name match against the shipped library because that is
@@ -116,6 +121,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         file_count=len(skill.resources),
         version=skill.version,
         built_in=skill.name in bundled_names,
+        architect=skill.name in architect_names,
         excerpt=excerpt(skill.content),
     )
 
@@ -409,7 +415,11 @@ class SkillService:
             limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
+        architect_names = skill_library.architect_names()
         used = await agents_serving_skills(self.db, ctx, skill_ids=[skill.id for skill in items])
+        drafted = await agents_using(
+            self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
+        )
         groups = await groups_sharing(
             self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
         )
@@ -419,9 +429,14 @@ class SkillService:
         )
         return SkillList(
             items=[
-                _summary(skill, bundled_names).model_copy(
+                _summary(skill, bundled_names, architect_names).model_copy(
                     update={
                         "used_by": used[skill.id],
+                        "drafted_by": [
+                            agent
+                            for agent in drafted[skill.id]
+                            if agent.id not in {serving.id for serving in used[skill.id]}
+                        ],
                         "shared_groups": groups[skill.id],
                         "can_edit": skill.id in editable,
                         "forks": forks[skill.id],
@@ -1032,7 +1047,7 @@ class SkillService:
         lands, so a renamed folder in a later release must not offer a second
         copy of a skill somebody is already editing.
         """
-        names = frozenset(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        ids = await skill_repo.ids_by_name(self.db, organization_id=ctx.organization_id)
         return SkillGallery(
             industries=[
                 GalleryIndustryRead(
@@ -1043,13 +1058,58 @@ class SkillService:
                             name=entry.name,
                             description=entry.description,
                             category=entry.category,
-                            installed=entry.name in names,
+                            installed=entry.name in ids,
+                            installed_id=ids.get(entry.name),
                         )
                         for entry in industry.skills
                     ],
                 )
                 for industry in skill_library.gallery()
             ]
+        )
+
+    async def used_in_run(self, ctx: AuthContext, run_id: UUID) -> list[RunSkillUseRead]:
+        """The skills one run opened or read, by name and version, that the caller may see.
+
+        The caller's access to the run itself is the route's to check.
+        """
+        uses = await skill_usage_repo.skills_of_run(
+            self.db, organization_id=ctx.organization_id, run_id=run_id
+        )
+        skills = await skill_repo.get_many(
+            self.db, [use.skill_id for use in uses], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
+        return [
+            RunSkillUseRead(
+                skill_id=use.skill_id,
+                name=use.name,
+                version=use.version,
+                fork=use.fork,
+                loaded=use.loaded,
+            )
+            for use in uses
+            if use.skill_id in visible
+        ]
+
+    async def gallery_preview(self, key: str) -> GallerySkillPreview:
+        """One gallery skill's body and files, read before it is installed.
+
+        Raises:
+            NotFoundError: No gallery skill has that key.
+        """
+        entry = skill_library.gallery_get(key)
+        if entry is None:
+            raise NotFoundError(message="No gallery skill has that key", details={"key": key})
+        return GallerySkillPreview(
+            key=entry.key,
+            name=entry.name,
+            description=entry.description,
+            category=entry.category,
+            content=entry.content,
+            files=[resource.name for resource in entry.resources],
         )
 
     async def install_gallery(self, ctx: AuthContext, keys: Sequence[str]) -> GalleryInstallResult:

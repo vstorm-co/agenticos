@@ -252,10 +252,11 @@ that edit is not checked.
 ### What it asks { #what-a-check-asks }
 
 First the skill's own **test questions**, the same set on every agent. Each skill
-has one set, created through the API - `POST /api/v1/skills/{id}/test-set`, empty
-or from recent answers that loaded the skill - or with **Add test questions** beside
-an agent [Improve](#improving-a-skill) could not check, and edited like any other
-[dataset](datasets.md).
+has one set, started on the skill page under **Test questions** - from recent answers
+that loaded the skill, or empty - or through the API,
+`POST /api/v1/skills/{id}/test-set`, or with **Add test questions** beside an agent
+[Improve](#improving-a-skill) could not check, and edited like any other
+[dataset](datasets.md), which Datasets marks as the skill's.
 
 A judge grades the set, comparing each answer with the one people rated up. Made
 from recent answers, each question is asked once: an answer someone rated wins
@@ -479,7 +480,9 @@ result that could not be measured is not acknowledged (`acknowledge_unknown`), a
 when the agent was published again or main moved on since the check; it closes the
 check and marks the agent checked on that version. Moving an agent without a check
 stays possible, as any change of version is: the agent then reads "unknown" on its
-new version, and the person who moved it answers for that.
+new version, and the person who moved it answers for that. On the skill page,
+**Change version** offers **Check first** for exactly this move: it runs the check
+and comes back with its result, which the move then carries.
 
 **Catch up a fork.** Main's changes reach a fork in a session. On the skill page,
 a fork the page shows offers **Catch up** while main has moved past it and **Move
@@ -574,17 +577,28 @@ make.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**The bundled ones are already there.** The repository ships four: three worked
-examples — `refund-policy`, `code-review` and `incident-report` — and
+**The bundled ones are already there.** The repository ships five: three worked
+examples — `refund-policy`, `code-review` and `incident-report` — plus
 `artifact-pages`, which teaches an agent to build a page for the
-[Apps](artifacts.md#the-library-set) capability. Every organization starts
-with them. Creating an organization copies the whole shipped library in as
+[Apps](artifacts.md#the-library-set) capability, and `visual-design`, which
+teaches it when and how to [draw](artifacts.md#visuals) an answer. Every
+organization starts with them. Creating an organization copies the whole shipped library in as
 ordinary skills, owned by the organization's owner and visible to the
 organization.
 
 The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those four are not chosen — they arrive once, at
+matches the shipped library. Those five are not chosen — they arrive once, at
 creation.
+
+**The Architect brings its own.** Setting up an organization's
+[AI Architect](console.md) also installs the skills it reads: ten from the
+gallery's software shelf — `agenticos-guide`, `agent-design`,
+`agent-instructions`, `agent-testing`, `agent-budgets`, `model-choice`,
+`rag-setup`, `workflow-builder`, `virtual-tables` and `pydantic-ai-import` —
+beside the bundled `visual-design`. So a new organization lists fifteen skills.
+They are ordinary skills as well, and the skills page marks the Architect's
+eleven with an `Architect` badge, because editing one changes how the Architect
+works.
 
 **And they are yours from then on.** A seeded skill is an ordinary row: edit it or delete it. Nothing puts a deleted one back.
 
@@ -639,10 +653,12 @@ manufacturing and logistics. Ten each.
 
 Pick an industry, then install one skill or the whole shelf. From that moment it
 is an ordinary skill the organization owns and edits, exactly like a bundled one.
+**Preview** reads a skill's instructions and the files it comes with before you
+install it, and **Installed** opens the organization's own copy.
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
-    The bundled four live in `app/core/catalog/skills/` and are copied into
+    The bundled five live in `app/core/catalog/skills/` and are copied into
     **every** organization automatically. The gallery lives in
     `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
     the same parser, from a second directory, and never seeded.
@@ -687,7 +703,7 @@ nobody here has read. Each folder in `app/core/catalog/skills/` and
 
 ## A skill's page
 
-Open a skill from the list to see its page. It has three tabs.
+Open a skill from the list to see its page. It has four tabs.
 
 **Agents** lists every agent that uses the skill, and the version it is served:
 
@@ -707,7 +723,13 @@ that History lists and Edit saves to.
 
 Each row says whether a
 [check](#checking-a-change-on-every-agent) measured the version the agent serves,
-and how it did; a version never checked on it is **unknown**.
+and how it did. A version no check measured is **unknown** where a change reached
+the agent unchecked - its answers used an earlier version - and **not checked yet**
+where the agent never answered with another.
+
+Under it, **Test questions** counts the skill's own
+[test questions](#what-a-check-asks) and links to their dataset, or starts them.
+A skill no agent uses offers **Add to an agent** in place of the table.
 
 Under the table, a reader who may view runs sees how often each agent opened the
 skill in the last 30 days: one chart by day, overlaying the agents you pick from
@@ -718,11 +740,15 @@ test panel are not counted.
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
 as [Which version an agent reads](#which-version-an-agent-reads) describes: what
 goes live, what waits in the draft, and what is changed in the Builder. A version
-other than the one the agent serves now, and that no check measured on it, has not
-been checked there, so you confirm that first; one a check did measure says how it
-did. The dialog also says when the agent would stop getting new main versions, and
+other than the one the agent serves now, that no check measured on it and that
+it has not answered with before, has not been checked there, so you confirm that
+first, or press **Check first** when the move is a pinned agent's to main's newest
+version; one a check did measure says how it did. The dialog also says when the agent would stop getting new main versions, and
 dates each main version it offers to pin, with a link to what it changed. The
 control is shown to people who may edit the agent.
+
+**Content** shows what the line chosen serves now - its description, instructions
+and files - read without opening the editor.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),
@@ -784,7 +810,8 @@ fork picked in the chips - in the same five steps as [improving an agent](author
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
 
-Its start says how many answers it reads, from how many agents. It also says what
+Its start says how many rated-down or failed answers it reads, and how many agents
+the line serves. It also says what
 it costs to the first proposal and each attempt after it. The spending limit is
 filled in to cover the first proposal and every attempt the session may make, and
 caps the whole session. Before the changes
@@ -820,6 +847,8 @@ What Accept offers comes from the result:
 - **Somebody worse:** apply it and keep those agents pinned on the version they
   have, improve it further, or discard it. On a fork only improving further and
   discarding are offered, since a fork cannot be pinned.
+- **Nobody better:** the result still waits for your decision, offering **Improve
+  further** and **Discard**, and on main **Save as a fork**.
 - **Whatever the result**, on main, **Save as a fork** makes a fork with the
   change: name it and pick the agents that move onto it - the ones it helped to
   begin with, others, or none. A fork is never forked again.
@@ -913,7 +942,7 @@ after publish is skipped with a warning rather than failing the run.
 - Binding a skill **lends** it, so the publisher must be able to see it — and
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
-  unlike the bundled three, which arrive on their own.
+  unlike the bundled five, which arrive on their own.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 

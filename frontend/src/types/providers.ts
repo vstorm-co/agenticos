@@ -160,6 +160,8 @@ export interface SkillSummary {
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
+  /** Whether the AI Architect's template binds it: installed for the Architect, which reads it. */
+  architect?: boolean;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
   /**
@@ -167,6 +169,8 @@ export interface SkillSummary {
    * Optional because only the listings carry it.
    */
   used_by?: AgentUsage[];
+  /** Agents whose draft binds it and no served version does yet: added, not published. */
+  drafted_by?: AgentUsage[];
   /** The groups it is shared with, by name (#2072). Only the listings carry it. */
   shared_groups?: string[];
 }
@@ -238,6 +242,18 @@ export interface GallerySkill {
   category: string | null;
   /** Whether this organization already has a skill by this name. */
   installed: boolean;
+  /** That skill, to open in place of installing it again. */
+  installed_id?: string | null;
+}
+
+/** A gallery skill as it would arrive: its body and the names of its files. */
+export interface GallerySkillPreview {
+  key: string;
+  name: string;
+  description: string;
+  category: string | null;
+  content: string;
+  files: string[];
 }
 
 /** One industry shelf and what is on it. */

@@ -13,6 +13,14 @@ vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
+// The button is gated on agents:edit and tested on its own; here only where it appears.
+vi.mock("@/components/agents/add-to-agent", () => ({
+  AddToAgent: ({ resource }: { resource: { id: string } }) => (
+    <button type="button" data-resource={resource.id}>
+      Add to an agent
+    </button>
+  ),
+}));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push: vi.fn() }),
@@ -141,6 +149,20 @@ describe("SkillAgents", () => {
     expect(screen.getByText(/No agent uses fork “Marketplace” yet/)).toBeInTheDocument();
   });
 
+  it("gives the version room on a phone, where the agent's name truncates instead", () => {
+    mount(LIST([onMain("Support")]));
+    expect(screen.getByText("v12 · main").closest("td")).toHaveClass("max-sm:min-w-40");
+  });
+
+  it("offers adding the skill to an agent when no agent uses it", () => {
+    mount(LIST([]));
+    expect(screen.getByText("No agent uses this skill yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to an agent" })).toHaveAttribute(
+      "data-resource",
+      "s1",
+    );
+  });
+
   it("says nobody is in a view that holds no agent", () => {
     mount(LIST([]), null, "pinned");
     expect(screen.getByText("No agent here.")).toBeInTheDocument();
@@ -155,7 +177,8 @@ describe("SkillAgents", () => {
   it("says which agents a check measured on the version they serve, and which are unknown", () => {
     mount(
       LIST([
-        onMain("Support"),
+        onMain("Support", { answered_with: ["m11", "m12"] }),
+        onMain("Fresh", { answered_with: ["m12"] }),
         onMain("Refunds", {
           checked: {
             check_id: "c1",
@@ -168,14 +191,36 @@ describe("SkillAgents", () => {
       ]),
     );
 
-    expect(screen.getByText("Unknown: no check measured this version on it")).toBeInTheDocument();
+    // Support answered with v11 and moved on unchecked; Fresh never served anything else.
+    expect(
+      screen.getByText("Unknown: this version reached it without a check"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not checked yet")).toHaveClass("text-muted-foreground");
     expect(screen.getByText(/Checked on this version .*: Worse/)).toBeInTheDocument();
+  });
+
+  it("reads a result within the test's noise as no change, as Improve does", () => {
+    mount(
+      LIST([
+        onMain("Refunds", {
+          checked: {
+            check_id: "c1",
+            version_id: "m12",
+            state: "within_noise",
+            sample: null,
+            at: "2026-11-02T10:00:00Z",
+          },
+        }),
+      ]),
+    );
+    expect(screen.getByText(/Checked on this version .*: No change/)).toBeInTheDocument();
+    expect(screen.queryByText(/Within noise/)).toBeNull();
   });
 
   it("says nothing about checks to a reader who may not see them", () => {
     mount(LIST([onMain("Support")]), null, "all", [], false);
     expect(
-      screen.queryByText(/never checked|no check measured|Checked on this version/),
+      screen.queryByText(/Not checked yet|without a check|Checked on this version/),
     ).toBeNull();
   });
 });

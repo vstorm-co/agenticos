@@ -1,5 +1,5 @@
 ---
-source_sha: "8a39e7dc93f6"
+source_sha: "f267f18be219"
 ---
 
 # Skills { #skills }
@@ -271,11 +271,12 @@ se comprueba.
 ### Qué pregunta { #what-a-check-asks }
 
 Primero las **preguntas de prueba** propias del skill, el mismo conjunto en cada
-agent. Cada skill tiene un conjunto, creado a través de la API -
-`POST /api/v1/skills/{id}/test-set`, vacío o a partir de respuestas recientes que
-cargaron el skill - o con **Añadir preguntas de prueba** junto a un agent que
-[Improve](#improving-a-skill) no pudo comprobar, y editado como cualquier otro
-[dataset](datasets.md).
+agent. Cada skill tiene un conjunto, empezado en la página del skill en **Test
+questions** - a partir de respuestas recientes que cargaron el skill, o vacío - o a
+través de la API, `POST /api/v1/skills/{id}/test-set`, o con **Añadir preguntas de
+prueba** junto a un agent que [Improve](#improving-a-skill) no pudo comprobar, y
+editado como cualquier otro [dataset](datasets.md), que Datasets marca como el del
+skill.
 
 Un juez califica el conjunto, comparando cada respuesta con la que las personas
 valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace una
@@ -513,7 +514,9 @@ que no se pudo medir (`acknowledge_unknown`) y cuando el agent se publicó de nu
 main avanzó desde la comprobación; cierra la comprobación y marca al agent como
 comprobado en esa versión. Mover un agent sin comprobación sigue siendo posible, como
 cualquier cambio de versión: el agent queda entonces como «desconocido» en su nueva
-versión, y responde de ello quien lo movió.
+versión, y responde de ello quien lo movió. En la página del skill, **Cambiar
+versión** ofrece **Check first** para exactamente este movimiento: lanza la
+comprobación y vuelve con su resultado, que el movimiento lleva después.
 
 **Poner al día un fork.** Los cambios de main llegan a un fork en una sesión. En la
 página del skill, un fork mostrado ofrece ponerse al día mientras main lo ha dejado
@@ -612,17 +615,28 @@ decisión que le corresponde a esa persona.
 
 **Escribe uno.** Skills → New, en la UI. Este es el camino normal.
 
-**Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
-trabajados — `refund-policy`, `code-review` e `incident-report` — y
+**Los incluidos ya están ahí.** El repositorio trae cinco: tres ejemplos
+trabajados — `refund-policy`, `code-review` e `incident-report` — además de
 `artifact-pages`, que enseña a un agent a construir una página para la
-capability [Apps](artifacts.md#the-library-set). Toda organización empieza
-con ellos. Crear una organización copia dentro la biblioteca
+capability [Apps](artifacts.md#the-library-set), y `visual-design`, que le
+enseña cuándo y cómo [dibujar](artifacts.md#visuals) una respuesta. Toda
+organización empieza con ellos. Crear una organización copia dentro la biblioteca
 entera que se distribuye, como skills normales, cuyo dueño es el owner de la
 organización y visibles para la organización.
 
 La página de skills muestra una sola lista, con una insignia `built-in` sobre
-cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
+cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cinco no se
 eligen — llegan solos, una vez, al crear la organización.
+
+**El Architect trae los suyos.** Configurar el [AI Architect](console.md)
+de una organización instala también los skills que lee: diez de la estantería
+de software de la galería — `agenticos-guide`, `agent-design`,
+`agent-instructions`, `agent-testing`, `agent-budgets`, `model-choice`,
+`rag-setup`, `workflow-builder`, `virtual-tables` y `pydantic-ai-import` — junto
+al `visual-design` incluido. Por eso una organización nueva lista quince skills.
+También son skills normales, y la página de skills marca los once del Architect
+con una insignia `Architect`, porque editar uno cambia cómo trabaja el
+Architect.
 
 **Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
 se edita o se borra. Nada devuelve uno borrado.
@@ -679,11 +693,12 @@ profesionales, fabricación y logística. Diez de cada.
 
 Elige un sector y luego instala un skill o el estante entero. Desde ese momento
 es un skill normal que la organización posee y edita, exactamente igual que uno
-incluido.
+incluido. **Preview** muestra las instrucciones de un skill y los archivos que trae
+antes de instalarlo, e **Installed** abre la copia propia de la organización.
 
 !!! info "La galería es opcional, y esa es toda la diferencia"
 
-    Los cuatro incluidos viven en `app/core/catalog/skills/` y se copian
+    Los cinco incluidos viven en `app/core/catalog/skills/` y se copian
     automáticamente en **todas** las organizaciones. La galería vive en
     `app/core/catalog/skill_gallery/` y no se copia en **ninguna** — la lee el
     mismo parser, desde un segundo directorio, y nunca se siembra.
@@ -730,7 +745,7 @@ pequeña promesa que hace el [catálogo MCP](mcp.md#the-catalog): alguien lo mir
 
 ## La página de un skill { #a-skills-page }
 
-Abre un skill desde la lista para ver su página. Tiene tres pestañas.
+Abre un skill desde la lista para ver su página. Tiene cuatro pestañas.
 
 **Agentes** lista cada agent que usa el skill y la versión que recibe:
 
@@ -750,7 +765,13 @@ línea que muestra el Historial y en la que guarda Editar.
 
 Cada fila dice si una
 [comprobación](#checking-a-change-on-every-agent) midió la versión que sirve el agent y
-con qué resultado; una versión nunca comprobada en él es **desconocida**.
+con qué resultado. Una versión que ninguna comprobación midió es **desconocida** donde
+un cambio llegó al agent sin comprobar - sus respuestas usaron una versión anterior -
+y **todavía sin comprobar** donde el agent nunca respondió con otra.
+
+Debajo, **Test questions** cuenta las [preguntas de prueba](#what-a-check-asks)
+propias del skill y enlaza a su dataset, o las empieza. Un skill que ningún agent usa
+ofrece **Add to an agent** en lugar de la tabla.
 
 Debajo de la tabla, quien puede ver runs ve con qué frecuencia cada agent abrió el
 skill en los últimos 30 días: un gráfico por día con los agents que eliges en la
@@ -761,11 +782,15 @@ Los runs de evals y del panel de pruebas del Builder no cuentan.
 **Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
 como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
 publica, qué espera en el borrador y qué se cambia en el Builder. Una versión distinta
-de la que el agent sirve ahora, y que ninguna comprobación midió en él, no se ha
-comprobado ahí, así que primero lo confirmas; en una medida, el diálogo da el
-resultado. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
+de la que el agent sirve ahora, que ninguna comprobación midió en él y con la que no
+ha respondido antes, no se ha comprobado ahí, así que primero lo confirmas o pulsas
+**Check first** cuando es el movimiento de un agent fijado a la versión más nueva de
+main; en una medida, el diálogo da el resultado. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
 de main, y fecha cada versión de main que ofrece fijar, con un enlace a sus cambios.
 El control lo ve quien puede editar el agent.
+
+**Contenido** muestra lo que sirve ahora la línea elegida - descripción,
+instrucciones y archivos - para leerlo sin abrir el editor.
 
 **Historial** lista las versiones de la línea elegida, de la más nueva a la más
 antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,
@@ -830,11 +855,13 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
-Al empezar dice cuántas respuestas lee y de cuántos agents. También dice cuánto
+Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
+agents sirve la línea. También dice cuánto
 cuesta llegar a la primera propuesta y cada intento posterior. El límite de gasto
 viene rellenado para cubrir la primera propuesta y cada intento que la sesión puede
-hacer, y limita toda la sesión. Antes de comprobar los
-cambios, el siguiente paso nombra cada agent de la línea en el que se ejecuta la
+hacer, y limita toda la sesión.
+
+Antes de comprobar los cambios, el siguiente paso nombra cada agent de la línea en el que se ejecuta la
 comprobación, y los que no puede comprobar, con el motivo - sin preguntas de
 prueba, sin permiso para ejecutarlo, sin budget, sin versión publicada o un run
 que no pudo calificar todas las respuestas. Los agents que no puedes ver se
@@ -869,6 +896,8 @@ Lo que ofrece Aceptar depende del resultado:
 - **Alguien peor:** aplícalo y deja a esos agents fijados en su versión, sigue
   mejorándolo o descártalo. En un fork solo quedan seguir mejorando y descartar,
   porque un fork no se puede fijar.
+- **Nadie mejor:** el resultado igualmente espera tu decisión y ofrece **Seguir
+  mejorando** y **Descartar**, y en main **Guardar como fork**.
 - **Sea cual sea el resultado**, en main, **Guardar como fork** crea un fork con
   el cambio: le pones nombre y eliges los agents que pasan a él - de entrada los
   que ayudó, otros o ninguno. Un fork nunca se bifurca de nuevo.
@@ -969,7 +998,7 @@ aviso en lugar de interrumpir el run.
 - Vincular un skill lo **presta**, así que el publicador tiene que poder verlo — y
   no se vuelve a comprobar nada en tiempo de ejecución.
 - La **galería** son setenta skills listos para usar por sector, instalados a
-  petición — a diferencia de los tres incluidos, que llegan solos.
+  petición — a diferencia de los cinco incluidos, que llegan solos.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

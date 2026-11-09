@@ -17,6 +17,7 @@ from app.api.deps import (
     ConversationSvc,
     EvalRunSvc,
     RunExportSvc,
+    SkillSvc,
     require,
 )
 from app.api.public_api import INTERNAL, PUBLIC
@@ -277,7 +278,9 @@ async def export_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx: Auth) -> Any:
+async def get_run(
+    run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
+) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
@@ -286,7 +289,8 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
     walks to its neighbours, a list already is the neighbours. `eval_case` names
     the eval run and the case an eval run's answer belongs to, which is where its
-    answer and grade are read - such a run keeps no conversation.
+    answer and grade are read - such a run keeps no conversation. `skills_used`
+    names the skills it opened or read, at the version each was served.
     """
     run = await service.get_run(ctx, run_id)
     evaluated = run.surface == RunSurface.EVAL.value
@@ -302,6 +306,7 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
             "next_run_id": next_run_id,
             "eval_case": eval_case,
             "origin": origin,
+            "skills_used": await skills.used_in_run(ctx, run.id),
         }
     )
 

@@ -27,6 +27,19 @@ export function startSkillCheck(skillId: string, body: SkillCheckStart) {
   return apiClient.post<SkillCheck>(root(skillId), body);
 }
 
+const update = (skillId: string, agentId: string) =>
+  `/skills/${skillId}/agents/${agentId}/update-check`;
+
+/** What checking main's newest version on one pinned agent would run and cost. */
+export function estimateUpdateCheck(skillId: string, agentId: string) {
+  return apiClient.post<SkillCheckEstimate>(`${update(skillId, agentId)}/estimate`, {});
+}
+
+/** Check main's newest version on one pinned agent, accepted by moving that agent. */
+export function startUpdateCheck(skillId: string, agentId: string) {
+  return apiClient.post<SkillCheck>(update(skillId, agentId), {});
+}
+
 /**
  * A line's newest checks, newest first; main's when `forkId` is null. Twenty, so the
  * checks sessions started rarely push an open one of a person's own off the page.
@@ -73,7 +86,10 @@ export async function getSkillTestSet(skillId: string): Promise<Dataset | null> 
   }
 }
 
-/** Write the skill's test questions from the answers where its agents loaded it. */
-export function createSkillTestSet(skillId: string): Promise<Dataset> {
-  return apiClient.post<Dataset>(`/skills/${skillId}/test-set`, { from_evidence: true });
+/**
+ * Give the skill its test questions: from the answers where its agents loaded it, or
+ * an empty set to fill in by hand.
+ */
+export function createSkillTestSet(skillId: string, fromEvidence = true): Promise<Dataset> {
+  return apiClient.post<Dataset>(`/skills/${skillId}/test-set`, { from_evidence: fromEvidence });
 }

@@ -13,7 +13,9 @@ from app.db.models.agent import AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
+from app.db.models.skill import Skill
 from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories.agent_run import served_runs
 from app.schemas.skill_usage import SkillUseRecord
 
@@ -30,6 +32,14 @@ class VersionUsage(NamedTuple):
     agent_id: UUID
     skill_version_id: UUID | None
     loads: int
+
+
+class RunUse(NamedTuple):
+    skill_id: UUID
+    name: str
+    version: int | None
+    fork: str | None
+    loaded: bool
 
 
 class DayUsage(NamedTuple):
@@ -179,6 +189,29 @@ async def usage_by_version(
     return [VersionUsage(*row) for row in rows.all()]
 
 
+async def answered_versions(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, agent_ids: Collection[UUID]
+) -> list[tuple[UUID, UUID]]:
+    """Each `(agent_id, skill_version_id)` an agent's served runs used, at any time."""
+    if not agent_ids:
+        return []
+    rows = await db.execute(
+        select(RunSkillUse.agent_id, RunSkillUse.skill_version_id)
+        .distinct()
+        .where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.skill_id == skill_id,
+            RunSkillUse.skill_version_id.is_not(None),
+            RunSkillUse.agent_id.in_(list(agent_ids)),
+            AgentRun.id == RunSkillUse.run_id,
+            AgentRun.surface != RunSurface.EVAL.value,
+            AgentRun.is_test.is_(False),
+            used(),
+        )
+    )
+    return [(agent_id, version_id) for agent_id, version_id in rows.all() if version_id is not None]
+
+
 async def usage_by_day(
     db: AsyncSession,
     *,
@@ -302,3 +335,31 @@ async def agents_involved(
         .distinct()
     )
     return {agent_id for row in rows.all() for agent_id in row}
+
+
+async def skills_of_run(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> list[RunUse]:
+    """The skills one run used or read, each once per version it was served, by name.
+
+    A delegate's use sits on the run under the delegate's own agent, so one skill can
+    have a row per agent; they are one use here unless the versions differ.
+    """
+    rows = await db.execute(
+        select(
+            RunSkillUse.skill_id,
+            Skill.name,
+            SkillVersion.number,
+            SkillFork.name,
+            func.bool_or(RunSkillUse.loaded),
+        )
+        .join(Skill, Skill.id == RunSkillUse.skill_id)
+        .outerjoin(SkillVersion, SkillVersion.id == RunSkillUse.skill_version_id)
+        .outerjoin(SkillFork, SkillFork.id == SkillVersion.fork_id)
+        .where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.run_id == run_id,
+            used(),
+        )
+        .group_by(RunSkillUse.skill_id, Skill.name, SkillVersion.number, SkillFork.name)
+        .order_by(Skill.name, SkillVersion.number)
+    )
+    return [RunUse(*row) for row in rows.tuples().all()]

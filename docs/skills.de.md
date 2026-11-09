@@ -1,5 +1,5 @@
 ---
-source_sha: "8a39e7dc93f6"
+source_sha: "f267f18be219"
 ---
 
 # Skills { #skills }
@@ -284,10 +284,11 @@ geprüft.
 ### Was sie fragt { #what-a-check-asks }
 
 Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
-Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
-leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
-**Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
-nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md).
+Skill hat einen Satz, begonnen auf der Skill-Seite unter **Testfragen** - aus
+jüngsten Antworten, die den Skill geladen haben, oder leer - oder über die API,
+`POST /api/v1/skills/{id}/test-set`, oder mit **Testfragen hinzufügen** neben einem
+Agent, den [Verbessern](#improving-a-skill) nicht prüfen konnte, und bearbeitet wie
+jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichnet.
 
 Ein Judge bewertet den Satz und vergleicht jede Antwort mit der, die Personen
 positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal
@@ -546,6 +547,9 @@ Prüfung erneut veröffentlicht wurde oder main weitergezogen ist; es schließt 
 Prüfung ab und markiert den Agent auf dieser Version als geprüft. Einen Agent ohne
 Prüfung zu verschieben bleibt möglich, wie jeder Versionswechsel: Der Agent zeigt
 dann auf der neuen Version „unbekannt“, und dafür steht ein, wer ihn verschoben hat.
+Auf der Skill-Seite bietet **Version ändern** für genau diesen Wechsel **Zuerst
+prüfen** an: Es startet die Prüfung und kommt mit ihrem Ergebnis zurück, das der
+Wechsel dann mitträgt.
 
 **Einen Fork aufholen lassen.** Die Änderungen von main erreichen einen Fork in einer
 Sitzung. Auf der Seite des Skills bietet ein angezeigter Fork das Nachziehen an,
@@ -649,17 +653,29 @@ endet in einer Entscheidung, die diese Person selbst trifft.
 
 **Schreiben Sie einen.** Skills → New, in der UI. Das ist der normale Weg.
 
-**Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
+**Die mitgelieferten sind schon da.** Das Repository liefert fünf: drei
 ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
-und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
-[Apps](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
-ihnen. Das Anlegen einer Organisation kopiert
+dazu `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
+[Apps](artifacts.md#the-library-set) zu bauen, und `visual-design`, das ihm
+beibringt, wann und wie es eine Antwort [zeichnet](artifacts.md#visuals). Jede
+Organisation startet mit ihnen. Das Anlegen einer Organisation kopiert
 die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
 Owners der Organisation und für die Organisation sichtbar.
 
 Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
-Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — sie
+Name zur mitgelieferten Bibliothek passt. Diese fünf werden nicht gewählt — sie
 kommen an, einmal, beim Anlegen.
+
+**Der Architect bringt eigene mit.** Die Einrichtung des
+[AI Architect](console.md) einer Organisation installiert auch die Skills, die
+er liest: zehn aus dem Software-Regal der Galerie — `agenticos-guide`,
+`agent-design`, `agent-instructions`, `agent-testing`, `agent-budgets`,
+`model-choice`, `rag-setup`, `workflow-builder`, `virtual-tables` und
+`pydantic-ai-import` — neben dem mitgelieferten `visual-design`. Eine neue
+Organisation listet daher fünfzehn Skills. Auch sie sind gewöhnliche Skills, und
+die Skill-Seite kennzeichnet die elf des Architect mit einem
+`Architekt`-Abzeichen, weil eine Änderung an einem davon verändert, wie der
+Architect arbeitet.
 
 **Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
 Zeile: bearbeiten oder löschen. Nichts holt einen gelöschten
@@ -718,11 +734,13 @@ professionelle Dienstleistungen, Fertigung und Logistik. Jeweils zehn.
 
 Wählen Sie eine Branche, dann installieren Sie einen Skill oder das ganze Regal.
 Von diesem Moment an ist es ein gewöhnlicher Skill, den die Organisation besitzt
-und bearbeitet, genau wie ein mitgelieferter.
+und bearbeitet, genau wie ein mitgelieferter. **Vorschau** zeigt die Anweisungen
+eines Skills und die Dateien, die er mitbringt, bevor Sie ihn installieren, und
+**Installiert** öffnet die eigene Kopie der Organisation.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
-    Die mitgelieferten vier liegen in `app/core/catalog/skills/` und werden
+    Die mitgelieferten fünf liegen in `app/core/catalog/skills/` und werden
     automatisch in **jede** Organisation kopiert. Die Gallery liegt in
     `app/core/catalog/skill_gallery/` und wird in **keine** kopiert — sie wird vom
     selben Parser gelesen, aus einem zweiten Verzeichnis, und nie geseedet.
@@ -772,7 +790,7 @@ hat es sich angesehen.
 
 ## Die Seite eines Skills { #a-skills-page }
 
-Öffnen Sie einen Skill in der Liste, um seine Seite zu sehen. Sie hat drei Tabs.
+Öffnen Sie einen Skill in der Liste, um seine Seite zu sehen. Sie hat vier Tabs.
 
 **Agents** listet jeden Agent, der den Skill nutzt, mit der Version, die er bekommt:
 
@@ -792,8 +810,14 @@ gewählter Fork ist auch die Linie, die der Verlauf zeigt und in die Bearbeiten
 speichert.
 
 Jede Zeile sagt, ob eine [Prüfung](#checking-a-change-on-every-agent) die
-Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis; eine nie auf
-ihm geprüfte Version ist **unbekannt**.
+Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis. Eine
+Version, die keine Prüfung gemessen hat, ist **unbekannt**, wo eine Änderung den
+Agent ungeprüft erreicht hat - seine Antworten nutzten eine frühere Version - und
+**noch nicht geprüft**, wo der Agent mit keiner anderen geantwortet hat.
+
+Darunter zählt **Testfragen** die eigenen [Testfragen](#what-a-check-asks) des
+Skills und verlinkt ihr Dataset oder beginnt sie. Ein Skill, den kein Agent nutzt,
+bietet anstelle der Tabelle **Zu einem Agenten hinzufügen** an.
 
 Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
 letzten 30 Tagen geöffnet hat: ein Diagramm nach Tagen mit den Agents, die Sie in
@@ -805,12 +829,16 @@ zuletzt genutzt hat. Runs von Evals und vom Testbereich des Builders zählen nic
 oder auf einen Fork, wie [Welche Version ein Agent
 liest](#which-version-an-agent-reads) beschreibt: was live geht, was im Entwurf
 wartet und was im Builder geändert wird. Eine andere Version als die, die der Agent
-gerade ausliefert, und die keine Prüfung auf ihm gemessen hat, wurde dort nicht
-geprüft, deshalb bestätigen Sie das zuerst; bei einer gemessenen nennt der Dialog
-das Ergebnis. Der Dialog sagt auch, wann der Agent keine neuen main-Versionen mehr
+gerade ausliefert, die keine Prüfung auf ihm gemessen hat und mit der er noch nicht
+geantwortet hat, wurde dort nicht geprüft, deshalb bestätigen Sie das zuerst oder
+drücken **Zuerst prüfen**, wenn es der Wechsel eines festgesetzten Agents auf die
+neueste main-Version ist; bei einer gemessenen nennt der Dialog das Ergebnis. Der Dialog sagt auch, wann der Agent keine neuen main-Versionen mehr
 bekäme, und datiert jede main-Version, die er zum Festsetzen anbietet, mit einem
 Link zu ihren Änderungen. Das Steuerelement sehen Personen, die den Agent bearbeiten
 dürfen.
+
+**Inhalt** zeigt, was die gewählte Linie jetzt ausliefert - Beschreibung,
+Anweisungen und Dateien - zum Lesen, ohne den Editor zu öffnen.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
@@ -880,7 +908,8 @@ das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Ände
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
 
-Der Start sagt, wie viele Antworten sie liest und von wie vielen Agents. Er nennt
+Der Start sagt, wie viele negativ bewertete oder fehlgeschlagene Antworten sie liest
+und wie vielen Agents die Linie dient. Er nennt
 auch, was der Weg bis zum ersten Vorschlag und jeder Versuch danach kostet. Das
 Ausgabenlimit ist so ausgefüllt, dass es den ersten Vorschlag und jeden Versuch der
 Sitzung deckt, und deckelt die ganze Sitzung. Bevor die
@@ -921,6 +950,8 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
 - **Jemand schlechter:** anwenden und diese Agents auf ihrer Version festsetzen,
   weiter verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern
   und Verwerfen, weil ein Fork nicht festgesetzt werden kann.
+- **Niemand besser:** Das Ergebnis wartet trotzdem auf Ihre Entscheidung und bietet
+  **Weiter verbessern** und **Verwerfen**, auf main auch **Als Fork speichern**.
 - **Was immer das Ergebnis ist**, legt **Als Fork speichern** auf main einen Fork
   mit der Änderung an: Sie benennen ihn und wählen die Agents, die auf ihn
   wechseln - zu Beginn die, denen sie half, andere oder keine. Ein Fork wird nie
@@ -1024,7 +1055,7 @@ Skill wird mit einer Warnung übersprungen, ohne den Run abzubrechen.
 - Einen Skill zu binden heißt, ihn zu **verleihen**, die veröffentlichende Person
   muss ihn also sehen können — und zur Laufzeit wird nichts erneut geprüft.
 - Die **Gallery** sind siebzig fertige Skills nach Branche, auf Anfrage
-  installiert — anders als die mitgelieferten drei, die von allein ankommen.
+  installiert — anders als die mitgelieferten fünf, die von allein ankommen.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

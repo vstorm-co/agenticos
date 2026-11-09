@@ -195,9 +195,11 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     setEverOpened(true);
   };
 
-  const ask = (text: string) => {
+  const [draft, setDraft] = useState<{ id: number; text: string } | null>(null);
+  const ask = (text: string, asDraft = false) => {
     openWindow();
-    setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
+    if (asDraft) setDraft((last) => ({ id: (last?.id ?? 0) + 1, text }));
+    else setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
   };
 
   // Asked from elsewhere in the console - "Make an agent of this" in a chat. Each
@@ -209,7 +211,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   useEffect(() => {
     if (asked === null || asked.id === answeredAsk.current) return;
     answeredAsk.current = asked.id;
-    ask(asked.text);
+    ask(asked.text, asked.draft);
     answered(asked.id);
   });
 
@@ -231,6 +233,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
             agentId={agentId}
             open={open}
             prompt={prompt}
+            draft={draft}
             page={{ path: pageOf(pathname) }}
             tipsOff={preferences.off}
             onTipsOff={(off) => {
