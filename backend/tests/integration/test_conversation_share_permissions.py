@@ -287,3 +287,48 @@ async def test_active_shares_are_filtered_before_pagination_and_counting(db: Asy
         )
         == 4
     )
+
+
+async def test_shared_pagination_uses_activity_dates_and_a_stable_tie_breaker(
+    db: AsyncSession,
+) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.models.organization import OrganizationMember
+
+    owner, reader = await _user(db), await _user(db)
+    org = Organization(
+        name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+    )
+    db.add(org)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=org.id, user_id=reader.id))
+    older = datetime(2026, 10, 1, tzinfo=UTC)
+    recent = datetime(2026, 11, 1, tzinfo=UTC)
+    idle = Conversation(
+        user_id=owner.id, organization_id=org.id, title="Never updated", created_at=older
+    )
+    active = Conversation(
+        user_id=owner.id,
+        organization_id=org.id,
+        title="Recently active",
+        created_at=older,
+        updated_at=recent,
+    )
+    newest = Conversation(
+        user_id=owner.id, organization_id=org.id, title="Newly shared", created_at=recent
+    )
+    db.add_all([idle, active, newest])
+    await db.flush()
+    for conversation in (idle, active, newest):
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=reader.id
+        )
+    expected = sorted([active.id, newest.id], reverse=True)
+    first = await conversation_share_repo.get_conversations_shared_with_user(
+        db, reader.id, organization_id=org.id, include_archived=False, limit=1
+    )
+    second = await conversation_share_repo.get_conversations_shared_with_user(
+        db, reader.id, organization_id=org.id, include_archived=False, skip=1, limit=1
+    )
+    assert [row.id for row in first + second] == expected

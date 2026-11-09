@@ -112,7 +112,10 @@ async def get_conversations_shared_with_user(
             *_shared_with_member(user_id, include_archived=include_archived),
             *_in_organization(organization_id),
         )
-        .order_by(Conversation.updated_at.desc())
+        .order_by(
+            func.coalesce(Conversation.updated_at, Conversation.created_at).desc(),
+            Conversation.id.desc(),
+        )
         .offset(skip)
         .limit(limit)
     )
