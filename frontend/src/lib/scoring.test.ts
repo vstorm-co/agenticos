@@ -6,6 +6,7 @@ import {
   criterionNameFrom,
   describeCheck,
   groupScores,
+  judgedBy,
   reasonKey,
   ungradedCases,
   scoringProblem,
@@ -115,6 +116,16 @@ describe("describeCheck", () => {
       'regex {"pattern":"\\\\d+","flags":"i"}',
     );
     expect(describeCheck({ type: "valid_json" })).toBe("valid_json");
+  });
+});
+
+describe("judgedBy", () => {
+  it("says a model graded an answer only when a judge or a reference comparison decided it", () => {
+    const decided = { ...result(null), status: "fail" as const };
+    expect(judgedBy(caseScore({ results: [decided] }))).toBe(true);
+    expect(judgedBy(caseScore({ results: [{ ...decided, scorer: "reference" }] }))).toBe(true);
+    expect(judgedBy(caseScore({ results: [result("judge_budget")] }))).toBe(false);
+    expect(judgedBy(caseScore({ results: [{ ...decided, scorer: "check" }] }))).toBe(false);
   });
 });
 

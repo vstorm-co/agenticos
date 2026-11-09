@@ -8,7 +8,9 @@
 import type {
   SkillCheck,
   SkillCheckApply,
+  SkillCheckAwaiting,
   SkillCheckEstimate,
+  SkillCheckFork,
   SkillCheckStart,
 } from "@/types/skill-checks";
 import type { Dataset } from "@/types/datasets";
@@ -48,6 +50,11 @@ export function listSkillChecks(skillId: string, forkId: string | null) {
   return apiClient.get<{ items: SkillCheck[]; total: number }>(`${root(skillId)}?${query}`);
 }
 
+/** The checks a person started that still run or wait for a decision, on skills the reader may edit. */
+export function listSkillChecksAwaiting() {
+  return apiClient.get<SkillCheckAwaiting[]>("/skill-checks/awaiting");
+}
+
 export function getSkillCheck(skillId: string, checkId: string) {
   return apiClient.get<SkillCheck>(`${root(skillId)}/${checkId}`);
 }
@@ -58,6 +65,11 @@ export function cancelSkillCheck(skillId: string, checkId: string) {
 
 export function applySkillCheck(skillId: string, checkId: string, body: SkillCheckApply) {
   return apiClient.post<unknown>(`${root(skillId)}/${checkId}/apply`, body);
+}
+
+/** Make the checked text a fork for the agents picked; main stays as it is. */
+export function forkSkillCheck(skillId: string, checkId: string, body: SkillCheckFork) {
+  return apiClient.post<unknown>(`${root(skillId)}/${checkId}/fork`, body);
 }
 
 export function discardSkillCheck(skillId: string, checkId: string) {

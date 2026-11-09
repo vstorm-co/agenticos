@@ -20,6 +20,7 @@ import { useSkillAgents } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { SkillCheck } from "@/types/skill-checks";
+import { shownState } from "./check-summary";
 
 /** What saving the change as a fork sends: its name and the agents that move onto it. */
 export interface ForkChoice {
@@ -155,7 +156,7 @@ function ForkForm({
                   {row.agent.name}
                 </Label>
                 <span className="text-muted-foreground text-xs">
-                  {stays ? t("fork.stays") : tState(row.state)}
+                  {stays ? t("fork.stays") : tState(shownState(row.state))}
                 </span>
               </div>
             );

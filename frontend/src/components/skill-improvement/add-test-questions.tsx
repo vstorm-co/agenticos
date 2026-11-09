@@ -12,7 +12,14 @@ import { ROUTES } from "@/lib/constants";
  * The skill's own test questions, which let an agent with none of its own be
  * checked at all: a link when they exist, and the way to write them when not.
  */
-export function AddTestQuestions({ skillId }: { skillId: string }) {
+export function AddTestQuestions({
+  skillId,
+  onCreated,
+}: {
+  skillId: string;
+  /** Called once the questions are written, for a price that counted none to be read again. */
+  onCreated?: () => void;
+}) {
   const t = useTranslations("skillImprovement.testSet");
   const tErrors = useTranslations("errors");
   const { testSet, isLoading, error, create } = useSkillTestSet(skillId);
@@ -38,7 +45,7 @@ export function AddTestQuestions({ skillId }: { skillId: string }) {
         size="sm"
         data-tour="skill-improvement-test-set"
         loading={create.isPending}
-        onClick={() => create.mutate(true)}
+        onClick={() => create.mutate(true, { onSuccess: onCreated })}
       >
         {t("add")}
       </Button>

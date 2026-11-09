@@ -1,5 +1,5 @@
 ---
-source_sha: "78079a09c19f"
+source_sha: "da6cc983195f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -44,7 +44,10 @@ Agent nicht tun soll.
 
 Mit welchen Capabilities ein Agent auch endet: Jeder Run erfährt in seinen
 Instruktionen unter **Your setup**, welche er hat und welche nicht - so beschreibt
-er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste.
+er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste. Ein
+Agent mit Skills erfährt zuletzt, unter **Your skills**, dass er den Skill, in den
+eine Frage fällt, mit `load_capability` öffnet; wer stattdessen mit der Karte nach
+einem Skill fragt, bekommt genau das zur Antwort.
 
 Braucht eine Anfrage eine Capability, die dem Agent fehlt, zeigt er im Chat eine
 Karte dafür, mit seinem Grund. Wer den Agent bearbeiten darf, schaltet sie auf der

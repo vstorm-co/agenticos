@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui";
 import type { Period } from "@/lib/dashboard/period";
 import type { ImprovementAwaiting } from "@/types/improvement";
 import type { SkillImprovementAwaiting } from "@/types/skill-improvement";
+import type { SkillChangeRecord } from "@/lib/skill-changes-api";
+import type { SkillCheckAwaiting } from "@/types/skill-checks";
 import type { BehindMain, BehindMainList } from "@/types/skill-merge";
 import { ImprovementsWaitingWidget } from "./improvements-waiting";
 
@@ -29,7 +31,31 @@ const behind = vi.hoisted(() => ({
   error: null as Error | null,
   refetch: vi.fn(),
 }));
-const asked = vi.hoisted(() => ({ enabled: undefined as boolean | undefined, skillsView: true }));
+const checks = vi.hoisted(() => ({
+  checks: [] as SkillCheckAwaiting[],
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-skill-check", () => ({ useSkillChecksAwaiting: () => checks }));
+const proposals = vi.hoisted(() => ({
+  changes: [] as SkillChangeRecord[],
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+  enabled: undefined as boolean | undefined,
+}));
+vi.mock("@/hooks/use-skill-changes", () => ({
+  useSkillProposalsAwaiting: (options: { enabled: boolean }) => {
+    proposals.enabled = options.enabled;
+    return proposals;
+  },
+}));
+const asked = vi.hoisted(() => ({
+  enabled: undefined as boolean | undefined,
+  skillsView: true,
+  skillsEdit: true,
+}));
 vi.mock("@/hooks/use-skill-merge", () => ({
   useBehindMain: (options: { enabled: boolean }) => {
     asked.enabled = options.enabled;
@@ -38,7 +64,12 @@ vi.mock("@/hooks/use-skill-merge", () => ({
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
-    can: (permission: string) => permission !== "skills:view" || asked.skillsView,
+    can: (permission: string) =>
+      permission === "skills:view"
+        ? asked.skillsView
+        : permission === "skills:edit"
+          ? asked.skillsEdit
+          : true,
   }),
 }));
 
@@ -80,6 +111,15 @@ beforeEach(() => {
   behind.error = null;
   behind.refetch = vi.fn();
   asked.skillsView = true;
+  asked.skillsEdit = true;
+  checks.checks = [];
+  checks.isLoading = false;
+  checks.error = null;
+  checks.refetch = vi.fn();
+  proposals.changes = [];
+  proposals.isLoading = false;
+  proposals.error = null;
+  proposals.refetch = vi.fn();
 });
 
 describe("ImprovementsWaitingWidget", () => {
@@ -136,6 +176,8 @@ describe("ImprovementsWaitingWidget", () => {
     state.error = new Error("Unavailable");
     skills.error = new Error("Unavailable");
     behind.error = new Error("Unavailable");
+    checks.error = new Error("Unavailable");
+    proposals.error = new Error("Unavailable");
     view.rerender(
       <TooltipProvider>
         <ImprovementsWaitingWidget title="Improvements waiting for you" hint="" period={PERIOD} />
@@ -298,13 +340,97 @@ describe("ImprovementsWaitingWidget", () => {
     expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/skills/sk1");
 
     asked.skillsView = false;
+    asked.skillsEdit = false;
     behind.behind = undefined;
     skills.error = new Error("Unavailable");
     widget();
     expect(asked.enabled).toBe(false);
+    expect(proposals.enabled).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(skills.refetch).toHaveBeenCalled();
+    expect(checks.refetch).toHaveBeenCalled();
     expect(behind.refetch).not.toHaveBeenCalled();
+    expect(proposals.refetch).not.toHaveBeenCalled();
+  });
+
+  it("lists the checks a person started among the sessions, and the proposed changes after, a checked one once", async () => {
+    state.sessions = [waiting({ created_at: "2026-10-27T10:00:00Z" })];
+    checks.checks = [
+      {
+        id: "c1",
+        skill_id: "sk1",
+        skill_name: "refunds",
+        line: { fork_id: null, name: "main" },
+        status: "running",
+        verdict: null,
+        proposal_id: null,
+        agents: 3,
+        created_at: "2026-10-28T10:00:00Z",
+      },
+      {
+        id: "c2",
+        skill_id: "sk2",
+        skill_name: "prints",
+        line: { fork_id: "f1", name: "Shop" },
+        status: "done",
+        verdict: "no_better",
+        proposal_id: "p3",
+        agents: 1,
+        created_at: "2026-10-26T10:00:00Z",
+      },
+    ];
+    proposals.changes = [
+      { id: "p1", name: "returns", skill_id: "sk3", reaches: [{}, {}], reaches_hidden: 1 },
+      { id: "p2", name: "gift-cards", skill_id: null, reaches: [], reaches_hidden: 0 },
+      { id: "p3", name: "prints", skill_id: "sk2", reaches: [], reaches_hidden: 0 },
+    ] as unknown as SkillChangeRecord[];
+    widget();
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "refunds · mainChecking on 3 agentsOpen",
+      "Refund deskLook at what went wrongOpen",
+      "prints · fork “Shop”Check finished: decide what to do with the changeOpen",
+      "Change to returnsProposed by an agent · reaches 3 agentsReview",
+      "New skill gift-cardsProposed by an agent · reaches no agent yetReview",
+    ]);
+    expect(within(rows[0]!).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "/skills/sk1?tab=history&check=c1",
+    );
+    expect(within(rows[2]!).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "/skills/sk2?tab=history&show=fork:f1&check=c2",
+    );
+    expect(within(rows[3]!).getByRole("link", { name: "Review" })).toHaveAttribute(
+      "href",
+      "/skills",
+    );
+  });
+
+  it("says every read failed when each one the reader may make did", () => {
+    asked.skillsView = false;
+    asked.skillsEdit = false;
+    state.error = new Error("Unavailable");
+    skills.error = new Error("Unavailable");
+    checks.error = new Error("Unavailable");
+    widget();
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: /try again|retry/i })).toBeInTheDocument();
+  });
+
+  it("says which of the new reads failed, and keeps the rest listed", () => {
+    state.sessions = [waiting({})];
+    checks.error = new Error("Unavailable");
+    proposals.error = new Error("Unavailable");
+    widget();
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("Skill checks could not be read.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Proposed skill changes could not be read.",
+    );
   });
 
   it("keeps the sessions listed when what main left behind cannot be read", () => {

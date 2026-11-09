@@ -7,14 +7,16 @@ member holding an edit grant on the skill is not refused by a role gate first.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, SkillCheckSvc
+from app.api.deps import Auth, SkillCheckSvc, require
 from app.api.public_api import ASSISTANT
+from app.core.permissions import Perm
 from app.schemas.dataset import DatasetRead
 from app.schemas.skill_check import (
     SkillCheckApplied,
     SkillCheckApply,
+    SkillCheckAwaiting,
     SkillCheckEstimate,
     SkillCheckFork,
     SkillCheckForked,
@@ -26,6 +28,18 @@ from app.schemas.skill_check import (
 )
 
 router = APIRouter()
+awaiting = APIRouter(prefix="/skill-checks", dependencies=[ASSISTANT])
+
+
+@awaiting.get(
+    "/awaiting",
+    response_model=list[SkillCheckAwaiting],
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def list_skill_checks_awaiting(service: SkillCheckSvc, ctx: Auth) -> Any:
+    """Checks a person started, by hand or on a proposal, still running or waiting for a
+    decision, on skills the caller may edit, for "Waiting for you"."""
+    return await service.awaiting(ctx)
 
 
 @router.post(

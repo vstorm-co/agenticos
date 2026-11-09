@@ -246,15 +246,12 @@ class TestWhatCannotBeChecked:
 
         assert {row.unknown_reason for row in estimate.agents} == {"no_access"}
 
-    async def test_a_check_the_organization_cannot_afford_or_nobody_can_run(self, db, monkeypatch):
+    async def test_a_check_the_organization_cannot_afford_is_refused(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals(org_left=Decimal("0.01")).install(monkeypatch)
         service = SkillCheckService(db)
 
         with pytest.raises(BadRequestError, match="budget"):
-            await service.start(lab.ctx, lab.skill.id, _start())
-        FakeEvals(agent_left=Decimal("0.01")).install(monkeypatch)
-        with pytest.raises(BadRequestError, match="No agent"):
             await service.start(lab.ctx, lab.skill.id, _start())
 
     async def test_an_agent_and_its_specialist_on_one_line_are_one_agent_to_check(
@@ -1565,21 +1562,30 @@ class TestSampleAndTestSet:
         assert checked.state is AgentState.BETTER
 
     async def test_the_skills_test_questions_can_start_from_recent_answers(self, db, monkeypatch):
+        """A person's rating outranks an answer that only failed, so it is the one a
+        question shared by both keeps."""
         lab = await _lab(db)
-        good, bad = uuid.uuid4(), uuid.uuid4()
+        failed, good, bad = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         pack = SimpleNamespace(
-            runs=[SimpleNamespace(run_id=good, rating=1), SimpleNamespace(run_id=bad, rating=-1)]
+            runs=[
+                SimpleNamespace(run_id=failed, rating=0),
+                SimpleNamespace(run_id=good, rating=1),
+                SimpleNamespace(run_id=bad, rating=-1),
+            ]
         )
+        messages = {run_id: uuid.uuid4() for run_id in (failed, good, bad)}
         added: dict[str, Any] = {}
 
         async def for_skill(_self, _ctx, _skill_id, **_):
             return pack
 
         async def answers(_db, run_ids, *, organization_id):
-            return {run_id: uuid.uuid4() for run_id in run_ids}
+            return {run_id: messages[run_id] for run_id in run_ids}
 
         async def add(_self, _ctx, dataset_id, message_ids, **kwargs):
             added.update(kwargs["answer_as"])
+            added["order"] = message_ids
+            added["one_per_question"] = kwargs["one_per_question"]
             return None, len(message_ids)
 
         from app.services.authoring_evidence import EvidenceService
@@ -1594,11 +1600,19 @@ class TestSampleAndTestSet:
         test_set.skill_id = None
         await db.flush()
 
-        await SkillCheckService(db).create_test_set(
+        created = await SkillCheckService(db).create_test_set(
             lab.ctx, lab.skill.id, SkillTestSetStart(from_evidence=True)
         )
 
-        assert sorted(added.values()) == ["counter_example", "reference_answer"]
+        assert added.pop("order") == [messages[good], messages[bad], messages[failed]]
+        assert added.pop("one_per_question") is True
+        assert added == {
+            messages[good]: "reference_answer",
+            messages[bad]: "counter_example",
+            messages[failed]: "counter_example",
+        }
+        assert created.scoring.judge.enabled and created.scoring.reference.enabled
+        assert created.scoring.judge.criteria
 
     async def test_no_recent_answers_leave_the_test_questions_empty(self, db, monkeypatch):
         lab = await _lab(db)

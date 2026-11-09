@@ -16,6 +16,11 @@ export function bucketOf(state: AgentCheckState): Bucket {
   return state;
 }
 
+/** The state a row is shown as: within the test's noise reads as no change, like its group. */
+export function shownState(state: AgentCheckState): Exclude<AgentCheckState, "within_noise"> {
+  return state === "within_noise" ? "no_change" : state;
+}
+
 const FILL: Record<Bucket, string> = {
   worse: "bg-destructive",
   unknown: "bg-warning",

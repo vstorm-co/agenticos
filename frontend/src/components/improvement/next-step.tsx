@@ -11,6 +11,7 @@ import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 import { ContinueSession } from "./continue-session";
+import { EvidenceOnly, evidenceOnlyDataset } from "./evidence-only";
 import { useReadOnly } from "./read-only";
 
 /**
@@ -63,7 +64,11 @@ export function NextStep({
   const [moved, setMoved] = useState<"price" | "line" | null>(null);
   const [stuck, setStuck] = useState(false);
   // A refusal belongs to the price it answered, so pricing again clears it.
-  const [said, setSaid] = useState<{ key: string; text: string } | null>(null);
+  const [said, setSaid] = useState<{
+    key: string;
+    text: string;
+    dataset: string | null;
+  } | null>(null);
   // Choosing or rewording a change changes what the check measures, and so its price.
   const candidate = currentAttempt(session)?.candidate_spec_hash;
   const key = JSON.stringify([
@@ -99,7 +104,8 @@ export function NextStep({
         if (current) setQuote({ key, value });
       },
       (refused: unknown) => {
-        if (current) setSaid({ key, text: refusal(refused) });
+        if (current)
+          setSaid({ key, text: refusal(refused), dataset: evidenceOnlyDataset(refused) });
       },
     );
     return () => {
@@ -107,6 +113,7 @@ export function NextStep({
     };
   }, [stop, readOnly, allowed, blockedBy, hold, asked, body, key, estimate, refusal]);
   if (!stop || readOnly || !allowed) return null;
+  const evidence = blockedBy || said?.key !== key ? null : said.dataset;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
     setSaid(null);
@@ -117,7 +124,11 @@ export function NextStep({
       onStarted();
     } catch (cause) {
       if (!(cause instanceof ApiError && cause.status === 409)) {
-        setSaid({ key, text: getErrorMessage(cause, tErrors) });
+        setSaid({
+          key,
+          text: getErrorMessage(cause, tErrors),
+          dataset: evidenceOnlyDataset(cause),
+        });
         return;
       }
       const line = cause.code === "LINE_MOVED";
@@ -126,7 +137,7 @@ export function NextStep({
         setMoved(line ? "line" : "price");
         setStuck(false);
       } catch (again) {
-        setSaid({ key, text: refusal(again) });
+        setSaid({ key, text: refusal(again), dataset: evidenceOnlyDataset(again) });
         setStuck(line);
       }
     }
@@ -190,10 +201,14 @@ export function NextStep({
           {t("likely", { cost: usd(priced.expected_usd, locale) })}
         </p>
       )}
-      {refused && (
-        <p role="alert" className="text-destructive text-sm">
-          {refused}
-        </p>
+      {evidence ? (
+        <EvidenceOnly datasetId={evidence} />
+      ) : (
+        refused && (
+          <p role="alert" className="text-destructive text-sm">
+            {refused}
+          </p>
+        )
       )}
       {stuck && <ContinueSession session={session} onStarted={onStarted} />}
     </section>

@@ -10,7 +10,16 @@ export type CheckVerdict = "passed" | "blocked" | "no_better" | "needs_ack";
 export type AgentCheckState =
   "queued" | "running" | "better" | "no_change" | "within_noise" | "worse" | "unknown";
 export type UnknownReason =
-  "no_questions" | "no_access" | "no_budget" | "no_published_version" | "inconclusive" | "failed";
+  | "no_questions"
+  | "no_access"
+  | "no_budget"
+  | "no_published_version"
+  | "inconclusive"
+  | "failed"
+  | "unscorable"
+  | "all_evidence"
+  | "cancelled"
+  | "own_not_asked";
 export type CheckOutcome =
   "improve_further" | "apply" | "apply_and_pin" | "fork_for_helped" | "discard";
 
@@ -54,7 +63,7 @@ export interface SkillCheckAgent {
   state: AgentCheckState;
   unknown_reason: UnknownReason | null;
   /** In a quick check: whether the agent's own questions were asked, or only the skill's. */
-  sample: "own_questions" | "skill_set_only" | null;
+  sample: "own_questions" | "skill_set_only" | "own_not_asked" | null;
   stages: CheckStage[];
   fixed: number;
   broken: number;
@@ -93,11 +102,37 @@ export interface SkillCheck extends SkillCheckEstimate {
   outcomes: CheckOutcome[];
   outcome: CheckOutcome | null;
   proposal_id: string | null;
+  /** No agent reads the line, so the check passed with nobody to check. */
+  no_readers?: boolean;
+  /** The text checked, which a person may go back to editing. */
+  candidate: { description: string; content: string };
   /** The skill improvement session that started it, which decides it. */
   session_id?: string | null;
   applied_version_id: string | null;
   created_at: string;
   finished_at: string | null;
+}
+
+/** A check a person started that still runs or waits for a decision, as "Waiting for you" lists it. */
+export interface SkillCheckAwaiting {
+  id: string;
+  skill_id: string;
+  skill_name: string;
+  line: { fork_id: string | null; name: string };
+  status: "running" | "done";
+  verdict: CheckVerdict | null;
+  /** The proposed change it checks; null for a text checked by hand. */
+  proposal_id: string | null;
+  /** The agents it checks, counting the ones the reader may not see. */
+  agents: number;
+  created_at: string;
+}
+
+export interface SkillCheckFork {
+  name: string;
+  /** The agents that move onto the fork; left out, the ones the change helped. */
+  agent_ids?: string[];
+  acknowledge_unknown?: boolean;
 }
 
 export interface SkillCheckApply {

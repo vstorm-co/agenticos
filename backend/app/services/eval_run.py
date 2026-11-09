@@ -135,6 +135,7 @@ from app.services.eval_comparison import (
     efficiency,
     flips_by_tag,
     quality_verdict,
+    settle,
     summarize,
 )
 from app.services.eval_suite_threshold import judge
@@ -367,6 +368,8 @@ class RunPlan:
     ungraded: int = 0
     """Cases no required scorer can decide, which leave the result inconclusive."""
     excluded_case_ids: list[UUID] = field(default_factory=list)
+    not_asked: int = 0
+    """Of the excluded cases, the ones a sample of named questions did not pick."""
 
 
 @dataclass(frozen=True)
@@ -424,6 +427,13 @@ def _attempt(
         tags=tuple(tags),
         reruns=tuple(reruns),
         by_person=score is not None and score.human_passed is not None,
+    )
+
+
+def _skill_check_stage(run: EvalRun) -> bool:
+    return (
+        run.proposal_check is not None
+        and ProposalCheckRecord.model_validate(run.proposal_check).skill_check_id is not None
     )
 
 
@@ -578,12 +588,13 @@ class EvalRunService:
             raise BadRequestError(
                 message="The selected questions are not available in this dataset version"
             )
-        excluded = [
-            case.case_id
-            for case in cases
-            if case.source_conversation_id in left_out
-            or (selected_ids is not None and case.case_id not in selected_ids)
-        ]
+        evidence = {case.case_id for case in cases if case.source_conversation_id in left_out}
+        unselected = (
+            set()
+            if selected_ids is None
+            else {case.case_id for case in cases if case.case_id not in selected_ids} - evidence
+        )
+        excluded = [case.case_id for case in cases if case.case_id in evidence | unselected]
         if excluded:
             cases = [case for case in cases if case.case_id not in excluded]
             if not cases:
@@ -593,7 +604,11 @@ class EvalRunService:
                         "this change was derived from, so none can measure it. Add cases "
                         "from other conversations, or pick another dataset."
                     ),
-                    details={"dataset_id": dataset.id, "excluded": len(excluded)},
+                    details={
+                        "dataset_id": dataset.id,
+                        "excluded": len(excluded),
+                        "reason": "all_evidence",
+                    },
                 )
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         ai_enabled = await AiAssistanceService(self.db).is_enabled(
@@ -770,6 +785,7 @@ class EvalRunService:
             missing_baseline=missing,
             ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
             excluded_case_ids=excluded,
+            not_asked=len(unselected),
         )
 
     async def _named_earlier(self, ctx: AuthContext, run_id: UUID) -> ArmPlan:
@@ -1631,7 +1647,11 @@ class EvalRunService:
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
             proposal_check=(
-                None if proposal_check is None else proposal_check.model_dump(mode="json")
+                None
+                if proposal_check is None
+                else proposal_check.model_copy(update={"not_asked": plan.not_asked}).model_dump(
+                    mode="json"
+                )
             ),
         )
         arms = [
@@ -2503,11 +2523,21 @@ class EvalRunService:
         )
 
     async def outcomes(
-        self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
+        self,
+        ctx: AuthContext,
+        arm: EvalRunArm,
+        attempts: Sequence[EvalRunCase],
+        *,
+        overturned_by_majority: bool = False,
     ) -> dict[UUID, tuple[Outcome, tuple[Outcome, ...], tuple[str, ...]]]:
         """Each case's first outcome on an arm, its rerun outcomes and its tags.
 
         `attempts` are the attempts of the run the arm belongs to.
+        `overturned_by_majority` gives a case whose first answer a person decided,
+        and that was asked again, as most of its answers came out in place of that
+        first one: the person decided that answer, not the re-asks, which keep their
+        own grades - so a flip the re-asks confirmed stays one. A skill check's stage
+        reads its cases so; any other run lets the person's verdict settle the case.
         """
         own = await self._arm_attempts(ctx, arm, attempts)
         scores = await self._scores(ctx, own)
@@ -2515,17 +2545,27 @@ class EvalRunService:
         firsts: dict[UUID, Outcome] = {}
         reruns: dict[UUID, list[Outcome]] = defaultdict(list)
         case_tags: dict[UUID, tuple[str, ...]] = {}
+        by_person: set[UUID] = set()
         for attempt in sorted(own, key=lambda a: a.attempt):
-            decided = attempt_outcome(attempt, scores.get(attempt.case_score_id))
+            score = scores.get(attempt.case_score_id)
+            decided = attempt_outcome(attempt, score)
             case_tags[attempt.case_id] = tags.get(attempt.case_revision_id, ())
             # A rerun not yet answered, or skipped, decides nothing - so it leaves
             # the flip unconfirmed rather than being left out of the count.
             if attempt.attempt == 0:
                 firsts[attempt.case_id] = decided
+                if score is not None and score.human_passed is not None:
+                    by_person.add(attempt.case_id)
             else:
                 reruns[attempt.case_id].append(decided)
         return {
-            case_id: (first, tuple(reruns[case_id]), case_tags[case_id])
+            case_id: (
+                settle((first, *reruns[case_id]))
+                if overturned_by_majority and case_id in by_person and reruns[case_id]
+                else first,
+                tuple(reruns[case_id]),
+                case_tags[case_id],
+            )
             for case_id, first in firsts.items()
         }
 
@@ -2642,7 +2682,8 @@ class EvalRunService:
         attempts = await eval_run_repo.list_cases(
             self.db, run.id, organization_id=ctx.organization_id
         )
-        mine = await self.outcomes(ctx, candidate, attempts)
+        by_majority = _skill_check_stage(run)
+        mine = await self.outcomes(ctx, candidate, attempts, overturned_by_majority=by_majority)
         candidate_side = await self._side(ctx, run, candidate)
         candidate_attempts = await self._first_attempts(ctx, candidate, attempts)
         measured = self._measurement(run) if measurement_only else None
@@ -2675,7 +2716,7 @@ class EvalRunService:
                 flips_by_tag={},
             )
         theirs = (
-            await self.outcomes(ctx, baseline.here, attempts)
+            await self.outcomes(ctx, baseline.here, attempts, overturned_by_majority=by_majority)
             if baseline.here is not None
             else await self.outcomes(
                 ctx,
@@ -2685,6 +2726,7 @@ class EvalRunService:
                 else await eval_run_repo.list_cases(
                     self.db, baseline.run.id, organization_id=ctx.organization_id
                 ),
+                overturned_by_majority=by_majority,
             )
         )
         drift = drifts(run, candidate, baseline)
@@ -2707,7 +2749,7 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
+        invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:
             knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
             if knowledge is not None and knowledge.invalidated:
@@ -2735,7 +2777,7 @@ class EvalRunService:
         ):
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
-            invalid_reason_code = None
+            invalid_reason_code = "too_few_held_out"
         if (
             measured is not None
             and invalid_reason is None

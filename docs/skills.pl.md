@@ -1,5 +1,5 @@
 ---
-source_sha: "57792cfecf5c"
+source_sha: "f0283a8d75b1"
 ---
 
 # Skille { #skills }
@@ -268,14 +268,22 @@ Każdy skill ma jeden zestaw, zaczynany na stronie skilla w sekcji **Pytania tes
 - z ostatnich odpowiedzi, które otworzyły skill, albo pusty - albo przez API,
 `POST /api/v1/skills/{id}/test-set`, albo przyciskiem **Dodaj pytania testowe** przy
 agencie, którego [Popraw](#improving-a-skill) nie mogło sprawdzić, i edytowany jak
-każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do skilla. Potem o pytania samego agenta:
+każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do skilla.
+
+Zestaw ocenia sędzia, porównując każdą odpowiedź z tą, którą ludzie ocenili w
+górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, którą
+ktoś ocenił, wygrywa z taką, która tylko się nie udała, więc jedno pytanie nigdy
+nie wymaga odpowiedzi i jednocześnie jej nie zabrania.
+
+Potem o pytania samego agenta:
 
 - **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
   held-out samego skilla jest za mało do pięciu, których wymaga wynik - których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
   ze zmienianymi liniami. Agent bez takich pytań jest sprawdzany tylko na
   zestawie skilla, a jego wiersz to mówi. Agent, którego pytania skilla pokazały
-  jako gorszego, nie jest pytany o własne.
+  jako gorszego, nie jest pytany o własne, a jego wiersz mówi, że nie zostały
+  zadane.
 - **Thorough**: cały dataset agenta, zadawany nawet wtedy, gdy pytania skilla
   pokazały agenta jako gorszego, żeby jego wiersz mówił, gdzie zmiana go zepsuła.
   Zmiana opisu skilla jest zawsze sprawdzana
@@ -289,6 +297,11 @@ każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do s
     reguły nie przejdzie żadnego pytania, które wciąż oczekuje starej
     odpowiedzi: najpierw zaktualizuj pytania testowe.
 
+Zestaw pytań, którego nic nie potrafi ocenić albo którego wszystkie pytania
+pochodzą z rozmów, z których zmiana się nauczyła, jest dla tego agenta pomijany,
+a reszta i tak jest zadawana. Agent, któremu nie zostało nic do zadania, jest
+nieznany, z tym powodem. Każdy zestaw liczy tylko pytania, które zadaje.
+
 ### Reguła { #the-rule }
 
 - Żaden agent nie może być **gorszy** o regresję potwierdzoną ponownymi
@@ -296,9 +309,15 @@ każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do s
 - Co najmniej jeden agent musi być **lepszy**.
 - Różnica, której sprawdzenie nie potwierdziło, jest **w granicach szumu**: to
   ostrzeżenie, nie blokada.
-- Agent, którego nie dało się sprawdzić - brak pytań, brak dostępu, brak
-  budżetu, brak opublikowanej wersji, nieudany run - jest **nieznany**, a
-  osoba potwierdza to przed zastosowaniem.
+- Agent, którego nie dało się sprawdzić - brak pytań, pytania, których nic nie
+  ocenia albo wzięte w całości z rozmów samej zmiany, brak dostępu, brak
+  budżetu, brak opublikowanej wersji, nieudany run, zatrzymane sprawdzenie - jest
+  **nieznany**, a osoba potwierdza to przed zastosowaniem.
+
+Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
+razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.
+Zmiana linii, której nie czyta żaden agent, przechodzi od razu: do nikogo nie
+trafia, a sprawdzenie mówi, że nie było kogo sprawdzić.
 
 Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
 razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
@@ -306,27 +325,48 @@ regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi.
 pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
 held-out agenta.
 
-Werdykt osoby w [kolejce przeglądu](datasets.md#review) na odpowiedź ocenioną
+Sprawdzenie wysyła swoje potwierdzone regresje i odpowiedzi, których sędzia nie
+umiał ocenić, do [kolejki przeglądu](datasets.md#review), każdą oznaczoną jako
+odpowiedź udzieloną z proponowaną zmianą, i nigdy w miejsce odpowiedzi, która
+już czeka na tym pytaniu. Werdykt osoby na odpowiedź ocenioną
 przez sprawdzenie ocenia tego agenta od nowa: jego liczby, werdykt sprawdzenia i
 wynik próby Improve, którą sprawdzenie mierzyło, idą za tym werdyktem.
-Rozstrzygnięte sprawdzenie zachowuje swoją decyzję, a agent, którego sprawdzenie
-nie mogło uruchomić, zostaje nieznany.
+
+Werdykt
+dotyczy tej jednej odpowiedzi; ponowne pytania zachowują własne oceny, więc
+regresja, którą potwierdziły, zostaje. Agent, którego szybkie sprawdzenie nie
+zapytało o własne pytania, bo pytania skilla pokazały go jako gorszego, jest
+nieznany, gdy ta regresja zostanie cofnięta. Rozstrzygnięte sprawdzenie
+zachowuje swoją decyzję, a agent, którego sprawdzenie nie mogło uruchomić,
+zostaje nieznany.
 
 Część każdego agenta to jego własne runy evali, rozliczane z jego budżetu.
 Estymacja podaje jedną cenę, najpewniej i najwyżej, i przed startem wymienia
-agentów, których budżet jej nie pokryje. Start wymaga `runs:view` i prawa edycji
+agentów, których budżet jej nie pokryje. Ponowny start tego samego sprawdzenia,
+gdy wciąż trwa, zwraca to sprawdzenie, więc nigdy nie płaci się za nie dwa razy.
+Start wymaga `runs:view` i prawa edycji
 skilla. Agent, którego nie możesz uruchomić, nie jest uruchamiany, a ten, którego
 nie widzisz, jest liczbą, nigdy nazwą.
 
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
 **Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
-wynik każdego agenta, a potem stosuje albo odrzuca zmianę. W trakcie pasek liczy
-sprawdzonych agentów, a przy każdym agencie widać, czy czeka, trwa, czy ma już
-wynik. Okno można zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a
-**Pokaż** otwiera sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Sprawdzenie, które
-uruchomiła [sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check
-on agents prowadzi do niej. Na main osoba może nadal:
+wynik każdego agenta, a potem proponuje dokładnie to, na co sprawdzenie pozwala. W
+trakcie pasek liczy sprawdzonych agentów. Potem każdy agent rozwija się do tego, co
+naprawił i zepsuł, etap po etapie, z linkiem do runu każdego etapu; strona tego runu
+mówi, że jest jednym etapem sprawdzenia, i prowadzi z powrotem do niego. Okno można
+zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a **Pokaż** otwiera
+sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Historia skilla wymienia
+sprawdzenia linii, od najnowszego, z tym, co każde znalazło i co z nim zrobiono, a
+**Szczegóły** otwierają jedno z nich. Sprawdzenie, które uruchomiła
+[sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check on agents
+prowadzi do niej.
+
+**Wróć do edycji** zabiera sprawdzony tekst z powrotem do edytora - tego, w którym
+go napisano, albo nowego, otwartego z Pokaż lub Szczegóły na linii samego
+sprawdzenia - więc nic, co wpisano, nie przepada, a zapis jest odrzucany, gdy linia
+ma już wersję nowszą niż ta, na której sprawdzano; sprawdzenie propozycji daje zamiast tego **Popraw dalej**, które
+zaczyna sesję. Na main osoba może nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
@@ -334,12 +374,13 @@ on agents prowadzi do niej. Na main osoba może nadal:
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
 - **zrobić fork**, zostawiając main bez zmian - dostępny niezależnie od wyniku,
-  w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
+  w oknie sprawdzenia, w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Na fork przechodzą agenci,
   którym zmiana pomogła, chyba że wybierzesz innych w `agent_ids`; pusta lista nie
   przenosi nikogo, a agenta czytającego skill przez specjalistę przenosi się w jego
   Builderze;
-- **odrzucić** ją.
+- **odrzucić** ją, po potwierdzeniu: o odrzuconym sprawdzeniu nie da się już
+  zdecydować, a jego zapis zostaje w Historii.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
 wersję main, a fork nigdy nie zaczyna się od innego forka. Sprawdzenie odmawia
@@ -525,6 +566,17 @@ Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia.
 - środowisko czekające na promocję serwuje wersję używającą skilla. Takie
   środowisko przesuwa tylko promocja, a to decyzja jego właściciela.
 
+[Klucz API organizacji](api.md#organization-api-keys) sięga wersji, forków i agentów
+skilla, jak wymienia tabela poniżej.
+
+Checki (`…/checks…` i `…/update-check`),
+pytania testowe (`…/test-set`) oraz sesje Improve, doganianie main i przenoszenie
+forka na main razem z ich scaleniami odpowiadają tylko zalogowanej osobie albo
+Architectowi lub klientowi MCP działającemu w jej imieniu; propozycje zmian
+(`/api/v1/skill-changes`) odpowiadają tylko osobie w konsoli. Klucz dostaje `403`
+"API keys are not accepted on this endpoint": każda z nich wydaje pieniądze w
+czyimś imieniu albo kończy się decyzją, którą ta osoba podejmuje sama.
+
 | Ścieżka | Co robi |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | Wersje main albo forka z `?fork_id=`, od najnowszej |
@@ -543,6 +595,7 @@ Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia.
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla wybranych agentów albo go odrzuca |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |
 | `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
+| `GET /api/v1/skill-checks/awaiting` | Sprawdzenia uruchomione przez osobę, które trwają albo czekają na decyzję, na skillach, które wywołujący może edytować |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

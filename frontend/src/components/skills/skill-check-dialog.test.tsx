@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillCheckDialog } from "./skill-check-dialog";
 import { ApiError } from "@/lib/api-error";
-import { finishedCheck } from "@/test-utils/skill-checks";
+import { checkAgent, finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
 
 type Mutation = {
@@ -22,6 +22,7 @@ const held = vi.hoisted(() => ({
   apply: {} as Mutation,
   discard: {} as Mutation,
   cancel: {} as Mutation,
+  fork: {} as Mutation & { mutateAsync: ReturnType<typeof vi.fn> },
   checkId: null as string | null,
 }));
 
@@ -30,6 +31,17 @@ vi.mock("@/hooks/use-skill-check", () => ({
     held.checkId = checkId;
     return held;
   },
+  useSkillTestSet: () => ({
+    testSet: null,
+    isLoading: false,
+    error: null,
+    create: {
+      mutate: (_body: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.(),
+    },
+  }),
+}));
+vi.mock("@/hooks/use-skill-versions", () => ({
+  useSkillAgents: () => ({ agents: { items: [] }, error: null, retry: vi.fn(), retrying: false }),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -44,7 +56,14 @@ beforeEach(() => {
   held.apply = mutation();
   held.discard = mutation();
   held.cancel = mutation();
+  held.fork = { ...mutation(), mutateAsync: vi.fn() };
 });
+
+async function discard() {
+  await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+  const confirm = screen.getAllByRole("dialog").at(-1)!;
+  await userEvent.click(within(confirm).getByRole("button", { name: "Discard" }));
+}
 
 function open(onOpenChange = vi.fn()) {
   render(
@@ -64,7 +83,7 @@ describe("SkillCheckDialog", () => {
     open();
 
     expect(held.estimate.mutate).toHaveBeenCalledWith({ fork_id: null, proposal_id: "p-1" });
-    expect(screen.getByText(/Most likely \$0.08, at most \$0.24/)).toBeInTheDocument();
+    expect(screen.getByText(/Most likely \$0.0800, at most \$0.2400\./)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
 
     expect(held.checkId).toBe("c-9");
@@ -149,7 +168,7 @@ describe("SkillCheckDialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(onOpenChange).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await discard();
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -161,7 +180,7 @@ describe("SkillCheckDialog", () => {
     const onOpenChange = open();
 
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await discard();
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onOpenChange).toHaveBeenCalledTimes(1);
@@ -253,5 +272,127 @@ describe("SkillCheckDialog", () => {
     held.estimate = mutation({ data: finishedCheck() });
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
     expect(onLineMoved).toHaveBeenCalledTimes(2);
+  });
+
+  it("names what each agent fixed and broke once the check is done", async () => {
+    held.check = finishedCheck({
+      agents: [checkAgent({ name: "Web shop", state: "better", fixed: 1, broken: 0 })],
+    });
+    open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Details of Web shop" }));
+
+    expect(screen.getByText("Fixes 1 question, breaks 0.")).toBeInTheDocument();
+  });
+
+  it("says nobody can be checked before it starts, and offers the questions and a way on", async () => {
+    const unknown = { state: "unknown" as const, unknown_reason: "no_questions" as const };
+    held.estimate = mutation({
+      data: finishedCheck({
+        agents: [checkAgent({ name: "A", ...unknown }), checkAgent({ name: "B", ...unknown })],
+        expected_usd: "0",
+        at_most_usd: "0",
+      }),
+    });
+    held.start.mutate.mockImplementation((_body, options) => options.onSuccess({ id: "c-ack" }));
+    open();
+
+    expect(screen.getByText(/None of these agents can be checked/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add test questions" })).toBeInTheDocument();
+    expect(screen.queryByText(/Most likely/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Go on without a check" }));
+
+    expect(held.checkId).toBe("c-ack");
+  });
+
+  it("goes back to editing the checked text", async () => {
+    held.check = finishedCheck({
+      verdict: "no_better",
+      outcomes: ["improve_further", "fork_for_helped", "discard"],
+    });
+    const onEdit = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SkillCheckDialog
+        skillId="s-1"
+        resume="c-1"
+        forkId={null}
+        onOpenChange={onOpenChange}
+        onEdit={onEdit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Back to editing" }));
+
+    expect(onEdit).toHaveBeenCalledWith({
+      description: "Refunds",
+      content: "Refund within 30 days.",
+      baseVersionId: "v-3",
+      forkId: null,
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("closes once the fork is made, and keeps a refused fork's reason in the fork dialog", async () => {
+    held.check = finishedCheck({
+      verdict: "no_better",
+      outcomes: ["improve_further", "fork_for_helped", "discard"],
+    });
+    held.fork.mutateAsync.mockRejectedValueOnce(new Error("Name taken")).mockResolvedValueOnce({});
+    const onApplied = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SkillCheckDialog
+        skillId="s-1"
+        resume="c-1"
+        forkId={null}
+        onOpenChange={onOpenChange}
+        onApplied={onApplied}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
+    await userEvent.click(screen.getByRole("button", { name: /Make the fork/ }));
+    expect(await screen.findByText("Name taken")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /Make the fork/ }));
+
+    expect(onApplied).toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says nobody reads the line before it starts, and that nobody was checked after", () => {
+    held.estimate = mutation({
+      data: finishedCheck({ agents: [], hidden: 0, expected_usd: "0", at_most_usd: "0" }),
+    });
+    open();
+
+    expect(screen.getByText(/No agent reads this line, so there is nobody to check/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Go on without a check" })).toBeEnabled();
+    expect(screen.queryByRole("list")).toBeNull();
+    cleanup();
+
+    held.check = finishedCheck({ agents: [], no_readers: true });
+    open();
+    expect(
+      screen.getByText("No agent reads this line, so there was nobody to check."),
+    ).toBeVisible();
+  });
+
+  it("prices the check again once test questions were written, and offers grading where it lacks", async () => {
+    const agent = (name: string, reason: "unscorable" | "all_evidence") =>
+      checkAgent({ name, state: "unknown", unknown_reason: reason });
+    held.estimate = mutation({
+      data: finishedCheck({ agents: [agent("A", "all_evidence"), agent("B", "unscorable")] }),
+    });
+    open();
+
+    expect(screen.getByRole("link", { name: "Set up grading on Skill set" })).toHaveAttribute(
+      "href",
+      "/datasets/d-1?tab=grading",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add test questions" }));
+
+    expect(held.estimate.mutate).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,6 +1,6 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -384,6 +384,24 @@ async def list_cases(
         .order_by(EvalRunCase.position, EvalRunCase.arm_id, EvalRunCase.attempt)
     )
     return list(result.scalars().all())
+
+
+async def asked_counts(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """How many questions each run asks, by run; a run with none yet is left out."""
+    if not eval_run_ids:
+        return {}
+    result = await db.execute(
+        select(EvalRunCase.eval_run_id, func.count(func.distinct(EvalRunCase.case_id)))
+        .where(
+            EvalRunCase.eval_run_id.in_(eval_run_ids),
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.attempt == 0,
+        )
+        .group_by(EvalRunCase.eval_run_id)
+    )
+    return dict(result.tuples().all())
 
 
 async def case_of_agent_run(
@@ -966,6 +984,22 @@ async def scores(
         )
     )
     return {score.id: score for score in result.scalars().all()}
+
+
+async def score_attempts(
+    db: AsyncSession, score_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """Of these scores, the ones an eval run gave, with the attempt each answered: 0 for a
+    case's first answer, then each re-ask that confirmed a change."""
+    if not score_ids:
+        return {}
+    rows = await db.execute(
+        select(EvalRunCase.case_score_id, EvalRunCase.attempt).where(
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.case_score_id.in_(list(score_ids)),
+        )
+    )
+    return {score_id: attempt for score_id, attempt in rows.tuples().all() if score_id is not None}
 
 
 async def revisions(

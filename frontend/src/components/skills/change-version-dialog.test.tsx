@@ -215,7 +215,9 @@ describe("ChangeVersionDialog", () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
       path === "/skills/s1/checks/c9" ? done : { items: [{ id: "m12", number: 12 }], total: 12 },
     );
-    vi.mocked(apiClient.post).mockResolvedValue(done);
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+      path.endsWith("/estimate") ? finishedCheck() : done,
+    );
     renderDialog();
 
     await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));

@@ -1,5 +1,5 @@
 ---
-source_sha: "57792cfecf5c"
+source_sha: "f0283a8d75b1"
 ---
 
 # Skills { #skills }
@@ -288,7 +288,14 @@ Skill hat einen Satz, begonnen auf der Skill-Seite unter **Testfragen** - aus
 jüngsten Antworten, die den Skill geladen haben, oder leer - oder über die API,
 `POST /api/v1/skills/{id}/test-set`, oder mit **Testfragen hinzufügen** neben einem
 Agent, den [Verbessern](#improving-a-skill) nicht prüfen konnte, und bearbeitet wie
-jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichnet. Dann die eigenen Fragen des Agents:
+jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichnet.
+
+Ein Judge bewertet den Satz und vergleicht jede Antwort mit der, die Personen
+positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal
+gestellt: Eine Antwort, die jemand bewertet hat, gewinnt gegen eine, die nur
+fehlschlug, so verlangt eine Frage nie eine Antwort und verbietet sie zugleich.
+
+Dann die eigenen Fragen des Agents:
 
 - **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
   eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
@@ -296,7 +303,8 @@ jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichne
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
   den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
   Satz des Skills geprüft, und seine Zeile sagt das. Ein Agent, den die Fragen
-  des Skills als schlechter zeigen, wird nicht nach seinen eigenen gefragt.
+  des Skills als schlechter zeigen, wird nicht nach seinen eigenen gefragt, und
+  seine Zeile sagt, dass sie nicht gestellt wurden.
 - **Thorough**: das ganze Dataset des Agents, gefragt auch dann, wenn die Fragen
   des Skills den Agent als schlechter zeigten, damit seine Zeile sagt, wo die
   Änderung ihn gebrochen hat. Eine Änderung der Beschreibung
@@ -311,6 +319,12 @@ jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichne
     gewollte Regeländerung besteht keine Frage, die noch die alte Antwort
     erwartet: Aktualisieren Sie zuerst die Testfragen.
 
+Ein Satz von Fragen, den nichts bewerten kann oder dessen Fragen alle aus den
+Unterhaltungen stammen, aus denen die Änderung gelernt hat, wird für diesen Agent
+ausgelassen, und der Rest wird trotzdem gefragt. Ein Agent, für den nichts zu
+fragen bleibt, ist unbekannt, mit diesem Grund. Jeder Satz zählt nur die Fragen,
+die er stellt.
+
 ### Die Regel { #the-rule }
 
 - Kein Agent darf **schlechter** werden, durch eine Regression, die erneutes
@@ -318,9 +332,17 @@ jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichne
 - Mindestens ein Agent muss **besser** werden.
 - Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
   Rauschen**: eine Warnung, keine Sperre.
-- Ein Agent, der nicht geprüft werden konnte - keine Fragen, kein Zugriff, kein
-  Budget mehr, keine veröffentlichte Version, ein fehlgeschlagener Run - ist
-  **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
+- Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
+  bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
+  kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
+  fehlgeschlagener Run, eine angehaltene Prüfung - ist **unbekannt**, und eine
+  Person bestätigt das vor dem Anwenden.
+
+Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
+sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Der Dialog sagt das vor dem Start und bietet die Testfragen des Skills an oder die Bewertung, die seinen Fragen fehlt.
+Eine Änderung
+an einer Linie, die kein Agent liest, besteht sofort: Sie erreicht niemanden, und
+die Prüfung sagt, dass es niemanden zu prüfen gab.
 
 Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
 zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
@@ -329,16 +351,27 @@ fand.
 Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
 Held-out-Fragen des Agents.
 
-Das Urteil einer Person in der [Prüfwarteschlange](datasets.md#review) über eine
-Antwort, die eine Prüfung bewertet hat, beurteilt diesen Agent neu: seine Zahlen,
-das Urteil der Prüfung und das Ergebnis des Improve-Versuchs, den die Prüfung
-gemessen hat, folgen diesem Urteil. Eine entschiedene Prüfung behält ihre
-Entscheidung, und ein Agent, den die Prüfung nicht ausführen konnte, bleibt
-unbekannt.
+Eine Prüfung schickt ihre bestätigten Regressionen und die Antworten, die der
+Judge nicht bewerten konnte, in die [Prüfwarteschlange](datasets.md#review), jede
+als Antwort mit der vorgeschlagenen Änderung markiert, und nie anstelle einer
+Antwort, die auf diese Frage schon wartet. Das Urteil einer Person
+dort über eine Antwort, die eine Prüfung bewertet hat, beurteilt diesen Agent neu:
+seine Zahlen, das Urteil der Prüfung und das Ergebnis des Improve-Versuchs, den
+die Prüfung gemessen hat, folgen diesem Urteil.
+
+Das Urteil gilt dieser einen
+Antwort; das erneute Fragen behält seine eigenen Bewertungen, also bleibt eine
+Regression, die es bestätigt hat. Ein Agent, den eine schnelle Prüfung nicht nach
+seinen eigenen Fragen gefragt hat, weil die des Skills ihn als schlechter zeigten,
+ist unbekannt, wenn diese Regression zurückgenommen wird. Eine entschiedene
+Prüfung behält ihre Entscheidung, und ein Agent, den die Prüfung nicht ausführen
+konnte, bleibt unbekannt.
 
 Der Anteil jedes Agents sind seine eigenen Eval-Runs, abgerechnet über sein
 Budget. Die Schätzung nennt einen Preis, wahrscheinlich und höchstens, und vor
-dem Start die Agents, deren Budget ihn nicht deckt. Starten braucht `runs:view`
+dem Start die Agents, deren Budget ihn nicht deckt. Dieselbe Prüfung noch einmal
+gestartet, während sie läuft, gibt diese Prüfung zurück, sodass sie nie doppelt
+bezahlt wird. Starten braucht `runs:view`
 und Bearbeitungszugriff auf den Skill. Ein Agent, den Sie nicht ausführen dürfen,
 wird nicht ausgeführt, und einer, den Sie nicht sehen dürfen, ist eine Zahl, nie
 ein Name.
@@ -346,14 +379,24 @@ ein Name.
 ### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
 
 **Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
-Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Während sie
-läuft, zählt ein Balken die fertigen Agents, und jeder Agent zeigt, ob er wartet,
-läuft oder sein Ergebnis hat. Sie können den Dialog schließen: Die Seite des Skills
-zeigt dann **Prüfung läuft**, und **Anzeigen** öffnet die Prüfung wieder, bis Sie
-entscheiden. Eine
+Ergebnis jedes Agents und bietet dann genau an, was die Prüfung erlaubt. Während sie
+läuft, zählt ein Balken die fertigen Agents. Danach öffnet sich jeder Agent zu dem,
+was er behoben und kaputt gemacht hat, Stufe für Stufe, mit einem Link zum Run jeder
+Stufe; die Seite dieses Runs sagt, dass er eine Stufe der Prüfung ist, und verweist
+zurück auf sie. Sie können den Dialog schließen: Die Seite des Skills zeigt dann
+**Prüfung läuft**, und **Anzeigen** öffnet die Prüfung wieder, bis Sie entscheiden.
+Der Verlauf des Skills listet die Prüfungen der Linie, die neueste zuerst, mit dem,
+was jede fand und was mit ihr geschah, und **Details** öffnet eine davon. Eine
 Prüfung, die eine [Verbessern-Sitzung](#improving-a-skill) gestartet hat, wird in
-dieser Sitzung entschieden, und Check on agents verweist dorthin. Auf main kann
-eine Person dennoch:
+dieser Sitzung entschieden, und Check on agents verweist dorthin.
+
+**Zurück zum Bearbeiten** bringt den geprüften Text zurück in den Editor - den, in
+dem er geschrieben wurde, oder einen neuen, geöffnet aus Anzeigen oder Details auf
+der Linie der Prüfung selbst -, sodass nichts Eingetippte verloren geht, und das
+Speichern wird abgelehnt, sobald die Linie eine neuere Version hat als die geprüfte;
+die Prüfung eines Vorschlags bietet
+stattdessen **Weiter verbessern** an, das eine Sitzung startet. Auf main kann eine
+Person dennoch:
 
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
   jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
@@ -362,12 +405,14 @@ eine Person dennoch:
   und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
   Version übernehmen;
 - **einen Fork anlegen** und main lassen, wie es ist - angeboten, was immer das
-  Ergebnis ist, im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
+  Ergebnis ist, im Dialog der Prüfung, im Schritt Annehmen von
+  [Verbessern](#improving-a-skill) oder über
   die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Auf den Fork wechseln
   die Agents, denen sie geholfen hat, außer Sie wählen andere mit `agent_ids`; eine
   leere Liste verschiebt keinen, und ein Agent, der den Skill über einen
   Spezialisten liest, wird in seinem Builder verschoben;
-- sie **verwerfen**.
+- sie **verwerfen**, nach einer Bestätigung: Über eine verworfene Prüfung lässt
+  sich nicht mehr entscheiden, und ihr Eintrag bleibt im Verlauf.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
 eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfung
@@ -572,6 +617,18 @@ sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
   verwendet. Eine solche Umgebung bewegt nur eine Beförderung, und das entscheidet
   ihr Eigentümer.
 
+Ein [API-Schlüssel der Organisation](api.md#organization-api-keys) erreicht die
+Versionen, Forks und Agents eines Skills, wie die Tabelle unten sie aufführt.
+
+Checks
+(`…/checks…` und `…/update-check`), die Testfragen (`…/test-set`) sowie
+Improve-Sitzungen, das Nachziehen von main und das Verschieben nach main samt ihren
+Zusammenführungen antworten nur einer angemeldeten Person oder dem Architect oder einem
+MCP-Client, der für sie handelt; Änderungsvorschläge (`/api/v1/skill-changes`)
+antworten nur einer Person in der Konsole. Ein Schlüssel erhält `403` "API keys are
+not accepted on this endpoint": Jede davon gibt Geld im Namen von jemandem aus oder
+endet in einer Entscheidung, die diese Person selbst trifft.
+
 | Pfad | Was er tut |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | Die Versionen von main oder mit `?fork_id=` eines Forks, die neueste zuerst |
@@ -590,6 +647,7 @@ sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die gewählten Agents oder verwirft es |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Prüft ein Ergebnis erneut auf der Linie, wie sie jetzt ist |
 | `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
+| `GET /api/v1/skill-checks/awaiting` | Die Prüfungen, die eine Person gestartet hat und die noch laufen oder auf eine Entscheidung warten, auf Skills, die der Aufrufer bearbeiten darf |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

@@ -136,7 +136,7 @@ export interface AgentCheckRef {
   check_id: string;
   version_id: string;
   state: AgentCheckState;
-  sample: "own_questions" | "skill_set_only" | null;
+  sample: "own_questions" | "skill_set_only" | "own_not_asked" | null;
   at: string;
 }
 

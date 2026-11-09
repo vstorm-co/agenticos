@@ -1,5 +1,5 @@
 ---
-source_sha: "27f6f240aeee"
+source_sha: "c4e55a03d561"
 ---
 
 # Konsola { #the-console }
@@ -59,7 +59,7 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok           | Odpowiada na                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ja**          | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
+| **Ja**          | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka (liczone tak samo) i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
 | **Ja**          | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono                                                                                                                                                                                                                                                                                                                                                   |
 | **Organizacja** | Układalna strona opisana niżej                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **Grupa**       | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart                                                                                                                                                                                                                                                                              |
@@ -75,8 +75,10 @@ teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki 
 wersja nie zbierze własnych. Oba wymagają `runs:view`.
 
 Pod nią karta **Poprawki czekające na Ciebie** wymienia sesje [Ulepsz](authoring.md#the-improve-wizard)
-zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju. Po
-nich są przypięci agenci i forki, które main
+zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju, oraz
+[sprawdzenia zmian skilli](skills.md#when-an-agent-got-worse), o których możesz
+zdecydować, a które trwają albo czekają na decyzję. Po nich są zmiany skilli
+zaproponowane przez agentów, a potem przypięci agenci i forki, które main
 [wyprzedził](skills.md#which-version-an-agent-reads). Fork dogania się stamtąd,
 a przypiętego agenta przenosi się na stronie jego skilla.
 

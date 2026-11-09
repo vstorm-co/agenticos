@@ -256,13 +256,21 @@ has one set, started on the skill page under **Test questions** - from recent an
 that loaded the skill, or empty - or through the API,
 `POST /api/v1/skills/{id}/test-set`, or with **Add test questions** beside an agent
 [Improve](#improving-a-skill) could not check, and edited like any other
-[dataset](datasets.md), which Datasets marks as the skill's. Then the agent's own questions:
+[dataset](datasets.md), which Datasets marks as the skill's.
+
+A judge grades the set, comparing each answer with the one people rated up. Made
+from recent answers, each question is asked once: an answer someone rated wins
+over one that only failed, so one question never asks for an answer and forbids
+it too.
+
+Then the agent's own questions:
 
 - **Quick**, the default: four questions of the agent's dataset - more when the
   skill's own held-out questions are too few for the five a result needs - whose
   newest answer loaded the skill - the ones sharing most words with the lines the
   change touches. An agent with none is checked on the skill's set alone, and its
-  row says so. An agent the skill's questions show worse is not asked its own.
+  row says so. An agent the skill's questions show worse is not asked its own, and
+  its row says they were not asked.
 - **Thorough**: the agent's whole dataset, asked even when the skill's questions
   showed the agent worse, so its row says where the change broke it. A change to
   the skill's description
@@ -277,15 +285,27 @@ that loaded the skill, or empty - or through the API,
     rule fails every question still expecting the old answer: update the test
     questions first.
 
+A set of questions that nothing can grade, or whose questions all come from the
+conversations the change was learned from, is left out for that agent, and the
+rest is still asked. An agent with nothing left to ask is unknown, with that
+reason. Each set counts only the questions it asks.
+
 ### The rule { #the-rule }
 
 - No agent may get **worse**, by a regression its re-asks confirmed.
 - At least one agent must get **better**.
 - A difference the check could not confirm is **within noise**: a warning, not a
   block.
-- An agent that could not be checked - no questions, no access, no budget left,
-  no published version, a run that failed - is **unknown**, and a person
-  acknowledges it before applying.
+- An agent that could not be checked - no questions, questions nothing can grade
+  or all taken from the change's own conversations, no access, no budget left, no
+  published version, a run that failed, a check that was stopped - is
+  **unknown**, and a person acknowledges it before applying.
+
+A check where no agent can be checked still starts, and finishes at once with
+every agent unknown, for a person to acknowledge. The dialog says so before the
+start and offers the skill's test questions, or the grading its questions lack. A
+change to a line no agent reads passes at once: it reaches nobody, and the check says there was nobody to
+check.
 
 An agent is judged once, on the held-out questions of all its stages together: a
 result needs five of them for the agent, not five per stage, and a regression one
@@ -293,37 +313,57 @@ stage confirmed on its own counts whatever the other found. Every question of th
 skill's set is held out, and a quick check samples only the agent's held-out
 questions.
 
-A person's verdict in the [review queue](datasets.md#review) on an answer a
-check graded judges that agent again: its counts, the check's verdict and the
-result of the Improve attempt the check measured follow the verdict. A decided
-check keeps its decision, and an agent the check could not run stays unknown.
+A check sends its confirmed regressions, and the answers the judge could not
+grade, to the [review queue](datasets.md#review), each marked as an answer given
+with the proposed change, and never in place of an answer already waiting on that
+question. A person's verdict there on an answer a check graded
+judges that agent again: its counts, the check's verdict and the result of the
+Improve attempt the check measured follow the verdict.
+
+The verdict is on that one
+answer; the re-asks keep their own grades, so a regression they confirmed stays.
+An agent a quick check did not ask its own questions, once the skill's showed it
+worse, is unknown when that regression is taken back. A decided check keeps its
+decision, and an agent the check could not run stays unknown.
 
 Each agent's share is its own eval runs, billed to that agent. The estimate gives
 one price, most likely and at most, and names before the start the agents whose
-budget cannot cover it. Starting needs `runs:view` and edit access to the skill.
+budget cannot cover it. Starting the same check again while it runs returns that
+check, so it is never paid for twice. Starting needs `runs:view` and edit access to the skill.
 An agent you may not run is not run, and one you may not see is a count, never a
 name.
 
 ### When an agent got worse { #when-an-agent-got-worse }
 
 **Check on agents** under Skills prices the check, runs it, shows each agent's
-result and then applies or discards the change. While it runs, a bar counts the
-agents done, and each agent shows whether it waits, runs or has its result. You can
-close the dialog: the skill's page then shows **Check running**, and **Show** opens
-the check again, until you decide it. A check an
+result and then offers exactly what the check allows. While it runs, a bar counts the
+agents done. Each agent then opens to what it fixed and broke, stage by stage, with
+a link to each stage's run; that run's page says it is one stage of the check and
+links back to it. You can close the dialog: the skill's page then shows **Check
+running**, and **Show** opens the check again, until you decide it. The skill's
+History lists the line's checks, newest first, with what each found and what was
+done with it, and **Details** opens one. A check an
 [Improve session](#improving-a-skill) started is decided in that session, and Check
-on agents links there instead. On main a person may still:
+on agents links there instead.
+
+**Back to editing** takes the checked text back to the editor - the one it was
+written in, or a new one opened from Show or Details on the check's own line - so
+nothing typed is lost, and saving it is refused once the line has a version newer
+than the one it was checked on; a
+proposal's check offers **Improve further** instead, which starts a session. On
+main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them, and an
   environment that waits for promotion must take the pinned version first;
-- **make a fork**, leaving main as it is - offered whatever the result, at
-  [Improve's](#improving-a-skill) Accept step, or through the API,
+- **make a fork**, leaving main as it is - offered whatever the result, in the
+  check's dialog, at [Improve's](#improving-a-skill) Accept step, or through the API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`. The agents it helped move onto
   the fork, unless you pick others with `agent_ids`; an empty list moves none, and
   an agent reading the skill through a specialist is moved in its Builder;
-- **discard** it.
+- **discard** it, after a confirmation: a discarded check cannot be decided again,
+  and its record stays in History.
 
 On a fork only improving further and discarding remain: a pin names a main
 version, and a fork never starts from another fork. A check refuses to apply
@@ -503,6 +543,16 @@ request is refused, naming the agents, when:
 - an environment that waits for promotion serves a version that uses it. Only a
   promotion moves such an environment, and that is its owner's decision.
 
+An [organization API key](api.md#organization-api-keys) reaches a skill's versions,
+forks and agents, as the table below lists.
+
+Checks (`…/checks…` and `…/update-check`), the test set (`…/test-set`), and Improve sessions, catch-ups and
+moves to main with their merges answer only a person signed in, or the Architect or
+an MCP client acting for one; change proposals (`/api/v1/skill-changes`) answer only
+a person in the console. A key gets `403` "API keys are not accepted on this
+endpoint": each spends on someone's behalf or ends in a decision that is theirs to
+make.
+
 | Route | What it does |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | The versions of main, or of a fork with `?fork_id=`, newest first |
@@ -521,6 +571,7 @@ request is refused, naming the agents, when:
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents picked, or discards it |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |
 | `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
+| `GET /api/v1/skill-checks/awaiting` | The checks a person started, still running or waiting for a decision, on skills the caller may edit |
 
 ## Getting skills into an organization
 

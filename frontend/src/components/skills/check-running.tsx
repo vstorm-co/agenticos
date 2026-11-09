@@ -6,13 +6,22 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { useOpenSkillCheck } from "@/hooks/use-skill-check";
-import { SkillCheckDialog } from "./skill-check-dialog";
+import { SkillCheckDialog, type CheckedDraft } from "./skill-check-dialog";
 
 /**
  * A check of a change to the line shown that a person left running, or that finished
- * and waits for a decision: where they come back to it, with Show to open it again.
+ * and waits for a decision: where they come back to it, with Show to open it again,
+ * and from there back to editing the text it checked.
  */
-export function CheckRunning({ skillId, forkId }: { skillId: string; forkId: string | null }) {
+export function CheckRunning({
+  skillId,
+  forkId,
+  onEdit,
+}: {
+  skillId: string;
+  forkId: string | null;
+  onEdit: (draft: CheckedDraft) => void;
+}) {
   const t = useTranslations("skills.page.checkRunning");
   const check = useOpenSkillCheck(skillId, forkId);
   const [open, setOpen] = useState(false);
@@ -48,6 +57,7 @@ export function CheckRunning({ skillId, forkId }: { skillId: string; forkId: str
           resume={check.id}
           forkId={forkId}
           onOpenChange={setOpen}
+          onEdit={onEdit}
         />
       )}
     </div>

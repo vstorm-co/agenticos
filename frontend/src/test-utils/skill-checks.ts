@@ -55,6 +55,8 @@ export function finishedCheck(overrides: Partial<SkillCheck> = {}): SkillCheck {
     outcomes: ["apply", "improve_further", "discard"],
     outcome: null,
     proposal_id: "p-1",
+    // i18n-exempt: fixture text a test asserts on, not copy
+    candidate: { description: "Refunds", content: "Refund within 30 days." },
     applied_version_id: null,
     created_at: "2026-11-03T00:00:00Z",
     finished_at: "2026-11-03T00:05:00Z",

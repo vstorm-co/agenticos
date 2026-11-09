@@ -979,7 +979,10 @@ class EvalRunWorker:
         Only what the run itself can stand behind: the regressions it confirmed
         and the answers the judge failed to grade. The rest of its failures go
         when a person sends them. A check of the authoring assistant's proposal
-        sends nothing: it measures a change nobody accepted.
+        to an agent sends nothing: it measures a change nobody accepted. A skill
+        check's stage does send, since a person's verdict there decides whether the
+        change goes live; its answers say they were given with the proposed text,
+        and never take the place of a score already waiting on that case.
 
         The answers and their scores are kept by then, so a refusal here leaves
         the run to complete: what was refused is kept on it as `routing_error`,
@@ -992,14 +995,21 @@ class EvalRunWorker:
             if (
                 run is None
                 or run.status != EvalRunStatus.RUNNING.value
-                or run.proposal_check is not None
+                or (
+                    run.proposal_check is not None
+                    and ProposalCheckRecord.model_validate(run.proposal_check).skill_check_id
+                    is None
+                )
             ):
                 return
             try:
                 async with db.begin_nested():
                     worthy = await EvalRunService(db).review_worthy(ctx, run)
                     routed = await ScoringService(db).route_to_review(
-                        ctx, dataset_id=run.dataset_id, score_ids=worthy
+                        ctx,
+                        dataset_id=run.dataset_id,
+                        score_ids=worthy,
+                        displace=run.proposal_check is None,
                     )
             except AppException as exc:
                 logger.warning(

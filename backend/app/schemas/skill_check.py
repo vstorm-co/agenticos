@@ -108,8 +108,15 @@ class CheckStage(BaseSchema):
     kind: StageKind
     dataset_id: UUID
     dataset_name: str | None = Field(description="Null for a dataset the reader may not see")
-    cases: int
-    eval_run_id: UUID | None = None
+    cases: int = Field(
+        description=(
+            "The questions the stage asks, without those taken from the conversations the "
+            "change learned from"
+        )
+    )
+    eval_run_id: UUID | None = Field(
+        default=None, description="The eval run that asked them, once the stage started"
+    )
     counts: StageCounts | None = Field(
         default=None,
         description=(
@@ -128,8 +135,9 @@ class SkillCheckAgentRead(BaseSchema):
     sample: SampleKind | None = Field(
         default=None,
         description=(
-            "In a quick check, whether the agent's own questions were asked or, with none "
-            "that loaded the skill, the skill's test questions alone"
+            "In a quick check, whether the agent's own questions were asked; the skill's "
+            "test questions alone, with none that loaded the skill or could be graded; or "
+            "`own_not_asked`, picked and left unasked once the skill's made it worse"
         ),
     )
     stages: list[CheckStage]
@@ -179,6 +187,9 @@ class SkillCheckRead(SkillCheckEstimate):
     candidate_version_id: UUID | None = Field(
         default=None, description="The main version that update would move it to"
     )
+    candidate: CandidateText = Field(
+        description="The text checked, so a person can go back to editing it"
+    )
     status: CheckStatus
     verdict: CheckVerdict | None = None
     warnings: list[Literal["within_noise"]] = Field(default_factory=list)
@@ -193,8 +204,33 @@ class SkillCheckRead(SkillCheckEstimate):
         "and the check's own decisions answer 409 DECIDE_IN_SESSION",
     )
     applied_version_id: UUID | None = None
+    no_readers: bool = Field(
+        default=False,
+        description=(
+            "No agent read the line, so the change reached nobody and nothing was asked; "
+            "the check passed with nothing to measure"
+        ),
+    )
     created_at: datetime
     finished_at: datetime | None = None
+
+
+class SkillCheckAwaiting(BaseSchema):
+    """A check of a skill change a person has to come back to, as "Waiting for you" lists it."""
+
+    id: UUID
+    skill_id: UUID
+    skill_name: str
+    line: LineRef
+    status: CheckStatus = Field(description="`running`, or `done` and waiting for a decision")
+    verdict: CheckVerdict | None = None
+    proposal_id: UUID | None = Field(
+        default=None, description="The proposed change it checks; null for a text checked by hand"
+    )
+    agents: int = Field(
+        description="The agents it checks, counting the ones the caller may not see"
+    )
+    created_at: datetime
 
 
 class SkillCheckList(BaseSchema):

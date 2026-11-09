@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSkillChanges } from "./use-skill-changes";
+import { useSkillChanges, useSkillProposalsAwaiting } from "./use-skill-changes";
 import * as api from "@/lib/skill-changes-api";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 
@@ -130,5 +130,20 @@ describe("useSkillChanges", () => {
     const { result } = renderHook(() => useSkillChanges(), { wrapper });
 
     await waitFor(() => expect(result.current.error).toBe("Failed to load proposed skill changes"));
+  });
+});
+
+describe("useSkillProposalsAwaiting", () => {
+  it("reads the changes nobody decided, and asks nothing of who may not decide them", async () => {
+    vi.mocked(api.listSkillChanges).mockResolvedValue([change()]);
+    const { result } = renderHook(() => useSkillProposalsAwaiting(), { wrapper });
+
+    await waitFor(() => expect(result.current.changes).toHaveLength(1));
+    expect(api.listSkillChanges).toHaveBeenCalledWith("pending");
+
+    vi.mocked(api.listSkillChanges).mockClear();
+    const off = renderHook(() => useSkillProposalsAwaiting({ enabled: false }), { wrapper });
+    expect(off.result.current.changes).toEqual([]);
+    expect(api.listSkillChanges).not.toHaveBeenCalled();
   });
 });

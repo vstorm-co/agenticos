@@ -3014,7 +3014,6 @@
         "finished": "Fertig",
         "finishedOf": "von {total} Runs",
         "waiting": "Wartet auf Sie",
-        "review": "Ansehen",
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
@@ -3170,7 +3169,7 @@
       },
       "improvements-waiting": {
         "title": "Verbesserungen, die auf Sie warten",
-        "description": "Verbesserungssitzungen, die für Ihren nächsten Schritt oder Ihre Entscheidung angehalten haben.",
+        "description": "Verbesserungssitzungen, Skill-Prüfungen und vorgeschlagene Skill-Änderungen, die auf Ihren nächsten Schritt oder Ihre Entscheidung warten.",
         "empty": {
           "title": "Nichts wartet",
           "description": "Eine Verbesserung hält hier an, nachdem sie gelesen hat, was schiefging, nachdem sie Änderungen geschrieben hat und wenn ihr Ergebnis bereit ist. Auch festgesetzte Agents und Forks, an denen main vorbeigezogen ist, stehen hier."
@@ -3180,16 +3179,23 @@
           "understand": "Sehen Sie sich an, was schiefging",
           "changes": "Prüfen Sie die Änderungen",
           "result": "Prüfen Sie das Ergebnis",
-          "blocked": "Blockiert: beenden und neu starten"
+          "blocked": "Blockiert: beenden und neu starten",
+          "check": {
+            "running": "Prüfung auf {count, plural, =1 {1 Agent} other {# Agents}} läuft",
+            "done": "Prüfung fertig: Entscheiden Sie, was mit der Änderung geschieht"
+          },
+          "proposal": "Von einem Agent vorgeschlagen · {count, plural, =0 {erreicht noch keinen Agent} =1 {erreicht 1 Agent} other {erreicht # Agents}}"
         },
         "skill": "{name} · {kind, select, main {main} other {Fork „{line}“}}",
-        "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} behind {Was main zurückgelassen hat, konnte nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}",
+        "partial": "{failed, select, skills {Skill-Sitzungen ließen sich nicht lesen.} behind {Was main zurückgelassen hat, ließ sich nicht lesen.} checks {Skill-Prüfungen ließen sich nicht lesen.} proposals {Vorgeschlagene Skill-Änderungen ließen sich nicht lesen.} other {Agent-Sitzungen ließen sich nicht lesen.}}",
         "catchUp": "Nachziehen",
         "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}{specialist, select, yes { über {via}} other {}}}}",
         "behind": {
           "pinned": "Auf v{version} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}",
           "fork": "Ab v{version} · {agents, plural, =1 {1 Agent} other {# Agents}} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}"
-        }
+        },
+        "review": "Prüfen",
+        "proposal": "{kind, select, new {Neuer Skill {name}} other {Änderung an {name}}}"
       }
     },
     "edit": {
@@ -8618,14 +8624,35 @@
         "title": "Was er jetzt ausliefert"
       },
       "more": "Weitere Aktionen",
-      "aiOff": "Improve und das Aufholen eines Forks mit main lassen ein Modell die Antworten des Skills lesen, und AI assistance ist für diese Organisation ausgeschaltet."
+      "aiOff": "Improve und das Aufholen eines Forks mit main lassen ein Modell die Antworten des Skills lesen, und AI assistance ist für diese Organisation ausgeschaltet.",
+      "checks": {
+        "title": "Prüfungen",
+        "count": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
+        "none": "Noch keine Änderung dieser Linie wurde geprüft.",
+        "over": "Auf v{version} · {agents, plural, =1 {1 Agent} other {# Agents}}",
+        "details": "Details",
+        "verdict": {
+          "passed": "Besser, niemand schlechter",
+          "needs_ack": "Einige Agents nicht geprüft",
+          "blocked": "Ein Agent schlechter",
+          "no_better": "Niemand besser"
+        },
+        "status": {
+          "running": "Läuft",
+          "done": "Wartet auf Entscheidung",
+          "cancelled": "Angehalten",
+          "applied": "Übernommen",
+          "forked": "Fork erstellt",
+          "discarded": "Verworfen"
+        }
+      }
     },
     "checkOnAgents": "Auf Agents prüfen",
     "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
     "check": {
       "title": "Diese Änderung auf jedem Agent prüfen, der den Skill nutzt",
       "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
-      "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
+      "price": "Wahrscheinlich {expected}, höchstens {most}. Der Anteil jedes Agents geht auf sein Budget.",
       "start": "Prüfung starten",
       "running": "Wird geprüft. Das dauert einige Minuten. Du kannst das schließen: Die Prüfung läuft weiter, und <page>die Seite des Skills</page> zeigt sie als „Prüfung läuft“, bis du entscheidest.",
       "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
@@ -8643,22 +8670,19 @@
         "no_budget": "Nicht geprüft: sein Budget deckt die Prüfung nicht.",
         "no_published_version": "Nicht geprüft: er hat keine veröffentlichte Version.",
         "inconclusive": "Nicht geprüft: nicht jede Antwort ließ sich bewerten.",
-        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen."
-      },
-      "state": {
-        "queued": "Wartet",
-        "running": "Läuft",
-        "better": "Besser",
-        "no_change": "Unverändert",
-        "within_noise": "Im Rauschen",
-        "worse": "Schlechter",
-        "unknown": "Unbekannt"
+        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen.",
+        "other": "Nicht geprüft: die Prüfung konnte ihn nicht messen.",
+        "unscorable": "Nicht geprüft: nichts kann seine Fragen bewerten. Richte die Bewertung in ihrem Dataset ein.",
+        "all_evidence": "Nicht geprüft: jede Frage stammt aus den Unterhaltungen, aus denen diese Änderung gelernt hat.",
+        "cancelled": "Nicht geprüft: die Prüfung wurde vor dem Ende angehalten.",
+        "own_not_asked": "Nicht geprüft: seine eigenen Fragen wurden nicht gestellt, nachdem die des Skills ihn schlechter zeigten."
       },
       "verdict": {
         "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
         "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
         "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
-        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
+        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen.",
+        "noReaders": "Kein Agent liest diese Linie, also gab es niemanden zu prüfen."
       },
       "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
       "cancel": "Prüfung anhalten",
@@ -8667,7 +8691,16 @@
       "progress": "{done} von {total} Agents geprüft",
       "progressLabel": "Geprüfte Agents",
       "updateChecked": "Geprüft. Gehen Sie zurück, um zu entscheiden, ob der Agent wechselt.",
-      "backToChange": "Zurück zum Versionswechsel"
+      "backToChange": "Zurück zum Versionswechsel",
+      "backToEditing": "Zurück zum Bearbeiten",
+      "improveFurther": "Weiter verbessern",
+      "discardConfirm": {
+        "title": "Diese Änderung verwerfen?",
+        "description": "Die Änderung wird nicht übernommen, und über diese Prüfung lässt sich nicht mehr entscheiden. Was sie gefunden hat, bleibt in den Prüfungen des Skills."
+      },
+      "nobody": "Keiner dieser Agents lässt sich prüfen, die Prüfung würde also nichts messen. Füge Testfragen hinzu, damit sie es kann, oder mach ohne Prüfung weiter und bestätige, dass niemand geprüft wurde.",
+      "startUnchecked": "Ohne Prüfung weiter",
+      "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort."
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen",
@@ -11721,6 +11754,14 @@
         "startsWith": "Beginnt mit „{text}“",
         "bullets": "Hat eine Aufzählung",
         "json": "Ist ein JSON-Objekt"
+      },
+      "markPassedUngraded": "Antwort ist richtig (die Bewertung lag falsch)",
+      "groupSkillCheck": "Skill-Prüfung · {when}",
+      "origin": {
+        "check": "Skill-Prüfung · {arm, select, proposed {{known, select, yes {vorgeschlagene v{version}} other {vorgeschlagener Text}}} other {{known, select, yes {aktuelle v{version}} other {aktueller Text}}}}",
+        "eval": "Eval-Run",
+        "hand": "Von Hand bewertet",
+        "rerun": "{source} · Wiederholung {attempt}"
       }
     },
     "title": "Datasets",
@@ -13580,7 +13621,9 @@
       "firstPassRate": "Nur die ersten Antworten: {from} → {to}",
       "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen.",
       "failedAlike": "Jeder Fall ist auf dieselbe Weise gescheitert, daher sagt dieses Ergebnis nichts über die Antworten des Agenten. Behebe die Einrichtung und starte es erneut: {error}",
-      "undecidedWhy": "Nicht entschieden, bis jeder Fall ein Urteil hat: {ungraded, plural, =0 {} =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}{both, select, true {, und } other {}}{incomplete, plural, =0 {} =1 {1 Fall ließ sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder seine Versuche gingen unentschieden aus} other {# Fälle ließen sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder ihre Versuche gingen unentschieden aus}}."
+      "undecidedWhy": "Nicht entschieden, bis jeder Fall ein Urteil hat: {ungraded, plural, =0 {} =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}{both, select, true {, und } other {}}{incomplete, plural, =0 {} =1 {1 Fall ließ sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder seine Versuche gingen unentschieden aus} other {# Fälle ließen sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder ihre Versuche gingen unentschieden aus}}.",
+      "tooFew": "{candidate} und {baseline} lassen sich noch nicht vergleichen: Es wurden zu wenige zurückgehaltene Fragen bewertet, um eine Änderung zu messen.",
+      "tooFewInStage": "Diese Etappe hat zu wenige zurückgehaltene Fragen, um allein bewertet zu werden. Die Prüfung bewertet den Agent auf allen seinen Etappen zusammen."
     },
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
@@ -13631,7 +13674,8 @@
       "against": "{candidate} vs. {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} other { · # nicht entschieden}}",
-      "firstRate": "Nur die ersten Antworten: {rate}"
+      "firstRate": "Nur die ersten Antworten: {rate}",
+      "checkStage": "Etappe einer Skill-Prüfung · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {Noch keine Runs} =1 {1 Run von 1 Agent} other {# Runs von {agents, plural, =1 {1 Agent} other {# Agents}}}}",
@@ -13880,7 +13924,18 @@
       "by": "Nach Prüfung durch {name} neu bewertet · {date}",
       "undone": "Nach Rücknahme der Prüfung durch {name} neu bewertet · {date}",
       "reviewer": "eine prüfende Person"
-    }
+    },
+    "checkStage": {
+      "title": "Etappe der Prüfung von {skill} auf {agent}. <check>Prüfung öffnen</check>",
+      "aSkill": "einem Skill",
+      "proposed": "Vorgeschlagener Text",
+      "current": "Aktueller Text",
+      "currentVersion": "Aktuelle v{version}",
+      "currentFork": "Aktueller „{fork}“ v{version}",
+      "pooled": "Dieser Run ist eine Etappe der Prüfung. Die Prüfung bewertet jeden Agent auf den zurückgehaltenen Fragen aller seiner Etappen zusammen, daher sagt diese Etappe allein weniger als die Prüfung."
+    },
+    "notAsked": "{count, plural, =1 {1 Frage dieses Datasets war nicht in der Stichprobe dieser Etappe und wurde nicht gestellt.} other {# Fragen dieses Datasets waren nicht in der Stichprobe dieser Etappe und wurden nicht gestellt.}}",
+    "runMetaStage": "{date} · {cost} ausgegeben"
   },
   "remoteAgents": {
     "title": "Remote Agents",
@@ -14984,7 +15039,8 @@
       "running": "Läuft",
       "needs_you": "Ihre Entscheidung",
       "skipped": "Übersprungen",
-      "pending": "Noch nicht begonnen"
+      "pending": "Noch nicht begonnen",
+      "ended": "Ohne Änderungen beendet"
     },
     "paidRestartOwner": "Nur der Anfragende kann mit dem ursprünglichen Konto und den ursprünglichen Anmeldedaten kostenpflichtige Arbeit neu starten. Andere Bearbeiter können Ergebnisse prüfen oder eine eigene Sitzung starten.",
     "improveAgain": "Erneut verbessern",
@@ -15299,7 +15355,11 @@
       "updatePinned": "Auf v{version} aktualisieren",
       "catchUp": "Fork auf Main bringen"
     },
-    "usedSkill": "Hat Skill {name} genutzt"
+    "usedSkill": "Hat Skill {name} genutzt",
+    "evidenceOnly": {
+      "body": "Jede Frage dieses Datasets stammt aus den Gesprächen, aus denen diese Änderung gelernt hat, daher kann keine sie testen.",
+      "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
@@ -15348,7 +15408,12 @@
         "no_budget": "Nicht geprüft: Sein Budget ist aufgebraucht.",
         "no_published_version": "Nicht geprüft: Er hat keine veröffentlichte Version.",
         "failed": "Nicht geprüft: Seine Prüfung ist fehlgeschlagen.",
-        "inconclusive": "Nicht geprüft: Sein Run konnte nicht jede Antwort bewerten. Prüfen Sie erneut."
+        "inconclusive": "Nicht geprüft: Sein Run konnte nicht jede Antwort bewerten. Prüfen Sie erneut.",
+        "other": "Nicht geprüft: Die Prüfung konnte ihn nicht messen.",
+        "unscorable": "Nicht geprüft: Nichts kann seine Fragen bewerten - keine Prüfung, kein erwarteter Tool-Aufruf und kein Bewerter, oder ein Bewerter bei ausgeschalteter KI-Unterstützung.",
+        "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
+        "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
+        "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
@@ -15382,12 +15447,14 @@
         "same": "Unverändert ({count})",
         "better": "Besser ({count})"
       },
-      "brokeOnSkill": "{broke} von {total} sind auf den eigenen Fragen des Skills schlechter geworden, die alle Agents teilen."
+      "brokeOnSkill": "{broke} von {total} sind auf den eigenen Fragen des Skills schlechter geworden, die alle Agents teilen.",
+      "ownNotAsked": "Seine eigenen Fragen wurden nicht gestellt: Die Fragen des Skills zeigten ihn bereits schlechter."
     },
     "testSet": {
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",
       "add": "Testfragen hinzufügen",
-      "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann."
+      "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann.",
+      "grading": "Bewertung in {name} einrichten"
     },
     "accept": {
       "title": "Annehmen",
@@ -15435,10 +15502,10 @@
       "limitHint": "Ausgefüllt für den ersten Vorschlag und jeden Versuch, den die Sitzung machen kann. Senke es, um früher aufzuhören; die Sitzung hält vor einem Schritt an, der es überschreiten würde.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": "Starten",
-      "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, in denen Versionen dieser Linie geladen wurden, {agents, plural, =1 {von 1 Agent} other {von # Agents}}.",
+      "reads": "{runs, plural, =1 {Es liest 1 Antwort, die diese Linie geladen hat und negativ bewertet wurde oder fehlschlug.} other {Es liest # Antworten, die diese Linie geladen haben und negativ bewertet wurden oder fehlschlugen.}} {agents, plural, =1 {Die Linie bedient 1 Agent.} other {Die Linie bedient # Agents.}}",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gelesen.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gelesen.}}",
       "checkNamedLater": "Bevor die Änderungen geprüft werden, wird jeder Agent genannt, auf dem sie laufen, und die, auf denen sie nicht laufen können, mit Grund.",
-      "noEvidence": "Es gibt keine schlecht bewerteten oder fehlgeschlagenen Antworten, in denen diese Linie geladen wurde, also gibt es noch nichts zu lernen.",
+      "noEvidence": "Noch keine Antwort, die diese Linie geladen hat, wurde negativ bewertet oder schlug fehl, also gibt es nichts zu lernen. Bewerte im Chat eine Antwort negativ, in der ein Agent diesen Skill verwendet hat, und starte dann erneut.",
       "aiOff": "Improve lässt ein Modell die Antworten des Skills lesen und Änderungen schreiben, und AI assistance ist für diese Organisation ausgeschaltet."
     },
     "understand": {
@@ -15573,6 +15640,17 @@
       "live": "Darauf verschoben und veröffentlicht: {names}.",
       "drafts": "{count, plural, =1 {Im Entwurf darauf verschoben, der auf Veröffentlichung wartet: {names}.} other {In ihren Entwürfen darauf verschoben, die auf Veröffentlichung warten: {names}.}}",
       "nobody": "Kein Agent wurde darauf verschoben; verschiebe Agents auf der Seite des Skills."
+    },
+    "understandWorking": "Wir lesen die Antworten, die diesen Skill geladen haben und negativ bewertet wurden oder fehlschlugen, und worauf sie im Skill hinweisen…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "{fork} auf main nachziehen",
+        "to_main": "{fork} nach main verschieben"
+      },
+      "plain": {
+        "catch_up": "Auf main nachziehen",
+        "to_main": "Nach main verschieben"
+      }
     }
   }
 }

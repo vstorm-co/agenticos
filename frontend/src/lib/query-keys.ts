@@ -761,6 +761,7 @@ export const qk = {
     detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
     line: (skillId: string, forkId: string | null) =>
       ["skill-checks", skillId, "line", forkId ?? "main"] as const,
+    awaiting: () => ["skill-checks", "awaiting"] as const,
   },
   skillChanges: {
     all: () => ["skill-changes"] as const,

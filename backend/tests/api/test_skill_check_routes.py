@@ -24,6 +24,7 @@ from app.main import app
 from app.schemas.skill_check import (
     LineRef,
     SkillCheckApplied,
+    SkillCheckAwaiting,
     SkillCheckEstimate,
     SkillCheckForked,
     SkillCheckList,
@@ -68,6 +69,7 @@ def _check(**overrides: Any) -> SkillCheckRead:
         "status": "done",
         "verdict": "passed",
         "outcomes": ["apply", "improve_further", "discard"],
+        "candidate": {"description": "Refunds", "content": "Refund within 30 days."},
         "created_at": NOW,
     }
     return SkillCheckRead(**{**values, **overrides})
@@ -99,6 +101,20 @@ def service() -> MagicMock:
         side_effect=BadRequestError(message="Not pinned", details={"agent_id": "a"})
     )
     stub.list_checks = AsyncMock(return_value=SkillCheckList(items=[_check()], total=1))
+    stub.awaiting = AsyncMock(
+        return_value=[
+            SkillCheckAwaiting(
+                id=CHECK,
+                skill_id=SKILL,
+                skill_name="returns",
+                line=LineRef(fork_id=None, name="main"),
+                status="done",
+                verdict="no_better",
+                agents=2,
+                created_at=NOW,
+            )
+        ]
+    )
     stub.read = AsyncMock(return_value=_check())
     stub.cancel = AsyncMock(return_value=_check(status="cancelled"))
     stub.apply = AsyncMock(return_value=SkillCheckApplied(version=_version(), pinned=[]))
@@ -252,3 +268,14 @@ class TestTestSet:
             response = await opened.post(_url("/test-set"), json={})
 
         assert response.status_code == 409
+
+
+class TestWaitingForYou:
+    async def test_the_checks_a_person_has_to_come_back_to_are_listed(self, client, service):
+        async with client() as opened:
+            response = await opened.get(f"{settings.API_V1_STR}/skill-checks/awaiting")
+
+        assert response.status_code == 200
+        [item] = response.json()
+        assert (item["skill_name"], item["status"], item["agents"]) == ("returns", "done", 2)
+        service.awaiting.assert_awaited_once()

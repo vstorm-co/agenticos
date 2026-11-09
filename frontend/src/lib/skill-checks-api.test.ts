@@ -43,10 +43,21 @@ describe("the skill checks client", () => {
   it("decides a check through the check, never around it", async () => {
     await api.applySkillCheck("s-1", "c-1", { pin_worse: true });
     await api.discardSkillCheck("s-1", "c-1");
+    await api.forkSkillCheck("s-1", "c-1", { name: "Prints", agent_ids: ["a-1"] });
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/s-1/checks/c-1/apply", {
       pin_worse: true,
     });
     expect(apiClient.post).toHaveBeenCalledWith("/skills/s-1/checks/c-1/discard", {});
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/s-1/checks/c-1/fork", {
+      name: "Prints",
+      agent_ids: ["a-1"],
+    });
+  });
+
+  it("lists the checks waiting for a person across the organization", async () => {
+    await api.listSkillChecksAwaiting();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skill-checks/awaiting");
   });
 });

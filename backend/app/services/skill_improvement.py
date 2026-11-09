@@ -852,9 +852,9 @@ class SkillImprovementService:
         line, run = await self._editable_row(ctx, skill_id, run_id)
         if run.purpose != Purpose.IMPROVE.value:
             return await self._merge_continuation(
-                ctx, line, run, mode=data.mode, main_alone=data.main_alone
+                ctx, line, run, mode=data.mode, main_alone=data.main_alone, budget=data.budget_usd
             )
-        quote, _ = await self._continuation(ctx, line, run, mode=data.mode)
+        quote, _ = await self._continuation(ctx, line, run, mode=data.mode, budget=data.budget_usd)
         return quote
 
     async def continue_run(
@@ -877,7 +877,9 @@ class SkillImprovementService:
         if run.purpose != Purpose.IMPROVE.value:
             await self._continue_merge(ctx, line, run, consent)
             return await self._read(ctx, run, line)
-        quote, covered = await self._continuation(ctx, line, run, mode=consent.mode)
+        quote, covered = await self._continuation(
+            ctx, line, run, mode=consent.mode, budget=consent.budget_usd
+        )
         moved = line.latest != run.base_version_id
         if consent.candidate_hash != quote.candidate_hash and moved:
             self._refuse_moved(run, line)
@@ -1136,7 +1138,9 @@ class SkillImprovementService:
     ) -> SkillContinuationEstimate:
         """The price of checking the result's changes again, on the line as it is now."""
         line, run = await self._editable_row(ctx, skill_id, run_id)
-        return await self._recheck_quote(ctx, line, run, data.mode or await self._mode_of(run))
+        return await self._recheck_quote(
+            ctx, line, run, data.mode or await self._mode_of(run), budget=data.budget_usd
+        )
 
     async def recheck(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
@@ -1155,7 +1159,7 @@ class SkillImprovementService:
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         mode = consent.mode or await self._mode_of(run)
-        quote = await self._recheck_quote(ctx, line, run, mode)
+        quote = await self._recheck_quote(ctx, line, run, mode, budget=consent.budget_usd)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
                 message="The check's price changed since it was quoted; review it again",
@@ -1196,7 +1200,13 @@ class SkillImprovementService:
         return await self._read(ctx, run, line)
 
     async def _recheck_quote(
-        self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun, mode: CheckMode | None
+        self,
+        ctx: AuthContext,
+        line: SessionLine,
+        run: SkillImprovementRun,
+        mode: CheckMode | None,
+        *,
+        budget: Decimal | None,
     ) -> SkillContinuationEstimate:
         if run.purpose != Purpose.IMPROVE.value:
             raise BadRequestError(
@@ -1221,16 +1231,15 @@ class SkillImprovementService:
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
+        limit = _limit(run, budget)
         return SkillContinuationEstimate(
             mode="next_step",
             number=run.iteration,
             total_usd=check.at_most_usd,
             expected_usd=check.expected_usd,
-            budget_usd=run.budget_usd,
+            budget_usd=limit,
             affordable=check.affordable
-            and rules.affordable(
-                spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
-            ),
+            and rules.affordable(spent=spent, step_estimate=check.at_most_usd, budget=limit),
             candidate_hash=plan_hash(start.candidate.description, start.candidate.content, check),
             check_estimate=check,
         )
@@ -1415,8 +1424,8 @@ class SkillImprovementService:
     async def refresh_check_verdict(self, check: SkillCheck, verdict: CheckVerdict) -> None:
         """Copy a judged check's new verdict onto the attempt it measured.
 
-        Only the attempt's record changes: where the session went on that verdict
-        stays, and its Result step reads the check itself.
+        Only the attempt's record changes: every verdict leaves the session at its
+        result, and the Result step reads its outcomes from the check itself.
         """
         iteration = await skill_improvement_repo.iteration_for_check(
             self.db, check.id, organization_id=check.organization_id
@@ -1430,8 +1439,24 @@ class SkillImprovementService:
         await skill_improvement_repo.update_iteration(
             self.db,
             iteration=iteration,
-            values={"check_verdict": verdict.value, "verdict": _VERDICTS[verdict].value},
+            values={
+                "check_verdict": verdict.value,
+                "verdict": (await self._attempt_verdict(check, verdict)).value,
+            },
         )
+
+    async def _attempt_verdict(
+        self, check: SkillCheck, verdict: CheckVerdict
+    ) -> ImprovementVerdict:
+        """A check's verdict as the attempt's result. One that measured no agent - none
+        reads the line, or none could be checked - says nothing of the change, though it
+        may still be applied once the unknown agents are acknowledged."""
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=check.organization_id
+        )
+        if all(row.state == AgentState.UNKNOWN.value for row in rows):
+            return ImprovementVerdict.INCONCLUSIVE
+        return _VERDICTS[verdict]
 
     async def wake_for_check(self, check_id: UUID, *, organization_id: UUID) -> None:
         """Advance the session a finished check belongs to, rather than at the next sweep."""
@@ -1869,8 +1894,9 @@ class SkillImprovementService:
     async def _judge(self, run: SkillImprovementRun) -> None:
         """Carry the attempt's check into its result once every agent of the line is in.
 
-        A catch-up waits for main alone too. It only has to leave nobody worse, since what
-        it brings in is main's own change: no better passes there.
+        Every verdict waits for a person at the result, where the check's outcomes say
+        what it allows: a person overturning one of its answers later changes those
+        outcomes, never where the session stands. A catch-up waits for main alone too.
         """
         iteration = await self._iteration(run)
         check = await self._check(run)
@@ -1911,16 +1937,11 @@ class SkillImprovementService:
             iteration=iteration,
             values={
                 "check_verdict": verdict.value,
-                "verdict": _VERDICTS[verdict].value,
+                "verdict": (await self._attempt_verdict(check, verdict)).value,
                 "cost_usd": iteration.cost_usd + cost,
                 "ended_at": datetime.now(UTC),
             },
         )
-        if verdict is CheckVerdict.NO_BETTER and run.purpose != Purpose.CATCH_UP.value:
-            await self._move(
-                run, rules.Transition(Status.STOPPED, Stage.JUDGING, StopReason.NO_CHANGE)
-            )
-            return
         await skill_improvement_repo.update_run(
             self.db, run=run, values={"best_iteration_id": iteration.id}
         )
@@ -2044,7 +2065,12 @@ class SkillImprovementService:
         if consent.note is not None:
             raise refused_field("note", "A note goes with Try again only")
         quote = await self._merge_continuation(
-            ctx, line, run, mode=consent.mode, main_alone=consent.main_alone
+            ctx,
+            line,
+            run,
+            mode=consent.mode,
+            main_alone=consent.main_alone,
+            budget=consent.budget_usd,
         )
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
@@ -2079,8 +2105,10 @@ class SkillImprovementService:
         *,
         mode: CheckMode | None,
         main_alone: bool,
+        budget: Decimal | None,
     ) -> SkillContinuationEstimate:
-        """The price of checking the merge at Changes, main alone priced as its own line."""
+        """The price of checking the merge at Changes, main alone priced as its own line,
+        against `budget` when it raises the session's limit."""
         if not (run.status == Status.WAITING and run.stage == Stage.FILTERING):
             raise BadRequestError(
                 message="The session has no step for a person to take now",
@@ -2098,14 +2126,15 @@ class SkillImprovementService:
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
+        limit = _limit(run, budget)
         return SkillContinuationEstimate(
             mode="next_step",
             number=run.iteration,
             total_usd=total,
             expected_usd=sum((check.expected_usd for check in checks), Decimal(0)),
-            budget_usd=run.budget_usd,
+            budget_usd=limit,
             affordable=all(check.affordable for check in checks)
-            and rules.affordable(spent=spent, step_estimate=total, budget=run.budget_usd),
+            and rules.affordable(spent=spent, step_estimate=total, budget=limit),
             candidate_hash=merge_hash(starts, checks),
             check_estimate=merged,
             main_alone_usd=None if alone is None else alone.at_most_usd,
@@ -2216,9 +2245,11 @@ class SkillImprovementService:
         run: SkillImprovementRun,
         *,
         mode: CheckMode | None,
+        budget: Decimal | None,
     ) -> tuple[SkillContinuationEstimate, bool]:
-        """The next step's quote, and whether the organization's and the helper's budgets
-        cover it - the session's own limit may be raised with consent, those may not.
+        """The next step's quote against `budget` when it raises the session's limit, and
+        whether the organization's and the helper's budgets cover it - the session's own
+        limit may be raised with consent, those may not.
 
         Raises:
             BadRequestError: A proposal would have nothing on the line to learn from.
@@ -2226,6 +2257,7 @@ class SkillImprovementService:
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
+        limit = _limit(run, budget)
         if run.status == Status.WAITING and run.stage == Stage.FILTERING:
             # A line that moved since Changes is priced on its newest version: the same
             # chosen edits, applied to what the line serves now.
@@ -2248,11 +2280,9 @@ class SkillImprovementService:
                 number=run.iteration,
                 total_usd=check.at_most_usd,
                 expected_usd=check.expected_usd,
-                budget_usd=run.budget_usd,
+                budget_usd=limit,
                 affordable=check.affordable
-                and rules.affordable(
-                    spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
-                ),
+                and rules.affordable(spent=spent, step_estimate=check.at_most_usd, budget=limit),
                 candidate_hash=plan_hash(
                     start.candidate.description, start.candidate.content, check
                 ),
@@ -2304,9 +2334,9 @@ class SkillImprovementService:
             number=number,
             total_usd=price,
             expected_usd=price,
-            budget_usd=run.budget_usd,
+            budget_usd=limit,
             affordable=priced.affordable
-            and rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd),
+            and rules.affordable(spent=spent, step_estimate=price, budget=limit),
             candidate_hash=hashlib.sha256(f"{run.base_version_id}:{number}".encode()).hexdigest(),
         ), priced.affordable
 
@@ -2737,6 +2767,11 @@ class SkillImprovementService:
                 message="A skill session reads runs, which needs runs:view",
                 details={"permission": Perm.RUNS_VIEW.value},
             )
+
+
+def _limit(run: SkillImprovementRun, budget: Decimal | None) -> Decimal:
+    """The spending limit a step is priced against: a person may raise it, never lower it."""
+    return run.budget_usd if budget is None else max(run.budget_usd, budget)
 
 
 def _starter(people: Mapping[UUID, PersonRef], user_id: UUID | None) -> PersonRef | None:

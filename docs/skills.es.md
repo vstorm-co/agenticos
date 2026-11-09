@@ -1,5 +1,5 @@
 ---
-source_sha: "57792cfecf5c"
+source_sha: "f0283a8d75b1"
 ---
 
 # Skills { #skills }
@@ -277,6 +277,12 @@ través de la API, `POST /api/v1/skills/{id}/test-set`, o con **Añadir pregunta
 prueba** junto a un agent que [Improve](#improving-a-skill) no pudo comprobar, y
 editado como cualquier otro [dataset](datasets.md), que Datasets marca como el del
 skill.
+
+Un juez califica el conjunto, comparando cada respuesta con la que las personas
+valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace una
+vez: una respuesta que alguien valoró gana a una que solo falló, así que una
+pregunta nunca pide una respuesta y a la vez la prohíbe.
+
 Después, las preguntas del propio agent:
 
 - **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
@@ -285,7 +291,7 @@ Después, las preguntas del propio agent:
   respuesta más reciente cargó el skill - las que comparten más palabras con las
   líneas que toca el cambio. Un agent sin ninguna se comprueba solo con el
   conjunto del skill, y su fila lo dice. A un agent que las preguntas del skill
-  muestran peor no se le hacen las suyas.
+  muestran peor no se le hacen las suyas, y su fila dice que no se hicieron.
 - **Thorough**: el dataset entero del agent, preguntado aunque las preguntas del
   skill mostraran al agent peor, para que su fila diga dónde lo rompió el cambio.
   Un cambio en la descripción del
@@ -300,6 +306,11 @@ Después, las preguntas del propio agent:
     falla en cada pregunta que aún espera la respuesta antigua: actualiza antes
     las preguntas de prueba.
 
+Un conjunto de preguntas que nada puede calificar, o cuyas preguntas vienen todas
+de las conversaciones de las que aprendió el cambio, se omite para ese agent, y el
+resto se pregunta igualmente. Un agent al que no le queda nada que preguntar es
+desconocido, con ese motivo. Cada conjunto cuenta solo las preguntas que hace.
+
 ### La regla { #the-rule }
 
 - Ningún agent puede quedar **peor**, por una regresión que las repreguntas
@@ -307,9 +318,16 @@ Después, las preguntas del propio agent:
 - Al menos un agent tiene que quedar **mejor**.
 - Una diferencia que la comprobación no pudo confirmar está **dentro del
   ruido**: un aviso, no un bloqueo.
-- Un agent que no se pudo comprobar - sin preguntas, sin acceso, sin budget, sin
-  versión publicada, con un run fallido - es **desconocido**, y una persona lo
-  reconoce antes de aplicar.
+- Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
+  califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
+  sin budget, sin versión publicada, con un run fallido, con la comprobación
+  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar.
+
+Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
+y termina enseguida, con todos los agents desconocidos, para que una persona lo
+reconozca. El diálogo lo dice antes de empezar y ofrece las preguntas de prueba del skill, o la calificación que les falta.
+Un cambio en una línea que ningún agent lee pasa enseguida: no llega a
+nadie, y la comprobación dice que no había a quién comprobar.
 
 Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
 juntas: un resultado necesita cinco para el agent, no cinco por etapa, y una
@@ -318,28 +336,49 @@ otra. Todas las
 preguntas del conjunto del skill son held-out, y una comprobación rápida solo
 toma preguntas held-out del agent.
 
-El veredicto de una persona en la [cola de revisión](datasets.md#review) sobre una
-respuesta que una comprobación calificó vuelve a juzgar a ese agent: sus
+Una comprobación envía sus regresiones confirmadas, y las respuestas que el juez
+no pudo calificar, a la [cola de revisión](datasets.md#review), cada una marcada
+como respuesta dada con el cambio propuesto, y nunca en lugar de una respuesta que
+ya espera en esa pregunta. El veredicto de una persona allí
+sobre una respuesta que una comprobación calificó vuelve a juzgar a ese agent: sus
 recuentos, el veredicto de la comprobación y el resultado del intento de Improve
-que la comprobación midió siguen ese veredicto. Una comprobación decidida conserva
-su decisión, y un agent que la comprobación no pudo ejecutar sigue desconocido.
+que la comprobación midió siguen ese veredicto.
+
+El veredicto es sobre esa única
+respuesta; las repreguntas conservan sus propias calificaciones, así que una
+regresión que confirmaron se mantiene. Un agent al que una comprobación rápida no
+hizo sus propias preguntas, porque las del skill lo mostraron peor, es desconocido
+cuando esa regresión se retira. Una comprobación decidida conserva su decisión, y
+un agent que la comprobación no pudo ejecutar sigue desconocido.
 
 La parte de cada agent son sus propios runs de evals, cargados a su budget. La
 estimación da un precio, lo más probable y como mucho, y nombra antes de empezar
-a los agents cuyo budget no lo cubre. Empezar requiere `runs:view` y acceso de
+a los agents cuyo budget no lo cubre. Empezar otra vez la misma comprobación
+mientras se ejecuta devuelve esa comprobación, así que nunca se paga dos veces.
+Empezar requiere `runs:view` y acceso de
 edición al skill. Un agent que no puedes ejecutar no se ejecuta, y uno que no
 puedes ver es un número, nunca un nombre.
 
 ### Cuando un agent quedó peor { #when-an-agent-got-worse }
 
 **Check on agents** en Skills calcula el precio de la comprobación, la ejecuta,
-muestra el resultado de cada agent y luego aplica o descarta el cambio. Mientras se
-ejecuta, una barra cuenta los agents terminados y cada agent muestra si espera, se
-está comprobando o ya tiene su resultado. Puedes cerrar el diálogo: la página del
-skill muestra entonces **Comprobación en curso**, y **Mostrar** vuelve a abrir la
-comprobación hasta que la decidas. Una
-comprobación que inició una [sesión de Improve](#improving-a-skill) se decide en
-esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
+muestra el resultado de cada agent y luego ofrece exactamente lo que la
+comprobación permite. Mientras se ejecuta, una barra cuenta los agents terminados.
+Después cada agent se abre a lo que arregló y rompió, etapa por etapa, con un enlace
+al run de cada etapa; la página de ese run dice que es una etapa de la comprobación
+y enlaza de vuelta a ella. Puedes cerrar el diálogo: la página del skill muestra
+entonces **Comprobación en curso**, y **Mostrar** vuelve a abrir la comprobación
+hasta que la decidas. El Historial del skill lista las comprobaciones de la línea,
+la más nueva primero, con lo que halló cada una y lo que se hizo con ella, y
+**Detalles** abre una. Una comprobación que inició una
+[sesión de Improve](#improving-a-skill) se decide en esa sesión, y Check on agents
+lleva a ella.
+
+**Volver a editar** devuelve el texto comprobado al editor - aquel en el que se
+escribió, o uno nuevo abierto desde Mostrar o Detalles en la línea de la propia
+comprobación -, así que no se pierde nada de lo escrito, y guardarlo se rechaza si la
+línea ya tiene una versión más nueva que la comprobada; la comprobación de una propuesta ofrece en su lugar **Seguir
+mejorando**, que inicia una sesión. En main una persona aún puede:
 
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
@@ -347,12 +386,14 @@ esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
   publicar cada uno, y un entorno que espera una promoción debe recibir antes la
   versión fijada;
 - **crear un fork**, dejando main como está - se ofrece sea cual sea el
-  resultado, en el paso Aceptar de [Improve](#improving-a-skill) o a través de la
+  resultado, en el diálogo de la comprobación, en el paso Aceptar de
+  [Improve](#improving-a-skill) o a través de la
   API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Pasan al fork los agents
   a los que ayudó, salvo que elijas otros con `agent_ids`; una lista vacía no mueve
   a ninguno, y un agent que lee el skill a través de un especialista se mueve en su
   Builder;
-- **descartarlo**.
+- **descartarlo**, tras una confirmación: una comprobación descartada ya no se
+  puede decidir, y su registro queda en el Historial.
 
 En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión de
 main, y un fork nunca parte de otro fork. Una comprobación se niega a aplicar si
@@ -539,6 +580,17 @@ petición se rechaza, nombrando los agents, cuando:
 - un entorno que espera una promoción sirve una versión que lo usa. Solo una
   promoción mueve ese entorno, y eso lo decide su responsable.
 
+Una [clave de API de la organización](api.md#organization-api-keys) llega a las
+versiones, los forks y los agents de un skill, como recoge la tabla de abajo.
+
+Los checks (`…/checks…` y `…/update-check`), las preguntas de prueba (`…/test-set`) y las
+sesiones de Improve, las puestas al día con main y los pasos a main con sus merges
+solo responden a una persona con la sesión iniciada, o al Architect o a un cliente
+MCP que actúa por ella; las propuestas de cambio (`/api/v1/skill-changes`) solo
+responden a una persona en la consola. Una clave recibe `403` "API keys are not
+accepted on this endpoint": cada una gasta en nombre de alguien o termina en una
+decisión que le corresponde a esa persona.
+
 | Ruta | Qué hace |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | Las versiones de main, o de un fork con `?fork_id=`, de la más nueva a la más antigua |
@@ -557,6 +609,7 @@ petición se rechaza, nombrando los agents, cuando:
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents elegidos, o lo descarta |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Comprueba un resultado de nuevo en la línea tal como está ahora |
 | `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
+| `GET /api/v1/skill-checks/awaiting` | Las comprobaciones que inició una persona y que siguen en curso o esperan una decisión, en skills que quien llama puede editar |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

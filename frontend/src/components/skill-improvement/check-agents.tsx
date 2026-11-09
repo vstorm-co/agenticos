@@ -10,22 +10,17 @@ import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, Input, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type {
-  AgentCheckState,
-  SkillCheck,
-  SkillCheckAgent,
-  UnknownReason,
-} from "@/types/skill-checks";
+import type { SkillCheck, SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
 import { AddTestQuestions } from "./add-test-questions";
-import { bucketOf, CheckSummary, FixBreakBar, type Bucket } from "./check-summary";
+import { bucketOf, CheckSummary, FixBreakBar, shownState, type Bucket } from "./check-summary";
+import { SetUpGrading } from "./set-up-grading";
 import { StageBreakdown } from "./stage-breakdown";
 
-const TONE: Record<AgentCheckState, Tone> = {
+const TONE: Record<ReturnType<typeof shownState>, Tone> = {
   queued: "neutral",
   running: "neutral",
   better: "good",
   no_change: "neutral",
-  within_noise: "warn",
   worse: "bad",
   unknown: "warn",
 };
@@ -36,15 +31,26 @@ const GROUPS: Bucket[] = ["worse", "unknown", "pending", "same", "better"];
 const OPEN_FIRST = new Set<Bucket>(["worse", "unknown", "pending"]);
 /** Below this many agents every group is open: there is nothing to scroll past. */
 const COLLAPSE_FROM = 8;
-const REASONS: (UnknownReason | null)[] = [
+const REASONS: (UnknownReason | "other" | null)[] = [
   "no_questions",
   "no_budget",
   "no_access",
   "no_published_version",
   "inconclusive",
   "failed",
+  "unscorable",
+  "all_evidence",
+  "own_not_asked",
+  "cancelled",
+  "other",
   null,
 ];
+
+/** A reason this page does not know by name is still a reason: it reads as "other". */
+const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
+  row.unknown_reason === null || REASONS.includes(row.unknown_reason)
+    ? row.unknown_reason
+    : "other";
 
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
@@ -190,16 +196,17 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
             {open &&
               (bucket === "unknown" ? (
                 REASONS.map((reason) => {
-                  const why = members.filter((item) => item.unknown_reason === reason);
+                  const why = members.filter((item) => reasonOf(item) === reason);
                   if (why.length === 0) return null;
                   return (
                     <div key={reason ?? "other"} className="space-y-1.5 pl-5">
                       {reason !== null && (
                         <p className="text-muted-foreground text-xs">{t(`unknown.${reason}`)}</p>
                       )}
-                      {reason === "no_questions" && !readOnly && (
+                      {(reason === "no_questions" || reason === "all_evidence") && !readOnly && (
                         <AddTestQuestions skillId={check.skill_id} />
                       )}
+                      {reason === "unscorable" && !readOnly && <SetUpGrading agents={why} />}
                       <ul className="divide-border divide-y rounded-xl border">
                         {sortWithin(bucket, why).map(row)}
                       </ul>
@@ -282,7 +289,9 @@ function AgentRow({
               {t("seen")}
             </span>
           )}
-          <StateBadge tone={TONE[row.state]}>{t(`state.${row.state}`)}</StateBadge>
+          <StateBadge tone={TONE[shownState(row.state)]}>
+            {t(`state.${shownState(row.state)}`)}
+          </StateBadge>
           <ChevronDown
             aria-hidden
             className={cn(
@@ -306,10 +315,13 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
         <p className="text-sm">{t("fixedBroken", { fixed: row.fixed, broken: row.broken })}</p>
       )}
       {row.unknown_reason !== null && (
-        <p className="text-muted-foreground text-sm">{t(`unknown.${row.unknown_reason}`)}</p>
+        <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
       )}
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>
+      )}
+      {row.sample === "own_not_asked" && (
+        <p className="text-muted-foreground text-xs">{t("ownNotAsked")}</p>
       )}
       {ran.length > 0 && (
         <ul className="space-y-1 rounded-md border px-3 py-2">

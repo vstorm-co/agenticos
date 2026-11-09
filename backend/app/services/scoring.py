@@ -56,6 +56,7 @@ from app.repositories import (
     eval_run_repo,
     intercepted_tool_call_repo,
     personal_data_repo,
+    skill_check_repo,
 )
 from app.schemas.dataset import DatasetRead
 from app.schemas.scoring import (
@@ -81,6 +82,7 @@ from app.schemas.scoring import (
     RubricCriterion,
     ScoreOutcome,
     ScorerResult,
+    SkillCheckAnswer,
 )
 from app.services.access import (
     AGENT,
@@ -262,6 +264,24 @@ class ScoringService:
         self.db = db
         self.datasets = DatasetService(db)
         self.judge = SystemAgentRunner(db)
+
+    async def judge_by_reference(
+        self, ctx: AuthContext, dataset_id: UUID, judge_id: UUID | None
+    ) -> DatasetRead:
+        """Grade a dataset with a judge, `judge_id` or the default one: on, with a starting
+        criterion unless it has one, and comparing with each case's reference answer -
+        never the counter-example. Raises as :meth:`set_scoring` does."""
+        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        await self.db.refresh(dataset)
+        scoring = DatasetScoring.model_validate(dataset.scoring)
+        scoring.judge.agent_id = judge_id
+        scoring.judge.enabled = True
+        if not scoring.judge.criteria:
+            scoring.judge.criteria = [STARTING_CRITERION]
+        scoring.reference.enabled = True
+        return await self.set_scoring(
+            ctx, dataset_id, DatasetScoringUpdate.model_validate(scoring.model_dump())
+        )
 
     async def set_scoring(
         self, ctx: AuthContext, dataset_id: UUID, changes: DatasetScoringUpdate
@@ -1113,6 +1133,12 @@ class ScoringService:
             list({read.agent_version_id for read in reads if read.agent_version_id is not None}),
             organization_id=ctx.organization_id,
         )
+        checked = await skill_check_repo.check_answers(
+            self.db, [read.id for read in reads], organization_id=ctx.organization_id
+        )
+        attempts = await eval_run_repo.score_attempts(
+            self.db, [read.id for read in reads], organization_id=ctx.organization_id
+        )
         hidden = {
             agent.id
             for agent in agents.values()
@@ -1123,11 +1149,12 @@ class ScoringService:
         for read in reads:
             agent = None if read.agent_id is None else agents.get(read.agent_id)
             unchecked = agent is None and read.answer is not None and not sees_every_agent
-            if (
+            shown = not (
                 not ctx.has(Perm.RUNS_VIEW)
                 or unchecked
                 or (agent is not None and agent.id in hidden)
-            ):
+            )
+            if not shown:
                 read = _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
@@ -1141,6 +1168,15 @@ class ScoringService:
                         "agent_name": None if agent is None else agent.name,
                         "agent_version": None if version is None else version.version,
                         "judge_model": None if judged_on is None else judged_on.label,
+                        "skill_check": None
+                        if not shown or read.id not in checked
+                        else SkillCheckAnswer(
+                            skill_id=checked[read.id].skill_id,
+                            check_id=checked[read.id].check_id,
+                            arm="proposed" if checked[read.id].proposed else "current",
+                            version=checked[read.id].version,
+                        ),
+                        "eval_attempt": attempts.get(read.id),
                     }
                 )
             )
@@ -1238,7 +1274,12 @@ class ScoringService:
         return await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=wanted)
 
     async def route_to_review(
-        self, ctx: AuthContext, *, dataset_id: UUID, score_ids: list[UUID]
+        self,
+        ctx: AuthContext,
+        *,
+        dataset_id: UUID,
+        score_ids: list[UUID],
+        displace: bool = True,
     ) -> ReviewRequested:
         """Send scores to the review queue, one per case and agent, the newest
         replacing an older one.
@@ -1257,7 +1298,8 @@ class ScoringService:
         undecided and stays a score; one ranked higher, or scored as late or
         later, keeps its place, and the one sent is not queued. A decided score
         is never touched, and one already waiting or decided is not queued
-        again. Ids of another dataset are ignored.
+        again. Ids of another dataset are ignored. `displace` false never takes
+        a waiting score's place: a case and agent with one waiting queues none.
         """
         scores = await case_score_repo.get_many(
             self.db, score_ids, organization_id=ctx.organization_id, dataset_id=dataset_id
@@ -1279,7 +1321,7 @@ class ScoringService:
         chosen, older = [], []
         for key, score in newest.items():
             others = [other for other in waiting if (other.case_id, other.agent_id) == key]
-            if any(_rank(other) >= _rank(score) for other in others):
+            if any(_rank(other) >= _rank(score) for other in others) or (others and not displace):
                 continue
             chosen.append(score.id)
             older.extend(other.id for other in others)

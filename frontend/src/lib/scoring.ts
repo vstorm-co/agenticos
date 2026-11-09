@@ -97,6 +97,15 @@ export interface ScoreGroup {
   scores: CaseScore[];
 }
 
+/** Whether a model graded the answer: a judge or a reference comparison reached a verdict. */
+export function judgedBy(score: CaseScore): boolean {
+  return score.results.some(
+    (result) =>
+      (result.scorer === "judge" || result.scorer === "reference") &&
+      (result.status === "pass" || result.status === "fail"),
+  );
+}
+
 /**
  * A page of scores cut where the eval run or the answering agent changes.
  *

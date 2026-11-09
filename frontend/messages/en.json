@@ -3014,7 +3014,6 @@
         "finished": "Finished",
         "finishedOf": "of {total} runs",
         "waiting": "Waiting on you",
-        "review": "Review them",
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
@@ -3170,7 +3169,7 @@
       },
       "improvements-waiting": {
         "title": "Improvements waiting for you",
-        "description": "Improvement sessions stopped for your next step or decision.",
+        "description": "Improvement sessions, skill checks and proposed skill changes waiting for your next step or decision.",
         "empty": {
           "title": "Nothing waiting",
           "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready. Pinned agents and forks that main has moved past are listed here too."
@@ -3180,16 +3179,23 @@
           "understand": "Look at what went wrong",
           "changes": "Review the changes",
           "result": "Review the result",
-          "blocked": "Blocked: end it and start a new one"
+          "blocked": "Blocked: end it and start a new one",
+          "check": {
+            "running": "Checking on {count, plural, =1 {1 agent} other {# agents}}",
+            "done": "Check finished: decide what to do with the change"
+          },
+          "proposal": "Proposed by an agent · {count, plural, =0 {reaches no agent yet} =1 {reaches 1 agent} other {reaches # agents}}"
         },
         "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
-        "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} other {Agent sessions could not be read.}}",
+        "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} checks {Skill checks could not be read.} proposals {Proposed skill changes could not be read.} other {Agent sessions could not be read.}}",
         "catchUp": "Catch up",
         "behindName": "{name} · {kind, select, fork {fork “{line}”} other {pinned in {line}{specialist, select, yes { through {via}} other {}}}}",
         "behind": {
           "pinned": "On v{version} · {count, plural, =1 {1 change behind main} other {# changes behind main}}",
           "fork": "From v{version} · {agents, plural, =1 {1 agent} other {# agents}} · {count, plural, =1 {1 change behind main} other {# changes behind main}}"
-        }
+        },
+        "review": "Review",
+        "proposal": "{kind, select, new {New skill {name}} other {Change to {name}}}"
       }
     },
     "edit": {
@@ -8740,14 +8746,35 @@
         "title": "What it serves now"
       },
       "more": "More actions",
-      "aiOff": "Improve and catching a fork up with main ask a model to read the skill's answers, and AI assistance is switched off for this organization."
+      "aiOff": "Improve and catching a fork up with main ask a model to read the skill's answers, and AI assistance is switched off for this organization.",
+      "checks": {
+        "title": "Checks",
+        "count": "{count, plural, =1 {1 check} other {# checks}}",
+        "none": "No change to this line has been checked yet.",
+        "over": "Over v{version} · {agents, plural, =1 {1 agent} other {# agents}}",
+        "details": "Details",
+        "verdict": {
+          "passed": "Better, nobody worse",
+          "needs_ack": "Some agents not checked",
+          "blocked": "Made an agent worse",
+          "no_better": "Nobody better"
+        },
+        "status": {
+          "running": "Running",
+          "done": "Waiting for a decision",
+          "cancelled": "Stopped",
+          "applied": "Applied",
+          "forked": "Made a fork",
+          "discarded": "Discarded"
+        }
+      }
     },
     "checkOnAgents": "Check on agents",
     "checkChangeTo": "Check the change to {name} on the agents that use it",
     "check": {
       "title": "Check this change on every agent that uses it",
       "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
-      "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
+      "price": "Most likely {expected}, at most {most}. Each agent's share is billed to that agent.",
       "start": "Start the check",
       "running": "Checking. This takes a few minutes. You can close this: the check keeps running, and <page>the skill's page</page> shows it as Check running until you decide it.",
       "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
@@ -8765,22 +8792,19 @@
         "no_budget": "Not checked: its budget cannot cover the check.",
         "no_published_version": "Not checked: it has no published version.",
         "inconclusive": "Not checked: the check could not grade every answer.",
-        "failed": "Not checked: its run failed."
-      },
-      "state": {
-        "queued": "Waiting",
-        "running": "Running",
-        "better": "Better",
-        "no_change": "No change",
-        "within_noise": "Within noise",
-        "worse": "Worse",
-        "unknown": "Unknown"
+        "failed": "Not checked: its run failed.",
+        "other": "Not checked: the check could not measure it.",
+        "unscorable": "Not checked: nothing can grade its questions. Set up grading on their dataset.",
+        "all_evidence": "Not checked: every question came from the conversations this change was learned from.",
+        "cancelled": "Not checked: the check was stopped before it finished.",
+        "own_not_asked": "Not checked: its own questions were not asked once the skill's showed it worse."
       },
       "verdict": {
         "passed": "No agent got worse and at least one got better.",
         "needs_ack": "No agent that was checked got worse, but some could not be checked.",
         "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
-        "no_better": "No agent got better, so there is nothing to apply."
+        "no_better": "No agent got better, so there is nothing to apply.",
+        "noReaders": "No agent reads this line, so there was nobody to check."
       },
       "unaffordable": "The organization's budget left this month cannot cover this check.",
       "cancel": "Stop the check",
@@ -8789,7 +8813,16 @@
       "progress": "{done} of {total} agents checked",
       "progressLabel": "Agents checked",
       "updateChecked": "Checked. Go back to decide whether to move the agent.",
-      "backToChange": "Back to Change version"
+      "backToChange": "Back to Change version",
+      "backToEditing": "Back to editing",
+      "improveFurther": "Improve further",
+      "discardConfirm": {
+        "title": "Discard this change?",
+        "description": "The change is not applied and this check cannot be decided again. What it found stays in the skill's checks."
+      },
+      "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
+      "startUnchecked": "Go on without a check",
+      "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once."
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions",
@@ -12049,6 +12082,14 @@
         "startsWith": "Starts with “{text}”",
         "bullets": "Has a bulleted list",
         "json": "Is a JSON object"
+      },
+      "markPassedUngraded": "Answer is fine (the grading was wrong)",
+      "groupSkillCheck": "Skill check · {when}",
+      "origin": {
+        "check": "Skill check · {arm, select, proposed {{known, select, yes {proposed v{version}} other {proposed text}}} other {{known, select, yes {current v{version}} other {current text}}}}",
+        "eval": "Eval run",
+        "hand": "Graded by hand",
+        "rerun": "{source} · re-ask {attempt}"
       }
     },
     "title": "Datasets",
@@ -13908,7 +13949,9 @@
       "firstPassRate": "First answers alone: {from} → {to}",
       "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change.",
       "failedAlike": "Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: {error}",
-      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}."
+      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}.",
+      "tooFew": "{candidate} and {baseline} cannot be compared yet: too few held-out questions were graded to measure a change.",
+      "tooFewInStage": "This stage has too few held-out questions to judge on its own. The check judges the agent on all its stages together."
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
@@ -13959,7 +14002,8 @@
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} other { · # undecided}}",
-      "firstRate": "First answers alone: {rate}"
+      "firstRate": "First answers alone: {rate}",
+      "checkStage": "Skill check stage · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {No runs yet} =1 {1 run of 1 agent} other {# runs of {agents, plural, =1 {1 agent} other {# agents}}}}",
@@ -14208,7 +14252,18 @@
       "by": "Re-evaluated after review by {name} · {date}",
       "undone": "Re-evaluated after review was undone by {name} · {date}",
       "reviewer": "a reviewer"
-    }
+    },
+    "checkStage": {
+      "title": "Stage of the check of {skill} on {agent}. <check>Open the check</check>",
+      "aSkill": "a skill",
+      "proposed": "Proposed text",
+      "current": "Current text",
+      "currentVersion": "Current v{version}",
+      "currentFork": "Current “{fork}” v{version}",
+      "pooled": "This run is one stage of the check. The check judges each agent on the held-out questions of all its stages together, so this stage alone can say less than the check."
+    },
+    "notAsked": "{count, plural, =1 {1 question of this dataset was not in this stage's sample, so it was not asked.} other {# questions of this dataset were not in this stage's sample, so they were not asked.}}",
+    "runMetaStage": "{date} · spent {cost}"
   },
   "remoteAgents": {
     "title": "Remote agents",
@@ -15312,7 +15367,8 @@
       "running": "Running",
       "needs_you": "Needs you",
       "skipped": "Skipped",
-      "pending": "Not started"
+      "pending": "Not started",
+      "ended": "Ended without changes"
     },
     "paidRestartOwner": "Only the session requester using the original account and credentials can restart paid work. Other editors can review the results or start their own session.",
     "improveAgain": "Improve again",
@@ -15627,7 +15683,11 @@
       "updatePinned": "Update to v{version}",
       "catchUp": "Catch up the fork"
     },
-    "usedSkill": "Used skill {name}"
+    "usedSkill": "Used skill {name}",
+    "evidenceOnly": {
+      "body": "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+      "addQuestions": "Add questions from other conversations"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",
@@ -15676,7 +15736,12 @@
         "no_budget": "Not checked: its budget is spent.",
         "no_published_version": "Not checked: it has no published version.",
         "failed": "Not checked: its check failed.",
-        "inconclusive": "Not checked: its run could not grade every answer. Check it again."
+        "inconclusive": "Not checked: its run could not grade every answer. Check it again.",
+        "other": "Not checked: the check could not measure it.",
+        "unscorable": "Not checked: nothing can grade its questions - no check, expected tool call or judge, or a judge while AI assistance is off.",
+        "all_evidence": "Not checked: every question came from the conversations the change was learned from.",
+        "cancelled": "Not checked: the check was stopped before its runs finished.",
+        "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it."
       },
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {
@@ -15710,12 +15775,14 @@
         "same": "No change ({count})",
         "better": "Better ({count})"
       },
-      "brokeOnSkill": "{broke} of {total} broke on the skill's own questions, which every agent shares."
+      "brokeOnSkill": "{broke} of {total} broke on the skill's own questions, which every agent shares.",
+      "ownNotAsked": "Its own questions were not asked: the skill's questions already showed it worse."
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
       "add": "Add test questions",
-      "addHint": "Written from answers where agents loaded the skill, so an agent without questions of its own can be checked next time."
+      "addHint": "Written from answers where agents loaded the skill, so an agent without questions of its own can be checked next time.",
+      "grading": "Set up grading on {name}"
     },
     "accept": {
       "title": "Accept",
@@ -15763,10 +15830,10 @@
       "limitHint": "Filled in for the first proposal and every attempt it may make. Lower it to stop sooner; the session stops before a step that would go over it.",
       "unaffordable": "The organization's budget does not cover this.",
       "start": "Start",
-      "reads": "{runs, plural, =1 {It reads 1 answer} other {It reads # answers}} where the line's versions were loaded, {agents, plural, =1 {from 1 agent} other {from # agents}}.",
+      "reads": "{runs, plural, =1 {It reads 1 answer that loaded this line and was rated down or failed.} other {It reads # answers that loaded this line and were rated down or failed.}} {agents, plural, =1 {The line serves 1 agent.} other {The line serves # agents.}}",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not read.} other {# answers are from before skill loads were recorded and are not read.}}",
       "checkNamedLater": "Before the changes are checked, each agent they run on is named, and the ones they cannot run on, with the reason.",
-      "noEvidence": "There are no rated-down or failed answers where this line was loaded, so there is nothing to learn from yet.",
+      "noEvidence": "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again.",
       "aiOff": "Improve asks a model to read the skill's answers and write changes, and AI assistance is switched off for this organization."
     },
     "understand": {
@@ -15901,6 +15968,17 @@
       "live": "Moved onto it and published: {names}.",
       "drafts": "{count, plural, =1 {Moved onto it in its draft, which waits to be published: {names}.} other {Moved onto it in their drafts, which wait to be published: {names}.}}",
       "nobody": "No agent was moved onto it; move agents from the skill's page."
+    },
+    "understandWorking": "Reading the answers that loaded this skill and were rated down or failed, and what in the skill they point to…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "Catch {fork} up with main",
+        "to_main": "Move {fork} to main"
+      },
+      "plain": {
+        "catch_up": "Catch up with main",
+        "to_main": "Move to main"
+      }
     }
   }
 }

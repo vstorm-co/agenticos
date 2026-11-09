@@ -10,13 +10,20 @@ import {
   discardSkillCheck,
   estimateSkillCheck,
   estimateUpdateCheck,
+  forkSkillCheck,
   getSkillCheck,
   getSkillTestSet,
   listSkillChecks,
+  listSkillChecksAwaiting,
   startSkillCheck,
   startUpdateCheck,
 } from "@/lib/skill-checks-api";
-import type { SkillCheck, SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
+import type {
+  SkillCheck,
+  SkillCheckApply,
+  SkillCheckFork,
+  SkillCheckStart,
+} from "@/types/skill-checks";
 
 /** A change to check on its line, or main's newest version on one pinned agent. */
 export type SkillCheckBody = SkillCheckStart | { update_agent_id: string };
@@ -25,9 +32,21 @@ export type SkillCheckBody = SkillCheckStart | { update_agent_id: string };
 export const SKILL_CHECK_POLL_MS = 5000;
 
 /**
+ * A check is decided by whoever gets there first, in another tab or by another
+ * reviewer, so it is read again each time it is shown and each time the window
+ * comes back, rather than served from a cache that may offer what is gone.
+ */
+const ALWAYS_FRESH = {
+  staleTime: 0,
+  refetchOnMount: "always",
+  refetchOnWindowFocus: true,
+} as const;
+
+/**
  * One skill change's check: estimate and start it, read it until it finishes,
- * then apply or discard it. Deciding changes the skill and the waiting changes,
- * so both are read again afterwards.
+ * then apply, fork or discard it. Deciding changes the skill and the waiting
+ * changes, so both are read again afterwards; a refused decision reads the check
+ * and the skill again, since it is usually refused for being out of date.
  */
 export function useSkillCheck(skillId: string, checkId: string | null) {
   const queryClient = useQueryClient();
@@ -36,6 +55,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     queryKey: key,
     queryFn: () => getSkillCheck(skillId, checkId as string),
     enabled: checkId !== null,
+    ...ALWAYS_FRESH,
     refetchInterval: (current) =>
       current.state.data?.status === "running" ? SKILL_CHECK_POLL_MS : false,
   });
@@ -44,8 +64,16 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
       queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
       // Applying with pins and forking for the helped agents move agents.
       queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    ]);
+  };
+  const refused = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
+      queryClient.invalidateQueries({ queryKey: qk.skills.detail(skillId) }),
     ]);
   };
   return {
@@ -61,15 +89,26 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
         "update_agent_id" in body
           ? startUpdateCheck(skillId, body.update_agent_id)
           : startSkillCheck(skillId, body),
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      onSuccess: () =>
+        Promise.all([
+          queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+          queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
+        ]),
     }),
     apply: useMutation({
       mutationFn: (body: SkillCheckApply) => applySkillCheck(skillId, checkId as string, body),
       onSuccess: decided,
+      onError: refused,
+    }),
+    fork: useMutation({
+      mutationFn: (body: SkillCheckFork) => forkSkillCheck(skillId, checkId as string, body),
+      onSuccess: decided,
+      onError: refused,
     }),
     discard: useMutation({
       mutationFn: () => discardSkillCheck(skillId, checkId as string),
       onSuccess: decided,
+      onError: refused,
     }),
     cancel: useMutation({
       mutationFn: () => cancelSkillCheck(skillId, checkId as string),
@@ -85,14 +124,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
  * again while it runs.
  */
 export function useOpenSkillCheck(skillId: string, forkId: string | null): SkillCheck | null {
-  const { data } = useQuery({
-    queryKey: qk.skillChecks.line(skillId, forkId),
-    queryFn: () => listSkillChecks(skillId, forkId),
-    refetchInterval: (current) =>
-      current.state.data?.items.some((check) => check.status === "running")
-        ? SKILL_CHECK_POLL_MS
-        : false,
-  });
+  const { data } = useLineChecks(skillId, forkId);
   return (
     data?.items.find(
       (check) =>
@@ -101,6 +133,46 @@ export function useOpenSkillCheck(skillId: string, forkId: string | null): Skill
         (check.status === "running" || check.status === "done"),
     ) ?? null
   );
+}
+
+/**
+ * The checks a person started, on any skill the reader may edit, that still run or
+ * wait for a decision. Read again while one runs.
+ */
+export function useSkillChecksAwaiting({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: qk.skillChecks.awaiting(),
+    queryFn: listSkillChecksAwaiting,
+    enabled,
+    ...ALWAYS_FRESH,
+    refetchInterval: (current) =>
+      current.state.data?.some((check) => check.status === "running") ? SKILL_CHECK_POLL_MS : false,
+  });
+  return {
+    checks: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/** A line's newest checks, read again while one of them runs. */
+function useLineChecks(skillId: string, forkId: string | null) {
+  return useQuery({
+    queryKey: qk.skillChecks.line(skillId, forkId),
+    queryFn: () => listSkillChecks(skillId, forkId),
+    ...ALWAYS_FRESH,
+    refetchInterval: (current) =>
+      current.state.data?.items.some((check) => check.status === "running")
+        ? SKILL_CHECK_POLL_MS
+        : false,
+  });
+}
+
+/** A line's checks, newest first: what each found and what was done with it. */
+export function useSkillCheckHistory(skillId: string, forkId: string | null) {
+  const { data, isLoading, error } = useLineChecks(skillId, forkId);
+  return { checks: data?.items, total: data?.total ?? 0, isLoading, error };
 }
 
 /** The skill's own test questions, and writing them when there are none. */
