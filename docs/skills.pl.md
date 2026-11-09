@@ -1,5 +1,5 @@
 ---
-source_sha: "f267f18be219"
+source_sha: "c51b82d830dd"
 ---
 
 # Skille { #skills }
@@ -300,7 +300,10 @@ Potem o pytania samego agenta:
 Zestaw pytań, którego nic nie potrafi ocenić albo którego wszystkie pytania
 pochodzą z rozmów, z których zmiana się nauczyła, jest dla tego agenta pomijany,
 a reszta i tak jest zadawana. Agent, któremu nie zostało nic do zadania, jest
-nieznany, z tym powodem. Każdy zestaw liczy tylko pytania, które zadaje.
+nieznany, z tym powodem. Każdy zestaw liczy tylko pytania, które zadaje, a
+szybka próbka nigdy nie wybiera pytań z tych rozmów. Gdy w sesji Improve żaden
+agent nie ma pytania spoza jej własnych dowodów, krok jest odrzucany przed
+startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
 
 ### Reguła { #the-rule }
 

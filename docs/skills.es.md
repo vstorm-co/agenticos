@@ -1,5 +1,5 @@
 ---
-source_sha: "f267f18be219"
+source_sha: "c51b82d830dd"
 ---
 
 # Skills { #skills }
@@ -309,7 +309,10 @@ Después, las preguntas del propio agent:
 Un conjunto de preguntas que nada puede calificar, o cuyas preguntas vienen todas
 de las conversaciones de las que aprendió el cambio, se omite para ese agent, y el
 resto se pregunta igualmente. Un agent al que no le queda nada que preguntar es
-desconocido, con ese motivo. Cada conjunto cuenta solo las preguntas que hace.
+desconocido, con ese motivo. Cada conjunto cuenta solo las preguntas que hace, y
+una muestra rápida nunca elige una pregunta de esas conversaciones. Cuando en una
+sesión de Improve ningún agent tiene una pregunta fuera de sus propias evidencias,
+el paso se rechaza antes de empezar, con el dataset al que añadir otras preguntas.
 
 ### La regla { #the-rule }
 

@@ -125,7 +125,10 @@ class FakeEvals:
             if request.dataset_id in fake.refuse_estimate:
                 raise BadRequestError(
                     message="Refused",
-                    details={"reason": fake.refuse_estimate[request.dataset_id]},
+                    details={
+                        "reason": fake.refuse_estimate[request.dataset_id],
+                        "dataset_id": request.dataset_id,
+                    },
                 )
             cases = len(request.case_ids) if request.case_ids else 4
             total = fake.per_case * 2 * cases
@@ -996,6 +999,42 @@ class TestAStageThatCannotMeasure:
 
         with pytest.raises(BadRequestError):
             await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start())
+
+    async def test_a_sessions_check_of_its_own_evidence_alone_is_refused(self, db, monkeypatch):
+        """An Improve session leaves out its evidence; when no agent has a question
+        beyond it, the refusal names the dataset to add others to, before anything is
+        paid for. A check by hand, with no evidence left out, waits for acknowledgement."""
+        lab = await _lab(db)
+        test_set = await dataset_repo.for_skill(
+            db, lab.skill.id, organization_id=lab.ctx.organization_id
+        )
+        assert test_set is not None
+        FakeEvals(refuse_estimate={test_set.id: "all_evidence"}).install(monkeypatch)
+        service = SkillCheckService(db)
+        evidence = [uuid.uuid4()]
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.estimate(lab.ctx, lab.skill.id, _start(), exclude_conversations=evidence)
+        with pytest.raises(BadRequestError):
+            await service.start(
+                lab.ctx,
+                lab.skill.id,
+                _start(),
+                source=CheckSource.SESSION,
+                exclude_conversations=evidence,
+            )
+
+        assert refused.value.details == {"reason": "all_evidence", "dataset_id": test_set.id}
+        assert await skill_check_repo.list_for_skill(
+            db,
+            organization_id=lab.ctx.organization_id,
+            skill_id=lab.skill.id,
+            fork_id=None,
+            skip=0,
+            limit=5,
+        ) == ([], 0)
+        by_hand = await service.start(lab.ctx, lab.skill.id, _start())
+        assert by_hand.verdict is CheckVerdict.NEEDS_ACK
 
     async def test_another_refusal_after_a_skipped_stage_still_refuses_the_check(
         self, db, monkeypatch

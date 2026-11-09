@@ -1,5 +1,5 @@
 ---
-source_sha: "f267f18be219"
+source_sha: "c51b82d830dd"
 ---
 
 # Skills { #skills }
@@ -323,7 +323,10 @@ Ein Satz von Fragen, den nichts bewerten kann oder dessen Fragen alle aus den
 Unterhaltungen stammen, aus denen die Änderung gelernt hat, wird für diesen Agent
 ausgelassen, und der Rest wird trotzdem gefragt. Ein Agent, für den nichts zu
 fragen bleibt, ist unbekannt, mit diesem Grund. Jeder Satz zählt nur die Fragen,
-die er stellt.
+die er stellt, und eine schnelle Stichprobe wählt nie eine Frage aus diesen
+Unterhaltungen. Hat in einer Improve-Sitzung kein Agent eine Frage außerhalb ihrer
+eigenen Belege, wird der Schritt vor dem Start abgelehnt, mit dem Dataset, dem
+andere Fragen hinzuzufügen sind.
 
 ### Die Regel { #the-rule }
 

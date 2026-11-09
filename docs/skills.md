@@ -288,7 +288,10 @@ Then the agent's own questions:
 A set of questions that nothing can grade, or whose questions all come from the
 conversations the change was learned from, is left out for that agent, and the
 rest is still asked. An agent with nothing left to ask is unknown, with that
-reason. Each set counts only the questions it asks.
+reason. Each set counts only the questions it asks, and a quick sample never
+picks one of those conversations. When an Improve session has no agent left with
+a question beyond its own evidence, the step is refused before it starts, with
+the dataset to add other questions to.
 
 ### The rule { #the-rule }
 
