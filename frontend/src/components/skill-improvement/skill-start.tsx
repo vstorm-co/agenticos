@@ -56,7 +56,6 @@ export function SkillStart({
       .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
   }, [isLoading, error, open, aiOff, price, locale, tErrors]);
 
-  if (aiOff) return <AiAssistanceNotice body={t("aiOff")} />;
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
   if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   if (open) {
@@ -72,6 +71,7 @@ export function SkillStart({
       </p>
     );
   }
+  if (aiOff) return <AiAssistanceNotice body={t("aiOff")} />;
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 

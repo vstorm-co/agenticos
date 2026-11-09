@@ -62,7 +62,7 @@ describe("SkillStart", () => {
     ai.enabled = false;
     mount();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/AI assistance is switched off/);
+    expect(await screen.findByText(/AI assistance is switched off/)).toBeVisible();
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -143,6 +143,15 @@ describe("SkillStart", () => {
       "/skills/k1/improve/s3",
     );
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("still leads to an open session while AI assistance is off", async () => {
+    ai.enabled = false;
+    vi.mocked(apiClient.get).mockResolvedValue([skillSession({ id: "s3", status: "waiting" })]);
+    mount();
+
+    expect(await screen.findByRole("link", { name: "Continue it" })).toBeVisible();
+    expect(screen.queryByText(/AI assistance is switched off/)).toBeNull();
   });
 
   it("says when there is nothing to learn from yet", async () => {

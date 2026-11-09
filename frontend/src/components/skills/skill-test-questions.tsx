@@ -51,7 +51,9 @@ export function SkillTestQuestions({
       counted={isLoading ? null : t("count", { count: testSet?.case_count ?? 0 })}
       headerTour="skill-test-questions"
     >
-      {error ? (
+      {error instanceof ApiError && error.details?.reason === "test_set_hidden" ? (
+        <p className="text-muted-foreground text-sm">{t("hidden")}</p>
+      ) : error ? (
         <ErrorState description={getErrorMessage(error, tErrors)} />
       ) : isLoading ? (
         <Skeleton className="h-10 w-full" />

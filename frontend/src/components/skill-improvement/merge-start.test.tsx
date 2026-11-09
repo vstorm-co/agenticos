@@ -63,7 +63,7 @@ describe("MergeStart", () => {
     ai.enabled = false;
     mount();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/AI assistance is switched off/);
+    expect(await screen.findByText(/AI assistance is switched off/)).toBeVisible();
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).toBeNull();
   });

@@ -58,7 +58,6 @@ export function MergeStart({
       .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
   }, [line.isLoading, line.error, open, aiOff, price, locale, tErrors]);
 
-  if (aiOff) return <AiAssistanceNotice body={t("aiOff")} />;
   if (line.isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
   if (line.error) return <ErrorState description={getErrorMessage(line.error, tErrors)} />;
   if (open)
@@ -73,6 +72,7 @@ export function MergeStart({
         </Link>
       </p>
     );
+  if (aiOff) return <AiAssistanceNotice body={t("aiOff")} />;
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 

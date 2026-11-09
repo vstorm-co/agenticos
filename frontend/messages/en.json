@@ -8733,7 +8733,8 @@
         "fromAnswers": "Start from recent answers",
         "empty": "Start an empty set",
         "createHint": "Recent answers are the last 30 days of answers where an agent loaded the skill. Either way you can add and edit questions in the dataset.",
-        "askEditor": "Someone who may edit this skill and create datasets can add them."
+        "askEditor": "Someone who may edit this skill and create datasets can add them.",
+        "hidden": "This skill has test questions, in a dataset you may not open."
       },
       "content": {
         "title": "What it serves now"

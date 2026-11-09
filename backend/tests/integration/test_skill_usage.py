@@ -347,6 +347,7 @@ class TestStatistics:
         reader may not see, are left out."""
         org, user = await _org(db)
         desk = await _agent(db, org, user, "Desk")
+        clerk = await _agent(db, org, user, "Clerk")
         skill = await _skill(db, org)
         offered = await _skill(db, org, "shipping")
         _, stranger = await _org(db)
@@ -364,6 +365,14 @@ class TestStatistics:
                 ),
                 SkillUseRecord(agent_id=desk.id, skill_id=offered.id, loaded=False),
                 SkillUseRecord(agent_id=desk.id, skill_id=hidden.id, loaded=True),
+                # A delegate that read the same version counts as the same use.
+                SkillUseRecord(
+                    agent_id=clerk.id,
+                    skill_id=skill.id,
+                    skill_version_id=version,
+                    loaded=False,
+                    resource_reads=1,
+                ),
             ],
             organization_id=org.id,
             run_id=run.id,

@@ -188,7 +188,10 @@ export function OnboardingTour() {
     // While an interactive flow runs, the coach owns the screen — the passive
     // driver.js overlay must stay down so it does not sit over the create dialog.
     if (!isOpen || !step || mode === "flow") {
-      if (!isOpen) absentRef.current.clear();
+      if (!isOpen) {
+        absentRef.current.clear();
+        backwardsRef.current = false;
+      }
       tour.destroy();
       spotlightRef.current?.destroy();
       spotlightRef.current = null;

@@ -475,7 +475,7 @@ function SkillsUsed({ uses }: { uses: RunSkillUse[] }) {
       {t("skillsUsed")}
       {uses.map((use) => (
         <Link
-          key={use.skill_id}
+          key={`${use.skill_id}:${use.fork ?? ""}:${use.version ?? ""}`}
           href={ROUTES.SKILL_DETAIL(use.skill_id)}
           className="hover:text-foreground font-mono underline-offset-4 hover:underline"
         >

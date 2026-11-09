@@ -1194,6 +1194,17 @@ class TestTestSet:
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
 
+    async def test_a_set_the_reader_may_not_open_is_said_apart_from_none(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx, name="tests-hidden")
+        await SkillCheckService(db).create_test_set(ctx, skill.id, SkillTestSetStart())
+        reader = replace(ctx, key_scopes=frozenset({Perm.SKILLS_VIEW}))
+
+        with pytest.raises(AuthorizationError) as refused:
+            await SkillCheckService(db).test_set(reader, skill.id)
+
+        assert refused.value.details["reason"] == "test_set_hidden"
+
 
 class TestAMergedText:
     async def test_its_files_are_the_whole_set_the_check_serves(self, db, monkeypatch):

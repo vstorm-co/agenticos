@@ -82,6 +82,20 @@ describe("SkillTestQuestions", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No access"));
   });
 
+  it("says the skill has questions in a dataset the reader may not open, offering none", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError(403, "Hidden", {
+        error: { code: "FORBIDDEN", message: "Hidden", details: { reason: "test_set_hidden" } },
+      }),
+    );
+    mount();
+
+    expect(
+      await screen.findByText("This skill has test questions, in a dataset you may not open."),
+    ).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("says when they cannot be read", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(
       new ApiError(500, "Boom", { error: { code: "INTERNAL", message: "Boom" } }),

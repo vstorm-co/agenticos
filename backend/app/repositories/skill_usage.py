@@ -338,14 +338,18 @@ async def agents_involved(
 
 
 async def skills_of_run(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> list[RunUse]:
-    """The skills one run used or read, each with the version it was served, by name."""
+    """The skills one run used or read, each once per version it was served, by name.
+
+    A delegate's use sits on the run under the delegate's own agent, so one skill can
+    have a row per agent; they are one use here unless the versions differ.
+    """
     rows = await db.execute(
         select(
             RunSkillUse.skill_id,
             Skill.name,
             SkillVersion.number,
             SkillFork.name,
-            RunSkillUse.loaded,
+            func.bool_or(RunSkillUse.loaded),
         )
         .join(Skill, Skill.id == RunSkillUse.skill_id)
         .outerjoin(SkillVersion, SkillVersion.id == RunSkillUse.skill_version_id)
@@ -355,6 +359,7 @@ async def skills_of_run(db: AsyncSession, *, organization_id: UUID, run_id: UUID
             RunSkillUse.run_id == run_id,
             used(),
         )
-        .order_by(Skill.name)
+        .group_by(RunSkillUse.skill_id, Skill.name, SkillVersion.number, SkillFork.name)
+        .order_by(Skill.name, SkillVersion.number)
     )
     return [RunUse(*row) for row in rows.tuples().all()]
