@@ -424,6 +424,7 @@ class SkillCheckService:
         }
         planned: list[Planned] = []
         org_remaining: Decimal | None = None
+        evidence_only: BadRequestError | None = None
         for user in users:
             row = Planned(user.agent, user.agent_version, user.via_specialist)
             planned.append(row)
@@ -458,6 +459,8 @@ class SkillCheckService:
                     reason = _skipped(refused)
                     if reason is None:
                         raise
+                    if skipped is None and reason is UnknownReason.ALL_EVIDENCE:
+                        evidence_only = evidence_only or refused
                     skipped = skipped or reason
                     continue
                 asked.append(replace(stage, asked=quote.cases))
@@ -477,6 +480,15 @@ class SkillCheckService:
                 row.sample = SampleKind.SKILL_SET_ONLY
             if remaining is not None and row.at_most > remaining:
                 row.unknown = UnknownReason.NO_BUDGET
+        if (
+            exclude_conversations
+            and evidence_only is not None
+            and all(item.unknown is not None for item in planned)
+            and any(item.unknown is UnknownReason.ALL_EVIDENCE for item in planned)
+        ):
+            # A session's check of nothing but its own evidence measures nothing; the
+            # refusal names the dataset the person adds other questions to.
+            raise evidence_only
         return Plan(
             skill=skill,
             fork=fork,
