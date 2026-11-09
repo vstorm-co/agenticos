@@ -130,7 +130,6 @@ export function OnboardingTour() {
   // Which way the reader last moved, so an absent stop is passed in that direction:
   // Back onto one skips on back, rather than forward to where the reader just was.
   const backwardsRef = useRef(false);
-  // The optional stops this walk found absent, which "Step x of N" does not count.
   const absentRef = useRef(new Set<string>());
   const next = useCallback(() => {
     backwardsRef.current = false;

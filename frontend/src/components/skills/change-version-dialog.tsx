@@ -130,7 +130,6 @@ export function ChangeVersionDialog({
   const [target, setTarget] = useState<BindingTarget>(current);
   const [understood, setUnderstood] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Checking main's newest version on a pinned agent before moving it there.
   const [checking, setChecking] = useState(false);
   const [updateCheck, setUpdateCheck] = useState<AgentCheckRef | null>(null);
   const unchanged = sameTarget(target, current);

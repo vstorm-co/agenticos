@@ -79,8 +79,7 @@ export function AssistantWindow({
   };
   const [showHistory, setShowHistory] = useState(false);
   const [incoming, setIncoming] = useState<IncomingFiles | null>(null);
-  // Handed to the message box the way a screenshot's words are, written during render
-  // as state that follows a prop is.
+  // Written during render, as state that follows a prop is.
   const [wroteDraft, setWroteDraft] = useState<number | null>(null);
   if (draft !== null && wroteDraft !== draft.id) {
     setWroteDraft(draft.id);

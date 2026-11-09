@@ -195,9 +195,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     setEverOpened(true);
   };
 
-  // Words asked from elsewhere for the reader to read and send themselves.
   const [draft, setDraft] = useState<{ id: number; text: string } | null>(null);
-  // `asDraft` writes the words into the message box for the reader to send instead.
   const ask = (text: string, asDraft = false) => {
     openWindow();
     if (asDraft) setDraft((last) => ({ id: (last?.id ?? 0) + 1, text }));
