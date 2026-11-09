@@ -27,7 +27,7 @@ import type { KnowledgeBase } from "@/types";
 /**
  * A collection's name, what it is, and everything that can be done to it.
  *
- * Every write control is drawn only for a caller holding `collections:edit`.
+ * Every write control follows the server's effective access to this base.
  * That is presentation and never enforcement - the routes behind these buttons
  * resolve access per row on the server - but offering a Viewer an action that
  * can only refuse is worse than not offering it.
