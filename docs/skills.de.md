@@ -1,5 +1,5 @@
 ---
-source_sha: "ef0dd0f0423f"
+source_sha: "f004b23232dd"
 ---
 
 # Skills { #skills }
@@ -569,12 +569,15 @@ sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
   ihr Eigentümer.
 
 Ein [API-Schlüssel der Organisation](api.md#organization-api-keys) erreicht die
-Versionen, Forks und Agents eines Skills, wie die Tabelle unten sie aufführt. Checks
-(`…/checks…` und `…/update-check`), die Testfragen (`…/test-set`), Improve-Sitzungen,
-das Nachziehen von main und das Verschieben nach main sowie Änderungsvorschläge
-(`/api/v1/skill-changes`) antworten nur einer angemeldeten Person oder dem Architect
-oder einem MCP-Client, der für sie handelt: Ein Schlüssel erhält `403` "API keys are
-not accepted on this endpoint". Jede davon gibt Geld im Namen von jemandem aus und
+Versionen, Forks und Agents eines Skills, wie die Tabelle unten sie aufführt.
+
+Checks
+(`…/checks…` und `…/update-check`), die Testfragen (`…/test-set`) sowie
+Improve-Sitzungen, das Nachziehen von main und das Verschieben nach main samt ihren
+Zusammenführungen antworten nur einer angemeldeten Person oder dem Architect oder einem
+MCP-Client, der für sie handelt; Änderungsvorschläge (`/api/v1/skill-changes`)
+antworten nur einer Person in der Konsole. Ein Schlüssel erhält `403` "API keys are
+not accepted on this endpoint": Jede davon gibt Geld im Namen von jemandem aus oder
 endet in einer Entscheidung, die diese Person selbst trifft.
 
 | Pfad | Was er tut |
