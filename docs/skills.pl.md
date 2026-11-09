@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "ef0dd0f0423f"
 ---
 
 # Skille { #skills }
@@ -521,6 +521,14 @@ Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia.
   opublikować;
 - środowisko czekające na promocję serwuje wersję używającą skilla. Takie
   środowisko przesuwa tylko promocja, a to decyzja jego właściciela.
+
+[Klucz API organizacji](api.md#organization-api-keys) sięga wersji, forków i agentów
+skilla, jak wymienia tabela poniżej. Checki (`…/checks…` i `…/update-check`),
+pytania testowe (`…/test-set`), sesje Improve, doganianie main i przenoszenie forka na main
+oraz propozycje zmian (`/api/v1/skill-changes`) odpowiadają tylko zalogowanej
+osobie albo Architectowi lub klientowi MCP działającemu w jej imieniu: klucz dostaje
+`403` "API keys are not accepted on this endpoint". Każda z nich wydaje pieniądze w
+czyimś imieniu i kończy się decyzją, którą ta osoba podejmuje sama.
 
 | Ścieżka | Co robi |
 |---|---|
