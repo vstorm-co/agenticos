@@ -8491,7 +8491,8 @@
       },
       "content": {
         "title": "Co teraz serwuje"
-      }
+      },
+      "more": "Więcej akcji"
     },
     "checkOnAgents": "Sprawdź na agentach",
     "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",

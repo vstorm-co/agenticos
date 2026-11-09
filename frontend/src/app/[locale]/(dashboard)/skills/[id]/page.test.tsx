@@ -363,7 +363,8 @@ describe("SkillPage's lines and writes", () => {
     expect(
       await screen.findByRole("link", { name: "Catch “Returns” up with main" }),
     ).toHaveAttribute("href", "/skills/s1/improve/new?fork=f1&merge=catch_up");
-    expect(screen.getByRole("link", { name: "Move “Returns” to main" })).toHaveAttribute(
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("menuitem", { name: "Move “Returns” to main" })).toHaveAttribute(
       "href",
       "/skills/s1/improve/new?fork=f1&merge=to_main",
     );
@@ -377,7 +378,8 @@ describe("SkillPage's lines and writes", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Return “Returns” to main" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Return “Returns” to main" }));
 
     expect(await screen.findByRole("dialog")).toHaveTextContent(
       "Return the agents of “Returns” to main",

@@ -8731,7 +8731,8 @@
       },
       "content": {
         "title": "What it serves now"
-      }
+      },
+      "more": "More actions"
     },
     "checkOnAgents": "Check on agents",
     "checkChangeTo": "Check the change to {name} on the agents that use it",
