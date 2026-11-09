@@ -28,6 +28,23 @@ test.afterEach(async ({ page }) => {
 });
 
 test.describe("Onboarding", () => {
+  test("keeps the invitation entry above navigation on narrow screens", async ({ page }) => {
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/onboarding");
+      const invitations = page.getByRole("button", { name: "Check invitations", exact: true });
+      const navigation = page.getByRole("navigation").filter({
+        has: page.getByRole("link", { name: "Open the app", exact: true }),
+      });
+      await expect(invitations).toBeVisible();
+      await expect(navigation).toBeVisible();
+      const entry = await invitations.boundingBox();
+      const header = await navigation.boundingBox();
+      if (!entry || !header) throw new Error("The invitation entry or navigation did not render");
+      expect(entry.y + entry.height).toBeLessThanOrEqual(header.y);
+    }
+  });
+
   test("opens a requested tour from the start hub and remembers its dismissal", async ({
     page,
   }) => {

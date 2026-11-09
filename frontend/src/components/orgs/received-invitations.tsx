@@ -66,7 +66,8 @@ export function ReceivedInvitations() {
       <Button
         variant="outline"
         size="sm"
-        className="fixed top-3 left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        data-invitation-entry="true"
+        className="fixed top-[calc(var(--shell-inset-top,0px)+0.75rem)] left-1/2 z-40 -translate-x-1/2 shadow-lg"
         onClick={() => setDismissedFor(undefined)}
       >
         <MailPlus size={16} aria-hidden />
@@ -171,7 +172,8 @@ function VerifyInvitationMailbox({ email }: { email: string }) {
       <Button
         variant="outline"
         size="sm"
-        className="fixed top-3 left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        data-invitation-entry="true"
+        className="fixed top-[calc(var(--shell-inset-top,0px)+0.75rem)] left-1/2 z-40 -translate-x-1/2 shadow-lg"
         onClick={() => setOpen(true)}
       >
         <MailPlus size={16} aria-hidden />

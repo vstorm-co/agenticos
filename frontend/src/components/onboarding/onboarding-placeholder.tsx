@@ -12,6 +12,10 @@ export function OnboardingPlaceholder() {
       <ActiveOrgGuard />
       <AccountLocale />
       <main className="bg-background text-foreground min-h-dvh">
+        <div
+          aria-hidden="true"
+          className="hidden h-12 shrink-0 [body:has([data-invitation-entry])_&]:block"
+        />
         <StartEntry />
       </main>
     </AuthGuard>
