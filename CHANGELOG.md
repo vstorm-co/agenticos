@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.59.0] - 2026-11-09
+
 ### Changed
 
 - **Breaking: global unfiled knowledge needs operator provenance.** App-scoped
@@ -20659,7 +20661,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.59.0...HEAD
+[1.59.0]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...v1.59.0
 [1.58.3]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...v1.58.3
 [1.58.2]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...v1.58.2
 [1.58.1]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...v1.58.1
