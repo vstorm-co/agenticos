@@ -107,6 +107,29 @@ describe("ProposedChanges", () => {
     expect(screen.getByText(/2 changes are waiting/)).toBeVisible();
   });
 
+  it("says an edit reaches its agents through a check, and a new skill reaches nobody", () => {
+    const reached = {
+      id: "a-1",
+      name: "Refund desk",
+      environments: ["production"],
+      runs_now: [],
+      runs_now_count: 0,
+      at_promotion: [],
+      at_promotion_count: 0,
+    };
+    state.changes = [
+      change({ reaches: [reached] }),
+      change({ id: "p-2", skill_id: null, name: "new-one" }),
+    ];
+    render(<ProposedChanges canEdit />);
+
+    expect(
+      screen.getByText("Goes live for Refund desk (production) once a check on them lets it."),
+    ).toBeVisible();
+    expect(screen.queryByText(/Goes live now/)).toBeNull();
+    expect(screen.getByText(/No published agent reads it yet/)).toBeVisible();
+  });
+
   it("counts one change in the singular", () => {
     render(<ProposedChanges canEdit />);
 

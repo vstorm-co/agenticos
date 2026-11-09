@@ -119,7 +119,11 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <p className="text-muted-foreground text-xs">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
-          <GoesLive reaches={change.reaches} hidden={change.reaches_hidden} />
+          <GoesLive
+            reaches={change.reaches}
+            hidden={change.reaches_hidden}
+            afterCheck={change.skill_id !== null}
+          />
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"

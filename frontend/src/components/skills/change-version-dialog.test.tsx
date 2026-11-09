@@ -139,7 +139,7 @@ describe("ChangeVersionDialog", () => {
 
     expect(apiClient.put).toHaveBeenCalledWith("/skills/s1/agents/a1/binding", { state: "main" });
     expect(toast.success).toHaveBeenCalledWith(
-      "Published. Production now serves the new version of HR bot.",
+      "Published. The new version of HR bot now runs in “Production”.",
     );
     expect(onClose).toHaveBeenCalled();
   });

@@ -8257,7 +8257,7 @@
         "publishes": "To publikuje nową wersję {name} tylko z tą zmianą. Niedokończone zmiany w jego drafcie zostają w drafcie.",
         "cancel": "Anuluj",
         "submit": "Zmień i opublikuj",
-        "published": "Opublikowano. {count, plural, =0 {{name} ma nową wersję.} other {Nową wersję {name} serwuje teraz: {environments}.}}",
+        "published": "Opublikowano. {count, plural, =0 {{name} ma nową wersję.} other {Nowa wersja {name} działa teraz w {environments}.}}",
         "savedInDraft": "Zapisano w drafcie {name}. Opublikuj go w Builderze.",
         "openBuilder": "Otwórz Builder",
         "savesToDraft": "Możesz edytować {name}, ale nie możesz go publikować, więc ta zmiana trafi do jego draftu. Opublikuje ją w Builderze ktoś, kto ma takie prawo.",
@@ -8270,7 +8270,8 @@
         "checkedOn": "{version} sprawdzono na agencie {name} {when}: {state}.",
         "checksUnseen": "Nie widzisz, czy {version} sprawdzono na agencie {name}. Jego odpowiedzi mogą się zmienić.",
         "answeredBefore": "{name} odpowiadał już z {version}.",
-        "checkFirst": "Najpierw sprawdź"
+        "checkFirst": "Najpierw sprawdź",
+        "environmentName": "„{name}”"
       },
       "history": {
         "title": "Historia: {line}",
@@ -14494,7 +14495,8 @@
       "runsNow": "Uruchamia teraz: {suites}.",
       "atPromotion": "{suites} {named, select, yes {{count, plural, one {sprawdzi} other {sprawdzą}}} other {{count, plural, one {sprawdzi} few {sprawdzą} many {sprawdzi} other {sprawdzi}}}} to przy następnej promocji.",
       "suites": "{count, plural, one {# suita ewaluacji} few {# suity ewaluacji} many {# suit ewaluacji} other {# suity ewaluacji}}",
-      "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi."
+      "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi.",
+      "afterCheck": "Wejdzie dla: {agents}, gdy pozwoli na to sprawdzenie na nich."
     },
     "result": {
       "open": "Zobacz wynik",

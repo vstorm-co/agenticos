@@ -8375,7 +8375,7 @@
         "publishes": "Das veröffentlicht eine neue Version von {name} nur mit dieser Änderung. Unfertige Änderungen in seinem Entwurf bleiben im Entwurf.",
         "cancel": "Abbrechen",
         "submit": "Ändern und veröffentlichen",
-        "published": "Veröffentlicht. {count, plural, =0 {{name} hat eine neue Version.} other {Die neue Version von {name} läuft jetzt in: {environments}.}}",
+        "published": "Veröffentlicht. {count, plural, =0 {{name} hat eine neue Version.} other {Die neue Version von {name} läuft jetzt in {environments}.}}",
         "savedInDraft": "Im Entwurf von {name} gespeichert. Veröffentlichen Sie ihn im Builder.",
         "openBuilder": "Builder öffnen",
         "savesToDraft": "Sie dürfen {name} bearbeiten, aber nicht veröffentlichen, deshalb geht diese Änderung in seinen Entwurf. Wer veröffentlichen darf, tut das im Builder.",
@@ -8388,7 +8388,8 @@
         "checkedOn": "{version} wurde auf {name} am {when} geprüft: {state}.",
         "checksUnseen": "Ob {version} auf {name} geprüft wurde, wird Ihnen nicht angezeigt. Seine Antworten können sich ändern.",
         "answeredBefore": "{name} hat schon mit {version} geantwortet.",
-        "checkFirst": "Zuerst prüfen"
+        "checkFirst": "Zuerst prüfen",
+        "environmentName": "„{name}“"
       },
       "history": {
         "title": "Verlauf: {line}",
@@ -14392,7 +14393,8 @@
       "runsNow": "Läuft jetzt: {suites}.",
       "atPromotion": "{suites} {count, plural, =1 {prüft} other {prüfen}} es bei der nächsten Promotion.",
       "suites": "{count, plural, =1 {1 Eval-Suite} other {# Eval-Suites}}",
-      "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten."
+      "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten.",
+      "afterCheck": "Geht für {agents} live, sobald eine Prüfung an ihnen es zulässt."
     },
     "result": {
       "open": "Ergebnis ansehen",

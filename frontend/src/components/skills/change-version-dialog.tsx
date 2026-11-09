@@ -193,7 +193,9 @@ export function ChangeVersionDialog({
         toast.success(
           t("published", {
             name,
-            environments: list.format(result.environments),
+            environments: list.format(
+              result.environments.map((environment) => t("environmentName", { name: environment })),
+            ),
             count: result.environments.length,
           }),
         );

@@ -8497,7 +8497,7 @@
         "publishes": "This publishes a new version of {name} with only this change. Unfinished changes in its draft stay in the draft.",
         "cancel": "Cancel",
         "submit": "Change and publish",
-        "published": "Published. {count, plural, =0 {{name} has a new version.} other {{environments} now serve{count, plural, =1 {s} other {}} the new version of {name}.}}",
+        "published": "Published. {count, plural, =0 {{name} has a new version.} other {The new version of {name} now runs in {environments}.}}",
         "savedInDraft": "Saved in the draft of {name}. Publish it in the Builder.",
         "openBuilder": "Open the Builder",
         "savesToDraft": "You may edit {name} but not publish it, so this change goes into its draft. Somebody who may publish it does that from the Builder.",
@@ -8510,7 +8510,8 @@
         "checkedOn": "{version} was checked on {name} {when}: {state}.",
         "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change.",
         "answeredBefore": "{name} has answered with {version} before.",
-        "checkFirst": "Check first"
+        "checkFirst": "Check first",
+        "environmentName": "“{name}”"
       },
       "history": {
         "title": "History of {line}",
@@ -14720,7 +14721,8 @@
       "runsNow": "Runs now: {suites}.",
       "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
       "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
-      "nowhere": "No published agent reads it yet, so applying it changes no answers today."
+      "nowhere": "No published agent reads it yet, so applying it changes no answers today.",
+      "afterCheck": "Goes live for {agents} once a check on them lets it."
     },
     "result": {
       "open": "Review result",
