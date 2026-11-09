@@ -55,7 +55,6 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
-  // A text a check measured, taken back to the editor from that check.
   const [draft, setDraft] = useState<{ description: string; content: string } | null>(null);
   // The editor is heavy to draw, so the button says it is opening until it is.
   const [opening, startOpening] = useTransition();
