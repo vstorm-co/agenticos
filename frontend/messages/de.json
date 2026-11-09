@@ -8614,9 +8614,6 @@
         "body": "Jeder Agent, der diesen Skill nutzt, bekommt diese Fragen, wenn eine Änderung am Skill geprüft wird, neben seinen eigenen Testfragen.",
         "open": "{name} öffnen",
         "none": "Dieser Skill hat noch keine Testfragen. Ein Agent ohne eigene Testfragen kann nicht geprüft werden, wenn sich der Skill ändert.",
-        "fromAnswers": "Mit aktuellen Antworten beginnen",
-        "empty": "Mit einem leeren Satz beginnen",
-        "createHint": "Aktuelle Antworten sind die der letzten 30 Tage, in denen ein Agent den Skill geladen hat. In beiden Fällen ergänzen und bearbeiten Sie die Fragen im Dataset.",
         "askEditor": "Hinzufügen kann sie, wer diesen Skill bearbeiten und Datasets anlegen darf.",
         "hidden": "Dieser Skill hat Testfragen, in einem Dataset, das Sie nicht öffnen dürfen."
       },
@@ -15454,7 +15451,8 @@
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",
       "add": "Testfragen hinzufügen",
       "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann.",
-      "grading": "Bewertung in {name} einrichten"
+      "grading": "Bewertung in {name} einrichten",
+      "empty": "Mit einem leeren Satz beginnen"
     },
     "accept": {
       "title": "Annehmen",

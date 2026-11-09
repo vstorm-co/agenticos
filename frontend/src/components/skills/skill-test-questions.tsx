@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
-import { Button, ListCard, Skeleton } from "@/components/ui";
+import { AddTestQuestions } from "@/components/skill-improvement/add-test-questions";
+import { ListCard, Skeleton } from "@/components/ui";
 import { useSkillTestSet } from "@/hooks/use-skill-check";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -16,8 +17,8 @@ export const TEST_QUESTIONS_ANCHOR = "test-questions";
 /**
  * The skill's own test questions: every agent using the skill is asked them when a
  * change to it is checked, so an agent with no questions of its own can be checked
- * too. A link to the dataset once they exist; otherwise the two ways to start them,
- * offered to whoever may write them.
+ * too. A link to the dataset once they exist; otherwise the ways to start them -
+ * the same control the check dialog offers - to whoever may write them.
  */
 export function SkillTestQuestions({
   skillId,
@@ -29,7 +30,7 @@ export function SkillTestQuestions({
 }) {
   const t = useTranslations("skills.page.testQuestions");
   const tErrors = useTranslations("errors");
-  const { testSet, isLoading, error, create } = useSkillTestSet(skillId);
+  const { testSet, isLoading, error } = useSkillTestSet(skillId);
   const card = useRef<HTMLDivElement>(null);
   // The section draws once its read answers, after the browser has looked for the hash.
   useEffect(() => {
@@ -37,10 +38,6 @@ export function SkillTestQuestions({
       card.current?.scrollIntoView({ block: "start" });
     }
   }, [isLoading]);
-  const refused =
-    create.error && !(create.error instanceof ApiError && create.error.status === 409)
-      ? getErrorMessage(create.error, tErrors)
-      : null;
 
   return (
     <ListCard
@@ -71,32 +68,9 @@ export function SkillTestQuestions({
         <div className="space-y-3 text-sm">
           <p className="text-muted-foreground">{t("none")}</p>
           {canCreate ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={create.isPending}
-                onClick={() => create.mutate(true)}
-              >
-                {t("fromAnswers")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={create.isPending}
-                onClick={() => create.mutate(false)}
-              >
-                {t("empty")}
-              </Button>
-            </div>
+            <AddTestQuestions skillId={skillId} offerEmpty />
           ) : (
             <p className="text-muted-foreground">{t("askEditor")}</p>
-          )}
-          {canCreate && <p className="text-muted-foreground text-xs">{t("createHint")}</p>}
-          {refused !== null && (
-            <p role="alert" className="text-destructive">
-              {refused}
-            </p>
           )}
         </div>
       )}

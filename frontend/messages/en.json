@@ -8736,9 +8736,6 @@
         "body": "Every agent using this skill is asked these when a change to it is checked, beside its own test questions.",
         "open": "Open {name}",
         "none": "This skill has no test questions yet. An agent with no test questions of its own cannot be checked when the skill changes.",
-        "fromAnswers": "Start from recent answers",
-        "empty": "Start an empty set",
-        "createHint": "Recent answers are the last 30 days of answers where an agent loaded the skill. Either way you can add and edit questions in the dataset.",
         "askEditor": "Someone who may edit this skill and create datasets can add them.",
         "hidden": "This skill has test questions, in a dataset you may not open."
       },
@@ -15782,7 +15779,8 @@
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
       "add": "Add test questions",
       "addHint": "Written from answers where agents loaded the skill, so an agent without questions of its own can be checked next time.",
-      "grading": "Set up grading on {name}"
+      "grading": "Set up grading on {name}",
+      "empty": "Start an empty set"
     },
     "accept": {
       "title": "Accept",

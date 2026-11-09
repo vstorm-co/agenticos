@@ -49,7 +49,7 @@ describe("SkillTestQuestions", () => {
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/test-set", {
       from_evidence: false,
     });
-    await userEvent.click(screen.getByRole("button", { name: "Start from recent answers" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add test questions" }));
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/test-set", {
       from_evidence: true,
     });

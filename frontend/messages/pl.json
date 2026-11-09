@@ -8496,9 +8496,6 @@
         "body": "Każdy agent używający tego skilla dostaje te pytania przy sprawdzaniu zmiany skilla, obok własnych pytań testowych.",
         "open": "Otwórz {name}",
         "none": "Ten skill nie ma jeszcze pytań testowych. Agenta bez własnych pytań testowych nie da się sprawdzić, gdy skill się zmienia.",
-        "fromAnswers": "Zacznij od ostatnich odpowiedzi",
-        "empty": "Zacznij od pustego zestawu",
-        "createHint": "Ostatnie odpowiedzi to odpowiedzi z 30 dni, w których agent wczytał skill. W obu przypadkach pytania dodasz i poprawisz w datasecie.",
         "askEditor": "Może je dodać osoba, która edytuje ten skill i tworzy datasety.",
         "hidden": "Ten skill ma pytania testowe w datasecie, którego nie możesz otworzyć."
       },
@@ -15556,7 +15553,8 @@
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",
       "add": "Dodaj pytania testowe",
       "addHint": "Powstają z odpowiedzi, w których agenci wczytali skill, więc następnym razem da się sprawdzić agenta bez własnych pytań.",
-      "grading": "Ustaw ocenianie w {name}"
+      "grading": "Ustaw ocenianie w {name}",
+      "empty": "Zacznij od pustego zestawu"
     },
     "accept": {
       "title": "Akceptacja",
