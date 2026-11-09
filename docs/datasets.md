@@ -19,6 +19,19 @@ a person actually asked and an answer that actually disappointed them.
 
 Choose the grader's model and instructions in **Grading**. Choose generation and improvement models and instructions in **Settings**. These use Agent Builder's model picker and Markdown editor. Helpers are code-defined; no helper agent needs to be created or published. A queued task keeps the configuration it started with.
 
+## From a new dataset to results { #dataset-workflow }
+
+The dataset guide shows four steps and can be collapsed when you no longer need it.
+
+1. **Add cases.** Start with a written question, import a CSV or JSONL file, or generate proposals to review. You can also copy an answer from Activity.
+2. **Set grading.** Choose the checks, reference comparison or judge criteria. The guide points here while any case has nothing to grade it.
+3. **Test an agent.** Open Evals, choose an agent and check the estimated cost before starting. Once grading is configured, a button at the bottom of Grading takes you here.
+4. **Review results.** Inspect the answers and the criteria they passed or failed. Completed evals offer a shortcut to Review.
+
+The cases table uses coloured labels for sources, expectations and tags. Click a
+row to open it; its action menu holds Edit and Delete. Generation and import stay
+visible beside Add case, while Activity is in the additional-actions menu.
+
 ## What a case holds
 
 | Field | What it is |

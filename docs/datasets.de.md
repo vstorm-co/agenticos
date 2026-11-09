@@ -1,5 +1,5 @@
 ---
-source_sha: "6238ca790865"
+source_sha: "63ed9ea5b473"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -22,6 +22,19 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 **Fälle**, **Generiert**, **Bewertung**, **Evals**, **Prüfung** und **Einstellungen** teilen einen Arbeitsbereich mit Vollbildsteuerung. Hinzufügen, Importieren, Generieren und Aktivität stehen an der Falltabelle. Ein Fall öffnet sich im Seitenpanel, Bearbeiten öffnet sein Formular. Frage und erwartete Antworten stehen zuerst; Werkzeuge, Prüfungen und Labels haben aufklappbare Abschnitte.
 
 Bewertungsmodell und Anweisungen stehen unter **Bewertung**, Generierung und Verbesserung unter **Einstellungen**. Die Steuerelemente entsprechen Agent Builder. Helfer sind im Code definiert und benötigen keinen zusätzlich erstellten oder veröffentlichten Agenten. Wartende Aufgaben behalten ihre Startkonfiguration.
+
+## Vom neuen Dataset zu Ergebnissen { #dataset-workflow }
+
+Der Dataset-Leitfaden zeigt vier Schritte. Du kannst ihn bei Bedarf einklappen.
+
+1. **Fälle hinzufügen.** Eine Frage eingeben, eine CSV- oder JSONL-Datei importieren oder Vorschläge zur Prüfung generieren. Du kannst auch eine Antwort aus der Aktivität übernehmen.
+2. **Bewertung einrichten.** Regeln, Referenzvergleich oder Kriterien des Bewerters wählen. Der Leitfaden verweist hierher, solange ein Fall noch nicht bewertet werden kann.
+3. **Agent testen.** Evals öffnen, einen Agent wählen und die geschätzten Kosten vor dem Start prüfen. Nach dem Einrichten der Bewertung führt eine Schaltfläche unten in Bewertung hierher.
+4. **Ergebnisse prüfen.** Antworten und erfüllte oder nicht erfüllte Kriterien prüfen. Abgeschlossene Evals bieten einen direkten Weg zur Überprüfung.
+
+Die Falltabelle zeigt Quellen, Erwartungen und Tags als farbige Etiketten. Eine
+Zeile öffnet den Fall; ihr Aktionsmenü enthält Bearbeiten und Löschen. Generierung
+und Import bleiben neben Fall hinzufügen sichtbar; Aktivität steht im Menü für weitere Aktionen.
 
 ## Was ein Fall enthält { #what-a-case-holds }
 

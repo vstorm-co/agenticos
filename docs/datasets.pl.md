@@ -1,5 +1,5 @@
 ---
-source_sha: "6238ca790865"
+source_sha: "63ed9ea5b473"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -22,6 +22,19 @@ zawiodła.
 **Przypadki**, **Wygenerowane**, **Ocenianie**, **Ewaluacje**, **Przegląd** i **Ustawienia** współdzielą obszar z kontrolką pełnego ekranu. Dodanie przypadku, import, generowanie i przejście do Aktywności znajdują się przy tabeli przypadków. Przypadek otwiera się w panelu bocznym, a Edytuj otwiera formularz. Najpierw są pytanie i odpowiedzi; narzędzia, reguły oraz etykiety mają rozwijane sekcje.
 
 Model i instrukcje oceniającego wybiera się w **Ocenianiu**, a generowania i ulepszania w **Ustawieniach**. Używają selektora modeli i edytora Markdown z Agent Buildera. Pomocnicy są zdefiniowani w kodzie i nie wymagają tworzenia ani publikowania agenta. Zadanie w kolejce zachowuje konfigurację z chwili startu.
+
+## Od nowego datasetu do wyników { #dataset-workflow }
+
+Przewodnik datasetu pokazuje cztery kroki. Możesz go zwinąć, gdy nie jest już potrzebny.
+
+1. **Dodaj przypadki.** Wpisz pytanie, zaimportuj plik CSV lub JSONL albo wygeneruj propozycje do sprawdzenia. Możesz też skopiować odpowiedź z Aktywności.
+2. **Ustaw ocenianie.** Wybierz reguły, porównanie z odpowiedzią wzorcową lub kryteria sędziego. Przewodnik wskazuje ten krok, dopóki którykolwiek przypadek nie ma czym być oceniany.
+3. **Przetestuj agenta.** Otwórz Evale, wybierz agenta i sprawdź szacowany koszt przed uruchomieniem. Po skonfigurowaniu oceniania przejdziesz tutaj przyciskiem na dole zakładki Ocenianie.
+4. **Przejrzyj wyniki.** Sprawdź odpowiedzi i spełnione lub niespełnione kryteria. Zakończone evale oferują skrót do Przeglądu.
+
+Tabela przypadków oznacza źródła, oczekiwania i tagi kolorowymi etykietami. Kliknij
+wiersz, aby go otworzyć; menu wiersza zawiera Edytuj i Usuń. Generowanie i import
+są widoczne obok Dodaj przypadek, a Aktywność jest w menu dodatkowych akcji.
 
 ## Co zawiera przypadek { #what-a-case-holds }
 

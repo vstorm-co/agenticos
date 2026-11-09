@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
+import { datasetFixture } from "@/test-utils/datasets";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import DatasetPage from "./page";
 
@@ -36,7 +37,7 @@ vi.mock("next/navigation", async (original) => ({
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({
-    dataset: {
+    dataset: datasetFixture({
       id: "d1",
       name: "refunds",
       description: null,
@@ -45,7 +46,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       can_edit: state.canEdit,
       pending_proposals: 0,
       scoring: DEFAULT_SCORING,
-    },
+    }),
     error: state.datasetError,
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: state.remove, isPending: false },
@@ -360,10 +361,10 @@ describe("the dataset page", () => {
     expect(screen.getByText("review")).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Cases",
-      "Generated",
       "Grading",
       "Evals",
       "Review",
+      "Generated",
       "Settings",
     ]);
   });

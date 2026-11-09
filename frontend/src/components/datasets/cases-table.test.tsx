@@ -31,8 +31,10 @@ it("opens cases by question and restricts delete to editors", async () => {
   expect(open).toHaveBeenCalledWith(item);
   expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   rerender(<CasesTable cases={[item]} onOpen={open} onRemove={remove} />);
-  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await userEvent.click(screen.getByRole("button", { name: "Case actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
   expect(remove).toHaveBeenCalledWith(item);
+  expect(open).toHaveBeenCalledTimes(1);
 });
 it("never renders masked questions, answers or tags", () => {
   render(<CasesTable cases={[{ ...item, masked: true }]} onOpen={vi.fn()} />);
@@ -44,7 +46,7 @@ it("never renders masked questions, answers or tags", () => {
   ).toBeInTheDocument();
 });
 
-it("keeps meaningful tags visible and omits repetitive manual source labels", () => {
+it("shows readable tags and the case source in separate columns", () => {
   render(
     <CasesTable
       cases={[{ ...item, source: "manual", tags: ["qa", "hard", "returns-vs-archive"] }]}
@@ -52,7 +54,7 @@ it("keeps meaningful tags visible and omits repetitive manual source labels", ()
     />,
   );
   expect(screen.getByText("returns-vs-archive")).toBeInTheDocument();
-  expect(screen.queryByText("Written")).toBeNull();
+  expect(screen.getAllByText("Written").length).toBeGreaterThan(0);
   expect(screen.queryByText("0 checks")).toBeNull();
 });
 it("keeps anonymisation and available expectations clear across case types", () => {
@@ -81,4 +83,16 @@ it("keeps anonymisation and available expectations clear across case types", () 
   expect(screen.getByText("A bad answer")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^Private question$/ })).toBeNull();
   expect(screen.getAllByText(/1 check/).length).toBeGreaterThan(0);
+});
+
+it("opens a case from its cells and keeps the active row keyboard-accessible", async () => {
+  const onOpen = vi.fn();
+  render(<CasesTable cases={[item]} onOpen={onOpen} activeCaseId={item.case_id} offset={50} />);
+  expect(screen.getByText("51")).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Private answer"));
+  expect(onOpen).toHaveBeenCalledTimes(1);
+  const row = screen.getByRole("row", { selected: true });
+  row.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(onOpen).toHaveBeenCalledTimes(2);
 });

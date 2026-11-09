@@ -150,3 +150,16 @@ describe("DatasetRunEvalsButton", () => {
     expect(state.dialog).toEqual([]);
   });
 });
+
+it("offers review only when a completed evaluation exists", async () => {
+  const onReview = vi.fn();
+  state.runs = { ...state.runs, runs: [evalRun({ status: "running" })], total: 1 };
+  const { rerender } = render(
+    <DatasetEvalsPanel datasetId="ds-1" title="Evals" onReview={onReview} />,
+  );
+  expect(screen.queryByRole("button", { name: "Review results" })).toBeNull();
+  state.runs = { ...state.runs, runs: [evalRun({ status: "completed" })] };
+  rerender(<DatasetEvalsPanel datasetId="ds-1" title="Evals" onReview={onReview} />);
+  await userEvent.click(screen.getByRole("button", { name: "Review results" }));
+  expect(onReview).toHaveBeenCalledOnce();
+});

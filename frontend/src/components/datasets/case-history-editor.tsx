@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Bot, Plus, UserRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -12,6 +12,7 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { DatasetChip } from "./dataset-chip";
 import type { TurnDraft } from "./case-form";
 
 interface CaseHistoryEditorProps {
@@ -42,8 +43,16 @@ export function CaseHistoryEditor({ turns, onChange }: CaseHistoryEditorProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">{t("role.user")}</SelectItem>
-                <SelectItem value="assistant">{t("role.assistant")}</SelectItem>
+                <SelectItem value="user" textValue={t("role.user")}>
+                  <DatasetChip tone="blue" icon={UserRound}>
+                    {t("role.user")}
+                  </DatasetChip>
+                </SelectItem>
+                <SelectItem value="assistant" textValue={t("role.assistant")}>
+                  <DatasetChip tone="purple" icon={Bot}>
+                    {t("role.assistant")}
+                  </DatasetChip>
+                </SelectItem>
               </SelectContent>
             </Select>
             <Button

@@ -157,8 +157,7 @@ describe("generated cases on the dataset page", () => {
   it("leads an empty dataset to the generator", async () => {
     answer({ ...DATASET, can_edit: true });
     await mount();
-    await userEvent.click(await screen.findByRole("button", { name: "More ways to add" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Generate cases" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Generate cases" }));
     expect(
       await screen.findByRole("tab", { name: "Generated", selected: true }),
     ).toBeInTheDocument();

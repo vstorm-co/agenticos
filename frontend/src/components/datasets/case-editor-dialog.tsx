@@ -3,7 +3,21 @@
 import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ChevronRight, Pencil } from "lucide-react";
+import {
+  CheckCheck,
+  ChevronRight,
+  Code2,
+  GitCompareArrows,
+  History,
+  ListChecks,
+  MessageSquare,
+  Pencil,
+  Save,
+  Tags,
+  ThumbsDown,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 
 import {
   Button,
@@ -34,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
 import type { DatasetScoring } from "@/types/scoring";
+import { DatasetChip } from "./dataset-chip";
 import { CaseCallsEditor } from "./case-calls-editor";
 import { CaseChecksEditor } from "./case-checks-editor";
 import { CaseGradedBy } from "./case-graded-by";
@@ -89,6 +104,14 @@ export interface CaseCopy {
   draft: CaseDraft;
   json: string | null;
 }
+
+const GROUP_ICONS: Record<string, LucideIcon> = {
+  history: History,
+  counter: ThumbsDown,
+  tools: Wrench,
+  checks: ListChecks,
+  labels: Tags,
+};
 
 const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
 
@@ -153,6 +176,7 @@ function CaseGroup({
   expanded: boolean;
 }) {
   const t = useTranslations("datasets");
+  const Icon = GROUP_ICONS[group];
   if (group === "question" || group === "answers")
     return (
       <section data-tour={`case-group-${group}`} className="min-w-0 space-y-4">
@@ -170,6 +194,7 @@ function CaseGroup({
           aria-hidden
           className="size-4 shrink-0 transition-transform group-open:rotate-90"
         />
+        {Icon && <Icon className="size-4" aria-hidden />}
         {t(`caseSection.${group}`)}
       </summary>
       <div className="space-y-4 pb-4">{children}</div>
@@ -417,7 +442,14 @@ export function CaseEditorDialog({
                   className="bg-background/40 min-w-0 rounded-xl border"
                 >
                   <header className="border-b px-4 py-3">
-                    <h3 className="text-sm font-semibold">{t(`editor.${column}`)}</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold">
+                      <DatasetChip
+                        tone={column === "conversation" ? "blue" : "green"}
+                        icon={column === "conversation" ? MessageSquare : CheckCheck}
+                      >
+                        {t(`editor.${column}`)}
+                      </DatasetChip>
+                    </h3>
                     <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                       {t(`editor.${column}Hint`)}
                     </p>
@@ -516,8 +548,23 @@ export function CaseEditorDialog({
                                   </SelectTrigger>
                                   <SelectContent>
                                     {ORDER_MODES.map((mode) => (
-                                      <SelectItem key={mode} value={mode}>
-                                        {t(`orderMode.${mode}`)}
+                                      <SelectItem
+                                        key={mode}
+                                        value={mode}
+                                        textValue={t(`orderMode.${mode}`)}
+                                      >
+                                        <DatasetChip
+                                          tone={
+                                            mode === "any"
+                                              ? "blue"
+                                              : mode === "in_order"
+                                                ? "purple"
+                                                : "yellow"
+                                          }
+                                          icon={GitCompareArrows}
+                                        >
+                                          {t(`orderMode.${mode}`)}
+                                        </DatasetChip>
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -591,6 +638,7 @@ export function CaseEditorDialog({
         <DialogFooter className="items-center border-t">
           {!readOnly && (
             <Button variant="link" size="sm" className="mr-auto px-0" onClick={toggleJson}>
+              <Code2 className="size-4" aria-hidden />
               {json === null ? t("editAsJson") : t("editAsForm")}
             </Button>
           )}
@@ -608,6 +656,7 @@ export function CaseEditorDialog({
               onClick={() => void save(onSave)}
               disabled={saving || missing !== null}
             >
+              <Save className="size-4" aria-hidden />
               {saveLabel ?? t("saveCase")}
             </Button>
           )}

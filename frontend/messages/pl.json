@@ -13849,7 +13849,7 @@
     "source": {
       "manual": "Napisany",
       "import": "Zaimportowany",
-      "conversation": "Z rozmowy",
+      "conversation": "Rozmowa",
       "synthetic": "Wygenerowany"
     },
     "orderMode": {
@@ -14034,7 +14034,8 @@
       "source": "Źródło",
       "expectations": "Oczekiwany wynik",
       "tags": "Etykiety",
-      "actions": "Akcje"
+      "actions": "Akcje",
+      "number": "Numer przypadku"
     },
     "helpers": {
       "generatorTitle": "Generowanie przypadków",
@@ -14087,7 +14088,47 @@
       "conversationHint": "Wiadomość i kontekst, które otrzyma agent.",
       "expectations": "Oczekiwane zachowanie",
       "expectationsHint": "Co powinna zawierać dobra odpowiedź i jak ją sprawdzić."
-    }
+    },
+    "journey": {
+      "title": "Twój dataset, krok po kroku",
+      "step": {
+        "cases": "{number}. Dodaj przypadki",
+        "grading": "{number}. Ustal ocenianie",
+        "evals": "{number}. Przetestuj agenta",
+        "review": "{number}. Przejrzyj wyniki"
+      },
+      "hint": {
+        "cases": "Wpisz pytania i określ, jak powinna wyglądać dobra odpowiedź.",
+        "grading": "Wybierz reguły i kryteria poprawnej odpowiedzi.",
+        "evals": "Wybierz agenta, sprawdź koszt i uruchom test.",
+        "review": "Przejrzyj odpowiedzi i zdecyduj, co poprawić."
+      },
+      "next": {
+        "cases": "Dodaj przypadki",
+        "grading": "Ustaw ocenianie",
+        "evals": "Otwórz evale"
+      },
+      "guidance": {
+        "cases": "Zacznij od kilku pytań, które naprawdę zadają użytkownicy.",
+        "grading": "Przypadki są gotowe. Wybierz sposób sprawdzania odpowiedzi.",
+        "evals": "Ocenianie jest skonfigurowane. Wybierz agenta i sprawdź koszt przed uruchomieniem."
+      },
+      "status": {
+        "cases": "Brak przypadków",
+        "grading": "Ustaw ocenianie",
+        "evals": "Ocenianie gotowe"
+      },
+      "emptyTitle": "Zacznij od pierwszych pytań testowych",
+      "emptyBody": "Każdy przypadek to pytanie i oczekiwania wobec odpowiedzi. Wybierz sposób dodania pierwszych przypadków.",
+      "writeHint": "Wpisz pytanie i odpowiedź wzorcową. Dobry wybór na początek.",
+      "importHint": "Zaimportuj pytania z pliku CSV lub JSONL.",
+      "generateHint": "Wygeneruj propozycje z wiedzy lub rozmów, a potem je przejrzyj.",
+      "realAnswers": "Masz już przydatne rozmowy?",
+      "afterCreate": "Następnie dodasz przypadki i wybierzesz sposób ich testowania.",
+      "reviewAction": "Przejrzyj wyniki"
+    },
+    "openCase": "Otwórz przypadek",
+    "caseActions": "Akcje przypadku"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

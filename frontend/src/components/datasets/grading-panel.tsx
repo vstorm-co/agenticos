@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lightbulb, TriangleAlert } from "lucide-react";
+import { ArrowRight, Lightbulb, ListChecks, Scale, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -35,8 +35,10 @@ export function GradingPanel({
   onDirtyChange,
   localCopy,
   restore,
+  onContinue,
 }: {
   dataset: Dataset;
+  onContinue?: () => void;
   /** Told whether any card holds a change not yet saved, so the page can say so. */
   onDirtyChange?: (dirty: boolean) => void;
   /** Where an unsaved change is kept in this browser, and the version it is made on. */
@@ -45,6 +47,7 @@ export function GradingPanel({
   restore?: { value: GradingCopy; at: number };
 }) {
   const t = useTranslations("datasets.scoring");
+  const journey = useTranslations("datasets.journey");
   const tDatasets = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const save = useSetScoring(dataset.id);
@@ -151,6 +154,8 @@ export function GradingPanel({
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)]">
         <GradingCard
           title={t("passes.title")}
+          icon={ListChecks}
+          tone="blue"
           description={t("passes.description")}
           dirty={dirty(PASSES)}
         >
@@ -182,6 +187,8 @@ export function GradingPanel({
 
         <GradingCard
           title={t("judgeCard.title")}
+          icon={Scale}
+          tone="purple"
           description={t("judgeCard.description")}
           dirty={dirty(JUDGING)}
           tour="datasets-grading-judge"
@@ -204,6 +211,15 @@ export function GradingPanel({
       </div>
       <p className="text-muted-foreground text-xs">{t("mustPassRule")}</p>
 
+      {!unsaved && problem === null && ungraded === 0 && dataset.case_count > 0 && onContinue && (
+        <div className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+          <p className="text-muted-foreground text-sm">{journey("guidance.evals")}</p>
+          <Button onClick={onContinue}>
+            {journey("next.evals")}
+            <ArrowRight className="size-4" aria-hidden />
+          </Button>
+        </div>
+      )}
       {canEdit && unsaved && (
         <GradingSaveBar
           problem={problem === null ? null : t(problem)}

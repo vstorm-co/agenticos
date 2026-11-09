@@ -13,6 +13,7 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { CheckTypeChip } from "./check-type-chip";
 import { describeCheck } from "@/lib/scoring";
 import {
   CHECK_KINDS,
@@ -118,12 +119,14 @@ export function CaseChecksEditor({ checks, onChange, disabled = false }: CaseChe
             </SelectTrigger>
             <SelectContent>
               {CHECK_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {t(`checkTypes.${type}`)}
+                <SelectItem key={type} value={type} textValue={t(`checkTypes.${type}`)}>
+                  <CheckTypeChip type={type} />
                 </SelectItem>
               ))}
               {!isKnownCheck(check.type) && (
-                <SelectItem value={check.type}>{check.type}</SelectItem>
+                <SelectItem value={check.type}>
+                  <CheckTypeChip type={check.type} />
+                </SelectItem>
               )}
             </SelectContent>
           </Select>

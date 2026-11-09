@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { datasetFixture } from "@/test-utils/datasets";
 import { Perm } from "@/types/permissions";
 import DatasetsPage from "./page";
 
@@ -32,7 +33,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-const SHARED = {
+const SHARED = datasetFixture({
   id: "d1",
   name: "refunds",
   description: null,
@@ -41,9 +42,10 @@ const SHARED = {
   latest_version: 2,
   case_count: 4,
   can_edit: false,
+  can_run: false,
   created_at: "2026-10-13T00:00:00Z",
   updated_at: null,
-};
+});
 
 describe("the datasets page", () => {
   beforeEach(() => {

@@ -14076,7 +14076,7 @@
     "source": {
       "manual": "Written",
       "import": "Imported",
-      "conversation": "From a conversation",
+      "conversation": "Conversation",
       "synthetic": "Generated"
     },
     "orderMode": {
@@ -14261,7 +14261,8 @@
       "source": "Source",
       "expectations": "Expected result",
       "tags": "Tags",
-      "actions": "Actions"
+      "actions": "Actions",
+      "number": "Case number"
     },
     "helpers": {
       "generatorTitle": "Case generation",
@@ -14314,7 +14315,47 @@
       "conversationHint": "The message and context the agent receives.",
       "expectations": "Expected behavior",
       "expectationsHint": "What a good answer includes, and how to check it."
-    }
+    },
+    "journey": {
+      "title": "Your dataset, step by step",
+      "step": {
+        "cases": "{number}. Add cases",
+        "grading": "{number}. Set grading",
+        "evals": "{number}. Test an agent",
+        "review": "{number}. Review results"
+      },
+      "hint": {
+        "cases": "Write questions and what a good answer looks like.",
+        "grading": "Choose the rules and criteria for a passing answer.",
+        "evals": "Pick an agent, check the cost, then run the test.",
+        "review": "Inspect answers and decide what to improve."
+      },
+      "next": {
+        "cases": "Add cases",
+        "grading": "Set up grading",
+        "evals": "Open evals"
+      },
+      "guidance": {
+        "cases": "Start with a few questions your users actually ask.",
+        "grading": "Cases are in place. Choose how their answers will be checked.",
+        "evals": "Grading is configured. Choose an agent and preview the cost before running."
+      },
+      "status": {
+        "cases": "No cases yet",
+        "grading": "Needs grading",
+        "evals": "Grading configured"
+      },
+      "emptyTitle": "Start with your first test questions",
+      "emptyBody": "Each case is a question and what you expect from the answer. Choose how to add your first cases.",
+      "writeHint": "Write a question and a reference answer. Best for getting started.",
+      "importHint": "Bring existing questions from a CSV or JSONL file.",
+      "generateHint": "Draft questions from knowledge or conversations, then review them.",
+      "realAnswers": "Already have useful conversations?",
+      "afterCreate": "Next, you will add cases and choose how to test them.",
+      "reviewAction": "Review results"
+    },
+    "openCase": "Open case",
+    "caseActions": "Case actions"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

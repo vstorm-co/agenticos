@@ -11,15 +11,15 @@ it("keeps creation, generation, import guidance and Activity beside the cases ta
   );
   await userEvent.click(screen.getByRole("button", { name: "Add case" }));
   expect(add).toHaveBeenCalledOnce();
-  await userEvent.click(screen.getByRole("button", { name: "More ways to add" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Generate cases" }));
+  await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
   expect(generate).toHaveBeenCalledOnce();
   await userEvent.click(screen.getByRole("button", { name: "More ways to add" }));
   expect(screen.getByRole("menuitem", { name: "Add from Activity" })).toHaveAttribute(
     "href",
     "/runs?dataset=dataset-1",
   );
-  await userEvent.click(screen.getByRole("menuitem", { name: "Import" }));
+  await userEvent.keyboard("{Escape}");
+  await userEvent.click(screen.getByRole("button", { name: "Import" }));
   expect(screen.getByRole("dialog")).toHaveTextContent("CSV or JSONL");
   await userEvent.click(screen.getByRole("button", { name: "Choose file" }));
   expect(screen.queryByRole("dialog")).toBeNull();

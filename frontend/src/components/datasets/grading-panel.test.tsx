@@ -564,3 +564,12 @@ it("edits named criteria, required status and numeric grading thresholds", async
     criteria: [{ name: "Accuracy", required: false }],
   });
 });
+
+it("offers a way to evals after grading is configured, but keeps it off unsaved changes", async () => {
+  const onContinue = vi.fn();
+  render(<GradingPanel dataset={dataset(JUDGED)} onContinue={onContinue} />);
+  await userEvent.click(screen.getByRole("button", { name: "Open evals" }));
+  expect(onContinue).toHaveBeenCalledOnce();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Expected tool calls" }));
+  expect(screen.queryByRole("button", { name: "Open evals" })).toBeNull();
+});

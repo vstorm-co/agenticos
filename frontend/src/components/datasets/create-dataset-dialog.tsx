@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowRight, FlaskConical, ListChecks, Play, Scale } from "lucide-react";
+import { DatasetChip } from "./dataset-chip";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -83,7 +85,12 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
-          <DialogTitle>{t("newDataset")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
+            <span className="bg-table-blue text-table-blue-foreground flex size-9 items-center justify-center rounded-xl">
+              <FlaskConical className="size-5" aria-hidden />
+            </span>
+            {t("newDataset")}
+          </DialogTitle>
           <DialogDescription>{t("newDatasetBody")}</DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-4")}>
@@ -121,7 +128,23 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
             </FormField>
           </MoreOptions>
         </div>
-        <DialogFooter>
+        <div className="bg-muted/30 space-y-2 rounded-xl border p-3">
+          <p className="text-muted-foreground text-xs">{t("journey.afterCreate")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <DatasetChip tone="blue" icon={ListChecks}>
+              {t("cases")}
+            </DatasetChip>
+            <ArrowRight className="text-muted-foreground size-3" aria-hidden />
+            <DatasetChip tone="purple" icon={Scale}>
+              {t("scoring.title")}
+            </DatasetChip>
+            <ArrowRight className="text-muted-foreground size-3" aria-hidden />
+            <DatasetChip tone="green" icon={Play}>
+              {t("evals")}
+            </DatasetChip>
+          </div>
+        </div>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>

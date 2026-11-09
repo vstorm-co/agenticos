@@ -908,7 +908,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-sources",
         page: DATASET_DETAIL,
-        target: "datasets-menu",
+        target: "datasets-case-tools",
         permission: Perm.datasetsEdit,
       },
       {

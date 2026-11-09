@@ -71,6 +71,7 @@ export default function DatasetsPage() {
     <div className="flex flex-1 flex-col space-y-4">
       {header}
       <ListCard
+        layout="grid"
         fill
         data-tour="datasets-list"
         namedByPage

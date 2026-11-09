@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ export function HelperSettings({
   const { update } = useDataset(dataset.id);
   const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
+  const Icon = kind === "generator" ? Sparkles : TrendingUp;
   const dirty = JSON.stringify(draft) !== JSON.stringify(stored[kind]);
   const disabled = !dataset.can_edit || update.isPending;
   async function save() {
@@ -70,7 +72,18 @@ export function HelperSettings({
   return (
     <Card className="min-w-0" data-tour={`datasets-${kind}-settings`}>
       <CardHeader>
-        <CardTitle className="text-base">{t(`${kind}Title`)}</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <span
+            className={
+              kind === "generator"
+                ? "bg-table-purple text-table-purple-foreground flex size-8 items-center justify-center rounded-lg"
+                : "bg-table-green text-table-green-foreground flex size-8 items-center justify-center rounded-lg"
+            }
+          >
+            <Icon className="size-4" aria-hidden />
+          </span>
+          {t(`${kind}Title`)}
+        </CardTitle>
         <CardDescription>{t(`${kind}Description`)}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

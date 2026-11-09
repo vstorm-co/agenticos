@@ -31,7 +31,7 @@ describe("CaseRow", () => {
     const onOpen = vi.fn();
     render(<CaseRow item={CASE} onOpen={onOpen} />);
     for (const text of [
-      "From a conversation",
+      "Conversation",
       "1 earlier turn",
       "Reference answer",
       "Counter-example",

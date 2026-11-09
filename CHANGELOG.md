@@ -183,6 +183,10 @@ environment without a person's decision.
 
 ### Fixed
 
+- Guide dataset setup from cases through grading, evals and review, with direct
+  writing/import/generation actions, contextual next steps, coloured option
+  chips and a cases table matching Virtual Tables.
+
 - Make evaluation workspaces easier to use: split case editing into conversation
   and expectations, keep save actions visible, choose saved pipeline models first,
   fold default instructions, and lay out grading, helper settings and knowledge

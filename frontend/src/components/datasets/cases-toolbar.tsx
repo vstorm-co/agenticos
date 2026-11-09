@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, History, Plus, Sparkles, Upload } from "lucide-react";
+import { History, MoreHorizontal, Plus, Sparkles, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -12,6 +12,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui";
+import { OPTION_TONES } from "@/lib/table-option-colors";
+import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { ImportCasesDialog } from "./import-cases-dialog";
 import { useDatasetFiles } from "./use-dataset-files";
@@ -35,27 +37,26 @@ export function CasesToolbar({
   const picker = useRef<HTMLInputElement>(null);
   const { upload } = useDatasetFiles(datasetId, null);
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2" data-tour="datasets-case-tools">
       <Button data-tour="datasets-add-case" size="sm" disabled={disabled} onClick={onAdd}>
         <Plus className="size-4" />
         {t("addCase")}
       </Button>
+      <Button size="sm" variant="outline" disabled={disabled} onClick={onGenerate}>
+        <Sparkles className={cn("size-4 rounded-sm", OPTION_TONES.purple)} aria-hidden />
+        {t("generateCases")}
+      </Button>
+      <Button size="sm" variant="outline" disabled={disabled} onClick={() => setImporting(true)}>
+        <Upload className={cn("size-4 rounded-sm", OPTION_TONES.green)} aria-hidden />
+        {t("import")}
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
-          <Button size="sm" variant="outline" disabled={disabled}>
-            {t("moreSources")}
-            <ChevronDown className="size-4" />
+          <Button size="icon" variant="ghost" disabled={disabled} aria-label={t("moreSources")}>
+            <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => setImporting(true)}>
-            <Upload className="size-4" />
-            {t("import")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onGenerate}>
-            <Sparkles className="size-4" />
-            {t("generateCases")}
-          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href={`${ROUTES.RUNS}?${new URLSearchParams({ dataset: datasetId })}`}>
               <History className="size-4" />

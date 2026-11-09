@@ -1,5 +1,5 @@
 ---
-source_sha: "6238ca790865"
+source_sha: "63ed9ea5b473"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -21,6 +21,19 @@ verdad la decepcionó.
 **Cases**, **Generated**, **Grading**, **Evals**, **Review** y **Settings** comparten un espacio con control de pantalla completa. Añadir, importar, generar y abrir Activity están junto a la tabla de casos. Un caso se abre en un panel lateral; Edit abre el formulario. La pregunta y las respuestas van primero, con herramientas, comprobaciones y etiquetas en secciones desplegables.
 
 El modelo y las instrucciones del calificador se eligen en **Grading**; los de generación y mejora, en **Settings**. Utilizan los controles de Agent Builder. Los ayudantes se definen en código y no requieren crear ni publicar un agent. Un trabajo en cola conserva su configuración inicial.
+
+## De un dataset nuevo a los resultados { #dataset-workflow }
+
+La guía del dataset muestra cuatro pasos. Puedes contraerla cuando ya no la necesites.
+
+1. **Añadir casos.** Escribe una pregunta, importa un archivo CSV o JSONL o genera propuestas para revisar. También puedes copiar una respuesta desde Actividad.
+2. **Configurar la evaluación.** Elige reglas, comparación con la respuesta de referencia o criterios del juez. La guía señala este paso mientras algún caso no tenga cómo evaluarse.
+3. **Probar un agente.** Abre Evals, elige un agente y revisa el coste estimado antes de iniciar. Una vez configurada la evaluación, el botón al final de esa pestaña te lleva aquí.
+4. **Revisar los resultados.** Inspecciona las respuestas y los criterios que cumplen o incumplen. Los evals completados ofrecen un acceso directo a Revisión.
+
+La tabla de casos muestra fuentes, expectativas y etiquetas con colores. Pulsa una
+fila para abrirla; su menú de acciones contiene Editar y Eliminar. Generar e importar
+siguen visibles junto a Añadir caso, y Actividad está en el menú de acciones adicionales.
 
 ## Qué contiene un caso { #what-a-case-holds }
 

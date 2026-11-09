@@ -1,5 +1,7 @@
 "use client";
 
+import { Check, CircleHelp, ClipboardCheck, ListFilter, Tag, Users, X } from "lucide-react";
+import { DatasetChip } from "./dataset-chip";
 import { useTranslations } from "next-intl";
 
 import {
@@ -65,6 +67,11 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
             )}
             onClick={() => set({ pending })}
           >
+            {pending ? (
+              <ClipboardCheck className="size-3.5" aria-hidden />
+            ) : (
+              <ListFilter className="size-3.5" aria-hidden />
+            )}
             {pending ? t("filterPending", { count: waiting }) : t("filterAll", { count: all })}
           </Button>
         ))}
@@ -73,14 +80,26 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
         value={filter.outcome ?? ANY}
         onValueChange={(value) => set({ outcome: value === ANY ? null : (value as ScoreOutcome) })}
       >
-        <SelectTrigger className="w-full sm:w-40" aria-label={t("filterOutcome")}>
+        <SelectTrigger size="sm" className="w-full sm:w-44" aria-label={t("filterOutcome")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ANY}>{t("anyOutcome")}</SelectItem>
-          <SelectItem value="failed">{t("failed")}</SelectItem>
-          <SelectItem value="not_graded">{t("unscored")}</SelectItem>
-          <SelectItem value="passed">{t("passed")}</SelectItem>
+          <SelectItem value="failed" textValue={t("failed")}>
+            <DatasetChip tone="red" icon={X}>
+              {t("failed")}
+            </DatasetChip>
+          </SelectItem>
+          <SelectItem value="not_graded" textValue={t("unscored")}>
+            <DatasetChip tone="yellow" icon={CircleHelp}>
+              {t("unscored")}
+            </DatasetChip>
+          </SelectItem>
+          <SelectItem value="passed" textValue={t("passed")}>
+            <DatasetChip tone="green" icon={Check}>
+              {t("passed")}
+            </DatasetChip>
+          </SelectItem>
         </SelectContent>
       </Select>
       {agents.length > 0 && (
@@ -88,7 +107,12 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
           value={filter.agentId ?? ANY}
           onValueChange={(value) => set({ agentId: value === ANY ? null : value })}
         >
-          <SelectTrigger className="w-full sm:w-44" aria-label={t("filterAgent")}>
+          <SelectTrigger
+            icon={Users}
+            size="sm"
+            className="w-full sm:w-44"
+            aria-label={t("filterAgent")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -106,7 +130,12 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
           value={filter.tag ?? ANY}
           onValueChange={(value) => set({ tag: value === ANY ? null : value })}
         >
-          <SelectTrigger className="w-full sm:w-36" aria-label={t("filterTag")}>
+          <SelectTrigger
+            icon={Tag}
+            size="sm"
+            className="w-full sm:w-36"
+            aria-label={t("filterTag")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

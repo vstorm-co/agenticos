@@ -262,7 +262,7 @@ describe("create-dataset", () => {
       signal: { kind: "created", resource: "case" },
     });
     expect(save?.blockSubmit).toBeUndefined();
-    expect(sources?.target).toBe("datasets-menu");
+    expect(sources?.target).toBe("datasets-case-tools");
     expect(sources?.signal).toBeUndefined();
     expect(next).toMatchObject({ target: "datasets-grading-tab", page: DATASET_DETAIL });
     expect(generate).toMatchObject({

@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, FlaskConical, ListChecks, Scale, Sparkles } from "lucide-react";
+import { ClipboardCheck, FlaskConical, ListChecks, Scale, Settings2, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ import { CaseEditorDialog, type CaseCopy } from "@/components/datasets/case-edit
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CasesTable } from "@/components/datasets/cases-table";
 import { CasesToolbar } from "@/components/datasets/cases-toolbar";
+import { DatasetGuide } from "@/components/datasets/dataset-guide";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
@@ -221,6 +222,17 @@ export default function DatasetPage({ params }: PageProps) {
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
         )}
       >
+        {dataset.can_edit && version === null && (
+          <div className="mb-4">
+            <DatasetGuide
+              key={id}
+              dataset={dataset}
+              tab={shown}
+              canViewRuns={canViewRuns}
+              onTab={showTab}
+            />
+          </div>
+        )}
         <Tabs value={shown} onValueChange={showTab} className="flex flex-1 flex-col gap-4">
           {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
           <div className="flex min-w-0 items-center gap-2">
@@ -229,12 +241,6 @@ export default function DatasetPage({ params }: PageProps) {
                 <ListChecks className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("cases")}
               </TabsTrigger>
-              {dataset.can_edit && (
-                <TabsTrigger value="generated" data-tour="datasets-generated-tab">
-                  <Sparkles className="mr-1.5 size-4 shrink-0" aria-hidden />
-                  {t("generatedTab", { count: dataset.pending_proposals })}
-                </TabsTrigger>
-              )}
               <TabsTrigger value="grading" data-tour="datasets-grading-tab">
                 <Scale className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("scoring.title")}
@@ -257,7 +263,14 @@ export default function DatasetPage({ params }: PageProps) {
                 {t("scoring.scores")}
               </TabsTrigger>
               {dataset.can_edit && (
+                <TabsTrigger value="generated" data-tour="datasets-generated-tab">
+                  <Sparkles className="mr-1.5 size-4 shrink-0" aria-hidden />
+                  {t("generatedTab", { count: dataset.pending_proposals })}
+                </TabsTrigger>
+              )}
+              {dataset.can_edit && (
                 <TabsTrigger value="settings" data-tour="datasets-settings-tab">
+                  <Settings2 className="size-4" aria-hidden />
                   {t("settingsTab")}
                 </TabsTrigger>
               )}
@@ -286,15 +299,16 @@ export default function DatasetPage({ params }: PageProps) {
                       }
                     />
                   )}
-                  {dataset.can_edit && (
-                    <CasesToolbar
-                      datasetId={id}
-                      disabled={!editable}
-                      onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
-                      onImport={(file) => cases.importFile.mutateAsync(file)}
-                      onGenerate={() => showTab("generated")}
-                    />
-                  )}
+                  {dataset.can_edit &&
+                    (cases.cases.length > 0 || cases.isLoading || version !== null) && (
+                      <CasesToolbar
+                        datasetId={id}
+                        disabled={!editable}
+                        onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
+                        onImport={(file) => cases.importFile.mutateAsync(file)}
+                        onGenerate={() => showTab("generated")}
+                      />
+                    )}
                 </div>
               }
             >
@@ -323,6 +337,8 @@ export default function DatasetPage({ params }: PageProps) {
                 <div className="flex flex-1 flex-col gap-4">
                   <CasesTable
                     cases={cases.cases}
+                    offset={page * PAGE_SIZE}
+                    activeCaseId={editing?.item?.case_id}
                     onOpen={openCase}
                     onRemove={editable ? (item) => cases.remove.mutate(item.case_id) : undefined}
                   />
@@ -352,6 +368,7 @@ export default function DatasetPage({ params }: PageProps) {
           >
             <GradingPanel
               dataset={dataset}
+              onContinue={canViewRuns && dataset.can_run ? () => showTab("evals") : undefined}
               onDirtyChange={setGradingUnsaved}
               localCopy={dataset.can_edit ? keep("grading") : undefined}
               restore={gradingRestore}
@@ -359,7 +376,11 @@ export default function DatasetPage({ params }: PageProps) {
           </TabsContent>
           {canViewRuns && (
             <TabsContent value="evals" className="flex flex-1 flex-col">
-              <DatasetEvalsPanel datasetId={id} title={t("evals")} />
+              <DatasetEvalsPanel
+                datasetId={id}
+                title={t("evals")}
+                onReview={() => showTab("review")}
+              />
             </TabsContent>
           )}
           {dataset.can_edit && (

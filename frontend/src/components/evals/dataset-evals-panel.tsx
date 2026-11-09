@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FlaskConical, Play } from "lucide-react";
+import { ArrowRight, ClipboardCheck, FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -65,7 +65,15 @@ function byAgent(runs: EvalRun[]): { id: string; runs: EvalRun[] }[] {
  * pass-rate trend and its runs with their verdicts, in a card whose header
  * counts them once they are read.
  */
-export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; title: string }) {
+export function DatasetEvalsPanel({
+  datasetId,
+  title,
+  onReview,
+}: {
+  datasetId: string;
+  title: string;
+  onReview?: () => void;
+}) {
   const t = useTranslations("evals");
   const [page, setPage] = useState(0);
   const { runs, total, isLoading, error, refetch } = useDatasetEvalRuns(datasetId, {
@@ -84,7 +92,18 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
         ? t("runCount", { count: total })
         : t("dataset.counted", { runs: total, agents: groups.length });
   return (
-    <ListCard fill namedByPage title={title} counted={counted} contentClassName="p-0">
+    <ListCard
+      fill
+      namedByPage
+      title={title}
+      counted={counted}
+      contentClassName="p-0"
+      controls={
+        onReview && runs.some((run) => run.status === "completed") ? (
+          <ReviewResultsButton onClick={onReview} />
+        ) : undefined
+      }
+    >
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : (
@@ -172,5 +191,16 @@ function Groups({
         agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
       />
     </div>
+  );
+}
+
+function ReviewResultsButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations("datasets.journey");
+  return (
+    <Button size="sm" variant="outline" onClick={onClick}>
+      <ClipboardCheck className="size-4" aria-hidden />
+      {t("reviewAction")}
+      <ArrowRight className="size-3.5" aria-hidden />
+    </Button>
   );
 }

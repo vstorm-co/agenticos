@@ -13748,7 +13748,7 @@
     "source": {
       "manual": "Geschrieben",
       "import": "Importiert",
-      "conversation": "Aus einem Gespräch",
+      "conversation": "Gespräch",
       "synthetic": "Generiert"
     },
     "orderMode": {
@@ -13933,7 +13933,8 @@
       "source": "Quelle",
       "expectations": "Erwartetes Ergebnis",
       "tags": "Schlagwörter",
-      "actions": "Aktionen"
+      "actions": "Aktionen",
+      "number": "Fallnummer"
     },
     "helpers": {
       "generatorTitle": "Testfälle generieren",
@@ -13986,7 +13987,47 @@
       "conversationHint": "Die Nachricht und der Kontext, die der Agent erhält.",
       "expectations": "Erwartetes Verhalten",
       "expectationsHint": "Was eine gute Antwort enthält und wie sie geprüft wird."
-    }
+    },
+    "journey": {
+      "title": "Dein Dataset, Schritt für Schritt",
+      "step": {
+        "cases": "{number}. Fälle hinzufügen",
+        "grading": "{number}. Bewertung festlegen",
+        "evals": "{number}. Agent testen",
+        "review": "{number}. Ergebnisse prüfen"
+      },
+      "hint": {
+        "cases": "Fragen und die erwarteten Antworten festlegen.",
+        "grading": "Regeln und Kriterien für eine richtige Antwort wählen.",
+        "evals": "Agent wählen, Kosten prüfen und den Test starten.",
+        "review": "Antworten prüfen und Verbesserungen auswählen."
+      },
+      "next": {
+        "cases": "Fälle hinzufügen",
+        "grading": "Bewertung einrichten",
+        "evals": "Evals öffnen"
+      },
+      "guidance": {
+        "cases": "Mit einigen echten Fragen deiner Nutzer beginnen.",
+        "grading": "Die Fälle sind vorhanden. Jetzt festlegen, wie Antworten geprüft werden.",
+        "evals": "Die Bewertung ist eingerichtet. Agent wählen und die Kosten vor dem Start prüfen."
+      },
+      "status": {
+        "cases": "Noch keine Fälle",
+        "grading": "Bewertung einrichten",
+        "evals": "Bewertung eingerichtet"
+      },
+      "emptyTitle": "Mit den ersten Testfragen beginnen",
+      "emptyBody": "Jeder Fall besteht aus einer Frage und Erwartungen an die Antwort. Wähle, wie du die ersten Fälle hinzufügst.",
+      "writeHint": "Eine Frage und Referenzantwort eingeben. Ideal für den Einstieg.",
+      "importHint": "Vorhandene Fragen aus einer CSV- oder JSONL-Datei importieren.",
+      "generateHint": "Fragen aus Wissen oder Gesprächen entwerfen und anschließend prüfen.",
+      "realAnswers": "Du hast bereits hilfreiche Gespräche?",
+      "afterCreate": "Danach fügst du Fälle hinzu und legst fest, wie sie getestet werden.",
+      "reviewAction": "Ergebnisse prüfen"
+    },
+    "openCase": "Fall öffnen",
+    "caseActions": "Aktionen für den Fall"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

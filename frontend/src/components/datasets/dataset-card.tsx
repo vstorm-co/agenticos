@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
+import { DatasetChip } from "./dataset-chip";
+import { datasetNextStep } from "./dataset-journey";
 import { timeAgo } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
 
@@ -27,6 +29,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
   const tt = useTranslations("time");
   const locale = useLocale();
   const VisibilityIcon = VISIBILITY_ICON[dataset.visibility];
+  const next = datasetNextStep(dataset);
   const edited = dataset.updated_at ?? dataset.created_at;
 
   return (
@@ -39,7 +42,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           aria-label={tc("openNamed", { name: dataset.name })}
         />
         <div className="pointer-events-none relative flex items-start gap-3">
-          <span className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
+          <span className="bg-table-blue text-table-blue-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
             <FlaskConical aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
@@ -51,9 +54,16 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground text-xs">
-              {t("caseCount", { count: dataset.case_count })}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-xs">
+                {t("caseCount", { count: dataset.case_count })}
+              </span>
+              <DatasetChip
+                tone={next === "cases" ? "blue" : next === "grading" ? "yellow" : "green"}
+              >
+                {t(`journey.status.${next}`)}
+              </DatasetChip>
+            </div>
             <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
               {dataset.description}
             </p>
