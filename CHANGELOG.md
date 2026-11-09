@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.60.3] - 2026-11-09
+
 ### Fixed
 
 - Include shared resource visibility helpers in the platform coverage and type-checking gates, and guard against their accidental removal (#2143).
@@ -20740,7 +20742,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...HEAD
+[1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
 [1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
 [1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1
 [1.60.0]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...v1.60.0
