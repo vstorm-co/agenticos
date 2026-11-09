@@ -14,12 +14,16 @@ const held = vi.hoisted(() => ({
     error: null as Error | null,
   },
   opened: null as string | null,
+  pages: [] as number[],
   open: vi.fn(),
   close: vi.fn(),
   replace: vi.fn(),
 }));
 vi.mock("@/hooks/use-skill-check", () => ({
-  useSkillCheckHistory: () => held.history,
+  useSkillCheckHistory: (_skillId: string, _forkId: string | null, page: number) => {
+    held.pages.push(page);
+    return held.history;
+  },
 }));
 vi.mock("@/hooks/use-url-state", () => ({
   useUrlOverlay: () => [held.opened, { open: held.open, close: held.close, replace: held.replace }],
@@ -48,6 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   held.history = { checks: [], total: 0, isLoading: false, error: null };
   held.opened = null;
+  held.pages = [];
 });
 
 describe("SkillChecks", () => {
@@ -107,5 +112,35 @@ describe("SkillChecks", () => {
     render(<SkillChecks skillId="s-1" forkId={null} canDecide={false} onEdit={vi.fn()} />);
 
     expect(screen.getByRole("dialog")).toHaveAttribute("data-decides", "false");
+  });
+
+  it("pages through a line with more checks than one page holds", async () => {
+    held.history = {
+      checks: [finishedCheck({ id: "c-1" })],
+      total: 45,
+      isLoading: false,
+      error: null,
+    };
+    render(<SkillChecks skillId="s-1" forkId={null} canDecide onEdit={vi.fn()} />);
+
+    expect(screen.getByText("45 checks · page 1 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    expect(held.pages.at(-1)).toBe(1);
+    expect(screen.getByText("45 checks · page 2 of 3")).toBeInTheDocument();
+  });
+
+  it("shows no pager while one page holds every check", () => {
+    held.history = {
+      checks: [finishedCheck({ id: "c-1" })],
+      total: 20,
+      isLoading: false,
+      error: null,
+    };
+    render(<SkillChecks skillId="s-1" forkId={null} canDecide onEdit={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+    expect(held.pages).toEqual([0]);
   });
 });

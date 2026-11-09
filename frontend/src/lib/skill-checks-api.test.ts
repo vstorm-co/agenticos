@@ -34,6 +34,12 @@ describe("the skill checks client", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks?limit=20&fork_id=f-1");
   });
 
+  it("lists a later page of a line's checks", async () => {
+    await api.listSkillChecks("s-1", "f-1", 2);
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks?limit=20&fork_id=f-1&skip=40");
+  });
+
   it("stops a running check", async () => {
     await api.cancelSkillCheck("s-1", "c-1");
 

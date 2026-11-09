@@ -100,6 +100,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   // Reading a check's results asks runs:view; stopping or deciding one asks edit access too.
   const checks = can(Perm.runsView);
   const decides = checks && skill.can_edit === true;
+  // A new fork offers the agents to move onto it, so it waits for their list; a list
+  // that could not be read is said on the Agents tab.
+  const listed = agents.agents?.items;
 
   return (
     <div className="space-y-6">
@@ -115,7 +118,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         }
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
-        onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
+        onFork={
+          skill.can_edit && base !== null && listed !== undefined ? () => setForkFrom(base) : null
+        }
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
       {decides && <CheckRunning skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
@@ -187,6 +192,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           />
           {checks && (
             <SkillChecks
+              key={`checks:${fork?.id ?? "main"}`}
               skillId={id}
               forkId={fork?.id ?? null}
               canDecide={decides}
@@ -243,11 +249,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
       {returning !== null && (
         <ReturnForkDialog skillId={id} fork={returning} onClose={() => setReturning(null)} />
       )}
-      {forkFrom !== null && (
+      {forkFrom !== null && listed !== undefined && (
         <NewForkDialog
           skill={skill}
           baseId={forkFrom}
-          agents={agents.agents?.items ?? []}
+          agents={listed}
           onClose={() => setForkFrom(null)}
           onCreated={(created) => {
             setForkFrom(null);

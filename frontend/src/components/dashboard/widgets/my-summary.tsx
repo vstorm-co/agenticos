@@ -25,7 +25,8 @@ import type { DashboardWidgetProps } from "./types";
  * not. What waits counts the same as the dashboard's greeting: tool calls,
  * answers to review, failing suites and suggestions. An empty period still draws
  * the four figures at zero: a person with no runs yet is told so by numbers, not
- * by a card that says nothing.
+ * by a card that says nothing. It counts what waits only once every list behind
+ * that figure answered, and fails as a whole when one of them is refused.
  */
 export function MySummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-summary");
@@ -41,10 +42,15 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-      {isLoading ? (
+      {error || others.failed ? (
+        <WidgetErrorBody
+          onRetry={() => {
+            if (error) void refetch();
+            others.retry();
+          }}
+        />
+      ) : isLoading || !others.settled ? (
         <WidgetSkeleton variant="metrics" />
-      ) : error ? (
-        <WidgetErrorBody onRetry={() => refetch()} />
       ) : (
         <div className="grid flex-1 grid-cols-2 gap-5 @min-[36rem]/widget:grid-cols-4">
           <Figure

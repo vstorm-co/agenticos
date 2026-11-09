@@ -57,7 +57,8 @@ export function waitingOn(
  * and beside the dashboard's cards it costs no request of its own, since they
  * read the same queries. `settled` says the permissions and every list it read
  * answered, so "nothing waits" is a finding rather than a list that has not
- * arrived, failed, or was never asked for.
+ * arrived, failed, or was never asked for. `failed` tells a refused list from one
+ * still on its way, and `retry` reads the refused ones again.
  */
 export function useWaitingOnMe() {
   const { can, isLoaded } = usePermissions();
@@ -70,5 +71,9 @@ export function useWaitingOnMe() {
     suites: suites.suites.filter((suite) => suiteState(suite) === "failing").length,
     suggestions: suggestionCount(suggestions.waiting),
     settled: isLoaded && reads.every((read) => !read.isLoading && read.error === null),
+    failed: reads.some((read) => read.error !== null),
+    retry: () => {
+      for (const read of reads) if (read.error !== null) void read.refetch();
+    },
   };
 }

@@ -163,7 +163,7 @@ describe("useOpenSkillCheck", () => {
     const { result } = renderHook(() => useOpenSkillCheck("s-1", "f-1"), { wrapper });
 
     await waitFor(() => expect(result.current?.id).toBe("open"));
-    expect(api.listSkillChecks).toHaveBeenCalledWith("s-1", "f-1");
+    expect(api.listSkillChecks).toHaveBeenCalledWith("s-1", "f-1", 0);
     await act(() => vi.advanceTimersByTimeAsync(SKILL_CHECK_POLL_MS));
     expect(api.listSkillChecks).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
@@ -187,15 +187,22 @@ describe("useSkillCheckHistory", () => {
       items: [{ id: "c-2", status: "discarded" } as SkillCheck],
       total: 7,
     });
-    const { result } = renderHook(() => useSkillCheckHistory("s-1", null), { wrapper });
+    const { result } = renderHook(() => useSkillCheckHistory("s-1", null, 0), { wrapper });
 
     await waitFor(() => expect(result.current.checks?.[0]?.id).toBe("c-2"));
     expect(result.current.total).toBe(7);
   });
 
+  it("reads the page asked for", async () => {
+    vi.mocked(api.listSkillChecks).mockResolvedValue({ items: [], total: 45 });
+    renderHook(() => useSkillCheckHistory("s-1", "f-1", 2), { wrapper });
+
+    await waitFor(() => expect(api.listSkillChecks).toHaveBeenCalledWith("s-1", "f-1", 2));
+  });
+
   it("counts nothing before the list is read", () => {
     vi.mocked(api.listSkillChecks).mockReturnValue(new Promise(() => undefined));
-    const { result } = renderHook(() => useSkillCheckHistory("s-1", null), { wrapper });
+    const { result } = renderHook(() => useSkillCheckHistory("s-1", null, 0), { wrapper });
 
     expect(result.current.total).toBe(0);
     expect(result.current.isLoading).toBe(true);

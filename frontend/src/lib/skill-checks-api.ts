@@ -41,12 +41,16 @@ export function startUpdateCheck(skillId: string, agentId: string) {
 }
 
 /**
- * A line's newest checks, newest first; main's when `forkId` is null. Twenty, so the
- * checks sessions started rarely push an open one of a person's own off the page.
+ * How many checks a page of a line's checks holds: twenty, so the checks sessions
+ * started rarely push an open one of a person's own off the first.
  */
-export function listSkillChecks(skillId: string, forkId: string | null) {
-  const query = new URLSearchParams({ limit: "20" });
+export const CHECK_PAGE_SIZE = 20;
+
+/** One page of a line's checks, newest first; main's when `forkId` is null. */
+export function listSkillChecks(skillId: string, forkId: string | null, page = 0) {
+  const query = new URLSearchParams({ limit: String(CHECK_PAGE_SIZE) });
   if (forkId !== null) query.set("fork_id", forkId);
+  if (page > 0) query.set("skip", String(page * CHECK_PAGE_SIZE));
   return apiClient.get<{ items: SkillCheck[]; total: number }>(`${root(skillId)}?${query}`);
 }
 

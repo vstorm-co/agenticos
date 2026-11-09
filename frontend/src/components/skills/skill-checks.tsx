@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
-import { Badge, Button, ListCard, Skeleton } from "@/components/ui";
+import { Badge, Button, ListCard, Pager, Skeleton } from "@/components/ui";
 import { useSkillCheckHistory } from "@/hooks/use-skill-check";
 import { useUrlOverlay } from "@/hooks/use-url-state";
 import { getErrorMessage } from "@/lib/api-error";
+import { CHECK_PAGE_SIZE } from "@/lib/skill-checks-api";
 import { formatDateTime } from "@/lib/utils";
 import type { CheckStatus, SkillCheck } from "@/types/skill-checks";
 import { SkillCheckDialog, type CheckedDraft } from "./skill-check-dialog";
@@ -21,10 +23,11 @@ const TONE: Record<CheckStatus, "default" | "secondary" | "outline" | "destructi
 };
 
 /**
- * The checks of changes to one line of a skill, newest first: when each ran, the
- * version it was written over, what it found and what was done with it. Details
- * opens the check as it was decided, or to decide it for a reader who may; `?check=`
- * opens one by id, which is how a stage's run page leads back to its check.
+ * The checks of changes to one line of a skill, newest first and a page at a time:
+ * when each ran, the version it was written over, what it found and what was done
+ * with it. Details opens the check as it was decided, or to decide it for a reader
+ * who may; `?check=` opens one by id, which is how a stage's run page leads back to
+ * its check.
  */
 export function SkillChecks({
   skillId,
@@ -40,7 +43,8 @@ export function SkillChecks({
 }) {
   const t = useTranslations("skills.page.checks");
   const tErrors = useTranslations("errors");
-  const { checks, total, isLoading, error } = useSkillCheckHistory(skillId, forkId);
+  const [page, setPage] = useState(0);
+  const { checks, total, isLoading, error } = useSkillCheckHistory(skillId, forkId, page);
   const [opened, overlay] = useUrlOverlay("check");
   return (
     <ListCard title={t("title")} counted={checks ? t("count", { count: total }) : null}>
@@ -56,6 +60,16 @@ export function SkillChecks({
             <CheckRow key={check.id} check={check} onOpen={() => overlay.open(check.id)} />
           ))}
         </ul>
+      )}
+      {total > CHECK_PAGE_SIZE && (
+        <Pager
+          page={page}
+          pageCount={Math.ceil(total / CHECK_PAGE_SIZE)}
+          matched={total}
+          total={total}
+          onPage={setPage}
+          counted={t("count", { count: total })}
+        />
       )}
       {opened !== null && (
         <SkillCheckDialog

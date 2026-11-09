@@ -159,10 +159,10 @@ export function useSkillChecksAwaiting({ enabled = true }: { enabled?: boolean }
 }
 
 /** A line's newest checks, read again while one of them runs. */
-function useLineChecks(skillId: string, forkId: string | null) {
+function useLineChecks(skillId: string, forkId: string | null, page = 0) {
   return useQuery({
-    queryKey: qk.skillChecks.line(skillId, forkId),
-    queryFn: () => listSkillChecks(skillId, forkId),
+    queryKey: qk.skillChecks.line(skillId, forkId, page),
+    queryFn: () => listSkillChecks(skillId, forkId, page),
     ...ALWAYS_FRESH,
     refetchInterval: (current) =>
       current.state.data?.items.some((check) => check.status === "running")
@@ -171,9 +171,9 @@ function useLineChecks(skillId: string, forkId: string | null) {
   });
 }
 
-/** A line's checks, newest first: what each found and what was done with it. */
-export function useSkillCheckHistory(skillId: string, forkId: string | null) {
-  const { data, isLoading, error } = useLineChecks(skillId, forkId);
+/** One page of a line's checks, newest first: what each found and what was done with it. */
+export function useSkillCheckHistory(skillId: string, forkId: string | null, page: number) {
+  const { data, isLoading, error } = useLineChecks(skillId, forkId, page);
   return { checks: data?.items, total: data?.total ?? 0, isLoading, error };
 }
 

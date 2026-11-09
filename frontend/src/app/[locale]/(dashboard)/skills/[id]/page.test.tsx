@@ -465,6 +465,22 @@ describe("SkillPage's lines and writes", () => {
     expect(await screen.findByText("History of main")).toBeInTheDocument();
   });
 
+  it("pages a line's checks, and starts the next line's on its first page", async () => {
+    state.tab = "history";
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/checks?") ? { items: [], total: 45 } : serveOnce(path),
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Next page" }));
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/checks?limit=20&skip=20");
+    expect(await screen.findByText("45 checks · page 2 of 3")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "fork “Returns”" }));
+    expect(await screen.findByText("45 checks · page 1 of 3")).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/checks?limit=20&fork_id=f1");
+  });
+
   it("opens the editor and closes it", async () => {
     await mount();
 
@@ -547,6 +563,33 @@ describe("SkillPage's lines and writes", () => {
       name: "Marketplace",
       from_version_id: "m12",
     });
+  });
+
+  it("offers a new fork only once the agents to move onto it are read", async () => {
+    let listAgents: () => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/skills/s1/agents")
+        await new Promise<void>((resolve) => (listAgents = resolve));
+      return serveOnce(path);
+    });
+    await mount();
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New fork" })).toBeNull();
+
+    await act(async () => listAgents());
+    await userEvent.click(await screen.findByRole("button", { name: "New fork" }));
+    expect(screen.getByRole("checkbox", { name: /^Support/ })).toBeInTheDocument();
+  });
+
+  it("offers no new fork when the agents cannot be read, and says why", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/skills/s1/agents") throw new Error("agents offline");
+      return serveOnce(path);
+    });
+    await mount();
+
+    expect(await screen.findByText("agents offline")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New fork" })).toBeNull();
   });
 
   it("offers no fork to a reader", async () => {
