@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Paused knowledge sources refuse manual API synchronization, and workers
+  recheck the pause before downloading or indexing queued or CLI runs.
+  Knowledge-base collection-name lookups break creation-date ties by ID,
+  keeping the selected base stable (#2744).
+
 ## [1.59.1] - 2026-11-09
 
 ### Fixed
