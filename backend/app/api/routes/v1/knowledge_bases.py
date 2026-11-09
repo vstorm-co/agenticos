@@ -27,8 +27,8 @@ from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDetailRead,
     KnowledgeBaseList,
-    KnowledgeBaseRead,
     KnowledgeBaseUpdate,
 )
 from app.schemas.rag import (
@@ -75,7 +75,7 @@ async def list_knowledge_bases(
 
 @router.post(
     "",
-    response_model=KnowledgeBaseRead,
+    response_model=KnowledgeBaseDetailRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
@@ -95,20 +95,25 @@ async def create_knowledge_base(
     model is recorded from the deployment and is not settable - a collection's
     vectors are only comparable with themselves.
     """
-    return await service.create(data, ctx=ctx)
+    kb = await service.create(data, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
-@router.get("/{kb_id}", response_model=KnowledgeBaseRead)
+@router.get("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def get_knowledge_base(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     ctx: Auth,
 ) -> Any:
-    """Get a Knowledge Base by ID."""
-    return await service.get(kb_id, ctx=ctx)
+    """Get a Knowledge Base and effective write access for this caller.
+
+    `can_edit` follows the same scope, ownership and grant rules as mutations.
+    """
+    kb = await service.get(kb_id, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
-@router.patch("/{kb_id}", response_model=KnowledgeBaseRead)
+@router.patch("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def update_knowledge_base(
     kb_id: UUID,
     data: KnowledgeBaseUpdate,
@@ -121,7 +126,8 @@ async def update_knowledge_base(
     Nothing already indexed is re-parsed, and the embedding model cannot be
     changed here at all.
     """
-    return await service.update(kb_id, data, ctx=ctx)
+    kb = await service.update(kb_id, data, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
 @router.delete(

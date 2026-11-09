@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Knowledge sync failures now show their error on the dashboard. Knowledge-base
+  write controls follow effective access to that base, including edit grants,
+  instead of the member's organization-wide permission (#2772).
+
 ## [1.59.0] - 2026-11-09
 
 ### Changed
