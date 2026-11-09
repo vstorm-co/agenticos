@@ -1263,7 +1263,7 @@ steps read from each other rather than from the originals. Every edit shortcut i
 inert while the editor is read-only - a published version, or **View only**;
 `Escape` still cancels a stray connection, and `?` still shows the shortcuts.
 
-Copy and paste have three limits:
+Copy and paste have four limits:
 
 - **A bound step reads from where it read before.** A copied step keeps its
   bindings. One that reads from a step you did not copy keeps reading from the
@@ -1275,6 +1275,10 @@ Copy and paste have three limits:
 - **The shortcuts belong to the canvas.** They work while focus is on the canvas, and
   clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus in a step's settings or the step picker keeps the keys for those fields, so click
   the canvas before pressing them.
+- **A paste lands only where the palette would put it.** Inside a loop, pasting a
+  trigger is refused, and so is a loop that would nest more than three deep with the
+  loops it carries. The whole paste is refused and the clipboard keeps it, so open
+  the top level, or a shallower loop, and paste there.
 
 Agent image attachments share a 20 MB byte ceiling, checked before each file
 is loaded, including repeated references. MCP results redact resolved authentication
