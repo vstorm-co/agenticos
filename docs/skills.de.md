@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "62a0fc38c479"
 ---
 
 # Skills { #skills }
@@ -591,17 +591,29 @@ sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
 
 **Schreiben Sie einen.** Skills → New, in der UI. Das ist der normale Weg.
 
-**Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
+**Die mitgelieferten sind schon da.** Das Repository liefert fünf: drei
 ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
-und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
-[Apps](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
-ihnen. Das Anlegen einer Organisation kopiert
+dazu `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
+[Apps](artifacts.md#the-library-set) zu bauen, und `visual-design`, das ihm
+beibringt, wann und wie es eine Antwort [zeichnet](artifacts.md#visuals). Jede
+Organisation startet mit ihnen. Das Anlegen einer Organisation kopiert
 die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
 Owners der Organisation und für die Organisation sichtbar.
 
 Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
-Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — sie
+Name zur mitgelieferten Bibliothek passt. Diese fünf werden nicht gewählt — sie
 kommen an, einmal, beim Anlegen.
+
+**Der Architect bringt eigene mit.** Die Einrichtung des
+[AI Architect](console.md) einer Organisation installiert auch die Skills, die
+er liest: zehn aus dem Software-Regal der Galerie — `agenticos-guide`,
+`agent-design`, `agent-instructions`, `agent-testing`, `agent-budgets`,
+`model-choice`, `rag-setup`, `workflow-builder`, `virtual-tables` und
+`pydantic-ai-import` — neben dem mitgelieferten `visual-design`. Eine neue
+Organisation listet daher fünfzehn Skills. Auch sie sind gewöhnliche Skills, und
+die Skill-Seite kennzeichnet die elf des Architect mit einem
+`Architekt`-Abzeichen, weil eine Änderung an einem davon verändert, wie der
+Architect arbeitet.
 
 **Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
 Zeile: bearbeiten oder löschen. Nichts holt einen gelöschten
@@ -664,7 +676,7 @@ und bearbeitet, genau wie ein mitgelieferter.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
-    Die mitgelieferten vier liegen in `app/core/catalog/skills/` und werden
+    Die mitgelieferten fünf liegen in `app/core/catalog/skills/` und werden
     automatisch in **jede** Organisation kopiert. Die Gallery liegt in
     `app/core/catalog/skill_gallery/` und wird in **keine** kopiert — sie wird vom
     selben Parser gelesen, aus einem zweiten Verzeichnis, und nie geseedet.
@@ -966,7 +978,7 @@ Skill wird mit einer Warnung übersprungen, ohne den Run abzubrechen.
 - Einen Skill zu binden heißt, ihn zu **verleihen**, die veröffentlichende Person
   muss ihn also sehen können — und zur Laufzeit wird nichts erneut geprüft.
 - Die **Gallery** sind siebzig fertige Skills nach Branche, auf Anfrage
-  installiert — anders als die mitgelieferten drei, die von allein ankommen.
+  installiert — anders als die mitgelieferten fünf, die von allein ankommen.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

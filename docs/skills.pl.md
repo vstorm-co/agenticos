@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "62a0fc38c479"
 ---
 
 # Skille { #skills }
@@ -545,16 +545,26 @@ Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
+**Te dołączone już tam są.** Repozytorium dostarcza pięć: trzy przykłady z
+rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — a do tego
 `artifact-pages`, który uczy agenta budować stronę dla capability
-[Aplikacje](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
+[Aplikacje](artifacts.md#the-library-set), oraz `visual-design`, który uczy go,
+kiedy i jak [rysować](artifacts.md#visuals) odpowiedź. Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
 bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
 widoczne dla organizacji.
 
 Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one po
+nazwa pasuje do dostarczonej biblioteki. Tych pięciu się nie wybiera — one po
 prostu przychodzą, raz, przy tworzeniu organizacji.
+
+**Architekt przynosi własne.** Konfiguracja [Architekta AI](console.md)
+organizacji instaluje też skille, które on czyta: dziesięć z półki software w
+galerii — `agenticos-guide`, `agent-design`, `agent-instructions`,
+`agent-testing`, `agent-budgets`, `model-choice`, `rag-setup`,
+`workflow-builder`, `virtual-tables` i `pydantic-ai-import` — obok dołączonego
+`visual-design`. Dlatego nowa organizacja ma na liście piętnaście skilli. To
+także zwykłe skille, a strona skilli oznacza jedenaście skilli Architekta
+odznaką `Architekt`, bo zmiana któregoś z nich zmienia sposób pracy Architekta.
 
 **I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
 edytować albo usunąć. Nic nie przywraca usuniętego.
@@ -613,7 +623,7 @@ zwykły skill, który organizacja posiada i edytuje, dokładnie jak dołączony.
 
 !!! info "Galeria działa na zaproszenie i na tym polega cała różnica"
 
-    Dołączona czwórka mieszka w `app/core/catalog/skills/` i jest kopiowana
+    Dołączona piątka mieszka w `app/core/catalog/skills/` i jest kopiowana
     automatycznie do **każdej** organizacji. Galeria mieszka w
     `app/core/catalog/skill_gallery/` i nie jest kopiowana do **żadnej** — czyta
     ją ten sam parser, z drugiego katalogu, i nigdy nie jest seedowana.
@@ -890,7 +900,7 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 - Podpięcie skilla **wypożycza** go, więc publikujący musi móc go zobaczyć — a w
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
-  życzenie — w odróżnieniu od dołączonej trójki, która przychodzi sama.
+  życzenie — w odróżnieniu od dołączonej piątki, która przychodzi sama.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

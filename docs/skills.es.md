@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "62a0fc38c479"
 ---
 
 # Skills { #skills }
@@ -559,17 +559,28 @@ petición se rechaza, nombrando los agents, cuando:
 
 **Escribe uno.** Skills → New, en la UI. Este es el camino normal.
 
-**Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
-trabajados — `refund-policy`, `code-review` e `incident-report` — y
+**Los incluidos ya están ahí.** El repositorio trae cinco: tres ejemplos
+trabajados — `refund-policy`, `code-review` e `incident-report` — además de
 `artifact-pages`, que enseña a un agent a construir una página para la
-capability [Apps](artifacts.md#the-library-set). Toda organización empieza
-con ellos. Crear una organización copia dentro la biblioteca
+capability [Apps](artifacts.md#the-library-set), y `visual-design`, que le
+enseña cuándo y cómo [dibujar](artifacts.md#visuals) una respuesta. Toda
+organización empieza con ellos. Crear una organización copia dentro la biblioteca
 entera que se distribuye, como skills normales, cuyo dueño es el owner de la
 organización y visibles para la organización.
 
 La página de skills muestra una sola lista, con una insignia `built-in` sobre
-cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
+cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cinco no se
 eligen — llegan solos, una vez, al crear la organización.
+
+**El Architect trae los suyos.** Configurar el [AI Architect](console.md)
+de una organización instala también los skills que lee: diez de la estantería
+de software de la galería — `agenticos-guide`, `agent-design`,
+`agent-instructions`, `agent-testing`, `agent-budgets`, `model-choice`,
+`rag-setup`, `workflow-builder`, `virtual-tables` y `pydantic-ai-import` — junto
+al `visual-design` incluido. Por eso una organización nueva lista quince skills.
+También son skills normales, y la página de skills marca los once del Architect
+con una insignia `Architect`, porque editar uno cambia cómo trabaja el
+Architect.
 
 **Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
 se edita o se borra. Nada devuelve uno borrado.
@@ -630,7 +641,7 @@ incluido.
 
 !!! info "La galería es opcional, y esa es toda la diferencia"
 
-    Los cuatro incluidos viven en `app/core/catalog/skills/` y se copian
+    Los cinco incluidos viven en `app/core/catalog/skills/` y se copian
     automáticamente en **todas** las organizaciones. La galería vive en
     `app/core/catalog/skill_gallery/` y no se copia en **ninguna** — la lee el
     mismo parser, desde un segundo directorio, y nunca se siembra.
@@ -916,7 +927,7 @@ aviso en lugar de interrumpir el run.
 - Vincular un skill lo **presta**, así que el publicador tiene que poder verlo — y
   no se vuelve a comprobar nada en tiempo de ejecución.
 - La **galería** son setenta skills listos para usar por sector, instalados a
-  petición — a diferencia de los tres incluidos, que llegan solos.
+  petición — a diferencia de los cinco incluidos, que llegan solos.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 
