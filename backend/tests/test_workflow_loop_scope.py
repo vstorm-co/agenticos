@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.workflows import _registry
@@ -446,3 +447,21 @@ def test_a_legacy_graph_sent_without_scopes_still_reads_as_members_of_the_loop()
     del raw["scopes"]
     graph = WorkflowGraph.model_validate(raw)
     assert graph.node_by_id[shape.step.id].scope_id == shape.loop.id
+
+
+@pytest.mark.parametrize(
+    ("where", "field"),
+    [
+        ("nodes", "id"),
+        ("edges", "source_node_id"),
+        ("edges", "target_node_id"),
+        ("edges", "source_port"),
+    ],
+)
+def test_a_legacy_graph_with_a_malformed_identifier_is_a_validation_error(where: str, field: str):
+    """Read before the fields are validated, a list where an id belongs must not raise `TypeError`."""
+    shape = _Loop()
+    raw = _legacy(shape)
+    raw[where][1][field] = []
+    with pytest.raises(ValidationError):
+        WorkflowGraph.model_validate(raw)

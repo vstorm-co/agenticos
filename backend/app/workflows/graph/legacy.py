@@ -20,13 +20,17 @@ oversized import is left for that check to refuse. Only `entry_port` is dropped,
 so the refusal is the size check's rather than a schema error.
 
 Only raw JSON is read here: a graph already built from model instances is in
-the new shape by construction. `alembic/versions/0296_workflow_loop_scope.py`
-holds a frozen copy of this conversion for the rows stored before it.
+the new shape by construction. That JSON is not validated yet, so a node or an
+edge whose ids or ports could not key a lookup is left as it was, for field
+validation to refuse rather than to fail on here.
+`alembic/versions/0296_workflow_loop_scope.py` holds a frozen copy of this
+conversion for the rows stored before it.
 """
 
 from collections import deque
 from collections.abc import Hashable
-from typing import Any
+from typing import Any, TypeGuard
+from uuid import UUID
 
 from app.core.config import settings
 
@@ -46,8 +50,8 @@ def adopt_named_loop_bodies(graph: dict[str, Any]) -> dict[str, Any]:
         or len(edges) > settings.WORKFLOW_GRAPH_MAX_EDGES
     ):
         return _without_entry_ports(graph)
-    raw_nodes = [node for node in nodes if isinstance(node, dict)]
-    raw_edges = [edge for edge in edges if isinstance(edge, dict)]
+    raw_nodes = [node for node in nodes if _keyed_node(node)]
+    raw_edges = [edge for edge in edges if _keyed_edge(edge)]
     loops = {node.get("id") for node in raw_nodes if node.get("definition_id") == FOREACH}
     body_wires = [
         edge
@@ -70,7 +74,7 @@ def adopt_named_loop_bodies(graph: dict[str, Any]) -> dict[str, Any]:
 
     moving = {id(wire) for wire in body_wires}
     kept: list[Any] = [edge for edge in edges if id(edge) not in moving]
-    wired = {_signature(edge) for edge in kept if isinstance(edge, dict)}
+    wired = {_signature(edge) for edge in raw_edges if id(edge) not in moving}
     for wire in body_wires:
         item = items.get(wire["source_node_id"])
         if item is None or wire.get("target_node_id") == item:
@@ -86,12 +90,28 @@ def adopt_named_loop_bodies(graph: dict[str, Any]) -> dict[str, Any]:
             **graph,
             "nodes": [
                 {**node, "scope_id": owner[node["id"]]}
-                if isinstance(node, dict) and node.get("id") in owner
+                if _keyed_node(node) and node["id"] in owner
                 else node
                 for node in nodes
             ],
             "edges": kept,
         }
+    )
+
+
+def _keyed_node(node: object) -> TypeGuard[dict[str, Any]]:
+    """Whether `node` is an object whose id can key a lookup."""
+    return isinstance(node, dict) and isinstance(node.get("id"), str | UUID)
+
+
+def _keyed_edge(edge: object) -> TypeGuard[dict[str, Any]]:
+    """Whether `edge` is an object whose ends and ports can key a lookup."""
+    return (
+        isinstance(edge, dict)
+        and isinstance(edge.get("source_node_id"), str | UUID)
+        and isinstance(edge.get("target_node_id"), str | UUID)
+        and isinstance(edge.get("source_port"), str)
+        and isinstance(edge.get("target_port"), str)
     )
 
 
