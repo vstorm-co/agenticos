@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, DASHBOARD_GREETING, pageHeading } from "./helpers";
+import { AUTH_STATE, DASHBOARD_GREETING, OWNER_EMAIL, pageHeading } from "./helpers";
 
 /**
  * Tours are requested help, independent of first-task activation. This spec
@@ -28,8 +28,13 @@ test.afterEach(async ({ page }) => {
 });
 
 test.describe("Onboarding", () => {
-  test("keeps the invitation entry above navigation on narrow screens", async ({ page }) => {
-    for (const width of [320, 390]) {
+  test("floats invitations below mobile navigation without moving the application", async ({
+    page,
+  }) => {
+    const identity = await page.request.get("/api/auth/me");
+    expect(identity.ok()).toBe(true);
+    expect((await identity.json()).email).toBe(OWNER_EMAIL);
+    for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/onboarding");
       const invitations = page.getByRole("button", { name: "Check invitations", exact: true });
@@ -37,11 +42,22 @@ test.describe("Onboarding", () => {
         has: page.getByRole("link", { name: "Open the app", exact: true }),
       });
       await expect(invitations).toBeVisible();
-      await expect(navigation).toBeVisible();
-      const entry = await invitations.boundingBox();
-      const header = await navigation.boundingBox();
-      if (!entry || !header) throw new Error("The invitation entry or navigation did not render");
-      expect(entry.y + entry.height).toBeLessThanOrEqual(header.y);
+      if (width < 768) {
+        const entry = await invitations.boundingBox();
+        const header = await navigation.boundingBox();
+        if (!entry || !header) throw new Error("The invitation entry or navigation did not render");
+        expect(entry.y).toBeGreaterThanOrEqual(header.y + header.height);
+      }
+      await page.getByRole("link", { name: "Open the app", exact: true }).click();
+      await expect(page.getByRole("heading", { name: DASHBOARD_GREETING })).toBeVisible();
+      const main = page.getByRole("main");
+      const before = await main.boundingBox();
+      // Hide the notice without changing the shared account or React's DOM ownership.
+      await page.locator("[data-invitation-entry]").evaluate((element) => {
+        element.setAttribute("style", "display: none");
+        element.removeAttribute("data-invitation-entry");
+      });
+      expect(await main.boundingBox()).toEqual(before);
     }
   });
 

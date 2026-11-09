@@ -16,6 +16,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { Perm } from "@/types/permissions";
 import { stripLocale } from "@/lib/active-route";
 import styles from "./start-offer.module.css";
+import noticeStyles from "@/components/layout/account-notices.module.css";
 
 /** A quiet way into the shared start; never interrupts an invitation or an existing chat. */
 export function StartOffer() {
@@ -43,7 +44,10 @@ export function StartOffer() {
   )
     return null;
   return (
-    <aside className={styles.notice} aria-label={t(administrator ? "adminTitle" : "memberTitle")}>
+    <aside
+      className={`${styles.notice} ${noticeStyles.surface}`}
+      aria-label={t(administrator ? "adminTitle" : "memberTitle")}
+    >
       <span className={styles.companion} aria-hidden="true">
         <AvatarFace seed="agenticos" background={false} />
       </span>

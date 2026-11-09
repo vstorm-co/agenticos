@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import noticeStyles from "@/components/layout/account-notices.module.css";
 import { usePathname, useRouter } from "next/navigation";
 import { MailPlus, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
@@ -67,7 +68,7 @@ export function ReceivedInvitations() {
         variant="outline"
         size="sm"
         data-invitation-entry="true"
-        className="fixed top-[calc(var(--shell-inset-top,0px)+0.75rem)] left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        className={`${noticeStyles.surface} ${noticeStyles.entry}`}
         onClick={() => setDismissedFor(undefined)}
       >
         <MailPlus size={16} aria-hidden />
@@ -173,7 +174,7 @@ function VerifyInvitationMailbox({ email }: { email: string }) {
         variant="outline"
         size="sm"
         data-invitation-entry="true"
-        className="fixed top-[calc(var(--shell-inset-top,0px)+0.75rem)] left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        className={`${noticeStyles.surface} ${noticeStyles.entry}`}
         onClick={() => setOpen(true)}
       >
         <MailPlus size={16} aria-hidden />
