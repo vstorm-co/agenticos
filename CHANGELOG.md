@@ -28,6 +28,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Guide setup through one decision at a time with a scripted AgenticOS companion,
+  a monthly-budget slider and announcement previews. Separate administrator, new
+  member and returning-member journeys; keep operational credentials optional.
+  Respect legacy completion for existing memberships without hiding a later join.
+
 - Select the shipped AgenticOS before publication and answer first-use chat messages
   with a persistent model-setup card. Guide builders to configuration and members
   to their administrator without executing a draft or charging a model call.

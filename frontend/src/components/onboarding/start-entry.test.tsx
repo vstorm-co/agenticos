@@ -3,6 +3,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { StartEntry } from "./start-entry";
 const env = vi.hoisted(() => ({
   automatic: true,
+  entry: "",
+  resume: false,
   activity: false,
   ready: false,
   dismissed: false,
@@ -11,7 +13,10 @@ const env = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(env.automatic ? "welcome=1" : ""),
+  useSearchParams: () =>
+    new URLSearchParams(
+      `${env.automatic ? "welcome=1" : ""}&entry=${env.entry}${env.resume ? "&start-step=member.context" : ""}`,
+    ),
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ replace: env.replace }) }));
 vi.mock("@/hooks/use-start", () => ({
@@ -35,6 +40,8 @@ vi.mock("./start-hub", () => ({ StartHub: () => <h1>Workspace setup</h1> }));
 beforeEach(() => {
   Object.assign(env, {
     automatic: true,
+    entry: "",
+    resume: false,
     activity: false,
     ready: false,
     dismissed: false,
@@ -67,6 +74,33 @@ it("waits for the check before deciding", () => {
 });
 it("allows an administrator without any organization to create one", () => {
   env.noOrg = true;
+  render(<StartEntry />);
+  expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
+});
+
+it.each(["account", "joined"])(
+  "welcomes a fresh %s entry even when the organization has ready agents",
+  (entry) => {
+    env.entry = entry;
+    env.ready = true;
+    render(<StartEntry />);
+    expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
+    expect(env.replace).not.toHaveBeenCalled();
+  },
+);
+it.each(["account", "joined"])(
+  "does not restart the %s journey after personal activity",
+  async (entry) => {
+    env.entry = entry;
+    env.ready = true;
+    env.activity = true;
+    render(<StartEntry />);
+    await waitFor(() => expect(env.replace).toHaveBeenCalledWith("/chat"));
+  },
+);
+it("keeps an explicitly resumed walkthrough open", () => {
+  env.resume = true;
+  env.ready = true;
   render(<StartEntry />);
   expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
 });

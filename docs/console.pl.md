@@ -1,5 +1,5 @@
 ---
-source_sha: "e097ecd4e8b3"
+source_sha: "f6c076f8f6ba"
 ---
 
 # Konsola { #the-console }
@@ -947,31 +947,45 @@ przykład; można go zamknąć. Przyjęte zaproszenie otwiera ten sam start w or
 właśnie dołączasz. Rejestracja próbuje od razu zalogować konto; gdy sesja się nie
 powiedzie, formularz logowania zachowuje cel i już utworzone konto.
 
-Administrator aplikacji zaczyna od utworzenia organizacji firmy lub świadomego
-wybrania istniejącej. Workspace osobisty jest opcjonalny. Kolejne etapy obejmują
-zaproszenia, ustawienia wdrożenia, ustawienia organizacji i pierwszego agenta.
-Administrator organizacji widzi etapy organizacji; ustawienia wdrożenia są dostępne
-wyłącznie dla administratora aplikacji. To te same formularze, uprawnienia i zasady
-zapisu co w panelach administracyjnych. Ustawienia wdrożenia obejmują Personal dla
-nowych kont, domyślną organizację firmy i rolę oraz rejestrację. Istniejące konta
-nie są usuwane ani przenoszone.
+Start uwzględnia uprawnienia osoby i jej dotychczasową pracę:
 
-Sekwencyjny kreator pokazuje jedno pytanie naraz, postęp u góry oraz przyciski
-Wstecz i kontynuacji. Istniejące organizacje firmy są proponowane przed utworzeniem
-nowej. Logo organizacji, tożsamość użytkownika i kontekst agentów to osobne kroki. Po wybraniu workspace dodaj jego logo oraz swój
-awatar, nazwę, stanowisko, kontekst pracy, strefę czasową i godziny pracy. Każdy krok
-profilu prowadzi dalej dopiero po zapisaniu jego zmian. Konfiguracja
-wdrożenia zaczyna od dostępu i kont; **Zapisz i kontynuuj** zapisuje zmiany przed
-przejściem dalej. Kroki opcjonalne można pominąć. Zakończenie konfiguracji wyłącza
-kolejne propozycje startu, nie oznaczając udanego uruchomienia agenta.
+| Osoba | Prowadzony start |
+| --- | --- |
+| Administrator aplikacji | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
+| Administrator organizacji | Przygotowanie workspace’u i jego limitu wydatków, bez ustawień wdrożenia. |
+| Nowe konto członka | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie. |
+| Istniejące konto dołączające do kolejnej organizacji | Powitanie w tym workspace, użycie zapisanego profilu lub jego świadomy przegląd. |
 
-Ukończenie poprzedniego onboardingu wyłącza propozycję startu, nie oznaczając udanego runu.
-Istniejąca praca jest rozpoznawana bez resetu: dostępni opublikowani
-agenci lub własna historia rozmów ukrywają automatyczne propozycje startu.
-Wiadomości użytkownika w starszych lub nieudanych rozmowach liczą się jako aktywność,
-niezależnie od dowodu udanego runu. Powitalne linki rejestracji i zaproszeń prowadzą
-gotowy workspace do chatu; ręczne otwarcie Pierwszych kroków nadal daje dostęp do
-konfiguracji. Zwykłe logowanie nadal otwiera chat lub żądany link.
+Przewodnik AgenticOS objaśnia każdą decyzję przygotowanymi wiadomościami interfejsu.
+Nie są odpowiedziami modelu i nie wywołują AI. Profil i kontekst pracy są wspólne dla
+workspace’ów konta. Dane opcjonalne można pominąć. **Zapisz i kontynuuj** prowadzi
+dalej po udanym zapisie; błąd zapisu pozostawia bieżące pytanie.
+
+Konfiguracja wdrożenia pyta o rejestrację, miejsce startu przyszłych kont i opcjonalny
+komunikat z podglądem. Wysyła tylko zmienione pola. **Zachowaj obecne ustawienia**
+odrzuca szkic tego pytania bez zapisu. Wybór firmy zachowuje skonfigurowaną rolę
+domyślną i nie przenosi istniejących kont. Wygląd aplikacji, głos, dane push iOS oraz
+konserwacja są opcjonalnymi kartami otwierającymi odpowiednią sekcję administratora
+w nowej karcie. Kreator nie włącza automatycznie konserwacji ani nie dodaje kluczy.
+
+Organizacja dostaje propozycje budżetu, suwak i dokładną kwotę w USD. Istniejący
+limit z częścią dziesiętną pozostaje zachowany. Brak limitu jest osobnym wyborem,
+a zero ostrzega o możliwej blokadzie runów. To limit rejestrowanego zużycia, nie
+abonament ani doładowanie. Zaawansowane zatwierdzenia, asystenci i głos pozostają
+zwinięte oraz zachowują swoje uprawnienia i sposób zapisu.
+
+Adres URL zachowuje krok, pytanie konfiguracji i workspace po odświeżeniu. Nie przechowuje
+niezapisanych zmian, nie nadaje dostępu i nie oznacza ukończenia. Zmiana organizacji
+lub odebranie uprawnień uniemożliwiają wznowienie uprzywilejowanego kroku. Zakończenie
+ostatniego etapu zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.
+
+Dawne ukończenie na koncie dotyczy członkostw istniejących do tego czasu. Późniejsze
+członkostwo ma osobny start. Własne rozmowy i ukończone przewodniki nadal chronią
+przed automatycznym powtarzaniem, a opublikowani agenci ukrywają zwykłe propozycje
+startu. Linki po rejestracji i przyjęciu zaproszenia pokazują powitanie osobie bez
+własnej aktywności lub ukończenia także w organizacji z gotowymi agentami. Starsze
+i nieudane rozmowy liczą się jako aktywność bez udawania udanego runu. Ręczny start
+i wznowienie pozostają dostępne. Zwykłe logowanie otwiera chat lub żądany odnośnik.
 
 Nazwa workspace aktualizuje oznaczony podgląd przed utworzeniem. Istniejące organizacje
 pokazują wgrane logo albo ustawiony awatar zastępczy. Sąsiednie karty na desktopie

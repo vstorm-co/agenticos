@@ -72,7 +72,7 @@ beforeEach(() => {
     organization_name: "Acme",
     goal: null,
     dismissed: false,
-    completed: false,
+    completed: true,
     snoozed_until: null,
     can_prepare: false,
     can_configure_model: false,
@@ -270,4 +270,13 @@ it("lets a member finish the walkthrough without configuring or running an agent
   await userEvent.click(screen.getByRole("button", { name: "Finish setup and open the app" }));
   expect(env.finish).toHaveBeenCalledWith({ completed: true }, expect.any(Object));
   expect(env.save).not.toHaveBeenCalled();
+});
+
+it("gives a fresh member a personal welcome instead of the administrator's configuration", () => {
+  if (!env.data) throw new Error("missing fixture");
+  env.data.completed = false;
+  render(<StartHub />);
+  expect(screen.getByRole("heading", { name: "Welcome to Acme" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Application setup" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Organization setup" })).not.toBeInTheDocument();
 });

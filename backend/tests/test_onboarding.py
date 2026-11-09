@@ -32,7 +32,10 @@ StartFixture = tuple[AuthContext, OrganizationMember, AsyncMock, OnboardingServi
 def start(monkeypatch: pytest.MonkeyPatch) -> StartFixture:
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
     member = OrganizationMember(
-        user_id=ctx.subject_id, organization_id=ctx.organization_id, role="owner"
+        user_id=ctx.subject_id,
+        organization_id=ctx.organization_id,
+        role="owner",
+        joined_at=datetime.now(UTC) - timedelta(days=1),
     )
     org = Organization(
         id=ctx.organization_id,
@@ -410,3 +413,17 @@ async def test_finishing_without_optional_settings_is_permanent_and_idempotent(
 def test_an_update_cannot_reset_completion() -> None:
     with pytest.raises(ValidationError):
         OnboardingUpdate(completed=False)
+
+
+async def test_joining_another_organization_does_not_inherit_legacy_completion(
+    start: StartFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, member, _, service = start
+    member.joined_at = datetime.now(UTC)
+    person = User(
+        email="owner@example.com", onboarding_completed_at=member.joined_at - timedelta(days=1)
+    )
+    monkeypatch.setattr(user_repo, "get_by_id", AsyncMock(return_value=person))
+    result = await service.state(ctx)
+    assert not result.completed and not result.dismissed
+    assert not result.has_result

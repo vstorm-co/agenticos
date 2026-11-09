@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Bell,
   ChevronRight,
@@ -48,7 +49,12 @@ export function DeploymentSettingsLayout({
   const t = useTranslations("pages.adminSettingsLayout");
   const tc = useTranslations("common");
   const tStart = useTranslations("start.administration");
-  const [active, setActive] = useState<Section>(guided ? "access" : "identity");
+  const requestedSection = useSearchParams().get("section");
+  const [active, setActive] = useState<Section>(
+    guided
+      ? "access"
+      : (SECTIONS.find((section) => section.id === requestedSection)?.id ?? "identity"),
+  );
 
   return (
     <div className="space-y-5 pb-6">

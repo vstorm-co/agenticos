@@ -10,11 +10,22 @@ import { StartHub } from "./start-hub";
 
 /** Automatic welcome links must not interrupt an already usable workspace. */
 export function StartEntry() {
-  const automatic = useSearchParams().get("welcome") === "1";
+  const search = useSearchParams();
+  const automatic = search.get("welcome") === "1";
+  const freshEntry = search.get("entry") === "account" || search.get("entry") === "joined";
+  const resuming = search.has("start-step");
   const state = useStart();
   const organizations = useOrganizationList();
   const router = useRouter();
-  const established = automatic && !!state.data && !shouldOfferStart(state.data);
+  const memberWelcome =
+    freshEntry &&
+    !!state.data &&
+    !state.data.completed &&
+    !state.data.dismissed &&
+    !state.data.has_activity &&
+    !state.data.has_result;
+  const established =
+    automatic && !resuming && !memberWelcome && !!state.data && !shouldOfferStart(state.data);
   useEffect(() => {
     if (established) router.replace("/chat");
   }, [established, router]);

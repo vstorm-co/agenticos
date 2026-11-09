@@ -78,7 +78,7 @@ describe("somebody who is signed in", () => {
     // Where they were invited to work, not still their personal organization (#2156).
     expect(useOrgStore.getState().activeOrgId).toBe("org-acme");
 
-    expect(push).toHaveBeenCalledWith("/onboarding?welcome=1");
+    expect(push).toHaveBeenCalledWith("/onboarding?welcome=1&entry=joined");
   });
 
   it("says a refused invitation was refused, and offers a way off the page", async () => {

@@ -1,9 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { ArrowRight, Building2, CheckCircle2, Compass, ArrowUpRight } from "lucide-react";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -23,6 +20,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { StartAdministration } from "./start-administration";
 import { StartTasks } from "./start-tasks";
+import { StartMember } from "./start-member";
 import { StartFinish } from "./start-finish";
 
 export function StartHub() {
@@ -32,9 +30,6 @@ export function StartHub() {
   const organizations = useOrganizationList();
   const state = useStart();
   const t = useTranslations("start");
-  const tAdmin = useTranslations("start.administration");
-  const automatic = useSearchParams().get("welcome") === "1";
-  const [profileOrg, setProfileOrg] = useState<string | null>(null);
   const { appName } = useBranding();
   const router = useRouter();
   const openTour = useOnboardingStore((s) => s.openTour);
@@ -90,8 +85,8 @@ export function StartHub() {
       </section>
     );
   const data = state.data;
-  const showProfile =
-    automatic && profileOrg !== data.organization_id && !data.has_activity && !data.has_result;
+  if (!data.has_activity && !data.has_result && !data.completed)
+    return <StartMember key={data.organization_id} data={data} />;
   return (
     <div className={styles.shell}>
       <div className={styles.frame}>
@@ -119,13 +114,9 @@ export function StartHub() {
             <span className={styles.welcomeMark} aria-hidden="true">
               <AvatarFace seed="agenticos" background={false} />
             </span>
-            <h1>
-              {showProfile
-                ? tAdmin("memberProfileTitle")
-                : t(data.has_result ? "returnTitle" : "workbench.title")}
-            </h1>
+            <h1>{t(data.has_result ? "returnTitle" : "workbench.title")}</h1>
           </div>
-          <p>{showProfile ? tAdmin("memberProfileHint") : t("workbench.intro")}</p>
+          <p>{t("workbench.intro")}</p>
         </header>
         {data.has_result && data.latest_conversation_id && (
           <Link className={styles.lastResult} href={`/chat?id=${data.latest_conversation_id}`}>
@@ -134,22 +125,10 @@ export function StartHub() {
             <ArrowRight size={16} aria-hidden />
           </Link>
         )}
-        {showProfile ? (
-          <div className="mx-auto max-w-3xl space-y-5">
-            <ProfileIdentitySettings
-              onContinue={() => setProfileOrg(data.organization_id)}
-              saveLabel={tAdmin("saveContinue")}
-            />
-            <Button variant="ghost" onClick={() => setProfileOrg(data.organization_id)}>
-              {tAdmin("skipOptional")}
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <StartTasks key={data.organization_id} data={data} />
-            <StartFinish key={data.organization_id} />
-          </div>
-        )}
+        <div className="space-y-6">
+          <StartTasks key={data.organization_id} data={data} />
+          <StartFinish key={data.organization_id} />
+        </div>
         {data.has_result && <StartNextSteps orgId={data.organization_id} />}
         <footer className={styles.footer}>
           <Link href="/orgs">

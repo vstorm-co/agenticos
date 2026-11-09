@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { rememberStartQuestion } from "./start-position";
 import { useTranslations } from "next-intl";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
 import {
-  OrgSpendingLimit,
   OrgApprovalWaiver,
   OrgPublicLiveData,
   OrgVoiceSettings,
@@ -16,55 +17,96 @@ import { ErrorState } from "@/components/states";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
-import styles from "./administration.module.css";
+import { StartBudget } from "./start-budget";
+import { StartQuestion } from "./start-question";
+import styles from "./guided-start.module.css";
 
-export function StartOrganizationSettings({ org }: { org: Organization }) {
-  const t = useTranslations("start.administration");
-  const tStart = useTranslations("start");
+export function StartOrganizationSettings({
+  org,
+  onContinue,
+  active = true,
+}: {
+  org: Organization;
+  onContinue: () => void;
+  active?: boolean;
+}) {
+  const t = useTranslations("start.guided");
   const { can, isLoaded, error, refetch } = usePermissions();
+  const search = useSearchParams();
+  const [budgetDone, setBudgetDone] = useState(
+    search.get("workspace") === org.id &&
+      search.get("start-step") === "admin.organization" &&
+      search.get("question") === "advanced",
+  );
+  const showBudget = !budgetDone && can(Perm.budgetsManage);
+  useEffect(() => {
+    if (active && isLoaded)
+      rememberStartQuestion("admin.organization", org.id, showBudget ? "budget" : "advanced");
+  }, [active, isLoaded, org.id, showBudget]);
   if (error)
     return (
       <ErrorState
-        title={tStart("loadFailed")}
-        cta={{ label: tStart("retry"), onClick: () => void refetch() }}
+        title={t("loadFailed")}
+        cta={{ label: t("retry"), onClick: () => void refetch() }}
       />
     );
   if (!isLoaded) return <p role="status">{t("checkingAccess")}</p>;
+  if (showBudget) return <StartBudget org={org} onContinue={() => setBudgetDone(true)} />;
   return (
-    <Tabs defaultValue="governance" className={styles.orgSettings}>
-      <TabsList aria-label={t("organization")}>
-        <TabsTrigger value="governance">{t("governance")}</TabsTrigger>
-        <TabsTrigger value="services">{t("services")}</TabsTrigger>
-        {can(Perm.orgSettings) && <TabsTrigger value="voice">{t("voice")}</TabsTrigger>}
-      </TabsList>
-      <TabsContent value="governance" className={styles.governanceGrid}>
-        {can(Perm.budgetsManage) && <OrgSpendingLimit org={org} />}
-        {can(Perm.approvalsDecide) && <OrgApprovalWaiver org={org} />}
-        {can(Perm.orgSettings) && <OrgPublicLiveData org={org} />}
-        <div className={styles.settingsLinks}>
-          <Link href={`/orgs/${org.id}/members`}>{t("allOrganizationSettings")}</Link>
-          {can(Perm.orgSettings) && (
-            <Link href={`/orgs/${org.id}/retention`}>{t("retention")}</Link>
-          )}
-          {can(Perm.orgSettings) && (
-            <Link href={`/orgs/${org.id}/directory`}>{t("directory")}</Link>
-          )}
-        </div>
-      </TabsContent>
-      <TabsContent value="services" className="space-y-5">
-        {can(Perm.orgSettings) && <OrgAssistant orgId={org.id} />}
-        {can(Perm.budgetsManage) && (
-          <>
-            <OrgSystemAgents org={org} />
-            <OrgProactivity org={org} />
-          </>
+    <StartQuestion
+      index={can(Perm.budgetsManage) ? 1 : 0}
+      total={can(Perm.budgetsManage) ? 2 : 1}
+      title={t("workspaceReadyTitle")}
+      message={t("workspaceReadyGuide")}
+      onBack={can(Perm.budgetsManage) ? () => setBudgetDone(false) : undefined}
+      onContinue={onContinue}
+    >
+      <div className={styles.preview}>
+        <strong>{t("readyForPeople")}</strong>
+        <p>{t("readyForPeopleBody", { workspace: org.name })}</p>
+      </div>
+      <p className={`${styles.hint} my-6`}>{t("advancedOptional")}</p>
+      <div className={styles.stack}>
+        {(can(Perm.approvalsDecide) || can(Perm.orgSettings)) && (
+          <details className={styles.details}>
+            <summary>{t("advancedSafety")}</summary>
+            <div>
+              {can(Perm.approvalsDecide) && <OrgApprovalWaiver org={org} />}
+              {can(Perm.orgSettings) && <OrgPublicLiveData org={org} />}
+            </div>
+          </details>
         )}
-      </TabsContent>
-      {can(Perm.orgSettings) && (
-        <TabsContent value="voice">
-          <OrgVoiceSettings org={org} />
-        </TabsContent>
-      )}
-    </Tabs>
+        {(can(Perm.orgSettings) || can(Perm.budgetsManage)) && (
+          <details className={styles.details}>
+            <summary>{t("advancedAssistants")}</summary>
+            <div>
+              {can(Perm.orgSettings) && <OrgAssistant orgId={org.id} />}
+              {can(Perm.budgetsManage) && (
+                <>
+                  <OrgSystemAgents org={org} />
+                  <OrgProactivity org={org} />
+                </>
+              )}
+            </div>
+          </details>
+        )}
+        {can(Perm.orgSettings) && (
+          <details className={styles.details}>
+            <summary>{t("advancedVoice")}</summary>
+            <div>
+              <OrgVoiceSettings org={org} />
+            </div>
+          </details>
+        )}
+        <Link
+          href={`/orgs/${org.id}/members`}
+          className="text-muted-foreground text-sm underline underline-offset-4"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t("openOrganizationSettings")}
+        </Link>
+      </div>
+    </StartQuestion>
   );
 }

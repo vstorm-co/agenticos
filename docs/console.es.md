@@ -1,5 +1,5 @@
 ---
-source_sha: "e097ecd4e8b3"
+source_sha: "f6c076f8f6ba"
 ---
 
 # La consola { #the-console }
@@ -975,32 +975,47 @@ Aceptar una invitación abre este mismo inicio en la organización correspondien
 El registro intenta iniciar sesión directamente; si falla, el formulario de acceso
 conserva el destino y la cuenta ya creada.
 
-Los administradores de la aplicación empiezan creando un espacio de empresa o
-eligiendo uno existente explícitamente. Los espacios personales son opcionales.
-Después aparecen invitaciones, ajustes del despliegue, ajustes de la organización
-y el primer agente. Los administradores de organización ven sus pasos; los ajustes
-del despliegue quedan reservados al administrador de la aplicación. Se reutilizan
-los formularios, permisos y reglas de guardado de los paneles administrativos.
-El despliegue permite configurar espacios personales para cuentas futuras,
-organización y rol predeterminados y registro. Las cuentas existentes no se borran
-ni se trasladan.
+El inicio respeta los permisos y el trabajo que ya existe:
 
-Un asistente secuencial muestra una pregunta cada vez, con progreso arriba y
-acciones para volver y continuar. Los espacios de empresa existentes aparecen
-antes de crear otro. La identidad de empresa, la identidad personal y el contexto
-de agentes son pasos separados. Tras elegir el espacio puedes añadir logo,
-avatar, nombre, puesto, contexto laboral, zona horaria y horario. Cada paso de perfil avanza solo después de guardar sus cambios. El despliegue empieza
-por acceso y cuentas; **Guardar y continuar** guarda los cambios antes de avanzar.
-Los pasos opcionales se pueden omitir. Finalizar oculta futuras propuestas de inicio
-sin afirmar que se haya ejecutado correctamente un agente.
+| Persona | Inicio guiado |
+| --- | --- |
+| Administrador de la aplicación | Crear o elegir un workspace de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
+| Administrador de organización | Preparar el workspace y su límite de gasto, sin controles del despliegue. |
+| Cuenta nueva de miembro | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea. |
+| Cuenta existente en otra organización | Bienvenida al workspace; usar el perfil guardado o revisarlo de forma deliberada. |
 
-Completar un onboarding anterior oculta las propuestas de inicio, sin contar como ejecución correcta.
-La actividad existente se reconoce sin reinicios: agentes publicados
-disponibles o conversaciones propias ocultan las propuestas automáticas. Los mensajes
-del usuario en chats antiguos o fallidos cuentan como actividad, independientemente
-de las ejecuciones completadas. Los enlaces de bienvenida de registro e invitación
-llevan los espacios utilizables al chat; abrir Get started manualmente mantiene la
-configuración accesible. El acceso normal sigue abriendo el chat o el enlace solicitado.
+Un acompañante AgenticOS explica cada decisión con mensajes preparados de la interfaz.
+No son respuestas de un modelo ni llamadas de IA. El perfil y el contexto acompañan
+la cuenta en sus workspaces. Los datos opcionales se pueden omitir. **Guardar y
+continuar** avanza después de guardar correctamente; un error conserva la pregunta.
+
+El despliegue pregunta por el registro, el destino de cuentas futuras y un anuncio
+opcional con vista previa. Solo envía campos editados. **Conservar ajustes actuales**
+descarta el borrador de esa pregunta sin escribirlo. Elegir empresa conserva el rol
+predeterminado y no traslada cuentas existentes. Aspecto, voz, credenciales push de
+iOS y mantenimiento son tarjetas opcionales que abren la sección administrativa
+correspondiente en otra pestaña. El recorrido no activa mantenimiento ni carga
+credenciales automáticamente.
+
+El presupuesto de organización ofrece propuestas, un deslizador y un importe exacto
+en USD. Conserva los límites decimales existentes. Sin límite es una opción explícita;
+cero advierte que puede bloquear ejecuciones. Es un límite de uso registrado, no una
+suscripción ni saldo de prepago. Aprobaciones, asistentes y voz avanzados quedan
+plegados y conservan sus permisos y acciones de guardado habituales.
+
+La URL conserva el paso, la pregunta de configuración y el workspace tras recargar. No conserva ediciones
+sin guardar ni concede permisos ni acredita la finalización. Cambiar de organización
+o perder permisos impide restaurar un paso privilegiado. El último paso registra la
+finalización de la membresía incluso si se omiten datos opcionales y configuración IA.
+
+La finalización antigua de la cuenta se aplica a membresías que ya existían en ese
+momento. Una membresía posterior empieza por separado. Los chats propios y recorridos
+terminados siguen evitando reinicios automáticos; los agentes publicados ocultan
+ofertas de inicio normales. Los enlaces de registro e invitación dan la bienvenida a
+miembros sin actividad propia ni finalización incluso si el workspace ya tiene agentes.
+Los chats antiguos o fallidos cuentan como actividad sin afirmar una ejecución correcta.
+El inicio manual y la reanudación siguen disponibles. El acceso normal abre el chat
+o el enlace solicitado.
 
 El nombre actualiza una vista previa identificada antes de crear el espacio.
 Las organizaciones existentes muestran su logo o avatar alternativo configurado.

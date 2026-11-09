@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { rememberStartPosition } from "./start-position";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -13,6 +14,8 @@ import { useStart } from "@/hooks/use-start";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
+import { StartDeployment } from "./start-deployment";
+import { StartGuide } from "./start-guide";
 import { StartStageArtwork } from "./start-stage-artwork";
 import { StartWorkspace } from "./start-workspace";
 import { StartInviteTeam } from "./start-invite-team";
@@ -21,11 +24,6 @@ import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { StartLanguage } from "./start-language";
 import styles from "./administration.module.css";
-const DeploymentSettingsForm = dynamic(() =>
-  import("@/components/admin/deployment-settings-form").then(
-    (module) => module.DeploymentSettingsForm,
-  ),
-);
 const STEPS = [
   "workspace",
   "identity",
@@ -40,6 +38,7 @@ type Step = (typeof STEPS)[number];
 
 export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   const t = useTranslations("start.administration");
+  const guide = useTranslations("start.guided");
   const { appName } = useBranding();
   const { activeOrg, activeOrgId, switchOrg } = useOrganizations();
   const organizations = useOrganizationList();
@@ -48,9 +47,16 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   );
   const org = activeOrg?.id === selectedOrgId ? activeOrg : null;
   const steps = STEPS.filter((item) => appAdmin || item !== "deployment");
+  const search = useSearchParams();
+  const initialStep =
+    activeOrg && !activeOrg.is_personal && search.get("workspace") === activeOrg.id
+      ? (steps.find((item) => `admin.${item}` === search.get("start-step")) ?? "workspace")
+      : "workspace";
   const [direction, setDirection] = useState<"forward" | "back">("forward");
-  const [step, setStep] = useState<Step>("workspace");
-  const [visited, setVisited] = useState<readonly Step[]>(["workspace"]);
+  const [step, setStep] = useState<Step>(initialStep);
+  const [visited, setVisited] = useState<readonly Step[]>(
+    steps.slice(0, steps.indexOf(initialStep) + 1),
+  );
   const content = useRef<HTMLDivElement>(null);
   const previousStep = useRef(step);
   const index = steps.indexOf(step);
@@ -63,6 +69,17 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
       mounted.current = false;
     };
   }, []);
+  const resumeChanged = useChanged(`${activeOrg?.id}|${initialStep}`);
+  if (
+    resumeChanged &&
+    initialStep !== "workspace" &&
+    step === "workspace" &&
+    visited.length === 1
+  ) {
+    setSelectedOrgId(activeOrg?.id ?? null);
+    setStep(initialStep);
+    setVisited(steps.slice(0, steps.indexOf(initialStep) + 1));
+  }
   const scopeChanged = useChanged(activeOrgId) && selectedOrgId && activeOrgId !== selectedOrgId;
   if (scopeChanged || !steps.includes(step)) {
     if (scopeChanged) setSelectedOrgId(null);
@@ -75,6 +92,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   }, [step, selectedOrgId]);
   const go = (next: Step) => {
     stepRef.current = next;
+    rememberStartPosition(`admin.${next}`, scopeRef.current);
     setDirection(steps.indexOf(next) < index ? "back" : "forward");
     setStep(next);
     setVisited((previous) => (previous.includes(next) ? previous : [...previous, next]));
@@ -106,7 +124,11 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     );
   return (
     <div className={styles.shell}>
-      <div className={styles.frame} data-direction={direction}>
+      <div
+        className={styles.frame}
+        data-direction={direction}
+        data-focused={step === "deployment" || step === "organization"}
+      >
         <nav className={styles.topbar} aria-label={appName}>
           <Link href="/chat" className={styles.brand}>
             <BrandMark size={28} />
@@ -155,6 +177,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             <section hidden={step !== "workspace"} aria-label={t("workspace")}>
               <h1 tabIndex={-1}>{t("workspaceTitle")}</h1>
               <p className={styles.stageHint}>{t("workspaceHint")}</p>
+              <StartGuide message={guide("workspaceGuide")} />
               {organizations.isPending ? (
                 <LoadingState variant="skeleton-panel" />
               ) : (
@@ -174,6 +197,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             >
               <h1 tabIndex={-1}>{t("identityTitle")}</h1>
               <p className={styles.stageHint}>{t("identityHint")}</p>
+              <StartGuide message={guide("identityGuide")} />
               <div className={styles.stageStudio}>
                 <OrganizationProfileSettings
                   org={org}
@@ -192,6 +216,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             >
               <h1 tabIndex={-1}>{t("identityProfileTitle")}</h1>
               <p className={styles.stageHint}>{t("identityProfileHint")}</p>
+              <StartGuide message={guide("profileGuide")} />
               <div className={styles.stageStudio}>
                 <div className={styles.profileCard}>
                   <ProfileIdentitySettings
@@ -215,6 +240,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             >
               <h1 tabIndex={-1}>{t("contextTitle")}</h1>
               <p className={styles.stageHint}>{t("contextHint")}</p>
+              <StartGuide message={guide("contextGuide")} />
               <div className={styles.stageStudio}>
                 <div className={styles.profileCard}>
                   <ProfileIdentitySettings
@@ -234,6 +260,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             <section key={`team-${org.id}`} hidden={step !== "team"} aria-label={t("team")}>
               <h1 tabIndex={-1}>{t("teamTitle")}</h1>
               <p className={styles.stageHint}>{t("teamHint")}</p>
+              <StartGuide message={guide("teamGuide")} />
               <div className={styles.stageStudio}>
                 <StartInviteTeam
                   org={org}
@@ -245,12 +272,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
           )}
           {org && appAdmin && visited.includes("deployment") && (
             <section hidden={step !== "deployment"} aria-label={t("deployment")}>
-              <h1 tabIndex={-1}>{t("deploymentTitle")}</h1>
-              <p className={styles.stageHint}>{t("deploymentHint")}</p>
-              <div className={styles.wideStage}>
-                <StartStageArtwork stage="deployment" />
-                <DeploymentSettingsForm onContinue={() => advance("deployment", "organization")} />
-              </div>
+              <h1 className="sr-only" tabIndex={-1}>
+                {t("deploymentTitle")}
+              </h1>
+              <StartDeployment
+                active={step === "deployment"}
+                org={org}
+                onContinue={() => advance("deployment", "organization")}
+              />
             </section>
           )}
           {org && visited.includes("organization") && (
@@ -259,24 +288,21 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               hidden={step !== "organization"}
               aria-label={t("organization")}
             >
-              <h1 tabIndex={-1}>{t("organizationTitle", { workspace: org.name })}</h1>
-              <p className={styles.stageHint}>{t("organizationHint")}</p>
-              <div className={styles.wideStage}>
-                <StartStageArtwork stage="organization" />
-                <div>
-                  <StartOrganizationSettings org={org} />
-                  <Button className="mt-6" onClick={() => go("task")}>
-                    {t("continueToAgent")}
-                    <ArrowRight size={15} aria-hidden />
-                  </Button>
-                </div>
-              </div>
+              <h1 className="sr-only" tabIndex={-1}>
+                {t("organizationTitle", { workspace: org.name })}
+              </h1>
+              <StartOrganizationSettings
+                active={step === "organization"}
+                org={org}
+                onContinue={() => advance("organization", "task")}
+              />
             </section>
           )}
           {org && step === "task" && (
             <section key={`task-${org.id}`} aria-label={t("task")}>
               <h1 tabIndex={-1}>{t("taskTitle")}</h1>
               <p className={styles.stageHint}>{t("taskHint")}</p>
+              <StartGuide message={guide("taskGuide")} />
               <AdminFirstTask orgId={org.id} />
             </section>
           )}

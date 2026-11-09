@@ -72,7 +72,9 @@ class OnboardingService:
         owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
         owner = await user_repo.get_by_id(self.db, owner_id) if owner_id is not None else None
         completed = member.onboarding_completed_at is not None or (
-            person is not None and person.onboarding_completed_at is not None
+            person is not None
+            and person.onboarding_completed_at is not None
+            and member.joined_at <= person.onboarding_completed_at
         )
         snoozed_until = (
             member.onboarding_dismissed_at + timedelta(days=1)

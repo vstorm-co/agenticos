@@ -1,5 +1,5 @@
 ---
-source_sha: "e097ecd4e8b3"
+source_sha: "f6c076f8f6ba"
 ---
 
 # Die Konsole { #the-console }
@@ -1021,33 +1021,49 @@ Einrichtung und Mitgliedern ein Beispiel und lässt sich schließen. Eine angeno
 Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
 fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
 
-Anwendungsadministratoren erstellen zuerst einen Firmen-Workspace oder wählen
-einen bestehenden ausdrücklich aus. Persönliche Workspaces sind optional. Danach
-folgen Einladungen, Deployment-Einstellungen, Organisationseinstellungen und ein
-erster Agent. Organisationsadministratoren sehen die Organisationsschritte;
-Deployment-Einstellungen bleiben Anwendungsadministratoren vorbehalten. Es sind
-dieselben Formulare, Berechtigungen und Speicherregeln wie in der Administration.
-Die Deployment-Einstellungen umfassen persönliche Workspaces für neue Konten,
-Standardorganisation und Rolle sowie Registrierung. Bestehende Konten werden nicht
-entfernt oder verschoben.
+Der Einstieg berücksichtigt Berechtigungen und bestehende Arbeit:
 
-Ein sequenzieller Assistent zeigt jeweils eine Frage mit Fortschritt oben und
-Zurück- und Weiter-Aktionen. Bestehende Firmen-Workspaces erscheinen vor dem
-Erstellen eines neuen. Firmenidentität, persönliche Identität und Agentenkontext
-sind getrennte Schritte. Nach der Wahl
-des Workspace können Sie Logo, Avatar, Anzeigename, Rolle, Arbeitskontext, Zeitzone
-und Arbeitszeiten ergänzen. Jeder Profilschritt führt erst nach erfolgreichem Speichern seiner Änderungen weiter. Die Deployment-Einrichtung startet mit
-Zugang und Konten; **Speichern und weiter** speichert Änderungen vor dem Wechsel.
-Optionale Schritte können übersprungen werden. Das Abschließen blendet weitere
-Startangebote aus, ohne einen erfolgreichen Agentenlauf zu behaupten.
+| Person | Geführter Einstieg |
+| --- | --- |
+| Anwendungsadministrator | Firmen-Workspace erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
+| Organisationsadministrator | Workspace und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung. |
+| Neues Mitgliedskonto | Begrüßung, optionales persönliches Profil und Arbeitskontext, dann erste Aufgabe. |
+| Bestehendes Konto in einer weiteren Organisation | Begrüßung im Workspace; gespeichertes Profil verwenden oder bewusst überprüfen. |
 
-Ein früher abgeschlossener Einstieg blendet Startangebote aus, gilt aber nicht als erfolgreicher Lauf.
-Bestehende Arbeit wird ohne Zurücksetzen erkannt: Verfügbare
-veröffentlichte Agenten oder eigene Chats blenden automatische Startangebote aus.
-Benutzernachrichten in älteren oder fehlgeschlagenen Chats gelten als Aktivität,
-unabhängig vom Nachweis abgeschlossener Läufe. Willkommenslinks nach Registrierung
-und Einladung führen nutzbare Workspaces zum Chat; manuell geöffnete Erste Schritte
-bleiben verfügbar. Normale Anmeldung öffnet weiterhin Chat oder den gewünschten Link.
+Ein AgenticOS-Begleiter erklärt Entscheidungen mit vorbereiteten Oberflächentexten.
+Das sind keine Modellantworten und keine KI-Aufrufe. Profil und Arbeitskontext gelten
+in allen Workspaces des Kontos. Optionale Angaben lassen sich überspringen.
+**Speichern und weiter** wechselt nach erfolgreichem Speichern zur nächsten Frage;
+bei einem Fehler bleibt die aktuelle Frage erhalten.
+
+Das Deployment fragt nach Registrierung, Startziel zukünftiger Konten und einer
+optionalen Mitteilung mit Vorschau. Nur bearbeitete Felder werden gesendet.
+**Aktuelle Einstellungen behalten** verwirft den Entwurf dieser Frage ohne Schreiben.
+Die Firmenwahl behält die eingestellte Standardrolle und verschiebt keine bestehenden
+Konten. App-Erscheinungsbild, Sprache, iOS-Push-Zugangsdaten und Wartung sind optionale
+Karten, die den passenden Administrationsbereich in einem neuen Tab öffnen. Der
+Ablauf aktiviert weder Wartung noch hinterlegt er automatisch Zugangsdaten.
+
+Für das Organisationsbudget gibt es Vorschläge, einen Regler und einen genauen
+USD-Betrag. Ein bestehendes Dezimallimit bleibt erhalten. Ohne Limit ist eine eigene
+Auswahl; bei null wird vor möglichen blockierten Läufen gewarnt. Das begrenzt erfasste
+Nutzung und ist kein Abo oder Guthaben. Erweiterte Freigaben, Assistenten und Sprache
+bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.
+
+Die URL erhält Schritt, Einrichtungsfrage und Workspace für ein Neuladen. Ungespeicherte Änderungen,
+Zugriff oder Abschluss werden dadurch nicht gespeichert. Organisationswechsel und
+entzogene Rechte verhindern das Wiederherstellen eines privilegierten Schritts.
+Der Abschluss des letzten Schritts wird für die Mitgliedschaft gespeichert, auch
+wenn optionale Angaben und KI-Einrichtung übersprungen wurden.
+
+Ein früherer Kontoabschluss gilt für Mitgliedschaften, die zu diesem Zeitpunkt bereits
+bestanden. Spätere Mitgliedschaften beginnen separat. Eigene Chats und abgeschlossene
+Abläufe verhindern automatische Neustarts; veröffentlichte Agenten blenden gewöhnliche
+Startangebote aus. Links nach Registrierung oder Einladung begrüßen Mitglieder ohne
+eigene Aktivität oder Abschluss auch in Workspaces mit fertigen Agenten. Ältere und
+fehlgeschlagene Chats zählen als Aktivität, ohne erfolgreiche Läufe zu behaupten.
+Manueller Einstieg und Fortsetzung bleiben verfügbar. Normale Anmeldung öffnet Chat
+oder den gewünschten Link.
 
 Der Workspace-Name aktualisiert vor dem Erstellen eine gekennzeichnete Vorschau.
 Bestehende Organisationen zeigen ihr Logo oder den eingestellten Ersatzavatar.

@@ -917,31 +917,47 @@ An accepted organization invitation opens this same start in the organization
 you joined. Registration tries to sign you in immediately; if that session
 fails, the sign-in form keeps the destination and the account already created.
 
-Application administrators start by creating a company workspace or explicitly
-choosing an existing one. Personal workspaces are optional. The next steps offer
-team invitations, deployment settings, organization settings and a first agent.
-Organization administrators see the organization steps; deployment settings remain
-restricted to application administrators. These are the same forms as in the admin
-panels, with the same permissions and save behavior. Deployment settings include
-personal workspaces for future accounts, the default company organization and role,
-and registration policy. Existing accounts are not removed or moved.
+The start follows the person's authority and existing work:
 
-A sequential wizard presents one question at a time, with progress at the top and
-Back and continue actions. Existing company workspaces are offered before another
-creation form. Company identity, personal identity and agent context are separate steps. After choosing a workspace, add its logo and your
-avatar, display name, role, work context, time zone and working hours. Each
-personal step advances only after its changes have saved.
-Deployment setup starts at access and accounts; **Save and continue** saves edits
-before moving on. Optional steps can be skipped. Finishing setup permanently hides future
-start offers without claiming a successful agent run.
+| Person | Guided start |
+| --- | --- |
+| Application administrator | Create or choose a company workspace, prepare identity and invitations, then decide how future accounts join. |
+| Organization administrator | Prepare their workspace and its spending limit; no deployment controls. |
+| New member account | Welcome, optional personal profile and work context, then a first task. |
+| Existing account joining another organization | Welcome to that workspace; use the saved personal profile or deliberately review it. |
 
-A previous onboarding completion is respected as completion, never as a successful run.
-Existing work is recognized without a reset: available published
-agents or the person's own chat history hide automatic start offers. User messages
-in legacy or failed chats count as activity, independently of completed-run evidence.
-Registration and invitation welcome links take an already usable workspace to chat;
-explicitly opening Get started keeps the configuration available. Ordinary sign-in
-continues to open chat or the requested deep link.
+A scripted AgenticOS companion explains each decision. These are interface messages,
+not model responses, and they make no AI calls. Personal identity and work context
+follow the account across workspaces. Optional details can be skipped. **Save and
+continue** advances after a successful save; a failed save keeps the current question.
+
+Deployment setup asks about registration, the destination of future accounts and
+an optional announcement with a preview. It sends only edited fields. **Keep current
+settings** discards this question's draft without writing it. Choosing a company
+keeps the configured default role and does not move existing accounts. App branding,
+voice, mobile push credentials and maintenance are optional cards linking to the
+appropriate administrator section in a new tab. The walkthrough never activates
+maintenance or uploads credentials automatically.
+
+Organization setup offers budget presets, a slider and an exact USD amount. An
+existing decimal cap is preserved. No limit is an explicit option; zero warns that
+runs can be blocked. This is a ceiling for tracked usage, not a subscription or
+prepaid credit. Advanced approvals, assistants and voice settings stay collapsed
+and retain their usual permissions and save actions.
+
+The URL keeps the current step, setup question and workspace for a reload. It does not preserve
+unsaved field edits, grant access or mark completion. A changed organization or
+revoked authority cannot restore a privileged step. Finishing the last step records
+membership completion even when optional fields and AI setup were skipped.
+
+Legacy account completion applies to memberships joined by that timestamp. A later
+membership starts separately. Existing personal chats and completed walkthroughs
+continue to suppress automatic restarts; available published agents also hide ordinary
+start offers. Registration and accepted-invitation entry links give a member with no
+personal activity or completion a welcome even in a workspace that already has agents.
+Older and failed chats count as activity without claiming a successful run. Explicit
+Get started and resumed walkthroughs remain available. Ordinary sign-in opens chat
+or the requested deep link.
 
 The workspace name updates a labelled preview before creation. Existing organizations
 use their uploaded logo or configured fallback avatar. Adjacent desktop cards share

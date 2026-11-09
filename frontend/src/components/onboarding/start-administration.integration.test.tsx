@@ -20,6 +20,9 @@ const env = vi.hoisted(() => ({
   profileCallbacks: new Map<string, () => void>(),
   permissionError: null as unknown,
 }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: env.push }) }));
 vi.mock("@/hooks/use-start", () => ({
   useStart: () => ({
@@ -103,9 +106,10 @@ vi.mock("@/components/ui/entity-avatar", () => ({
   ),
 }));
 vi.mock("./start-language", () => ({ StartLanguage: () => null }));
-vi.mock("@/components/admin/deployment-settings-form", () => ({
-  DeploymentSettingsForm: ({ onContinue }: { onContinue?: () => void }) => {
+vi.mock("./start-deployment", () => ({
+  StartDeployment: ({ onContinue }: { onContinue?: () => void }) => {
     env.deployment();
+    if (onContinue) env.profileCallbacks.set("deployment", onContinue);
     return (
       <>
         <input aria-label="Deployment name" defaultValue="AgenticOS" />
@@ -113,6 +117,14 @@ vi.mock("@/components/admin/deployment-settings-form", () => ({
       </>
     );
   },
+}));
+vi.mock("./start-budget", () => ({
+  StartBudget: ({ onContinue }: { onContinue: () => void }) => (
+    <div>
+      <h3>Workspace spending cap</h3>
+      <button onClick={onContinue}>Keep current settings</button>
+    </div>
+  ),
 }));
 vi.mock("@/components/teams", () => ({
   InviteMemberDialog: ({ orgId, open }: { orgId: string; open: boolean }) =>
@@ -161,6 +173,7 @@ function org(id: string, personal = false): Organization {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState(null, "", "/onboarding");
   env.orgs = [org("personal", true)];
   env.activeId = "personal";
   env.permissions = new Set([
@@ -274,6 +287,7 @@ it("renders only organization settings allowed by effective permissions", async 
   env.permissions = new Set([Perm.orgSettings]);
   render(<StartAdministration appAdmin={false} />);
   await openOrganizationSettings(false);
+  await userEvent.click(screen.getByText("Approvals and public data"));
   expect(screen.getByRole("heading", { name: "Public data policy" })).toBeVisible();
   expect(screen.queryByRole("heading", { name: "Workspace spending cap" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Approval rules" })).not.toBeInTheDocument();
@@ -380,8 +394,48 @@ it("finishes after all questions while leaving optional setup empty", async () =
   await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
   await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
-  await userEvent.click(screen.getByRole("button", { name: "Continue to the first agent" }));
+  await userEvent.click(screen.getByRole("button", { name: "Keep current settings" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(env.finish).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Finish setup and open the app" }));
   expect(env.finish).toHaveBeenCalledWith({ completed: true }, expect.any(Object));
+});
+
+it("resumes the matching organization's step after its membership list arrives", () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-step=admin.deployment&workspace=company",
+  );
+  env.orgs = [];
+  env.activeId = "company";
+  const view = render(<StartAdministration appAdmin />);
+  env.orgs = [org("company")];
+  view.rerender(<StartAdministration appAdmin />);
+  expect(screen.getByRole("textbox", { name: "Deployment name" })).toBeVisible();
+});
+it("never resumes deployment administration for an organization-only administrator", () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-step=admin.deployment&workspace=company",
+  );
+  env.orgs = [org("company")];
+  env.activeId = "company";
+  render(<StartAdministration appAdmin={false} />);
+  expect(screen.getByRole("heading", { name: "Where will your team work?" })).toBeVisible();
+  expect(env.deployment).not.toHaveBeenCalled();
+});
+
+it("ignores a deployment continuation after leaving that step", async () => {
+  env.orgs = [org("company")];
+  env.activeId = "company";
+  render(<StartAdministration appAdmin />);
+  await selectCompany();
+  await completePersonalization();
+  await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
+  const late = env.profileCallbacks.get("deployment");
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  act(() => late?.());
+  expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
 });

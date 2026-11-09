@@ -37,7 +37,7 @@ export function InvitationAcceptCard({ accept }: { accept: () => Promise<string>
       await queryClient.invalidateQueries({ queryKey: qk.organizations.list() });
       setActiveOrgId(organizationId);
       setStatus("success");
-      router.push("/onboarding?welcome=1");
+      router.push("/onboarding?welcome=1&entry=joined");
     } catch {
       setStatus("error");
     }

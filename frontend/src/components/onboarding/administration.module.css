@@ -737,3 +737,7 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.frame[data-focused="true"] .wizardHeader {
+  margin: 24px 0 16px;
+}
