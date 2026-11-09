@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Probe the readiness endpoint after production deploys; the old health URL returned 404 despite a healthy deployment.
+
+- Paused knowledge sources refuse manual API synchronization, and workers
+  recheck the pause before downloading or indexing queued or CLI runs.
+  Knowledge-base collection-name lookups break creation-date ties by ID,
+  keeping the selected base stable (#2744).
+
 ## [1.60.0] - 2026-11-09
 
 ### Added

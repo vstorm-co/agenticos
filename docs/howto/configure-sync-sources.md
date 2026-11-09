@@ -687,6 +687,8 @@ Updatable fields: `name`, `config`, `sync_mode`, `schedule_minutes`,
 
 Set `is_active` to `false` to pause a source without deleting it.
 
+Manual API triggers return `400` while a source is paused. The worker checks again before syncing, so a queued run or a CLI trigger stops before downloading or indexing data if the source is paused. Activate it before retrying.
+
 ## Monitoring sync operations
 
 Every sync creates a `SyncLog` entry with the following fields:

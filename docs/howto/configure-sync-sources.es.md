@@ -1,5 +1,5 @@
 ---
-source_sha: "c38c8588f596"
+source_sha: "82df64a0d99f"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -719,6 +719,8 @@ Campos modificables: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
 Pon `is_active` en `false` para pausar una fuente sin borrarla.
+
+Los disparadores manuales de la API devuelven `400` si la fuente está pausada. El worker vuelve a comprobarlo antes de sincronizar: una ejecución en cola o un disparador de CLI se detiene antes de descargar o indexar datos si la fuente está pausada. Actívala antes de volver a intentarlo.
 
 ## Supervisar las sincronizaciones { #monitoring-sync-operations }
 

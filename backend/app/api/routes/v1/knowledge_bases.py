@@ -456,7 +456,8 @@ async def trigger_kb_sync_source(
 ) -> Any:
     """Manually trigger a sync run for one of this KB's sources."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    source = await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source_id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
