@@ -1,5 +1,5 @@
 ---
-source_sha: "c38c8588f596"
+source_sha: "82df64a0d99f"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -729,6 +729,8 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 
 Setzen Sie `is_active` auf `false`, um eine Quelle anzuhalten, ohne sie zu
 löschen.
+
+Manuelle API-Aufrufe geben bei einer angehaltenen Quelle `400` zurück. Der Worker prüft den Zustand vor der Synchronisierung erneut. Ein bereits eingereihter Lauf oder CLI-Aufruf stoppt daher vor dem Herunterladen und Indexieren, wenn die Quelle angehalten ist. Aktivieren Sie sie vor einem neuen Versuch.
 
 ## Sync-Vorgänge überwachen { #monitoring-sync-operations }
 

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.60.0"
+version = "1.60.3"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -927,6 +927,7 @@ include = [
     "app/repositories/mcp_connection.py",
     "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
+    "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/_sharing_loaders.py",
@@ -1710,6 +1711,7 @@ include = [
     "app/repositories/mcp_connection.py",
     "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
+    "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/_sharing_loaders.py",

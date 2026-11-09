@@ -303,6 +303,10 @@ async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
     """Every knowledge base claiming this collection name, oldest first.
 
+    Bases created together share a `created_at` (`now()` is the transaction's
+    start), so `id` breaks the tie: without it the order, and with it the base a
+    name resolves to, is whatever the database returns that time.
+
     Plural because the column is not unique: two organizations can name a
     collection the same thing, and `get_by_collection_name` then answers with
     whichever row the database returns first. An authorization check built on
@@ -312,7 +316,7 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
     result = await db.execute(
         select(KnowledgeBase)
         .where(KnowledgeBase.collection_name == collection_name)
-        .order_by(KnowledgeBase.created_at)
+        .order_by(KnowledgeBase.created_at, KnowledgeBase.id)
     )
     return list(result.scalars().all())
 
@@ -329,7 +333,7 @@ async def list_by_collection_names(
     result = await db.execute(
         select(KnowledgeBase)
         .where(KnowledgeBase.collection_name.in_(collection_names))
-        .order_by(KnowledgeBase.created_at)
+        .order_by(KnowledgeBase.created_at, KnowledgeBase.id)
     )
     by_name: dict[str, list[KnowledgeBase]] = {}
     for kb in result.scalars():
