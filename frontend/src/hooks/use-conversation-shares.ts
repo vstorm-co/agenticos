@@ -235,6 +235,7 @@ export function useConversationShares() {
 
   const changePermission = useCallback(
     async (conversationId: string, shareId: string, permission: "view" | "edit") => {
+      setError(null);
       const share = await apiClient.patch<ConversationShare>(
         `/conversations/${conversationId}/shares/${shareId}`,
         { permission },

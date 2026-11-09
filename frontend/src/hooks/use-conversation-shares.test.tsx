@@ -304,3 +304,19 @@ it("observes a shared row without starting another request or polling loop", asy
   expect(result.current).toBeUndefined();
   expect(apiClient.get).not.toHaveBeenCalled();
 });
+
+it("clears a previous share-write error when changing an existing grant", async () => {
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Share quota reached"));
+  vi.mocked(apiClient.patch).mockResolvedValueOnce({ id: "s-1", permission: "edit" });
+  const { result } = renderHook(() => useConversationShares(), { wrapper });
+  await act(async () => {
+    await expect(result.current.shareConversation("c-1", { shared_with: "u-1" })).rejects.toThrow(
+      "Share quota reached",
+    );
+  });
+  expect(result.current.error).toBe("Share quota reached");
+  await act(async () => {
+    await result.current.changePermission("c-1", "s-1", "edit");
+  });
+  expect(result.current.error).toBeNull();
+});
