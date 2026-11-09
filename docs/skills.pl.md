@@ -1,5 +1,5 @@
 ---
-source_sha: "f0283a8d75b1"
+source_sha: "f267f18be219"
 ---
 
 # Skille { #skills }
@@ -834,7 +834,8 @@ agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wyni
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
-Start mówi, ile odpowiedzi przeczyta i od ilu agentów. Mówi też, ile kosztuje
+Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
+służy linia. Mówi też, ile kosztuje
 dojście do pierwszej propozycji i każda kolejna próba. Limit wydatków jest wypełniony
 tak, żeby pokrył pierwszą propozycję i każdą próbę, jaką sesja może zrobić, i
 obejmuje całą sesję. Zanim zmiany zostaną
@@ -872,6 +873,8 @@ To, co proponuje Akceptacja, wynika z wyniku:
 - **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji,
   popraw dalej albo odrzuć. Na forku zostają tylko poprawianie dalej i odrzucenie,
   bo forka nie da się przypiąć.
+- **Nikt lepiej:** wynik i tak czeka na twoją decyzję i oferuje **Popraw dalej** i
+  **Odrzuć**, a na main także **Zapisz jako fork**.
 - **Niezależnie od wyniku**, na main, **Zapisz jako fork** robi fork ze zmianą:
   nadajesz mu nazwę i wybierasz agentów, którzy na niego przejdą - na początek
   tych, którym pomogła, innych albo nikogo. Forka nie da się rozwidlić ponownie.

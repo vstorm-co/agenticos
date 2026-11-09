@@ -1,5 +1,5 @@
 ---
-source_sha: "f0283a8d75b1"
+source_sha: "f267f18be219"
 ---
 
 # Skills { #skills }
@@ -908,7 +908,8 @@ das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Ände
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
 
-Der Start sagt, wie viele Antworten sie liest und von wie vielen Agents. Er nennt
+Der Start sagt, wie viele negativ bewertete oder fehlgeschlagene Antworten sie liest
+und wie vielen Agents die Linie dient. Er nennt
 auch, was der Weg bis zum ersten Vorschlag und jeder Versuch danach kostet. Das
 Ausgabenlimit ist so ausgefüllt, dass es den ersten Vorschlag und jeden Versuch der
 Sitzung deckt, und deckelt die ganze Sitzung. Bevor die
@@ -949,6 +950,8 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
 - **Jemand schlechter:** anwenden und diese Agents auf ihrer Version festsetzen,
   weiter verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern
   und Verwerfen, weil ein Fork nicht festgesetzt werden kann.
+- **Niemand besser:** Das Ergebnis wartet trotzdem auf Ihre Entscheidung und bietet
+  **Weiter verbessern** und **Verwerfen**, auf main auch **Als Fork speichern**.
 - **Was immer das Ergebnis ist**, legt **Als Fork speichern** auf main einen Fork
   mit der Änderung an: Sie benennen ihn und wählen die Agents, die auf ihn
   wechseln - zu Beginn die, denen sie half, andere oder keine. Ein Fork wird nie

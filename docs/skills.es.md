@@ -1,5 +1,5 @@
 ---
-source_sha: "f0283a8d75b1"
+source_sha: "f267f18be219"
 ---
 
 # Skills { #skills }
@@ -855,11 +855,13 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
-Al empezar dice cuántas respuestas lee y de cuántos agents. También dice cuánto
+Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
+agents sirve la línea. También dice cuánto
 cuesta llegar a la primera propuesta y cada intento posterior. El límite de gasto
 viene rellenado para cubrir la primera propuesta y cada intento que la sesión puede
-hacer, y limita toda la sesión. Antes de comprobar los
-cambios, el siguiente paso nombra cada agent de la línea en el que se ejecuta la
+hacer, y limita toda la sesión.
+
+Antes de comprobar los cambios, el siguiente paso nombra cada agent de la línea en el que se ejecuta la
 comprobación, y los que no puede comprobar, con el motivo - sin preguntas de
 prueba, sin permiso para ejecutarlo, sin budget, sin versión publicada o un run
 que no pudo calificar todas las respuestas. Los agents que no puedes ver se
@@ -894,6 +896,8 @@ Lo que ofrece Aceptar depende del resultado:
 - **Alguien peor:** aplícalo y deja a esos agents fijados en su versión, sigue
   mejorándolo o descártalo. En un fork solo quedan seguir mejorando y descartar,
   porque un fork no se puede fijar.
+- **Nadie mejor:** el resultado igualmente espera tu decisión y ofrece **Seguir
+  mejorando** y **Descartar**, y en main **Guardar como fork**.
 - **Sea cual sea el resultado**, en main, **Guardar como fork** crea un fork con
   el cambio: le pones nombre y eliges los agents que pasan a él - de entrada los
   que ayudó, otros o ninguno. Un fork nunca se bifurca de nuevo.
