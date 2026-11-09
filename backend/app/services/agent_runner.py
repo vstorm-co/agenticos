@@ -4279,9 +4279,13 @@ class AgentRunnerService:
             # What the binding that admitted this run says, if it says anything.
             # The same agent in web chat and on a Slack bot is one agent in two
             # situations, and one value for both was the wrong shape. A project's
-            # container is the project's, whatever either says.
+            # container is the project's, whatever either says. Isolated evals
+            # instead get a disposable workspace per attempt: they have no chat
+            # and must never share the agent's or caller's persistent files.
             scope_override=(
-                "project"
+                "run"
+                if isolation is not None
+                else "project"
                 if project is not None
                 else cast("SessionScope | None", exposure.session_scope)
                 if exposure is not None and exposure.session_scope

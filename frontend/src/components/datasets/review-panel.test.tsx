@@ -105,31 +105,25 @@ beforeEach(() => {
 });
 
 describe("ReviewPanel", () => {
-  it("opens on what waits for a decision, and says how answers get there", () => {
-    state.answer = { total: 0 };
-    state.otherTotal = 7;
+  it("shows all results immediately without a queue policy or review-state segments", () => {
+    state.answer = { total: 1, scores: [SCORE] };
     render(<ReviewPanel dataset={dataset()} />);
-
-    expect(screen.getByText("Nothing is waiting for a decision")).toBeInTheDocument();
+    expect(screen.getByText("1 result")).toBeInTheDocument();
     expect(
-      screen.getByText(/Confirmed regressions and answers the judge could not grade/),
+      screen.getByRole("button", { name: /How long is the return window/ }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Waiting for a decision (0)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    expect(screen.queryByRole("button", { name: /Waiting for a decision|All results/ })).toBeNull();
+    expect(screen.queryByText("Review by a person")).toBeNull();
+    expect(screen.queryByLabelText("Send answers graded by hand to the review queue")).toBeNull();
+    expect(listed()).toMatchObject({ pending: false, skip: 0, limit: 50 });
+    expect(state.calls.every(([, query]) => query.pending === false && query.limit !== 1)).toBe(
+      true,
     );
-    expect(screen.getByRole("button", { name: "All results (7)" })).toBeInTheDocument();
-    expect(listed()).toMatchObject({ pending: true, skip: 0, limit: 50 });
   });
 
-  it("shows every result on request, counting what waits beside it", async () => {
-    state.otherTotal = 2;
+  it("shows an empty result list without suggesting that hidden results wait elsewhere", () => {
     render(<ReviewPanel dataset={dataset()} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /All results/ }));
-
     expect(screen.getByText("No results yet")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Waiting for a decision (2)" })).toBeInTheDocument();
     expect(listed()).toMatchObject({ pending: false, skip: 0 });
   });
 
@@ -161,7 +155,7 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("combobox", { name: "Tag" })).toBeNull();
   });
 
-  it("puts each eval run's scores under a heading linking the run, in the order they were graded", async () => {
+  it("shows answers in one table with source links and preserves the server order", async () => {
     state.answer = {
       scores: [
         caseScore({
@@ -178,6 +172,8 @@ describe("ReviewPanel", () => {
           agent_id: "x",
           agent_name: "Support",
           question: "First",
+          agent_version: 2,
+          run_model: "OpenRouter · anthropic/claude-sonnet-4-6",
           created_at: "2026-10-13T09:00:00Z",
         }),
         caseScore({ id: "c", eval_run_id: null, agent_id: null }),
@@ -186,17 +182,18 @@ describe("ReviewPanel", () => {
     };
     render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
 
-    const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual([
-      expect.stringMatching(/^Eval run · .+ · Support$/),
-      "Graded by hand · An agent that is gone",
-    ]);
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Question" })).toBeInTheDocument();
+    expect(screen.getAllByText("Support").length).toBeGreaterThan(0);
+    expect(screen.getByText("An agent that is gone")).toBeInTheDocument();
+    expect(screen.getByText("v2")).toBeInTheDocument();
+    expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Eval run ↗" })[0]).toHaveAttribute(
       "href",
       "/agents/x/evals/e1",
     );
     const questions = screen.getAllByRole("button", { name: /^(First|Second)$/ });
-    expect(questions.map((link) => link.textContent)).toEqual(["First", "Second"]);
+    expect(questions.map((link) => link.textContent)).toEqual(["Second", "First"]);
     expect(screen.queryByRole("button", { name: /from the queue/ })).toBeNull();
   });
 
@@ -211,14 +208,17 @@ describe("ReviewPanel", () => {
     };
     render(<ReviewPanel dataset={dataset()} />);
 
-    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
+    expect(screen.getAllByRole("row")).toHaveLength(3);
     expect(screen.queryByRole("link", { name: "Eval run ↗" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
   });
 
   it("takes a group out of the queue undecided, and says so", async () => {
     state.answer = {
-      scores: [caseScore({ id: "a" }), caseScore({ id: "b" })],
+      scores: [
+        caseScore({ id: "a", review_state: "pending" }),
+        caseScore({ id: "b", review_state: "pending" }),
+      ],
       total: 2,
     };
     state.withdraw.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Gone"));
@@ -238,12 +238,12 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 51 };
     const { rerender } = render(<ReviewPanel dataset={dataset()} />);
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
-    expect(listed()).toMatchObject({ pending: true, skip: 50 });
+    expect(listed()).toMatchObject({ pending: false, skip: 50 });
 
     state.answer = { scores: [], total: 50 };
     rerender(<ReviewPanel dataset={dataset()} />);
 
-    expect(listed()).toMatchObject({ pending: true, skip: 0 });
+    expect(listed()).toMatchObject({ pending: false, skip: 0 });
   });
 
   it("offers a retry when the scores could not be read", async () => {

@@ -89,6 +89,9 @@ vi.mock("@/components/datasets/grading-panel", () => ({
     </button>
   ),
 }));
+vi.mock("@/components/datasets/helper-settings", () => ({
+  HelperSettings: () => <p>helper settings</p>,
+}));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
 vi.mock("@/components/datasets/generate-panel", () => ({ GeneratePanel: () => <p>generated</p> }));
 
@@ -278,8 +281,8 @@ describe("the dataset page", () => {
   it("keeps the tab in the address, so Back to the dataset opens it again", async () => {
     window.history.replaceState({}, "", "/datasets/d1");
     await mount();
-    await userEvent.click(screen.getByRole("tab", { name: /Grading/ }));
-    expect(new URL(window.location.href).searchParams.get("tab")).toBe("grading");
+    await userEvent.click(screen.getByRole("tab", { name: /Settings/ }));
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("settings");
   });
 
   it("opens a listed case as a step of its own, which Back closes", async () => {
@@ -359,15 +362,33 @@ describe("the dataset page", () => {
     state.tab = "review";
     await mount();
     expect(screen.getByText("review")).toBeInTheDocument();
+    expect(screen.queryByText("Your dataset, step by step")).toBeNull();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Cases",
-      "Grading",
-      "Evals",
-      "Review",
-      "Generated",
+      "Results",
       "Settings",
     ]);
   });
+});
+
+it.each([
+  ["generated", "Cases"],
+  ["grading", "Settings"],
+  ["evals", "Results"],
+  ["review", "Results"],
+])("keeps the %s deep link inside %s", async (route, section) => {
+  state.tab = route;
+  await mount();
+  expect(screen.getByRole("tab", { name: section })).toHaveAttribute("aria-selected", "true");
+});
+
+it("offers run history and answer review under one Results section", async () => {
+  state.tab = "review";
+  await mount();
+  expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByText("review")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Test runs" }));
+  expect(new URL(window.location.href).searchParams.get("tab")).toBe("evals");
 });
 
 it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", async (status) => {

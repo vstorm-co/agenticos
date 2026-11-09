@@ -264,10 +264,10 @@ describe("create-dataset", () => {
     expect(save?.blockSubmit).toBeUndefined();
     expect(sources?.target).toBe("datasets-case-tools");
     expect(sources?.signal).toBeUndefined();
-    expect(next).toMatchObject({ target: "datasets-grading-tab", page: DATASET_DETAIL });
+    expect(next).toMatchObject({ target: "datasets-settings-tab", page: DATASET_DETAIL });
     expect(generate).toMatchObject({
       target: "datasets-generate",
-      activate: "datasets-generated-tab",
+      activate: "datasets-generate-action",
       page: DATASET_DETAIL,
     });
   });

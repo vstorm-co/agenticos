@@ -914,14 +914,14 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-next",
         page: DATASET_DETAIL,
-        target: "datasets-grading-tab",
+        target: "datasets-settings-tab",
         permission: Perm.datasetsEdit,
       },
       {
         id: "flow-dataset-generate",
         page: DATASET_DETAIL,
         target: "datasets-generate",
-        activate: "datasets-generated-tab",
+        activate: "datasets-generate-action",
         permission: Perm.datasetsEdit,
       },
     ],

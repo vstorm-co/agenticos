@@ -183,6 +183,17 @@ environment without a person's decision.
 
 ### Fixed
 
+- Give isolated evaluation attempts disposable run-scoped workspaces, so agents
+  configured with conversation workspaces can run without a chat and never reuse
+  persistent files. Clarify setup failures and refresh the evaluation results UI.
+- Avoid a duplicate sandbox binding when recognizing a legacy Architect agent,
+  which could prevent the console's assistant from loading.
+
+- Simplify dataset navigation to Cases, Results and Settings, keep grading cards
+  equally tall, and choose saved pipeline models through a searchable selector.
+  Show all scored answers together in a table, without review-state segments, a review-policy
+  card or the dataset journey banner.
+
 - Guide dataset setup from cases through grading, evals and review, with direct
   writing/import/generation actions, contextual next steps, coloured option
   chips and a cases table matching Virtual Tables.

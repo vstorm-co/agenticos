@@ -1,20 +1,12 @@
 "use client";
 
-import { Check, CircleHelp, ClipboardCheck, ListFilter, Tag, Users, X } from "lucide-react";
+import { Check, CircleHelp, Tag, Users, X } from "lucide-react";
 import { DatasetChip } from "./dataset-chip";
 import { useTranslations } from "next-intl";
 
-import {
-  Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgents } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
-import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { ScoreOutcome } from "@/types/scoring";
 
@@ -22,7 +14,6 @@ import type { ScoreOutcome } from "@/types/scoring";
 const ANY = "any";
 
 export interface ReviewFilter {
-  pending: boolean;
   outcome: ScoreOutcome | null;
   agentId: string | null;
   tag: string | null;
@@ -31,18 +22,12 @@ export interface ReviewFilter {
 interface ReviewFiltersProps {
   filter: ReviewFilter;
   onChange: (filter: ReviewFilter) => void;
-  /** How many results wait for a decision, and how many there are in all, under the filters. */
-  waiting: number;
-  all: number;
   /** The dataset's tags, most used first. */
   tags: string[];
 }
 
-/**
- * What the Review tab shows: the waiting results or all of them, each with its
- * count, narrowed by outcome, by the agent that answered and by a tag of the case.
- */
-export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFiltersProps) {
+/** Narrow the dataset's full result list by outcome, agent and tag. */
+export function ReviewFilters({ filter, onChange, tags }: ReviewFiltersProps) {
   const t = useTranslations("datasets.scoring");
   const { can } = usePermissions();
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
@@ -50,32 +35,6 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-tour="datasets-review-filter">
-      <div
-        role="group"
-        aria-label={t("reviewFilter")}
-        className="flex w-full flex-col rounded-md border p-0.5 sm:w-auto sm:flex-row"
-      >
-        {([true, false] as const).map((pending) => (
-          <Button
-            key={String(pending)}
-            size="sm"
-            variant="ghost"
-            aria-pressed={filter.pending === pending}
-            className={cn(
-              "h-auto min-h-8 py-1.5 whitespace-normal",
-              filter.pending === pending && "bg-muted",
-            )}
-            onClick={() => set({ pending })}
-          >
-            {pending ? (
-              <ClipboardCheck className="size-3.5" aria-hidden />
-            ) : (
-              <ListFilter className="size-3.5" aria-hidden />
-            )}
-            {pending ? t("filterPending", { count: waiting }) : t("filterAll", { count: all })}
-          </Button>
-        ))}
-      </div>
       <Select
         value={filter.outcome ?? ANY}
         onValueChange={(value) => set({ outcome: value === ANY ? null : (value as ScoreOutcome) })}

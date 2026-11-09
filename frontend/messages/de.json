@@ -1079,7 +1079,9 @@
     "starterIcon": "Symbol für Startnachricht {number}",
     "starterTitle": "Titel der Startnachricht {number}",
     "starterTitlePlaceholder": "Kurzer Titel (optional)",
-    "starterMessageLabel": "Nachricht unter dem Titel, die beim Klicken gesendet wird"
+    "starterMessageLabel": "Nachricht unter dem Titel, die beim Klicken gesendet wird",
+    "pipelineModelPlaceholder": "Modell auswählen",
+    "pipelineNoMatches": "Keine passenden Modelle"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -5418,15 +5420,15 @@
       },
       "flow-dataset-next": {
         "title": "Als Nächstes: Bewertung, dann ein Eval",
-        "body": "Lege hier fest, wie Antworten auf diese Fälle bewertet werden. Dann lass einen Agenten sie beantworten - im Evals-Tab des Agenten oder von diesem Dataset aus - und lies, wie er abschnitt."
+        "body": "Wähle unter Einstellungen, wie Antworten bewertet werden. Starte danach einen Agenten auf diesem Dataset und prüfe seine Antworten unter Ergebnisse."
       },
       "dataset-grading": {
         "title": "Wie Fälle bewertet werden",
-        "body": "Wann ein Fall besteht: die Regeln, gegen die jede Antwort geprüft wird, und die Tools, die ein Fall erwartet. Markieren Sie, welche ein Fall bestehen muss. Jede Karte speichert für sich."
+        "body": "Wähle die Prüfungen, die jede Antwort bestehen muss, und die erwarteten Tool-Aufrufe. Speichere die Bewertungsänderungen gemeinsam unten."
       },
       "dataset-review": {
         "title": "Prüfung",
-        "body": "Die benoteten Antworten, die auf die Entscheidung einer Person warten. Entscheiden Sie die, bei denen der Bewerter unsicher war; seine Meinung bleibt festgehalten."
+        "body": "Hier erscheinen alle bewerteten Antworten, auch bereits geprüfte. Filtere nach Ergebnis, Agent oder Tag und öffne eine Antwort, um Evidenz zu prüfen und eine Entscheidung zu speichern."
       },
       "agents-system": {
         "title": "System-Agents",
@@ -5434,7 +5436,7 @@
       },
       "dataset-judge": {
         "title": "Der Bewerter",
-        "body": "Wählen Sie, welcher Bewerter dieses Dataset bewertet - der Standard-Bewerter oder einer, der dafür angelegt wurde - und geben Sie ihm die Kriterien. Bewerter oder Modell zu wechseln ist erlaubt; ältere Ergebnisse sind dann nicht mehr vergleichbar. Der Bewerter braucht die KI-Unterstützung, die ein Admin einschaltet."
+        "body": "Suche ein gespeichertes Modell oder füge mit entsprechender Berechtigung eines hinzu. Lege Kriterien und Referenzvergleich fest. Ältere Ergebnisse behalten ihre ursprüngliche Bewertungskonfiguration."
       },
       "agent-eval-suites": {
         "title": "Suites",
@@ -5582,7 +5584,7 @@
       },
       "datasets-helper-settings": {
         "title": "Evaluierungshelfer konfigurieren",
-        "body": "In den Einstellungen wählst du Modell und Anweisungen für die Testfallgenerierung und Agentenverbesserung. Die Bewertung hat eigene Modelle, Anweisungen und Kriterien. Laufende Aufgaben behalten ihre Startkonfiguration."
+        "body": "Einstellungen enthält Bewertung, Fallgenerierung und Agentenverbesserung. Wähle hier Modelle und Anweisungen. Ein laufender Auftrag behält seine Startkonfiguration."
       },
       "desktop-local-agents": {
         "title": "Coding agents auf diesem Computer",
@@ -13454,16 +13456,9 @@
       "referenceHint": "Der Bewerter vergleicht die Antwort mit der Referenzantwort des Falls, sofern es eine gibt.",
       "counterExampleRow": "Gegenbeispiel",
       "counterExampleHint": "Solange Ihre Kriterien oder die Referenzantwort aktiv sind, prüft der Bewerter auch, dass eine Antwort nicht sagt, was das Gegenbeispiel des Falls sagt. Eine Antwort, die es sagt, fällt durch.",
-      "reviewSelect": "Von Hand bewertete Antworten in die Prüfwarteschlange senden",
-      "review": {
-        "none": "Nichts, bis jemand etwas sendet",
-        "failed": "Ergebnisse, die nicht bestanden haben",
-        "all": "Jedes Ergebnis"
-      },
       "scores": "Prüfung",
       "scoreCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
       "noScores": "Noch keine Ergebnisse",
-      "nothingAwaitingReview": "Nichts wartet auf eine Entscheidung",
       "noScoresBody": "Hier erscheinen Antworten, die gegen die Fälle dieses Datasets bewertet wurden - aus einem Eval-Run oder aus einem Run, der unter Aktivität gegen einen Fall bewertet wurde.",
       "passed": "Bestanden",
       "failed": "Nicht bestanden",
@@ -13538,17 +13533,12 @@
         "description": "Bewerte die Antwortqualität mit einem Modell anhand der folgenden Anweisungen und Kriterien. Aufrufe sind kostenpflichtig und werden in Aktivität erfasst."
       },
       "reviewCard": {
-        "title": "Prüfung durch eine Person",
-        "description": "Welche von Hand bewerteten Antworten aus Aktivität auf eine Entscheidung warten. Ein Eval-Run sendet seine eigenen: die Regressionen, die er bestätigt hat, und die Antworten, an denen sein Bewerter gescheitert ist, eine pro Fall und Agent."
+        "title": "Prüfung durch eine Person"
       },
       "suggestReference": "{count, plural, =1 {1 Fall hat eine Referenzantwort, und noch vergleicht nichts Antworten damit.} other {# Fälle haben eine Referenzantwort, und noch vergleicht nichts Antworten damit.}}",
       "suggestReferenceAction": "Mit der Referenz vergleichen",
       "judgeChanged": "Ergebnisse des vorigen Bewerters oder Modells sind nicht mit den ab jetzt benoteten vergleichbar.",
       "cancel": "Abbrechen",
-      "reviewFilter": "Anzeigen",
-      "filterPending": "Wartet auf Entscheidung ({count})",
-      "filterAll": "Alle Ergebnisse ({count})",
-      "nothingAwaitingReviewBody": "Bestätigte Regressionen und Antworten, die der Bewerter nicht bewerten konnte, erscheinen hier. Sie können auch weitere Ergebnisse eines Eval-Runs hierher senden. Für manuell bewertete Antworten gilt die obige Prüfeinstellung.",
       "groupByHand": "Von Hand bewertet",
       "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",
@@ -13646,7 +13636,8 @@
       },
       "criterionHelp": "Beschreibe eine konkrete Anforderung. Nenne den erwarteten Fakt oder eine klare Bestehensbedingung.",
       "scaleHelp": "Die Höchstbewertung je Kriterium, von 2 bis 10.",
-      "passHelp": "Die Mindestbewertung zum Bestehen eines Kriteriums."
+      "passHelp": "Die Mindestbewertung zum Bestehen eines Kriteriums.",
+      "groupEvalSource": "Evaluierungslauf"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -13989,27 +13980,11 @@
       "expectationsHint": "Was eine gute Antwort enthält und wie sie geprüft wird."
     },
     "journey": {
-      "title": "Dein Dataset, Schritt für Schritt",
-      "step": {
-        "cases": "{number}. Fälle hinzufügen",
-        "grading": "{number}. Bewertung festlegen",
-        "evals": "{number}. Agent testen",
-        "review": "{number}. Ergebnisse prüfen"
-      },
-      "hint": {
-        "cases": "Fragen und die erwarteten Antworten festlegen.",
-        "grading": "Regeln und Kriterien für eine richtige Antwort wählen.",
-        "evals": "Agent wählen, Kosten prüfen und den Test starten.",
-        "review": "Antworten prüfen und Verbesserungen auswählen."
-      },
       "next": {
-        "cases": "Fälle hinzufügen",
         "grading": "Bewertung einrichten",
         "evals": "Evals öffnen"
       },
       "guidance": {
-        "cases": "Mit einigen echten Fragen deiner Nutzer beginnen.",
-        "grading": "Die Fälle sind vorhanden. Jetzt festlegen, wie Antworten geprüft werden.",
         "evals": "Die Bewertung ist eingerichtet. Agent wählen und die Kosten vor dem Start prüfen."
       },
       "status": {
@@ -14027,7 +14002,24 @@
       "reviewAction": "Ergebnisse prüfen"
     },
     "openCase": "Fall öffnen",
-    "caseActions": "Aktionen für den Fall"
+    "caseActions": "Aktionen für den Fall",
+    "workspace": {
+      "results": "Ergebnisse",
+      "backToCases": "Zurück zu den Fällen",
+      "testRuns": "Testläufe",
+      "reviewAnswers": "Antworten prüfen",
+      "helpers": "Generierung und Verbesserung",
+      "helpersHint": "Wähle Modelle und Anweisungen zum Entwerfen von Fällen und Vorschlagen von Verbesserungen."
+    },
+    "resultsTable": {
+      "question": "Frage",
+      "agent": "Agent",
+      "result": "Ergebnis",
+      "model": "Modell",
+      "date": "Datum",
+      "source": "Quelle",
+      "version": "v{number}"
+    }
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",
@@ -14275,7 +14267,9 @@
       "p50p95": "{p50} / {p95}",
       "side": "Seite",
       "pending": "Ausstehend",
-      "reusedFrom": "Ergebnis aus dem Run vom {date}"
+      "reusedFrom": "Ergebnis aus dem Run vom {date}",
+      "singleTitle": "Laufmetriken",
+      "singleTitleTag": "Laufmetriken für #{tag}"
     },
     "cases": {
       "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
@@ -14365,7 +14359,6 @@
       "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen{undecided, plural, =0 {} other { · # von {cases} Fällen nicht entschieden}}",
       "firstPassRate": "Nur die ersten Antworten: {from} → {to}",
       "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen.",
-      "failedAlike": "Jeder Fall ist auf dieselbe Weise gescheitert, daher sagt dieses Ergebnis nichts über die Antworten des Agenten. Behebe die Einrichtung und starte es erneut: {error}",
       "undecidedWhy": "Nicht entschieden, bis jeder Fall ein Urteil hat: {ungraded, plural, =0 {} =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}{both, select, true {, und } other {}}{incomplete, plural, =0 {} =1 {1 Fall ließ sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder seine Versuche gingen unentschieden aus} other {# Fälle ließen sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder ihre Versuche gingen unentschieden aus}}."
     },
     "live": {
@@ -14678,7 +14671,12 @@
       "undecidedCount": "{count} unentschieden"
     },
     "resultTitle": "Evaluierungsergebnis",
-    "trendTitle": "Ergebnisverlauf"
+    "trendTitle": "Ergebnisverlauf",
+    "executionFailure": {
+      "title": "Konfiguration prüfen",
+      "body": "Jeder Fall wurde mit demselben Fehler abgebrochen. Diese Ergebnisse messen keine Antwortqualität. Korrigiere die Konfiguration und starte die Auswertung erneut.",
+      "attempts": "{count, plural, =1 {1 Fall versucht} other {# Fälle versucht}}"
+    }
   },
   "authoring": {
     "strip": {

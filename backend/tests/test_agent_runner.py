@@ -723,6 +723,50 @@ class TestPrepare:
         assert opened.await_args.kwargs["identity"].user_id is None
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("scope", ["conversation", "agent", "user", "channel"])
+    async def test_an_eval_gets_a_disposable_workspace_without_a_conversation(
+        self, scope: str
+    ) -> None:
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="sandbox", config={"backend": "state", "session_scope": scope}
+                )
+            ],
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
+        ):
+            await service.prepare(ctx, agent.id, surface=RunSurface.EVAL, isolation=RunIsolation())
+        assert opened.await_args.kwargs["identity"].conversation_id is None
+        assert opened.await_args.kwargs["scope_override"] == "run"
+        assert spec.capabilities[0].config["session_scope"] == scope
+
+    @pytest.mark.anyio
     @pytest.mark.parametrize("aside", [False, True])
     async def test_a_chat_in_a_project_works_in_the_projects_container(self, aside: bool):
         """Whichever agent answers, and whatever scope its own binding asks for:

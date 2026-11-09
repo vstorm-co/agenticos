@@ -31,8 +31,8 @@ export function GradingCard({
 }: GradingCardProps) {
   const t = useTranslations("datasets.scoring");
   return (
-    <section className="bg-card min-w-0 overflow-hidden rounded-xl border">
-      <header className="flex items-start gap-3 border-b p-4 sm:p-5">
+    <section className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-xl border">
+      <header className="flex items-start gap-3 border-b p-4 sm:p-5 xl:min-h-28">
         <DatasetIcon tone={tone} icon={Icon} className="size-9" />
         <div className="min-w-0 flex-1 space-y-1">
           <h2 className="text-sm font-semibold">{title}</h2>
@@ -44,7 +44,7 @@ export function GradingCard({
           </Badge>
         )}
       </header>
-      <div className="space-y-4 p-4 sm:p-5" data-tour={tour}>
+      <div className="flex-1 space-y-4 p-4 sm:p-5" data-tour={tour}>
         {children}
       </div>
     </section>

@@ -151,7 +151,7 @@ export function GradingPanel({
         </div>
       )}
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)]">
+      <div className="grid items-stretch gap-4 xl:grid-cols-2">
         <GradingCard
           title={t("passes.title")}
           icon={ListChecks}

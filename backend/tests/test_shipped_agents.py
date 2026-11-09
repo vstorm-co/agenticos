@@ -203,3 +203,25 @@ async def test_refresh_updates_an_already_bound_shipped_skill_before_using_its_t
     target = await service._target(ctx, template)
     assert target.skill_ids
     refresh.assert_awaited_once_with(ctx, entry.key)
+
+
+async def test_a_legacy_architect_with_a_sandbox_is_recognized_without_duplicating_it(
+    installed, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, service = installed
+    history = LegacyDefaults(
+        instructions="legacy",
+        capabilities=[{"id": "sandbox", "config": {"backend": "state"}}],
+        mcp_servers=[],
+        skills=[],
+        starters=[],
+    )
+    monkeypatch.setattr(shipped_agents, "legacy_defaults", lambda: {ARCHITECT: [history]})
+    service.registry.template_skills = AsyncMock(return_value=[])
+    spec = AgentSpec(
+        name="Architect",
+        capabilities=[{"id": "sandbox", "config": {"backend": "service", "include_execute": True}}],
+    )
+    previous = await service._legacy_baseline(ctx, spec, ARCHITECT)
+    assert previous["capabilities"] == fingerprint(spec, "capabilities")
+    assert history.capabilities == [{"id": "sandbox", "config": {"backend": "state"}}]

@@ -1,16 +1,9 @@
 "use client";
 
+import { PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import {
-  Badge,
-  Button,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
-} from "@/components/ui";
+import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
@@ -35,24 +28,17 @@ export function ReviewQueueRow(props: Props) {
   const [expanded, setExpanded] = useState(false);
   const decided = score.human_passed !== null;
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3 last:border-b-0">
-      <Badge variant={score.outcome === false ? "destructive" : "secondary"}>
-        {t(score.outcome === true ? "passed" : score.outcome === false ? "failed" : "unscored")}
-      </Badge>
+    <div className="min-w-0">
       <Button
         variant="ghost"
-        className="h-auto min-w-0 flex-1 justify-start p-0 text-left whitespace-normal"
+        className="group h-auto w-full min-w-0 justify-start gap-3 p-0 text-left whitespace-normal"
         onClick={() => setExpanded(true)}
       >
-        <span className="line-clamp-2 break-words">
+        <span className="line-clamp-2 min-w-0 flex-1 break-words">
           {score.case_masked ? t("maskedConversation") : score.question}
         </span>
+        <PanelRightOpen className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
       </Button>
-      {decided && (
-        <span className="text-muted-foreground text-xs">
-          {t(score.human_passed ? "countsAsPassed" : "countsAsFailed")}
-        </span>
-      )}
       <Sheet open={expanded} onOpenChange={setExpanded}>
         <SheetContent side="right" className="bg-background w-full sm:max-w-3xl">
           <SheetHeader className="shrink-0 py-4">

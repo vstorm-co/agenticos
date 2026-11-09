@@ -1,5 +1,5 @@
 ---
-source_sha: "54fdb34c23f6"
+source_sha: "b3a1704cdeae"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -232,6 +232,11 @@ ein Tool, von dem bekannt ist, dass es nur liest, läuft auf der normalen
 Verbindung, und alles, was ohne Testverbindung schreibt, wird nicht ausgeführt
 - der Aufruf und seine Argumente werden als beabsichtigter Aufruf behalten, den
 das Trajektorie-Scoring trotzdem bewertet.
+
+Jeder isolierte Versuch erhält einen temporären Workspace für seinen eigenen
+Run, auch wenn der Agent Dateien sonst pro Unterhaltung, Benutzer oder Agent
+teilt. Er benötigt keine Chat-Unterhaltung und verwendet keine dieser
+persistenten Dateien. Der Workspace wird am Ende des Runs freigegeben.
 
 Ein Fall aus einer Conversation kann **aus der Aufzeichnung** des Runs
 beantwortet werden, aus dem er stammt (`from_recordings`): Ein Aufruf, der zur

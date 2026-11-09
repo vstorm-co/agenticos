@@ -77,6 +77,7 @@ export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: Empty
             icon={Sparkles}
             tone="purple"
             onClick={onGenerate}
+            tour="datasets-generate-action"
           />
         )}
       </div>

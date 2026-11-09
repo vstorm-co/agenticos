@@ -202,6 +202,11 @@ known to only read runs on the normal connection, and anything that writes witho
 a test connection is not executed - the call and its arguments are kept as an
 intended call, which the trajectory scorer still judges.
 
+Every isolated attempt uses a disposable workspace scoped to its own run, even
+when the agent normally shares files by conversation, user or agent. It needs
+no chat conversation and cannot reuse those persistent files. The workspace is
+released when the run finishes.
+
 A case taken from a conversation can be answered **from the recording** of the
 run it came from (`from_recordings`): a call that matches the recording gets the
 recorded result, and one that does not is held and marked divergent. A case

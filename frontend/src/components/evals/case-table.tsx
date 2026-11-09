@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ListChecks } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ErrorState, LoadingState } from "@/components/states";
@@ -204,7 +204,10 @@ export function CaseTable({
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-        <CardTitle>{t("title", { count: total })}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <ListChecks className="text-muted-foreground size-4" aria-hidden />
+          {t("title", { count: total })}
+        </CardTitle>
         <FilterSelect
           label={t("outcomeFilter")}
           value={outcome}
@@ -215,7 +218,7 @@ export function CaseTable({
           options={[ALL, ...OUTCOMES].map((value) => ({ value, label: t(`outcome.${value}`) }))}
         />
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3 border-t pt-3">
         {caseIds !== null && (
           <p className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-sm">
             {opened !== null && caseIds[0] === opened
@@ -238,12 +241,12 @@ export function CaseTable({
               const flip = flipOf.get(item.case_id);
               const expanded = open === item.case_id;
               return (
-                <li key={item.case_id} className="py-2">
+                <li key={item.case_id} className="py-1.5">
                   <button
                     type="button"
                     aria-expanded={expanded}
                     onClick={() => setOpen(expanded ? null : item.case_id)}
-                    className="hover:bg-muted/40 flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left"
+                    className="hover:bg-accent/40 flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-left transition-colors"
                   >
                     {expanded ? (
                       <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
@@ -260,7 +263,9 @@ export function CaseTable({
                     {excludedIds.has(item.case_id) && (
                       <Badge variant="outline">{t("partition.excluded")}</Badge>
                     )}
-                    <span className="min-w-0 flex-1 truncate text-sm">{item.input}</span>
+                    <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium break-words">
+                      {item.input}
+                    </span>
                     {item.attempts.some(corrected) && (
                       <Badge variant="outline">{t("corrected")}</Badge>
                     )}
@@ -279,7 +284,7 @@ export function CaseTable({
                     )}
                   </button>
                   {expanded && (
-                    <div className="mt-3">
+                    <div className="bg-background/40 mt-2 rounded-xl border p-3 sm:p-4">
                       <CaseDetail
                         attempts={item.attempts}
                         arms={run.arms}

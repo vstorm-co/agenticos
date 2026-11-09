@@ -728,7 +728,8 @@ describe("ArmsTable", () => {
       />,
     );
     expect(screen.getByRole("link", { name: "reused" })).toBeVisible();
-    expect(screen.getByRole("columnheader", { name: "Pending" })).toBeVisible();
+    expect(screen.getByText("Pending")).toBeVisible();
+    expect(screen.getByText("Run metrics")).toBeVisible();
   });
 
   it("shows the earlier run an older run was measured against beside it", () => {

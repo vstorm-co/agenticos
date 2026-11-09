@@ -1,5 +1,5 @@
 ---
-source_sha: "54fdb34c23f6"
+source_sha: "b3a1704cdeae"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -219,6 +219,11 @@ którym wiadomo, że tylko czyta, działa na zwykłym połączeniu, a wszystko, 
 zapisuje bez testowego połączenia, nie jest wykonywane - wywołanie i jego
 argumenty są zachowywane jako zamierzone wywołanie, które ocenianie trajektorii
 nadal ocenia.
+
+Każda izolowana próba korzysta z tymczasowego workspace przypisanego do własnego
+runu, nawet gdy agent zwykle współdzieli pliki według rozmowy, użytkownika lub
+agenta. Nie wymaga rozmowy i nie używa ich trwałych plików. Workspace jest
+zwalniany po zakończeniu runu.
 
 Na przypadek wzięty z konwersacji można odpowiadać **z nagrania** runa, z
 którego pochodzi (`from_recordings`): wywołanie zgodne z nagraniem dostaje

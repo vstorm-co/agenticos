@@ -8,8 +8,7 @@ import { Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { BackLink } from "@/components/layout/back-link";
-import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
@@ -111,22 +110,28 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     .map((item) => item.case_id);
 
   return (
-    <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-5 pb-6">
-      {/* No PageHeader here, so the page's help sits beside the way back. */}
-      <div className="flex items-center justify-between gap-2">
-        <BackLink
-          href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
-          label={t("back")}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-        />
-        <RestartTourButton />
-      </div>
+    <div className="w-full min-w-0 space-y-4 pb-6">
+      <PageHeader
+        title={t("resultTitle")}
+        breadcrumbs={[
+          { label: agent?.name ?? t("back"), href: `${ROUTES.AGENTS}/${agentId}?tab=evals` },
+          { label: run.dataset_name, href: ROUTES.DATASET_DETAIL(run.dataset_id) },
+          { label: t("resultTitle") },
+        ]}
+        description={t("runTitle", {
+          dataset: run.dataset_name,
+          version: run.dataset_version,
+          candidate: candidate ? sideName(candidate, t, run.proposal_check) : "",
+        })}
+        descriptionMode="summary"
+      />
       {run.review && <ReviewReevaluationNote review={run.review} />}
       <VerdictHeader
         agentId={agentId}
         run={run}
         candidate={candidate}
         canPublish={agent?.can_publish === true}
+        canEditDataset={dataset?.can_edit === true}
         comparison={live ? undefined : comparison}
         onCancel={
           live && (run.created_by_user_id === me || agent?.can_edit === true)
@@ -210,7 +215,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <StartEvalDialog
           agentId={agentId}
           datasetId={run.dataset_id}
-          target="compare"
+          target={candidate?.source === "version" ? "version" : "compare"}
           onOpenChange={setTestingAgain}
         />
       )}

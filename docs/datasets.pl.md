@@ -1,5 +1,5 @@
 ---
-source_sha: "63ed9ea5b473"
+source_sha: "b2ccf149c486"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -19,18 +19,18 @@ przypadków i akceptowane przez człowieka. To ostatnie źródło jest zwykle na
 bo to pytanie, które ktoś naprawdę zadał, i odpowiedź, która go naprawdę
 zawiodła.
 
-**Przypadki**, **Wygenerowane**, **Ocenianie**, **Ewaluacje**, **Przegląd** i **Ustawienia** współdzielą obszar z kontrolką pełnego ekranu. Dodanie przypadku, import, generowanie i przejście do Aktywności znajdują się przy tabeli przypadków. Przypadek otwiera się w panelu bocznym, a Edytuj otwiera formularz. Najpierw są pytanie i odpowiedzi; narzędzia, reguły oraz etykiety mają rozwijane sekcje.
+**Przypadki**, **Wyniki** i **Ustawienia** współdzielą obszar z kontrolką pełnego ekranu. Przypadki zawierają dane wpisane i wygenerowane, Wyniki łączą testy agentów z przeglądem odpowiedzi, a Ustawienia zawierają ocenianie, generowanie i ulepszanie. Dodanie przypadku, import, generowanie i przejście do Aktywności znajdują się przy tabeli przypadków. Przypadek otwiera się w panelu bocznym, a Edytuj otwiera formularz. Najpierw są pytanie i odpowiedzi; narzędzia, reguły oraz etykiety mają rozwijane sekcje.
 
-Model i instrukcje oceniającego wybiera się w **Ocenianiu**, a generowania i ulepszania w **Ustawieniach**. Używają selektora modeli i edytora Markdown z Agent Buildera. Pomocnicy są zdefiniowani w kodzie i nie wymagają tworzenia ani publikowania agenta. Zadanie w kolejce zachowuje konfigurację z chwili startu.
+Model i instrukcje oceniającego, generowania i ulepszania wybiera się w **Ustawieniach**. Zapisane modele mają kompaktowy selektor z wyszukiwaniem; **Dodaj model** otwiera formularz providera, modelu i klucza. Instrukcje korzystają z edytora Markdown. Pomocnicy są zdefiniowani w kodzie i nie wymagają tworzenia ani publikowania agenta. Zadanie w kolejce zachowuje konfigurację z chwili startu.
 
 ## Od nowego datasetu do wyników { #dataset-workflow }
 
-Przewodnik datasetu pokazuje cztery kroki. Możesz go zwinąć, gdy nie jest już potrzebny.
+Przypadki służą do przygotowania danych, Wyniki do przeglądania testów i odpowiedzi, a Ustawienia do konfiguracji oceniania i pomocników.
 
 1. **Dodaj przypadki.** Wpisz pytanie, zaimportuj plik CSV lub JSONL albo wygeneruj propozycje do sprawdzenia. Możesz też skopiować odpowiedź z Aktywności.
-2. **Ustaw ocenianie.** Wybierz reguły, porównanie z odpowiedzią wzorcową lub kryteria sędziego. Przewodnik wskazuje ten krok, dopóki którykolwiek przypadek nie ma czym być oceniany.
-3. **Przetestuj agenta.** Otwórz Evale, wybierz agenta i sprawdź szacowany koszt przed uruchomieniem. Po skonfigurowaniu oceniania przejdziesz tutaj przyciskiem na dole zakładki Ocenianie.
-4. **Przejrzyj wyniki.** Sprawdź odpowiedzi i spełnione lub niespełnione kryteria. Zakończone evale oferują skrót do Przeglądu.
+2. **Ustaw ocenianie.** Wybierz reguły, porównanie z odpowiedzią wzorcową lub kryteria sędziego. Ustawienia wskazują przypadki, które nie mają czym być oceniane.
+3. **Przetestuj agenta.** Otwórz Wyniki → Testy agentów, wybierz agenta i sprawdź szacowany koszt przed uruchomieniem. Po skonfigurowaniu oceniania przejdziesz tutaj przyciskiem na dole oceniania w Ustawieniach.
+4. **Przejrzyj wyniki.** Sprawdź odpowiedzi i spełnione lub niespełnione kryteria. Zakończone ewaluacje oferują skrót do Przeglądu.
 
 Tabela przypadków oznacza źródła, oczekiwania i tagi kolorowymi etykietami. Kliknij
 wiersz, aby go otworzyć; menu wiersza zawiera Edytuj i Usuń. Generowanie i import
@@ -255,7 +255,7 @@ w chwili uruchomienia, jak budżet każdego agenta. Zmiana agenta, źródeł alb
 liczby unieważnia szacunek.
 
 **Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz.** Propozycje czekają
-w sekcji **Proponowane przypadki** w zakładce Wygenerowane. Zaakceptuj je bez zmian,
+w sekcji **Proponowane przypadki** w widoku generowania w Przypadkach. Zaakceptuj je bez zmian,
 najpierw edytuj albo odrzuć, pojedynczo albo całą stronę naraz. Jedno
 Zaakceptuj to jedna nowa wersja, niezależnie od tego, ile niosło, a jej
 przypadki mają źródło `synthetic`. Odrzucona propozycja jest usuwana i nie
@@ -329,11 +329,10 @@ czyta każdy, kto może czytać jego dataset.
 
 ## Ocenianie { #scoring }
 
-Dataset określa, jak oceniane są jego przypadki, w zakładce **Ocenianie**, w
-trzech kartach zapisywanych razem: **Kiedy przypadek przechodzi** zawiera
-sprawdzenia i oczekiwane wywołania narzędzi, **Sędzia** mówi, który sędzia
-ocenia i według czego, a **Przegląd przez człowieka** mówi, co czeka na czyjąś
-decyzję. Do jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy
+Dataset określa, jak oceniane są jego przypadki, w zakładce **Ustawienia**, w
+dwóch kartach zapisywanych razem: **Kiedy przypadek przechodzi** zawiera
+reguły i oczekiwane wywołania narzędzi, a **Sędzia** określa model i kryteria.
+Wszystkie ocenione odpowiedzi są widoczne w Wynikach. Do jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy
 z nich włącza się albo wyłącza i oznacza jako **Musi przejść** albo nie:
 
 | Oceniacz | Co porównuje | Koszt |
@@ -422,7 +421,7 @@ nazwie po ewentualnym nadpisaniu w specu. Przypadek napisany przed zmianą nazwy
 narzędzia oczekuje starej nazwy.
 
 ### Sędzia { #judge }
-Oceniający jest pomocnikiem ewaluacji zdefiniowanym w kodzie. Model, instrukcje, kryteria, skala i próg należą do zakładki **Ocenianie** tego datasetu. Model wybiera się tym samym selektorem providera, modelu i klucza oraz edytorem Markdown co w Agent Builderze. Edycja wymaga `datasets:edit`, a dodanie modelu `connections:manage`. Nie trzeba tworzyć ani publikować osobnego agenta.
+Oceniający jest pomocnikiem ewaluacji zdefiniowanym w kodzie. Model, instrukcje, kryteria, skala i próg należą do zakładki **Ustawienia** tego datasetu. Model wybiera się tym samym selektorem providera, modelu i klucza oraz edytorem Markdown co w Agent Builderze. Edycja wymaga `datasets:edit`, a dodanie modelu `connections:manage`. Nie trzeba tworzyć ani publikować osobnego agenta.
 
 Każda ocena zachowuje model, identyfikator opublikowanego pomocnika, hash kryteriów, wersję zadania i hash instrukcji. Model i instrukcje datasetu można zmieniać; ocen z różnych konfiguracji nie traktuje się jako bezpośrednio porównywalnych.
 
@@ -474,7 +473,7 @@ jego odpowiedzi nie dało się odczytać - wtedy jej pierwsze 2000 znaków zosta
 obok uzasadnienia. Oceniacze oparte na regułach nadal oceniają.
 
 Po usunięciu przyczyny **Oceń ponownie** na wyniku bez oceny - albo na
-wszystkich w grupie runu ewaluacji na zakładce Przegląd - ocenia tę samą
+wszystkich w grupie runu ewaluacji na widoku Wyniki → Przegląd odpowiedzi - ocenia tę samą
 odpowiedź od nowa, z konfiguracją, z którą była oceniona za pierwszym razem
 (`POST /datasets/{id}/scores/rescore`, do dziesięciu wyników na żądanie). Agent
 nie uruchamia się ponownie, a wynik zachowuje swój run ewaluacji i decyzję,
@@ -509,7 +508,7 @@ widzi.
 Każda ocena zachowuje model, identyfikator opublikowanego pomocnika, hash kryteriów, wersję zadania i hash instrukcji. Model i instrukcje datasetu można zmieniać; ocen z różnych konfiguracji nie traktuje się jako bezpośrednio porównywalnych.
 
 ### Przegląd { #review }
-Przegląd pokazuje zwartą kolejkę z filtrami. Wybrana odpowiedź otwiera dowody, ocenę i decyzję w panelu bocznym. Zapis zachowuje otwarty panel oraz pozycję wiersza; decyzję można wycofać lub cofnąć. Tutaj ustawia się kierowanie do przeglądu. Zmiana maski prywatności z serwera zamyka panel i usuwa niezapisaną notatkę.
+Przegląd pokazuje wszystkie ocenione odpowiedzi w jednej tabeli z pytaniem, agentem, wynikiem, modelem, datą i źródłem. Wybrana odpowiedź otwiera dowody, ocenę i decyzję w panelu bocznym. Zapis zachowuje otwarty panel oraz pozycję wiersza; decyzję można wycofać lub cofnąć. Zmiana maski prywatności z serwera zamyka panel i usuwa niezapisaną notatkę.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
@@ -536,12 +535,7 @@ który nie zaliczył, albo każdy wynik. Wynik już rozstrzygnięty pozostaje
 rozstrzygnięty. Taki wynik, i wynik, którego decyzję cofnięto, przechodzi przez
 to samo zastępowanie, więc przypadek nigdy nie czeka dwa razy na jednego agenta.
 
-Zakładka **Przegląd** otwiera się na tym, co czeka na decyzję, a wszystkie
-wyniki są o jedno kliknięcie dalej, każdy filtr ze swoją liczbą; widok zawęża
-się według rezultatu, agenta, który odpowiedział, i tagu przypadku. Wyniki
-każdego runa ewaluacji zbiera pod jednym nagłówkiem z linkiem do runa, skąd
-można je wyjąć z kolejki bez decyzji
-(`POST /datasets/{id}/scores/review/withdraw`).
+Widok **Wyniki → Przegląd odpowiedzi** od razu pokazuje wszystkie wyniki, także już przejrzane. Filtry dotyczą rezultatu, agenta i tagu przypadku; status przeglądu nie dzieli listy. Każdy wiersz ma link do runu ewaluacji, jeśli pozwalają na to uprawnienia. Akcje nad tabelą pozwalają ponownie ocenić nieocenione odpowiedzi albo wyjąć oczekujące z kolejki (`POST /datasets/{id}/scores/review/withdraw`).
 
 Każda karta pokazuje, o co pytał i czego oczekiwał przypadek - pytanie z linkiem
 do przypadku, odpowiedź wzorcową, oczekiwane wywołania narzędzi i sprawdzenia -
@@ -558,8 +552,8 @@ rubryce, co włącza sędziego.
 
 Karta pulpitu **Do przeglądu** pokazuje kolejkę ze wszystkich datasetów, które
 widzisz: ile wyników nie zaliczyło, było bez oceny albo zaliczyło, i w których
-datasetach, a każdy otwiera się w zakładce Przegląd. Karta jest domyślnie na
-pulpicie. **Zobacz wszystko** otwiera zakładkę Przegląd datasetu, w którym czeka
+datasetach, a każdy otwiera się w widoku Wyniki → Przegląd odpowiedzi. Karta jest domyślnie na
+pulpicie. **Zobacz wszystko** otwiera widok Wyniki → Przegląd odpowiedzi datasetu, w którym czeka
 najwięcej.
 
 Decyzja przeglądu osoby jest zapisywana obok wyników oceniaczy i rozstrzyga o
@@ -581,7 +575,7 @@ oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 
 Okno dialogowe podaje sędziego, który oceni run, i model, na którym ocenia, z
-linkami do zmiany sędziego datasetu na jego zakładce Ocenianie i modelu sędziego
+linkami do zmiany sędziego datasetu na jego zakładce Ustawienia i modelu sędziego
 na jego stronie - obie zmiany dotyczą każdej odpowiedzi ocenianej później, więc
 żadnej nie robi się z okna dialogowego.
 

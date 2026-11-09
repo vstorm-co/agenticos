@@ -1,5 +1,5 @@
 ---
-source_sha: "63ed9ea5b473"
+source_sha: "b2ccf149c486"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -18,17 +18,17 @@ y aceptados por una persona. Este último suele ser el más útil,
 porque es una pregunta que una persona hizo de verdad y una respuesta que de
 verdad la decepcionó.
 
-**Cases**, **Generated**, **Grading**, **Evals**, **Review** y **Settings** comparten un espacio con control de pantalla completa. Añadir, importar, generar y abrir Activity están junto a la tabla de casos. Un caso se abre en un panel lateral; Edit abre el formulario. La pregunta y las respuestas van primero, con herramientas, comprobaciones y etiquetas en secciones desplegables.
+**Cases**, **Results** y **Settings** comparten un espacio con control de pantalla completa. Cases reúne casos escritos y generados; Results combina ejecuciones de prueba y revisión de respuestas; Settings contiene evaluación, generación y mejora. Añadir, importar, generar y abrir Activity están junto a la tabla de casos. Un caso se abre en un panel lateral; Edit abre el formulario. La pregunta y las respuestas van primero, con herramientas, comprobaciones y etiquetas en secciones desplegables.
 
-El modelo y las instrucciones del calificador se eligen en **Grading**; los de generación y mejora, en **Settings**. Utilizan los controles de Agent Builder. Los ayudantes se definen en código y no requieren crear ni publicar un agent. Un trabajo en cola conserva su configuración inicial.
+El modelo y las instrucciones del calificador, la generación y la mejora se eligen en **Settings**. Los modelos guardados tienen un selector compacto con búsqueda; **Add model** abre el formulario de provider, modelo y clave. Las instrucciones usan el editor Markdown. Los ayudantes se definen en código y no requieren crear ni publicar un agent. Un trabajo en cola conserva su configuración inicial.
 
 ## De un dataset nuevo a los resultados { #dataset-workflow }
 
-La guía del dataset muestra cuatro pasos. Puedes contraerla cuando ya no la necesites.
+Cases prepara los datos, Results muestra ejecuciones y respuestas, y Settings configura evaluación y ayudantes.
 
 1. **Añadir casos.** Escribe una pregunta, importa un archivo CSV o JSONL o genera propuestas para revisar. También puedes copiar una respuesta desde Actividad.
-2. **Configurar la evaluación.** Elige reglas, comparación con la respuesta de referencia o criterios del juez. La guía señala este paso mientras algún caso no tenga cómo evaluarse.
-3. **Probar un agente.** Abre Evals, elige un agente y revisa el coste estimado antes de iniciar. Una vez configurada la evaluación, el botón al final de esa pestaña te lleva aquí.
+2. **Configurar la evaluación.** Elige reglas, comparación con la respuesta de referencia o criterios del juez. Settings señala los casos sin reglas de evaluación.
+3. **Probar un agente.** Abre Results → Test runs, elige un agente y revisa el coste estimado antes de iniciar. Una vez configurada la evaluación, el botón al final de la evaluación en Settings te lleva aquí.
 4. **Revisar los resultados.** Inspecciona las respuestas y los criterios que cumplen o incumplen. Los evals completados ofrecen un acceso directo a Revisión.
 
 La tabla de casos muestra fuentes, expectativas y etiquetas con colores. Pulsa una
@@ -234,7 +234,7 @@ dataset y lo abre.
 ### Generados por el generador de casos { #generating-cases }
 
 Escribir cien buenos casos a mano es la razón por la que la mayoría de los
-equipos no tiene ninguno. La pestaña **Generados** de la página de un dataset, visible para
+equipos no tiene ninguno. La vista **Generate cases** en Cases de la página de un dataset, visible para
 quienes pueden editarlo, pide al
 generador de casos que los redacte, y tú decides cuáles conserva el dataset.
 Elige el agent que prueban los casos (aquel de cuyas instrucciones, herramientas
@@ -257,7 +257,7 @@ comprueba cuando se ejecuta, como el de cualquier agent. Cambiar el agent, las
 fuentes o el número descarta la estimación.
 
 **Nada llega al dataset hasta que lo aceptas.** Los borradores esperan en
-**Casos propuestos**, en la pestaña Generados. Acepta uno tal cual, edítalo
+**Casos propuestos**, en la vista de generación en Cases. Acepta uno tal cual, edítalo
 antes o descártalo, de uno en uno o una página entera. Un Aceptar es una versión
 nueva, lleve lo que lleve, y sus casos tienen la fuente `synthetic`. Un borrador
 descartado se elimina y no deja nada en el dataset. Uno aceptado también
@@ -333,11 +333,10 @@ dataset.
 
 ## Calificación { #scoring }
 
-Un dataset indica cómo se califican sus casos en su pestaña **Grading**, en
-tres tarjetas que se guardan juntas: **When a case passes** contiene las
-comprobaciones y las llamadas a herramientas esperadas, **Judge** indica qué
-juez califica y sobre qué, y **Review by a person** indica qué espera la
-decisión de alguien. Cuatro evaluadores pueden aplicarse a un caso, y cada uno
+Un dataset indica cómo se califican sus casos en su pestaña **Settings**, en
+dos tarjetas que se guardan juntas: **When a case passes** contiene las
+comprobaciones y llamadas a herramientas esperadas; **Judge** define modelo y
+criterios. Todas las respuestas evaluadas aparecen en Results. Cuatro evaluadores pueden aplicarse a un caso, y cada uno
 se activa o desactiva y se marca como **Must pass** o no:
 
 | Evaluador | Qué compara | Coste |
@@ -478,7 +477,7 @@ pudo leer, de la que se guardan los primeros 2.000 caracteres junto al motivo.
 Los evaluadores basados en reglas siguen puntuando.
 
 Resuelta la causa, **Score again** en un resultado sin calificar (o en todos
-los de un grupo de un eval run en la pestaña Review) vuelve a calificar la
+los de un grupo de un eval run en la vista Results → Review answers) vuelve a calificar la
 misma respuesta, con la configuración con la que se calificó la primera vez
 (`POST /datasets/{id}/scores/rescore`, hasta diez puntuaciones por petición).
 El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
@@ -515,7 +514,7 @@ caso de un dataset que quien lo lee no puede ver.
 Cada puntuación conserva modelo, identidad publicada del ayudante, hash de criterios, versión de tarea y hash de instrucciones. Se pueden cambiar modelo e instrucciones del dataset; las calificaciones de configuraciones distintas no son directamente comparables.
 
 ### Revisión { #review }
-Review presenta una cola compacta con filtros. Seleccionar una respuesta abre evidencia, calificación y decisión en un panel lateral. Guardar mantiene el panel abierto y la fila en su lugar; se puede retirar o deshacer una decisión. La política de envío a review se configura aquí. Si cambia una máscara de privacidad del servidor, se descartan el panel y la nota sin guardar.
+Review presenta todas las respuestas evaluadas en una tabla con pregunta, agent, resultado, modelo, fecha y origen. Seleccionar una respuesta abre evidencia, calificación y decisión en un panel lateral. Guardar mantiene el panel abierto y la fila en su lugar; se puede retirar o deshacer una decisión. Si cambia una máscara de privacidad del servidor, se descartan el panel y la nota sin guardar.
 
 Una puntuación espera en la **cola de revisión** cuando alguien la envía allí, o
 lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
@@ -542,11 +541,7 @@ aprobó, o cada resultado. Una puntuación ya decidida sigue decidida. Esa
 puntuación, y una cuya decisión se deshace, pasan por la misma sustitución, así
 que un caso nunca espera dos veces por un mismo agent.
 
-La pestaña **Review** se abre en lo que espera una decisión, con cada resultado
-a un clic de distancia, cada uno con su recuento, y se filtra por resultado, por
-el agent que respondió y por una etiqueta del caso. Agrupa las puntuaciones de
-cada run de eval bajo un encabezado que enlaza al run, desde el que se pueden
-sacar de la cola sin decidir (`POST /datasets/{id}/scores/review/withdraw`).
+La vista **Results → Review answers** muestra todos los resultados, incluidos los ya revisados. Se filtra por resultado, agent o etiqueta del caso; el estado de revisión no divide la lista. Cada fila enlaza al run de eval cuando los permisos lo permiten. Las acciones sobre la tabla permiten evaluar de nuevo respuestas sin calificar o retirar las pendientes de la cola (`POST /datasets/{id}/scores/review/withdraw`).
 
 Cada tarjeta muestra lo que el caso preguntaba y esperaba (la pregunta,
 enlazada al caso, la respuesta de referencia, las llamadas a herramientas
@@ -563,8 +558,8 @@ para todos los casos, en la rúbrica, lo que activa el juez.
 
 La tarjeta del dashboard **Waiting for review** muestra la cola de todos los
 datasets que puedes ver: cuántos resultados no aprobaron, no se calificaron o
-aprobaron, y en qué datasets, cada uno abriéndose en su pestaña Review. La
-tarjeta está en el panel por defecto. Su **See all** abre la pestaña Review del
+aprobaron, y en qué datasets, cada uno abriéndose en su vista Results → Review answers. La
+tarjeta está en el panel por defecto. Su **See all** abre la vista Results → Review answers del
 dataset que más tiene esperando.
 
 La decisión de revisión de una persona se guarda junto a los resultados de los
@@ -588,7 +583,7 @@ evaluador que configura el dataset. Un run sin transcripción no tiene respuesta
 que calificar.
 
 El diálogo nombra al juez que calificará y el modelo en el que califica, con
-enlaces para cambiar el juez del dataset en su pestaña Grading y el modelo del
+enlaces para cambiar el juez del dataset en su pestaña Settings y el modelo del
 juez en su página: ambos cambios se aplican a cada respuesta calificada después,
 así que ninguno se hace desde el diálogo.
 

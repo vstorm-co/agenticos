@@ -1,5 +1,5 @@
 ---
-source_sha: "54fdb34c23f6"
+source_sha: "b3a1704cdeae"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -211,6 +211,11 @@ contra ella, una herramienta de la que se sabe que solo lee se ejecuta en la
 conexión normal, y todo lo que escribe sin conexión de prueba no se ejecuta: la
 llamada y sus argumentos se guardan como una llamada prevista, que la
 puntuación de trayectoria sigue juzgando.
+
+Cada intento aislado utiliza un workspace temporal para su propio run, aunque
+el agent normalmente comparta archivos por conversación, usuario o agent. No
+necesita una conversación ni reutiliza esos archivos persistentes. El workspace
+se libera al finalizar el run.
 
 Un caso tomado de una conversación puede responderse **desde la grabación** del
 run del que salió (`from_recordings`): una llamada que coincide con la

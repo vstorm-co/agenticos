@@ -1,7 +1,6 @@
 "use client";
 
 import { GitBranch, History } from "lucide-react";
-import { DatasetChip } from "./dataset-chip";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -60,9 +59,10 @@ export function VersionSelect({ versions, latest, value, onChange }: VersionSele
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NEWEST} textValue={t("newestVersion")}>
-            <DatasetChip tone="green" icon={GitBranch}>
+            <span className="inline-flex items-center gap-2">
+              <GitBranch className="text-muted-foreground size-3.5" aria-hidden />
               {t("newestVersion")}
-            </DatasetChip>
+            </span>
           </SelectItem>
           {versions.map((version) => (
             <SelectItem key={version.id} value={String(version.number)}>

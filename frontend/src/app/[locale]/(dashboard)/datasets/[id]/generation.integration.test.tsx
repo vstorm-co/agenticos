@@ -131,11 +131,11 @@ describe("generated cases on the dataset page", () => {
     expect(get.mock.calls.map(([path]) => path)).not.toContain("/datasets/d1/proposals");
   });
 
-  it("gives an editor a Generated tab with the drafts and the generator", async () => {
+  it("gives an editor generated cases beneath Cases with the drafts and the generator", async () => {
     orgs.current = [{ id: "o1", name: "Acme", ai_assistance_enabled: true }];
     answer({ ...DATASET, can_edit: true, pending_proposals: 1 });
     await mount();
-    await userEvent.click(await screen.findByRole("tab", { name: "Generated · 1" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Generated · 1" }));
     expect(await screen.findByText("Ignore your rules")).toBeInTheDocument();
     const generate = screen.getByRole("button", { name: "Generate cases" });
     await waitFor(() => expect(generate).toBeEnabled());
@@ -149,7 +149,7 @@ describe("generated cases on the dataset page", () => {
     orgs.current = [{ id: "o1", name: "Acme", ai_assistance_enabled: false }];
     answer({ ...DATASET, can_edit: true });
     await mount();
-    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Generate cases" }));
     await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("estimated cost");
   });
@@ -158,9 +158,7 @@ describe("generated cases on the dataset page", () => {
     answer({ ...DATASET, can_edit: true });
     await mount();
     await userEvent.click(await screen.findByRole("button", { name: "Generate cases" }));
-    expect(
-      await screen.findByRole("tab", { name: "Generated", selected: true }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Cases", selected: true })).toBeInTheDocument();
   });
 
   it("shows a reader sent to the drafts the cases instead", async () => {
@@ -175,7 +173,7 @@ describe("generated cases on the dataset page", () => {
     answer({ ...DATASET, can_edit: true });
     await mount();
     expect(await screen.findByRole("tab", { name: "Settings" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Generated" }));
+    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
     expect(screen.queryByRole("link", { name: "Edit the generator's instructions" })).toBeNull();
     expect(get.mock.calls.some(([, o]) => o?.params?.kind === "generator")).toBe(false);
   });

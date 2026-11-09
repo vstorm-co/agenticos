@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { GitCompare, ListFilter, RotateCcw, Square } from "lucide-react";
+import { GitCompare, ListFilter, RotateCcw, Settings2, Square, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { DatasetIcon } from "@/components/datasets/dataset-chip";
+import { cn } from "@/lib/utils";
 import { Badge, Button, Card, CardContent, Progress } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
@@ -11,7 +13,6 @@ import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
 import { SuiteCheckVerdict } from "./suite-check-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { percent, usd } from "./format";
-import { sideName } from "./names";
 import { SendToReviewButton } from "./send-to-review-button";
 import { JudgeNotes } from "./judge-notes";
 import { UngradedNote } from "./ungraded-note";
@@ -27,6 +28,7 @@ export function VerdictHeader({
   run,
   candidate,
   canPublish,
+  canEditDataset,
   comparison,
   onCancel,
   onShowBroken,
@@ -39,6 +41,7 @@ export function VerdictHeader({
   candidate: EvalRunArm | undefined;
   /** Whether the caller may publish this agent - the role's publish and an edit on it. */
   canPublish: boolean;
+  canEditDataset: boolean;
   comparison: EvalComparison | undefined;
   onCancel?: () => void;
   onShowBroken: () => void;
@@ -49,6 +52,7 @@ export function VerdictHeader({
 }) {
   const t = useTranslations("evals");
   const tc = useTranslations("common");
+  const journey = useTranslations("datasets.journey");
   const locale = useLocale();
   const live = run.status === "queued" || run.status === "running";
   const reruns = run.attempts_total - run.first_total;
@@ -65,30 +69,34 @@ export function VerdictHeader({
   const brokeOnce = comparison !== undefined && comparison.regressions_unconfirmed > 0;
   const baseline = comparison?.baseline ?? null;
   const undecided = candidate ? undecidedOf(candidate) : 0;
+  const setupFailed = !live && candidate?.failed_alike != null;
   return (
-    <Card data-tour="eval-verdict">
+    <Card data-tour="eval-verdict" className={cn(setupFailed && "border-destructive/25")}>
       <CardContent className="space-y-4 pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 space-y-3 break-words">
-            <p className="text-muted-foreground text-sm">
-              {t("runTitle", {
-                dataset: run.dataset_name,
-                version: run.dataset_version,
-                candidate: candidate ? sideName(candidate, t, run.proposal_check) : "",
-              })}
-            </p>
             {!live && candidate && comparison && candidate.failed_alike !== null && (
-              <>
-                <Badge variant="destructive">{t("comparison.verdict.failedAlike")}</Badge>
-                <h1 className="text-lg font-semibold">{t("resultTitle")}</h1>
-                <p className="text-sm leading-relaxed">
-                  {t("headline.failedAlike", { error: candidate.failed_alike })}
-                </p>
-              </>
+              <div className="flex items-start gap-4">
+                <DatasetIcon tone="red" icon={TriangleAlert} className="size-10" />
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-base font-semibold">{t("executionFailure.title")}</h2>
+                    <Badge variant="destructive">{t("comparison.verdict.failedAlike")}</Badge>
+                  </div>
+                  <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
+                    {t("executionFailure.body")}
+                  </p>
+                  <div
+                    role="alert"
+                    className="bg-destructive/5 text-destructive-ink border-destructive/15 max-w-4xl rounded-lg border px-4 py-3 text-sm leading-relaxed break-words"
+                  >
+                    {candidate.failed_alike}
+                  </div>
+                </div>
+              </div>
             )}
             {!live && candidate && comparison && candidate.failed_alike === null && (
               <>
-                <h1 className="text-lg font-semibold">{t("resultTitle")}</h1>
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                   <div>
                     <p className="text-muted-foreground text-xs">{t("arms.passRate")}</p>
@@ -127,7 +135,7 @@ export function VerdictHeader({
             )}
           </div>
           <div className="order-first flex items-center justify-end gap-2 sm:order-last">
-            <EvalStatusBadge status={run.status} />
+            {!setupFailed && <EvalStatusBadge status={run.status} />}
             {onCancel && (
               <Button size="sm" variant="outline" onClick={onCancel}>
                 <Square className="h-3.5 w-3.5" aria-hidden />
@@ -154,7 +162,9 @@ export function VerdictHeader({
           </div>
         ) : (
           <p className="text-muted-foreground text-xs">
-            {t("answers", { cases: run.cases, first: run.first_total, reruns })}
+            {setupFailed
+              ? t("executionFailure.attempts", { count: run.cases })
+              : t("answers", { cases: run.cases, first: run.first_total, reruns })}
           </p>
         )}
         <p className="text-muted-foreground text-xs">
@@ -179,7 +189,15 @@ export function VerdictHeader({
         {!live && <JudgeNotes run={run} />}
 
         {!live && candidate && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t pt-4">
+            {candidate.summary.ungraded > 0 && canEditDataset && (
+              <Button size="sm" asChild>
+                <Link href={`${ROUTES.DATASET_DETAIL(run.dataset_id)}?tab=settings`}>
+                  <Settings2 className="size-4" aria-hidden />
+                  {journey("next.grading")}
+                </Link>
+              </Button>
+            )}
             {baseline !== null &&
               baseline.version_number !== null &&
               candidate.version_number !== baseline.version_number && (
@@ -205,9 +223,18 @@ export function VerdictHeader({
               </Button>
             )}
             <Button size="sm" variant="outline" asChild>
-              <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`}>{t("actions.backToBuild")}</Link>
+              <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`}>
+                <Settings2 className="size-4" aria-hidden />
+                {t("actions.backToBuild")}
+              </Link>
             </Button>
             <SendToReviewButton run={run} arm={candidate} />
+            {setupFailed && !run.draft_changed && onTestAgain && (
+              <Button size="sm" onClick={onTestAgain}>
+                <RotateCcw className="size-4" aria-hidden />
+                {t("actions.testAgain")}
+              </Button>
+            )}
             {run.draft_changed && (
               <span className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted-foreground">{t("draftChanged")}</span>

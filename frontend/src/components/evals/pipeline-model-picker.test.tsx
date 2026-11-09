@@ -42,7 +42,8 @@ describe("PipelineModelPicker", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Create model" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Choose saved model" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+    await userEvent.click(screen.getByRole("option", { name: /Support model/ }));
     expect(onChange).toHaveBeenLastCalledWith("saved");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     await userEvent.click(screen.getByRole("button", { name: "Create model" }));

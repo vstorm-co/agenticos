@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CircleHelp, Coins, Gauge, Hash, Timer } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -121,6 +122,68 @@ export function ArmsTable({
     baseline !== null && baselineSummary !== null && !arms.some((arm) => arm.role === "baseline")
       ? baseline
       : null;
+  const single = arms.length === 1 && earlier === null ? arms[0] : undefined;
+  const summary =
+    single?.failed_alike != null ? undefined : tag === null ? single?.summary : single?.by_tag[tag];
+  const metrics = [
+    { label: t("passRate"), value: percent(summary?.pass_rate ?? null, locale), icon: Gauge },
+    {
+      label: live ? t("pending") : t("undecided"),
+      value: summary ? summary.incomplete + summary.ungraded : "—",
+      icon: CircleHelp,
+    },
+    {
+      label: t("costPerPass"),
+      value: usd(summary?.cost_per_pass_usd ?? null, locale),
+      icon: Coins,
+    },
+    {
+      label: t("tokens"),
+      value:
+        summary?.avg_tokens == null
+          ? "—"
+          : new Intl.NumberFormat(locale).format(Math.round(summary.avg_tokens)),
+      icon: Hash,
+    },
+    {
+      label: t("latency"),
+      value: t("p50p95", {
+        p50: seconds(summary?.p50_ms ?? null, locale),
+        p95: seconds(summary?.p95_ms ?? null, locale),
+      }),
+      icon: Timer,
+    },
+  ];
+  if (single?.failed_alike != null) return null;
+  if (single)
+    return (
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <CardTitle>{tag === null ? t("singleTitle") : t("singleTitleTag", { tag })}</CardTitle>
+          <p className="text-muted-foreground min-w-0 text-xs break-words">
+            <SideLabel agentId={agentId} arm={single} baseline={baseline} check={check} />
+          </p>
+        </CardHeader>
+        <CardContent className="border-t pt-4">
+          <dl className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+            {metrics.map((metric) => (
+              <div
+                key={metric.label}
+                className="bg-background/40 min-w-0 space-y-3 rounded-xl border p-4 last:col-span-2 xl:last:col-span-1"
+              >
+                <dt className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <metric.icon className="size-3.5 shrink-0" aria-hidden />
+                  {metric.label}
+                </dt>
+                <dd className="text-xl font-semibold tracking-tight tabular-nums">
+                  {metric.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
+    );
   return (
     <Card>
       <CardHeader>
@@ -148,7 +211,16 @@ export function ArmsTable({
                   <SideLabel agentId={agentId} arm={arm} baseline={baseline} check={check} />
                 </td>
                 {/* An arm with no case under the tag has no entry for it. */}
-                <SummaryCells summary={tag === null ? arm.summary : arm.by_tag[tag]} live={live} />
+                <SummaryCells
+                  summary={
+                    arm.failed_alike != null
+                      ? undefined
+                      : tag === null
+                        ? arm.summary
+                        : arm.by_tag[tag]
+                  }
+                  live={live}
+                />
               </tr>
             ))}
             {earlier !== null && (

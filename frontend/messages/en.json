@@ -1079,7 +1079,9 @@
     "starterIcon": "Icon for first message {number}",
     "starterTitle": "Title of first message {number}",
     "starterTitlePlaceholder": "Short title (optional)",
-    "starterMessageLabel": "Message shown below the title and sent on click"
+    "starterMessageLabel": "Message shown below the title and sent on click",
+    "pipelineModelPlaceholder": "Choose a model",
+    "pipelineNoMatches": "No matching models"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5540,15 +5542,15 @@
       },
       "flow-dataset-next": {
         "title": "Next: grading, then an eval",
-        "body": "Decide here how answers to these cases are graded. Then run an agent over them - from the agent's Evals tab, or from this dataset - and read how it did."
+        "body": "In Settings, choose how answers are graded. Then run an agent on this dataset and inspect its answers in Results."
       },
       "dataset-grading": {
         "title": "How cases are graded",
-        "body": "When a case passes: the rules every answer is checked against and the tools a case expects. Mark which ones a case must pass. Each card saves on its own."
+        "body": "Choose the checks every answer must pass and the tool calls a case expects. Save the grading changes together at the bottom."
       },
       "dataset-review": {
         "title": "Review",
-        "body": "The graded answers waiting for a person's decision. Decide the ones the judge was not sure of; its opinion stays on record."
+        "body": "All graded answers appear here, including those already reviewed. Filter by outcome, agent or tag, then open an answer to inspect its evidence and record a decision."
       },
       "agents-system": {
         "title": "System agents",
@@ -5556,7 +5558,7 @@
       },
       "dataset-judge": {
         "title": "The judge",
-        "body": "Pick which judge grades this dataset - the default one, or one made for it - and give it the criteria. Changing the judge or its model is allowed; older scores then no longer compare. The judge needs AI assistance, which an admin turns on."
+        "body": "Choose a saved model with search, or add a model if you have permission. Set the criteria and reference comparison. Older scores keep the grading configuration they used."
       },
       "agent-eval-suites": {
         "title": "Suites",
@@ -5704,7 +5706,7 @@
       },
       "datasets-helper-settings": {
         "title": "Configure the evaluation helpers",
-        "body": "Settings holds the model and instructions for case generation and agent improvement. Grading has its own model, instructions and criteria. A running task keeps the settings it started with."
+        "body": "Settings groups grading, case generation and agent improvement. Choose their models and instructions here. A running task keeps the settings it started with."
       },
       "desktop-local-agents": {
         "title": "Coding agents on this computer",
@@ -13782,16 +13784,9 @@
       "referenceHint": "The judge compares the answer with the case's reference answer, where the case has one.",
       "counterExampleRow": "Counter-example",
       "counterExampleHint": "While your criteria or the reference answer is on, the judge also checks that an answer does not say what the case's counter-example says. An answer that does fails.",
-      "reviewSelect": "Send answers graded by hand to the review queue",
-      "review": {
-        "none": "Nothing, until somebody sends one",
-        "failed": "Results that did not pass",
-        "all": "Every result"
-      },
       "scores": "Review",
       "scoreCount": "{count, plural, =1 {1 result} other {# results}}",
       "noScores": "No results yet",
-      "nothingAwaitingReview": "Nothing is waiting for a decision",
       "noScoresBody": "Answers graded against this dataset's cases appear here - from an eval run, or from a run graded against a case in Activity.",
       "passed": "Passed",
       "failed": "Failed",
@@ -13866,17 +13861,12 @@
         "description": "Evaluate answer quality with a model, using the instructions and criteria below. Model calls are paid and recorded in Activity."
       },
       "reviewCard": {
-        "title": "Review by a person",
-        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers its judge failed to grade, one per case for each agent."
+        "title": "Review by a person"
       },
       "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
       "suggestReferenceAction": "Compare with the reference",
       "judgeChanged": "Scores graded by the previous judge or model will not compare with the ones graded from now on.",
       "cancel": "Cancel",
-      "reviewFilter": "Show",
-      "filterPending": "Waiting for a decision ({count})",
-      "filterAll": "All results ({count})",
-      "nothingAwaitingReviewBody": "Confirmed regressions and answers the judge could not grade appear here. You can also send other results from an eval run. Answers graded by hand follow the review policy above.",
       "groupByHand": "Graded by hand",
       "groupEvalRun": "Eval run · {when}",
       "agentGone": "An agent that is gone",
@@ -13974,7 +13964,8 @@
       },
       "criterionHelp": "Describe one thing the answer must get right. Include the expected fact or a clear pass condition.",
       "scaleHelp": "The highest score for each criterion, from 2 to 10.",
-      "passHelp": "The minimum score required to pass a criterion."
+      "passHelp": "The minimum score required to pass a criterion.",
+      "groupEvalSource": "Eval run"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -14317,27 +14308,11 @@
       "expectationsHint": "What a good answer includes, and how to check it."
     },
     "journey": {
-      "title": "Your dataset, step by step",
-      "step": {
-        "cases": "{number}. Add cases",
-        "grading": "{number}. Set grading",
-        "evals": "{number}. Test an agent",
-        "review": "{number}. Review results"
-      },
-      "hint": {
-        "cases": "Write questions and what a good answer looks like.",
-        "grading": "Choose the rules and criteria for a passing answer.",
-        "evals": "Pick an agent, check the cost, then run the test.",
-        "review": "Inspect answers and decide what to improve."
-      },
       "next": {
-        "cases": "Add cases",
         "grading": "Set up grading",
         "evals": "Open evals"
       },
       "guidance": {
-        "cases": "Start with a few questions your users actually ask.",
-        "grading": "Cases are in place. Choose how their answers will be checked.",
         "evals": "Grading is configured. Choose an agent and preview the cost before running."
       },
       "status": {
@@ -14355,7 +14330,24 @@
       "reviewAction": "Review results"
     },
     "openCase": "Open case",
-    "caseActions": "Case actions"
+    "caseActions": "Case actions",
+    "workspace": {
+      "results": "Results",
+      "backToCases": "Back to cases",
+      "testRuns": "Test runs",
+      "reviewAnswers": "Review answers",
+      "helpers": "Generation & improvement",
+      "helpersHint": "Choose the models and instructions used to draft cases and suggest improvements."
+    },
+    "resultsTable": {
+      "question": "Question",
+      "agent": "Agent",
+      "result": "Result",
+      "model": "Model",
+      "date": "Date",
+      "source": "Source",
+      "version": "v{number}"
+    }
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",
@@ -14603,7 +14595,9 @@
       "p50p95": "{p50} / {p95}",
       "side": "Side",
       "pending": "Pending",
-      "reusedFrom": "result from the run of {date}"
+      "reusedFrom": "result from the run of {date}",
+      "singleTitle": "Run metrics",
+      "singleTitleTag": "Run metrics on #{tag}"
     },
     "cases": {
       "title": "{count, plural, =1 {1 case} other {# cases}}",
@@ -14693,7 +14687,6 @@
       "passRate": "Pass rate {from} → {to}, each case as most of its tries came out{undecided, plural, =0 {} other { · # of {cases} cases undecided}}",
       "firstPassRate": "First answers alone: {from} → {to}",
       "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change.",
-      "failedAlike": "Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: {error}",
       "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}."
     },
     "live": {
@@ -15006,7 +14999,12 @@
       "undecidedCount": "{count} undecided"
     },
     "resultTitle": "Evaluation result",
-    "trendTitle": "Pass-rate trend"
+    "trendTitle": "Pass-rate trend",
+    "executionFailure": {
+      "title": "Setup needs attention",
+      "body": "Every case stopped with the same error. These results do not measure answer quality. Fix the setup, then run the evaluation again.",
+      "attempts": "{count, plural, =1 {1 case attempted} other {# cases attempted}}"
+    }
   },
   "authoring": {
     "strip": {

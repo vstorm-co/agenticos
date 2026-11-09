@@ -2,7 +2,14 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, FlaskConical, ListChecks, Scale, Settings2, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ClipboardCheck,
+  FlaskConical,
+  ListChecks,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -14,7 +21,6 @@ import { CaseEditorDialog, type CaseCopy } from "@/components/datasets/case-edit
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CasesTable } from "@/components/datasets/cases-table";
 import { CasesToolbar } from "@/components/datasets/cases-toolbar";
-import { DatasetGuide } from "@/components/datasets/dataset-guide";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
@@ -28,6 +34,7 @@ import { VersionSelect } from "@/components/datasets/version-select";
 import { DatasetEvalsPanel, DatasetRunEvalsButton } from "@/components/evals/dataset-evals-panel";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
+  Button,
   ConfirmDialog,
   ListCard,
   PAGE_SIZE,
@@ -58,8 +65,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-/** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["cases", "generated", "grading", "evals", "review", "settings"];
+/** Existing deep links remain valid within the three workspace sections. */
+const TABS = ["cases", "generated", "grading", "evals", "review", "settings", "results"];
 
 /**
  * What the case dialog is showing: a new case, or one from the list - picked up
@@ -160,10 +167,19 @@ export default function DatasetPage({ params }: PageProps) {
   const editable = dataset.can_edit && version === null;
   // A link reaches a reader too, who may have no such tab.
   const shown =
-    ((tab === "generated" || tab === "settings") && !dataset.can_edit) ||
-    (tab === "evals" && !canViewRuns)
+    (tab === "generated" && !dataset.can_edit) || (tab === "evals" && !canViewRuns)
       ? "cases"
-      : tab;
+      : tab === "results"
+        ? "review"
+        : tab;
+  const primaryTab =
+    shown === "generated"
+      ? "cases"
+      : shown === "grading" || shown === "settings"
+        ? "settings"
+        : shown === "evals" || shown === "review"
+          ? "results"
+          : "cases";
   const keep = (place: string) => ({
     key: copyKey(organization, id, place),
     base: dataset.latest_version,
@@ -222,18 +238,11 @@ export default function DatasetPage({ params }: PageProps) {
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
         )}
       >
-        {dataset.can_edit && version === null && (
-          <div className="mb-4">
-            <DatasetGuide
-              key={id}
-              dataset={dataset}
-              tab={shown}
-              canViewRuns={canViewRuns}
-              onTab={showTab}
-            />
-          </div>
-        )}
-        <Tabs value={shown} onValueChange={showTab} className="flex flex-1 flex-col gap-4">
+        <Tabs
+          value={primaryTab}
+          onValueChange={(next) => showTab(next === "results" ? "review" : next)}
+          className="flex flex-1 flex-col gap-4"
+        >
           {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
           <div className="flex min-w-0 items-center gap-2">
             <TabsList className="min-w-0 flex-1">
@@ -241,9 +250,13 @@ export default function DatasetPage({ params }: PageProps) {
                 <ListChecks className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("cases")}
               </TabsTrigger>
-              <TabsTrigger value="grading" data-tour="datasets-grading-tab">
-                <Scale className="mr-1.5 size-4 shrink-0" aria-hidden />
-                {t("scoring.title")}
+              <TabsTrigger value="results" data-tour="datasets-results-tab">
+                <ClipboardCheck className="size-4" aria-hidden />
+                {t("workspace.results")}
+              </TabsTrigger>
+              <TabsTrigger value="settings" data-tour="datasets-settings-tab">
+                <Settings2 className="size-4" aria-hidden />
+                {t("settingsTab")}
                 {gradingUnsaved && (
                   <span
                     className="bg-primary ml-1.5 size-1.5 rounded-full"
@@ -252,117 +265,111 @@ export default function DatasetPage({ params }: PageProps) {
                   />
                 )}
               </TabsTrigger>
-              {canViewRuns && (
-                <TabsTrigger value="evals" data-tour="datasets-evals-tab">
-                  <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
-                  {t("evals")}
-                </TabsTrigger>
-              )}
-              <TabsTrigger value="review" data-tour="datasets-review-tab">
-                <ClipboardCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
-                {t("scoring.scores")}
-              </TabsTrigger>
-              {dataset.can_edit && (
-                <TabsTrigger value="generated" data-tour="datasets-generated-tab">
-                  <Sparkles className="mr-1.5 size-4 shrink-0" aria-hidden />
-                  {t("generatedTab", { count: dataset.pending_proposals })}
-                </TabsTrigger>
-              )}
-              {dataset.can_edit && (
-                <TabsTrigger value="settings" data-tour="datasets-settings-tab">
-                  <Settings2 className="size-4" aria-hidden />
-                  {t("settingsTab")}
-                </TabsTrigger>
-              )}
             </TabsList>
             <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
           </div>
-          <TabsContent value="cases" className="flex flex-1 flex-col">
-            <ListCard
-              fill
-              namedByPage
-              contentClassName="p-0"
-              title={t("cases")}
-              counted={t("caseCount", { count: cases.total })}
-              controls={
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  {versions.length > 0 && (
-                    <VersionSelect
-                      versions={versions}
-                      latest={dataset.latest_version}
-                      value={version}
-                      onChange={(next) =>
-                        leave(() => {
-                          setVersionParam(next === null ? null : String(next));
-                          setPage(0);
-                        })
-                      }
-                    />
-                  )}
-                  {dataset.can_edit &&
-                    (cases.cases.length > 0 || cases.isLoading || version !== null) && (
-                      <CasesToolbar
-                        datasetId={id}
-                        disabled={!editable}
-                        onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
-                        onImport={(file) => cases.importFile.mutateAsync(file)}
-                        onGenerate={() => showTab("generated")}
+          <TabsContent value="cases" className="flex flex-1 flex-col gap-4">
+            {shown === "generated" && dataset.can_edit ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button variant="ghost" size="sm" onClick={() => showTab("cases")}>
+                    <ArrowLeft className="size-4" aria-hidden />
+                    {t("workspace.backToCases")}
+                  </Button>
+                  <span className="text-muted-foreground text-sm">
+                    {t("generatedTab", { count: dataset.pending_proposals })}
+                  </span>
+                </div>
+                <GeneratePanel datasetId={id} />
+              </>
+            ) : (
+              <ListCard
+                fill
+                namedByPage
+                contentClassName="p-0"
+                title={t("cases")}
+                counted={t("caseCount", { count: cases.total })}
+                controls={
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    {versions.length > 0 && (
+                      <VersionSelect
+                        versions={versions}
+                        latest={dataset.latest_version}
+                        value={version}
+                        onChange={(next) =>
+                          leave(() => {
+                            setVersionParam(next === null ? null : String(next));
+                            setPage(0);
+                          })
+                        }
                       />
                     )}
-                </div>
-              }
-            >
-              {linkedCase.error && (
-                <p role="alert" className="text-muted-foreground mb-3 text-sm">
-                  {t("linkedCaseGone")}
-                </p>
-              )}
-              {cases.isLoading ? (
-                <LoadingState variant="skeleton-cards" rows={2} />
-              ) : cases.error ? (
-                <ErrorState
-                  description={getErrorMessage(cases.error, tErrors)}
-                  cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
-                />
-              ) : cases.cases.length === 0 ? (
-                <EmptyCases
-                  datasetId={id}
-                  onAddCase={
-                    editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
-                  }
-                  onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
-                  onGenerate={editable ? () => showTab("generated") : undefined}
-                />
-              ) : (
-                <div className="flex flex-1 flex-col gap-4">
-                  <CasesTable
-                    cases={cases.cases}
-                    offset={page * PAGE_SIZE}
-                    activeCaseId={editing?.item?.case_id}
-                    onOpen={openCase}
-                    onRemove={editable ? (item) => cases.remove.mutate(item.case_id) : undefined}
+                    {editable && dataset.pending_proposals > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => showTab("generated")}>
+                        <Sparkles className="size-4" aria-hidden />
+                        {t("generatedTab", { count: dataset.pending_proposals })}
+                      </Button>
+                    )}
+                    {dataset.can_edit &&
+                      (cases.cases.length > 0 || cases.isLoading || version !== null) && (
+                        <CasesToolbar
+                          datasetId={id}
+                          disabled={!editable}
+                          onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
+                          onImport={(file) => cases.importFile.mutateAsync(file)}
+                          onGenerate={() => showTab("generated")}
+                        />
+                      )}
+                  </div>
+                }
+              >
+                {linkedCase.error && (
+                  <p role="alert" className="text-muted-foreground mb-3 text-sm">
+                    {t("linkedCaseGone")}
+                  </p>
+                )}
+                {cases.isLoading ? (
+                  <LoadingState variant="skeleton-cards" rows={2} />
+                ) : cases.error ? (
+                  <ErrorState
+                    description={getErrorMessage(cases.error, tErrors)}
+                    cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
                   />
-                  <Pager
-                    page={page}
-                    pageCount={pageCount}
-                    matched={cases.total}
-                    total={cases.total}
-                    onPage={setPage}
-                    counted={t("caseCount", { count: cases.total })}
+                ) : cases.cases.length === 0 ? (
+                  <EmptyCases
+                    datasetId={id}
+                    onAddCase={
+                      editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
+                    }
+                    onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
+                    onGenerate={editable ? () => showTab("generated") : undefined}
                   />
-                </div>
-              )}
-            </ListCard>
+                ) : (
+                  <div className="flex flex-1 flex-col gap-4">
+                    <CasesTable
+                      cases={cases.cases}
+                      offset={page * PAGE_SIZE}
+                      activeCaseId={editing?.item?.case_id}
+                      onOpen={openCase}
+                      onRemove={editable ? (item) => cases.remove.mutate(item.case_id) : undefined}
+                    />
+                    <Pager
+                      page={page}
+                      pageCount={pageCount}
+                      matched={cases.total}
+                      total={cases.total}
+                      onPage={setPage}
+                      counted={t("caseCount", { count: cases.total })}
+                    />
+                  </div>
+                )}
+              </ListCard>
+            )}
           </TabsContent>
-          {dataset.can_edit && (
-            <TabsContent value="generated" className="flex flex-1 flex-col">
-              <GeneratePanel datasetId={id} />
-            </TabsContent>
-          )}
           {/* Kept mounted while another tab is open, so a card's unsaved change
             survives looking at the cases it is about. */}
           <TabsContent
-            value="grading"
+            value="settings"
             forceMount
             className="flex flex-1 flex-col data-[state=inactive]:hidden"
           >
@@ -373,24 +380,52 @@ export default function DatasetPage({ params }: PageProps) {
               localCopy={dataset.can_edit ? keep("grading") : undefined}
               restore={gradingRestore}
             />
+            {dataset.can_edit && (
+              <section className="mt-6 space-y-4">
+                <div>
+                  <h2 className="text-base font-semibold">{t("workspace.helpers")}</h2>
+                  <p className="text-muted-foreground mt-1 text-sm">{t("workspace.helpersHint")}</p>
+                </div>
+                <div className="grid items-stretch gap-4 xl:grid-cols-2">
+                  <HelperSettings dataset={dataset} kind="generator" />
+                  <HelperSettings dataset={dataset} kind="improver" />
+                </div>
+              </section>
+            )}
           </TabsContent>
-          {canViewRuns && (
-            <TabsContent value="evals" className="flex flex-1 flex-col">
+          <TabsContent value="results" className="flex flex-1 flex-col gap-4">
+            {canViewRuns && (
+              <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
+                <Button
+                  size="sm"
+                  variant={shown === "evals" ? "secondary" : "ghost"}
+                  aria-pressed={shown === "evals"}
+                  onClick={() => showTab("evals")}
+                >
+                  <FlaskConical className="size-4" aria-hidden />
+                  {t("workspace.testRuns")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={shown === "review" ? "secondary" : "ghost"}
+                  aria-pressed={shown === "review"}
+                  data-tour="datasets-review-tab"
+                  onClick={() => showTab("review")}
+                >
+                  <ClipboardCheck className="size-4" aria-hidden />
+                  {t("workspace.reviewAnswers")}
+                </Button>
+              </div>
+            )}
+            {shown === "evals" && canViewRuns ? (
               <DatasetEvalsPanel
                 datasetId={id}
-                title={t("evals")}
+                title={t("workspace.testRuns")}
                 onReview={() => showTab("review")}
               />
-            </TabsContent>
-          )}
-          {dataset.can_edit && (
-            <TabsContent value="settings" className="grid items-start gap-4 xl:grid-cols-2">
-              <HelperSettings dataset={dataset} kind="generator" />
-              <HelperSettings dataset={dataset} kind="improver" />
-            </TabsContent>
-          )}
-          <TabsContent value="review" className="flex flex-1 flex-col">
-            <ReviewPanel dataset={dataset} />
+            ) : (
+              <ReviewPanel dataset={dataset} />
+            )}
           </TabsContent>
         </Tabs>
       </div>

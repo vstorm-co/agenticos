@@ -7117,15 +7117,15 @@
       },
       "flow-dataset-next": {
         "title": "Dalej: ocenianie, potem ewaluacja",
-        "body": "Tu ustalisz, jak oceniane są odpowiedzi na te przypadki. Potem uruchom na nich agenta - z zakładki Ewaluacje agenta albo z tego datasetu - i przeczytaj, jak mu poszło."
+        "body": "W Ustawieniach wybierz sposób oceniania odpowiedzi. Następnie uruchom agenta na tym datasecie i sprawdź odpowiedzi w Wynikach."
       },
       "dataset-grading": {
         "title": "Jak oceniane są przypadki",
-        "body": "Kiedy przypadek przechodzi: reguły, według których sprawdzana jest każda odpowiedź, i narzędzia, których oczekuje przypadek. Zaznacz, które przypadek musi przejść. Każda karta zapisuje się osobno."
+        "body": "Wybierz reguły, które każda odpowiedź musi spełnić, oraz oczekiwane wywołania narzędzi. Zmiany oceniania zapisz razem przyciskiem na dole."
       },
       "dataset-review": {
         "title": "Przegląd",
-        "body": "Ocenione odpowiedzi, które czekają na decyzję człowieka. Rozstrzygnij te, których sędzia nie był pewien; jego opinia zostaje zapisana."
+        "body": "Tutaj są wszystkie ocenione odpowiedzi, również już przejrzane. Filtruj według rezultatu, agenta lub tagu, a potem otwórz odpowiedź, sprawdź dowody i zapisz decyzję."
       },
       "agents-system": {
         "title": "Agenci systemowi",
@@ -7133,7 +7133,7 @@
       },
       "dataset-judge": {
         "title": "Sędzia",
-        "body": "Wybierz, który sędzia ocenia ten dataset - domyślny albo utworzony dla niego - i daj mu kryteria. Zmiana sędziego albo jego modelu jest dozwolona; starsze wyniki przestają wtedy być porównywalne. Sędzia potrzebuje wsparcia AI, które włącza administrator."
+        "body": "Wyszukaj zapisany model albo dodaj nowy, jeśli masz uprawnienia. Ustaw kryteria i porównanie z odpowiedzią wzorcową. Starsze wyniki zachowują konfigurację oceniania z chwili ich utworzenia."
       },
       "agent-eval-suites": {
         "title": "Suity",
@@ -7281,7 +7281,7 @@
       },
       "datasets-helper-settings": {
         "title": "Skonfiguruj ewaluację",
-        "body": "W Ustawieniach wybierzesz model i instrukcje generowania przypadków oraz ulepszania agenta. Ocenianie ma osobny model, instrukcje i kryteria. Trwające zadanie zachowuje ustawienia z chwili startu."
+        "body": "Ustawienia grupują ocenianie, generowanie przypadków i ulepszanie agenta. Tutaj wybierzesz ich modele i instrukcje. Trwające zadanie zachowuje ustawienia z chwili startu."
       },
       "desktop-local-agents": {
         "title": "Coding agents na tym komputerze",
@@ -9391,7 +9391,9 @@
     "starterIcon": "Ikona propozycji {number}",
     "starterTitle": "Tytuł propozycji {number}",
     "starterTitlePlaceholder": "Krótki tytuł (opcjonalny)",
-    "starterMessageLabel": "Wiadomość widoczna pod tytułem i wysyłana po kliknięciu"
+    "starterMessageLabel": "Wiadomość widoczna pod tytułem i wysyłana po kliknięciu",
+    "pipelineModelPlaceholder": "Wybierz model",
+    "pipelineNoMatches": "Brak pasujących modeli"
   },
   "steps": {
     "skills-gallery": {
@@ -13555,16 +13557,9 @@
       "referenceHint": "Sędzia porównuje odpowiedź z odpowiedzią wzorcową przypadku, jeśli przypadek ją ma.",
       "counterExampleRow": "Kontrprzykład",
       "counterExampleHint": "Gdy włączone są Twoje kryteria lub odpowiedź wzorcowa, sędzia sprawdza też, czy odpowiedź nie mówi tego, co kontrprzykład przypadku. Odpowiedź, która to mówi, nie przechodzi.",
-      "reviewSelect": "Wysyłaj odpowiedzi ocenione ręcznie do kolejki przeglądu",
-      "review": {
-        "none": "Nic, dopóki ktoś nie wyśle",
-        "failed": "Wyniki, które nie zaliczyły",
-        "all": "Każdy wynik"
-      },
       "scores": "Przegląd",
       "scoreCount": "{count, plural, one {# wynik} few {# wyniki} many {# wyników} other {# wyniku}}",
       "noScores": "Nie ma jeszcze wyników",
-      "nothingAwaitingReview": "Nic nie czeka na decyzję",
       "noScoresBody": "Tu pojawiają się odpowiedzi ocenione według przypadków tego datasetu - z runu ewaluacji albo z runu ocenionego według przypadku w Aktywności.",
       "passed": "Zaliczony",
       "failed": "Niezaliczony",
@@ -13639,17 +13634,12 @@
         "description": "Oceń jakość odpowiedzi modelem, według poniższych instrukcji i kryteriów. Wywołania są płatne i zapisywane w Aktywności."
       },
       "reviewCard": {
-        "title": "Przegląd przez człowieka",
-        "description": "Które odpowiedzi ocenione ręcznie, z Aktywności, czekają na decyzję człowieka. Run ewaluacji wysyła swoje sam: potwierdzone regresje i odpowiedzi, przy których jego sędzia zawiódł, po jednej na przypadek dla każdego agenta."
+        "title": "Przegląd przez człowieka"
       },
       "suggestReference": "{count, plural, one {# przypadek ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} few {# przypadki mają odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} many {# przypadków ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} other {# przypadku ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.}}",
       "suggestReferenceAction": "Porównuj z wzorcem",
       "judgeChanged": "Wyniki ocenione przez poprzedniego sędziego albo model nie będą porównywalne z ocenianymi od teraz.",
       "cancel": "Anuluj",
-      "reviewFilter": "Pokaż",
-      "filterPending": "Czeka na decyzję ({count})",
-      "filterAll": "Wszystkie wyniki ({count})",
-      "nothingAwaitingReviewBody": "Trafiają tu potwierdzone regresje i odpowiedzi, których sędzia nie zdołał ocenić. Możesz też wysłać inne wyniki ze strony runu ewaluacji. Odpowiedzi ocenione ręcznie trafiają tu zgodnie z ustawieniem powyżej.",
       "groupByHand": "Oceniane ręcznie",
       "groupEvalRun": "Run ewaluacji · {when}",
       "agentGone": "Agent, którego już nie ma",
@@ -13747,7 +13737,8 @@
       },
       "criterionHelp": "Opisz jedną rzecz, którą odpowiedź musi zawierać. Podaj oczekiwany fakt lub jasny warunek zaliczenia.",
       "scaleHelp": "Najwyższa ocena każdego kryterium, od 2 do 10.",
-      "passHelp": "Minimalna ocena wymagana do zaliczenia kryterium."
+      "passHelp": "Minimalna ocena wymagana do zaliczenia kryterium.",
+      "groupEvalSource": "Run ewaluacji"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -14090,27 +14081,11 @@
       "expectationsHint": "Co powinna zawierać dobra odpowiedź i jak ją sprawdzić."
     },
     "journey": {
-      "title": "Twój dataset, krok po kroku",
-      "step": {
-        "cases": "{number}. Dodaj przypadki",
-        "grading": "{number}. Ustal ocenianie",
-        "evals": "{number}. Przetestuj agenta",
-        "review": "{number}. Przejrzyj wyniki"
-      },
-      "hint": {
-        "cases": "Wpisz pytania i określ, jak powinna wyglądać dobra odpowiedź.",
-        "grading": "Wybierz reguły i kryteria poprawnej odpowiedzi.",
-        "evals": "Wybierz agenta, sprawdź koszt i uruchom test.",
-        "review": "Przejrzyj odpowiedzi i zdecyduj, co poprawić."
-      },
       "next": {
-        "cases": "Dodaj przypadki",
         "grading": "Ustaw ocenianie",
         "evals": "Otwórz evale"
       },
       "guidance": {
-        "cases": "Zacznij od kilku pytań, które naprawdę zadają użytkownicy.",
-        "grading": "Przypadki są gotowe. Wybierz sposób sprawdzania odpowiedzi.",
         "evals": "Ocenianie jest skonfigurowane. Wybierz agenta i sprawdź koszt przed uruchomieniem."
       },
       "status": {
@@ -14128,7 +14103,24 @@
       "reviewAction": "Przejrzyj wyniki"
     },
     "openCase": "Otwórz przypadek",
-    "caseActions": "Akcje przypadku"
+    "caseActions": "Akcje przypadku",
+    "workspace": {
+      "results": "Wyniki",
+      "backToCases": "Wróć do przypadków",
+      "testRuns": "Testy agentów",
+      "reviewAnswers": "Przegląd odpowiedzi",
+      "helpers": "Generowanie i ulepszanie",
+      "helpersHint": "Wybierz modele i instrukcje do tworzenia przypadków oraz proponowania ulepszeń."
+    },
+    "resultsTable": {
+      "question": "Pytanie",
+      "agent": "Agent",
+      "result": "Wynik",
+      "model": "Model",
+      "date": "Data",
+      "source": "Źródło",
+      "version": "v{number}"
+    }
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",
@@ -14376,7 +14368,9 @@
       "p50p95": "{p50} / {p95}",
       "side": "Strona",
       "pending": "Oczekujące",
-      "reusedFrom": "wynik z runu z {date}"
+      "reusedFrom": "wynik z runu z {date}",
+      "singleTitle": "Metryki uruchomienia",
+      "singleTitleTag": "Metryki dla #{tag}"
     },
     "cases": {
       "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
@@ -14466,7 +14460,6 @@
       "passRate": "Zaliczone {from} → {to}, każdy przypadek tak, jak wypadła większość jego prób{undecided, plural, =0 {} other { · # z {cases} nierozstrzygniętych}}",
       "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}",
       "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany.",
-      "failedAlike": "Każdy przypadek zakończył się tym samym błędem, więc ten wynik nic nie mówi o odpowiedziach agenta. Popraw konfigurację i uruchom go ponownie: {error}",
       "undecidedWhy": "Nierozstrzygnięty, dopóki każdy przypadek nie ma werdyktu: {ungraded, plural, =0 {} one {# nie ma czym go ocenić} few {# nie mają czym ich ocenić} many {# nie ma czym ich ocenić} other {# nie ma czym ich ocenić}}{both, select, true {, a } other {}}{incomplete, plural, =0 {} one {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} few {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} many {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} other {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis}}."
     },
     "live": {
@@ -14779,7 +14772,12 @@
       "undecidedCount": "Bez rozstrzygnięcia: {count}"
     },
     "resultTitle": "Wynik ewaluacji",
-    "trendTitle": "Trend wyników"
+    "trendTitle": "Trend wyników",
+    "executionFailure": {
+      "title": "Konfiguracja wymaga poprawy",
+      "body": "Każdy przypadek zatrzymał się z tym samym błędem. Te wyniki nie mierzą jakości odpowiedzi. Popraw konfigurację i uruchom ewaluację ponownie.",
+      "attempts": "{count, plural, one {# próba przypadku} few {# próby przypadków} many {# prób przypadków} other {# próby przypadku}}"
+    }
   },
   "authoring": {
     "strip": {

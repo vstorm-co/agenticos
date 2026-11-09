@@ -1,5 +1,5 @@
 ---
-source_sha: "63ed9ea5b473"
+source_sha: "b2ccf149c486"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -19,17 +19,17 @@ und von einem Menschen angenommen. Die letzte Quelle
 ist meist die wertvollste, weil es eine Frage ist, die ein Mensch wirklich
 gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 
-**Fälle**, **Generiert**, **Bewertung**, **Evals**, **Prüfung** und **Einstellungen** teilen einen Arbeitsbereich mit Vollbildsteuerung. Hinzufügen, Importieren, Generieren und Aktivität stehen an der Falltabelle. Ein Fall öffnet sich im Seitenpanel, Bearbeiten öffnet sein Formular. Frage und erwartete Antworten stehen zuerst; Werkzeuge, Prüfungen und Labels haben aufklappbare Abschnitte.
+**Fälle**, **Ergebnisse** und **Einstellungen** teilen einen Arbeitsbereich mit Vollbildsteuerung. Fälle enthält geschriebene und generierte Fälle; Ergebnisse verbindet Testläufe mit der Antwortprüfung; Einstellungen enthält Bewertung, Generierung und Verbesserung. Hinzufügen, Importieren, Generieren und Aktivität stehen an der Falltabelle. Ein Fall öffnet sich im Seitenpanel, Bearbeiten öffnet sein Formular. Frage und erwartete Antworten stehen zuerst; Werkzeuge, Prüfungen und Labels haben aufklappbare Abschnitte.
 
-Bewertungsmodell und Anweisungen stehen unter **Bewertung**, Generierung und Verbesserung unter **Einstellungen**. Die Steuerelemente entsprechen Agent Builder. Helfer sind im Code definiert und benötigen keinen zusätzlich erstellten oder veröffentlichten Agenten. Wartende Aufgaben behalten ihre Startkonfiguration.
+Bewertungsmodell und Anweisungen stehen zusammen mit Generierung und Verbesserung unter **Einstellungen**. Gespeicherte Modelle haben einen kompakten durchsuchbaren Selektor; **Modell hinzufügen** öffnet das Formular für Provider, Modell und Schlüssel. Anweisungen verwenden den Markdown-Editor. Helfer sind im Code definiert und benötigen keinen zusätzlich erstellten oder veröffentlichten Agenten. Wartende Aufgaben behalten ihre Startkonfiguration.
 
 ## Vom neuen Dataset zu Ergebnissen { #dataset-workflow }
 
-Der Dataset-Leitfaden zeigt vier Schritte. Du kannst ihn bei Bedarf einklappen.
+Fälle dient der Datenvorbereitung, Ergebnisse zeigt Testläufe und Antworten, Einstellungen enthält Bewertung und Helferkonfiguration.
 
 1. **Fälle hinzufügen.** Eine Frage eingeben, eine CSV- oder JSONL-Datei importieren oder Vorschläge zur Prüfung generieren. Du kannst auch eine Antwort aus der Aktivität übernehmen.
-2. **Bewertung einrichten.** Regeln, Referenzvergleich oder Kriterien des Bewerters wählen. Der Leitfaden verweist hierher, solange ein Fall noch nicht bewertet werden kann.
-3. **Agent testen.** Evals öffnen, einen Agent wählen und die geschätzten Kosten vor dem Start prüfen. Nach dem Einrichten der Bewertung führt eine Schaltfläche unten in Bewertung hierher.
+2. **Bewertung einrichten.** Regeln, Referenzvergleich oder Kriterien des Bewerters wählen. Einstellungen weist auf Fälle ohne Bewertungsregeln hin.
+3. **Agent testen.** Ergebnisse → Testläufe öffnen, einen Agent wählen und die geschätzten Kosten vor dem Start prüfen. Nach dem Einrichten der Bewertung führt eine Schaltfläche unten in der Bewertung unter Einstellungen hierher.
 4. **Ergebnisse prüfen.** Antworten und erfüllte oder nicht erfüllte Kriterien prüfen. Abgeschlossene Evals bieten einen direkten Weg zur Überprüfung.
 
 Die Falltabelle zeigt Quellen, Erwartungen und Tags als farbige Etiketten. Eine
@@ -248,7 +248,7 @@ nennt das Dataset und öffnet es.
 ### Vom Fallgenerator { #generating-cases }
 
 Hundert gute Fälle von Hand zu schreiben ist der Grund, warum die meisten Teams
-keine haben. Der Tab **Generiert** auf der Seite eines Datasets, sichtbar für
+keine haben. Der Ansicht **Fälle → Generierung** auf der Seite eines Datasets, sichtbar für
 Mitglieder, die das Dataset bearbeiten dürfen, bittet den Fallgenerator, sie zu entwerfen, und Sie entscheiden, welche das Dataset behält.
 Wählen Sie den Agent, den die Fälle testen - den, aus dessen Anweisungen, Tools
 und Chats sie geschrieben werden; gegen ihn läuft nichts -, die Quellen und wie
@@ -271,7 +271,7 @@ geprüft, wie das jedes Agents. Wer den Agent, die Quellen oder die Anzahl
 ändert, verwirft die Schätzung.
 
 **Nichts gelangt in das Dataset, bevor Sie es annehmen.** Die Entwürfe warten
-unter **Vorgeschlagene Fälle** im Tab Generiert. Nehmen Sie einen
+unter **Vorgeschlagene Fälle** im Generierungsansicht unter Fälle. Nehmen Sie einen
 unverändert an, bearbeiten Sie ihn vorher oder verwerfen Sie ihn, einzeln oder
 eine Seite auf einmal. Ein Annehmen ist eine neue Version, egal wie viel es
 enthielt, und ihre Fälle haben die Quelle `synthetic`. Ein verworfener Entwurf
@@ -350,11 +350,10 @@ der sein Dataset lesen darf.
 
 ## Bewertung { #scoring }
 
-Ein Dataset legt auf seinem Tab **Bewertung** fest, wie seine Fälle bewertet
-werden, in drei Karten, die zusammen gespeichert werden: **Wann ein Fall
-besteht** enthält die Prüfungen und die erwarteten Tool-Aufrufe, **Bewerter**
-sagt, welcher Bewerter bewertet und worauf, und **Prüfung durch eine Person**
-sagt, was auf die Entscheidung von jemandem wartet. Vier Scorer können auf
+Ein Dataset legt auf seinem Tab **Einstellungen** fest, wie seine Fälle bewertet
+werden, in zwei gemeinsam gespeicherten Karten: **Wann ein Fall besteht**
+enthält Prüfungen und erwartete Tool-Aufrufe; **Bewerter** bestimmt Modell und
+Kriterien. Alle bewerteten Antworten erscheinen unter Ergebnisse. Vier Scorer können auf
 einen Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als
 **Muss bestehen** markiert oder nicht:
 
@@ -448,7 +447,7 @@ also den Namen nach einer etwaigen Überschreibung im Spec. Ein Fall, der vor de
 Umbenennung eines Tools geschrieben wurde, erwartet den alten Namen.
 
 ### Der Bewerter { #judge }
-Der Bewerter ist ein im Code definierter Evaluierungshelfer. Modell, Anweisungen, Kriterien, Skala und Bestehensgrenze gehören zum Tab **Bewertung** dieses Datasets. Modellauswahl und Markdown-Editor entsprechen Agent Builder. Bearbeiten benötigt `datasets:edit`, das Hinzufügen eines Modells `connections:manage`. Ein separater Agent muss weder erstellt noch veröffentlicht werden.
+Der Bewerter ist ein im Code definierter Evaluierungshelfer. Modell, Anweisungen, Kriterien, Skala und Bestehensgrenze gehören zum Tab **Einstellungen** dieses Datasets. Modellauswahl und Markdown-Editor entsprechen Agent Builder. Bearbeiten benötigt `datasets:edit`, das Hinzufügen eines Modells `connections:manage`. Ein separater Agent muss weder erstellt noch veröffentlicht werden.
 
 Jeder Score behält Modell, veröffentlichte Helferidentität, Kriterienhash, Aufgabenversion und Anweisungshash. Dataset-Modell und Anweisungen dürfen geändert werden; Bewertungen unterschiedlicher Konfigurationen sind nicht unmittelbar vergleichbar.
 
@@ -541,7 +540,7 @@ wiederholen kann, das sein Leser nicht sehen darf.
 Jeder Score behält Modell, veröffentlichte Helferidentität, Kriterienhash, Aufgabenversion und Anweisungshash. Dataset-Modell und Anweisungen dürfen geändert werden; Bewertungen unterschiedlicher Konfigurationen sind nicht unmittelbar vergleichbar.
 
 ### Prüfung { #review }
-Prüfung zeigt eine kompakte Warteschlange mit Filtern. Eine gewählte Antwort öffnet Evidenz, Bewertung und Entscheidung im Seitenpanel. Speichern hält das Panel offen und die Zeile an ihrer Position; Entscheidungen lassen sich zurücknehmen oder rückgängig machen. Die Weiterleitungsregel wird hier eingestellt. Ändert der Server die Datenschutzmaske, werden Panel und ungespeicherte Notiz verworfen.
+Prüfung zeigt alle bewerteten Antworten in einer Tabelle mit Frage, Agent, Ergebnis, Modell, Datum und Quelle. Eine gewählte Antwort öffnet Evidenz, Bewertung und Entscheidung im Seitenpanel. Speichern hält das Panel offen und die Zeile an ihrer Position; Entscheidungen lassen sich zurücknehmen oder rückgängig machen. Ändert der Server die Datenschutzmaske, werden Panel und ungespeicherte Notiz verworfen.
 
 Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
@@ -572,12 +571,7 @@ entschiedener Score bleibt entschieden. Ein solcher Score, und einer, dessen
 Entscheidung zurückgenommen wird, durchläuft dieselbe Ersetzung, sodass ein Fall
 nie zweimal für einen Agent wartet.
 
-Der Tab **Prüfung** öffnet sich mit dem, was auf eine Entscheidung wartet, jedes
-Ergebnis einen Klick entfernt, jeweils mit seiner Anzahl, und lässt sich nach
-Ausgang, nach dem Agent, der geantwortet hat, und nach einem Tag des Falls
-eingrenzen. Er fasst die Scores jedes Eval-Runs unter einer Überschrift mit einem
-Link zum Run zusammen, von der aus sie unentschieden aus der Warteschlange
-genommen werden können (`POST /datasets/{id}/scores/review/withdraw`).
+Die Ansicht **Ergebnisse → Antworten prüfen** zeigt sofort alle Ergebnisse, auch bereits geprüfte. Filter betreffen Ausgang, Agent und Fall-Tag; der Prüfstatus teilt die Liste nicht. Jede Zeile verlinkt bei entsprechender Berechtigung zum Eval-Run. Aktionen über der Tabelle können unbewertete Antworten erneut bewerten oder wartende aus der Warteschlange nehmen (`POST /datasets/{id}/scores/review/withdraw`).
 
 Jede Karte zeigt, was der Fall gefragt und erwartet hat - die Frage, mit einem
 Link zum Fall, die Referenzantwort, die erwarteten Tool-Aufrufe und die

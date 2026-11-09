@@ -4,6 +4,8 @@ import { useState, type ComponentProps } from "react";
 import { useTranslations } from "next-intl";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { usableForAgents } from "@/lib/model-profiles";
+import { PipelineProfileSelect } from "./pipeline-profile-select";
 import { MoreOptions } from "@/components/ui/more-options";
 
 type PipelineModelPickerProps = ComponentProps<typeof ModelProfilePicker>;
@@ -33,9 +35,17 @@ export function PipelineModelPicker({ allowAdd, ...props }: PipelineModelPickerP
 
   return (
     <div className="min-w-0 space-y-3">
-      <div className="max-h-72 overflow-y-auto overscroll-contain p-1">
+      {props.profilesStatus === "loaded" &&
+      props.profiles.some((profile) => usableForAgents(profile) || profile.id === props.value) ? (
+        <PipelineProfileSelect
+          profiles={props.profiles}
+          value={props.value}
+          onChange={props.onChange}
+          disabled={props.disabled}
+        />
+      ) : (
         <ModelProfilePicker {...props} />
-      </div>
+      )}
       {allowAdd && (
         <MoreOptions label={t("addModel")} open={adding} onOpenChange={setAdding}>
           <ModelProfilePicker

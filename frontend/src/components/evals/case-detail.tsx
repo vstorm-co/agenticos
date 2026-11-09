@@ -62,7 +62,15 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
         {attempt.answer !== null && (
           <p className="text-foreground text-sm whitespace-pre-wrap">{attempt.answer}</p>
         )}
-        {attempt.error && <p className="text-destructive-ink text-xs">{attempt.error}</p>}
+        {attempt.error && (
+          <div
+            role="alert"
+            className="bg-destructive/5 text-destructive-ink border-destructive/15 flex items-start gap-2 rounded-lg border p-3 text-sm leading-relaxed"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <p>{attempt.error}</p>
+          </div>
+        )}
         {attempt.calls.length > 0 && (
           <ul className="space-y-1">
             {attempt.calls.map((call, index) => (

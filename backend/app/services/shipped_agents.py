@@ -210,7 +210,13 @@ class ShippedAgentService:
             if key == ARCHITECT:
                 variants.append(
                     [
-                        *agent_templates.for_this_deployment(tuple(row.capabilities)),
+                        *[
+                            binding
+                            for binding in agent_templates.for_this_deployment(
+                                tuple(row.capabilities)
+                            )
+                            if binding["id"] != "sandbox"
+                        ],
                         {
                             "id": "sandbox",
                             "config": {"backend": "service", "include_execute": True},

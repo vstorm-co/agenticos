@@ -565,7 +565,7 @@ describe("EvalRunView", () => {
   it("shows no verdict for a run with no candidate to give one about", () => {
     state.run = { ...state.run, run: evalRun({ arms: [] }) };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "Back to Build" })).toBeNull();
   });
 
@@ -826,7 +826,7 @@ describe("EvalRunView", () => {
 
     expect(screen.getByText(/1 of 4 first answers in/)).toBeInTheDocument();
     expect(screen.getByText("The comparison appears when both sides finish.")).toBeVisible();
-    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
     expect(screen.queryByText("How the two compare")).toBeNull();
     expect(screen.getByRole("columnheader", { name: "Pending" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: pending" })).toBeInTheDocument();
@@ -1005,14 +1005,15 @@ describe("EvalRunView", () => {
   it("says a side whose every answer failed the same way could not run, not how it compares", () => {
     const error = "The model provider rejected the credentials (HTTP 401).";
     state.run = { ...state.run, run: evalRun({ arms: [arm({ failed_alike: error })] }) };
+    state.comparison = comparison({ baseline: null, baseline_summary: null });
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Could not run")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
-    expect(
-      screen.getByText(
-        `Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: ${error}`,
-      ),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Setup needs attention" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(error);
+    expect(screen.queryByText("Run metrics")).toBeNull();
+    expect(screen.queryByText("Completed")).toBeNull();
+    expect(screen.queryByText("0%")).toBeNull();
     expect(screen.queryByText("Breaks cases")).toBeNull();
   });
 
@@ -1136,7 +1137,7 @@ describe("EvalRunView", () => {
     const { rerender } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("combobox", { name: "Tag" })).not.toBeInTheDocument();
     expect(screen.queryByText("How the two compare")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
 
     state.cases = { cases: [], total: 0, isLoading: false, error: new Error("boom") };
     rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
@@ -1165,4 +1166,16 @@ it("does not promise comparisons or reruns while a single version is answering",
   expect(screen.getByText("2 of 4 answers in.")).toBeVisible();
   expect(screen.queryByText(/The comparison appears/)).not.toBeInTheDocument();
   expect(screen.queryByText(/for confirming reruns/)).not.toBeInTheDocument();
+});
+
+it("retries a failed published version without switching to an invalid draft", async () => {
+  review.canRun = true;
+  state.run = {
+    ...state.run,
+    run: evalRun({ arms: [arm({ failed_alike: "Workspace setup failed" })], draft_changed: false }),
+  };
+  state.comparison = comparison({ baseline: null, baseline_summary: null });
+  render(<EvalRunView agentId="agent-1" runId="run-1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Test again" }));
+  expect(testAgain.props.at(-1)).toEqual(expect.objectContaining({ target: "version" }));
 });
