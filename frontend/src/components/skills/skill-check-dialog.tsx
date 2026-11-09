@@ -14,10 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { useSkillCheck } from "@/hooks/use-skill-check";
+import { useSkillCheck, type SkillCheckBody } from "@/hooks/use-skill-check";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import type { SkillCheck } from "@/types/skill-checks";
 import { CheckAgents } from "./check-agents";
 import { CheckDecision } from "./check-decision";
 
@@ -48,6 +49,7 @@ export function SkillCheckDialog({
   onOpenChange,
   onApplied,
   onLineMoved,
+  onChecked,
 }: {
   skillId: string;
   /**
@@ -56,7 +58,8 @@ export function SkillCheckDialog({
    */
   change?:
     | { proposalId: string }
-    | { candidate: { description: string; content: string }; baseVersionId: string };
+    | { candidate: { description: string; content: string }; baseVersionId: string }
+    | { updateAgentId: string };
   /** A check already started, opened again in place of a change to check. */
   resume?: string;
   forkId: string | null;
@@ -65,6 +68,8 @@ export function SkillCheckDialog({
   onApplied?: () => void;
   /** Called, in place of saying so here, when the line moved past the text's base. */
   onLineMoved?: () => void;
+  /** An update check is decided by moving its agent, so its finished check goes back. */
+  onChecked?: (check: SkillCheck) => void;
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
@@ -74,16 +79,19 @@ export function SkillCheckDialog({
   const description = change && "candidate" in change ? change.candidate.description : null;
   const content = change && "candidate" in change ? change.candidate.content : null;
   const baseVersionId = change && "candidate" in change ? change.baseVersionId : null;
-  const body = useMemo(
+  const updateAgentId = change && "updateAgentId" in change ? change.updateAgentId : null;
+  const body = useMemo<SkillCheckBody>(
     () =>
-      proposalId !== null
-        ? { fork_id: forkId, proposal_id: proposalId }
-        : {
-            fork_id: forkId,
-            candidate: { description: description ?? "", content: content ?? "" },
-            base_version_id: baseVersionId ?? undefined,
-          },
-    [forkId, proposalId, description, content, baseVersionId],
+      updateAgentId !== null
+        ? { update_agent_id: updateAgentId }
+        : proposalId !== null
+          ? { fork_id: forkId, proposal_id: proposalId }
+          : {
+              fork_id: forkId,
+              candidate: { description: description ?? "", content: content ?? "" },
+              base_version_id: baseVersionId ?? undefined,
+            },
+    [forkId, proposalId, description, content, baseVersionId, updateAgentId],
   );
   const { mutate: price } = estimate;
   const pricing = change !== undefined;
@@ -190,7 +198,13 @@ export function SkillCheckDialog({
             </Button>
           </DialogFooter>
         )}
-        {session === null && check?.status === "done" && (
+        {session === null && check?.status === "done" && onChecked && (
+          <DialogFooter className="items-center gap-3 sm:justify-between">
+            <p className="text-muted-foreground text-sm">{t("updateChecked")}</p>
+            <Button onClick={() => onChecked(check)}>{t("backToChange")}</Button>
+          </DialogFooter>
+        )}
+        {session === null && check?.status === "done" && !onChecked && (
           <CheckDecision
             check={check}
             busy={apply.isPending || discard.isPending}

@@ -8269,7 +8269,8 @@
         "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}",
         "checkedOn": "{version} sprawdzono na agencie {name} {when}: {state}.",
         "checksUnseen": "Nie widzisz, czy {version} sprawdzono na agencie {name}. Jego odpowiedzi mogą się zmienić.",
-        "answeredBefore": "{name} odpowiadał już z {version}."
+        "answeredBefore": "{name} odpowiadał już z {version}.",
+        "checkFirst": "Najpierw sprawdź"
       },
       "history": {
         "title": "Historia: {line}",
@@ -8528,7 +8529,9 @@
       "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
       "openSession": "Otwórz sesję",
       "progress": "Sprawdzono {done} z {total} agentów",
-      "progressLabel": "Sprawdzeni agenci"
+      "progressLabel": "Sprawdzeni agenci",
+      "updateChecked": "Sprawdzone. Wróć, aby zdecydować, czy przenieść agenta.",
+      "backToChange": "Wróć do zmiany wersji"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje"

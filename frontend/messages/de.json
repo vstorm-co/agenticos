@@ -8387,7 +8387,8 @@
         "leavesMainFork": "{name} erhält keine neuen main-Versionen mehr.{behind, plural, =0 {} =1 { Fork „{fork}“ liegt 1 Version hinter main und hat diese Änderung nicht.} other { Fork „{fork}“ liegt # Versionen hinter main und hat deren Änderungen nicht.}}",
         "checkedOn": "{version} wurde auf {name} am {when} geprüft: {state}.",
         "checksUnseen": "Ob {version} auf {name} geprüft wurde, wird Ihnen nicht angezeigt. Seine Antworten können sich ändern.",
-        "answeredBefore": "{name} hat schon mit {version} geantwortet."
+        "answeredBefore": "{name} hat schon mit {version} geantwortet.",
+        "checkFirst": "Zuerst prüfen"
       },
       "history": {
         "title": "Verlauf: {line}",
@@ -8646,7 +8647,9 @@
       "inSession": "Diese Prüfung gehört zu einer Verbesserungssitzung und wird dort entschieden.",
       "openSession": "Sitzung öffnen",
       "progress": "{done} von {total} Agents geprüft",
-      "progressLabel": "Geprüfte Agents"
+      "progressLabel": "Geprüfte Agents",
+      "updateChecked": "Geprüft. Gehen Sie zurück, um zu entscheiden, ob der Agent wechselt.",
+      "backToChange": "Zurück zum Versionswechsel"
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen"

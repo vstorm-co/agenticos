@@ -9,12 +9,17 @@ import {
   createSkillTestSet,
   discardSkillCheck,
   estimateSkillCheck,
+  estimateUpdateCheck,
   getSkillCheck,
   getSkillTestSet,
   listSkillChecks,
   startSkillCheck,
+  startUpdateCheck,
 } from "@/lib/skill-checks-api";
 import type { SkillCheck, SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
+
+/** A change to check on its line, or main's newest version on one pinned agent. */
+export type SkillCheckBody = SkillCheckStart | { update_agent_id: string };
 
 /** How often a running check is read again: its stages are eval runs, minutes long. */
 export const SKILL_CHECK_POLL_MS = 5000;
@@ -46,10 +51,16 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
   return {
     check: check.data ?? null,
     estimate: useMutation({
-      mutationFn: (body: SkillCheckStart) => estimateSkillCheck(skillId, body),
+      mutationFn: (body: SkillCheckBody) =>
+        "update_agent_id" in body
+          ? estimateUpdateCheck(skillId, body.update_agent_id)
+          : estimateSkillCheck(skillId, body),
     }),
     start: useMutation({
-      mutationFn: (body: SkillCheckStart) => startSkillCheck(skillId, body),
+      mutationFn: (body: SkillCheckBody) =>
+        "update_agent_id" in body
+          ? startUpdateCheck(skillId, body.update_agent_id)
+          : startSkillCheck(skillId, body),
       onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
     }),
     apply: useMutation({

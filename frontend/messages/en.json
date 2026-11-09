@@ -8509,7 +8509,8 @@
         "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}",
         "checkedOn": "{version} was checked on {name} {when}: {state}.",
         "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change.",
-        "answeredBefore": "{name} has answered with {version} before."
+        "answeredBefore": "{name} has answered with {version} before.",
+        "checkFirst": "Check first"
       },
       "history": {
         "title": "History of {line}",
@@ -8768,7 +8769,9 @@
       "inSession": "This check belongs to an improvement session, so it is decided there.",
       "openSession": "Open the session",
       "progress": "{done} of {total} agents checked",
-      "progressLabel": "Agents checked"
+      "progressLabel": "Agents checked",
+      "updateChecked": "Checked. Go back to decide whether to move the agent.",
+      "backToChange": "Back to Change version"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions"

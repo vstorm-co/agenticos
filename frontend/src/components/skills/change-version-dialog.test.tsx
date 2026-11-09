@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { checkAgent, finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { ChangeVersionDialog } from "./change-version-dialog";
 
@@ -168,6 +169,53 @@ describe("ChangeVersionDialog", () => {
       check_id: "c7",
       acknowledge_unknown: false,
     });
+  });
+
+  it("checks main's newest version on a pinned agent first, then moves it with that check", async () => {
+    const done = finishedCheck({
+      id: "c9",
+      source: "catch_up",
+      agents: [
+        checkAgent({ name: "HR bot", agent: { id: "a1", name: "HR bot" }, state: "better" }),
+      ],
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/checks/c9" ? done : { items: [{ id: "m12", number: 12 }], total: 12 },
+    );
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+      path.endsWith("/update-check/estimate") ? { ...done, status: undefined } : done,
+    );
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: true,
+      agent_version: 5,
+      environments: ["Production"],
+      usage: HR,
+    });
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Check first" }));
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/s1/agents/a1/update-check/estimate", {});
+    await userEvent.click(await screen.findByRole("button", { name: "Start the check" }));
+    expect(apiClient.post).toHaveBeenLastCalledWith("/skills/s1/agents/a1/update-check", {});
+    await userEvent.click(await screen.findByRole("button", { name: "Back to Change version" }));
+
+    expect(await screen.findByText(/v12 was checked on HR bot .*: Better/)).toBeVisible();
+    expect(screen.queryByLabelText("I understand, change it anyway")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
+    expect(apiClient.put).toHaveBeenLastCalledWith("/skills/s1/agents/a1/binding", {
+      state: "main",
+      check_id: "c9",
+      acknowledge_unknown: false,
+    });
+  });
+
+  it("offers no check first where only a whole line can be checked", async () => {
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Fork “Returns”, latest" }));
+
+    expect(screen.queryByRole("button", { name: "Check first" })).toBeNull();
   });
 
   it("asks before deciding a catch-up check that could not measure the agent", async () => {

@@ -30,9 +30,11 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import type { BindingTarget } from "@/lib/skill-versions-api";
-import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
+import type { SkillCheck } from "@/types/skill-checks";
+import type { AgentCheckRef, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { bindingLabel } from "./skill-lines";
 import { AutoHeight } from "./auto-height";
+import { SkillCheckDialog } from "./skill-check-dialog";
 import { VersionDiff } from "./version-diff";
 
 /**
@@ -61,6 +63,18 @@ function reads(
     fork: fork.name,
     served: served.id === fork.latest.id,
     id: fork.latest.id,
+  };
+}
+
+/** What an update check found on the agent it checked, as the agent's own check reads. */
+function foundOn(check: SkillCheck, agentId: string): AgentCheckRef {
+  const row = check.agents.find((agent) => agent.agent.id === agentId);
+  return {
+    check_id: check.id,
+    version_id: check.applied_version_id ?? "",
+    state: row?.state ?? "unknown",
+    sample: row?.sample ?? null,
+    at: check.finished_at ?? check.created_at,
   };
 }
 
@@ -116,6 +130,9 @@ export function ChangeVersionDialog({
   const [target, setTarget] = useState<BindingTarget>(current);
   const [understood, setUnderstood] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Checking main's newest version on a pinned agent before moving it there.
+  const [checking, setChecking] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState<AgentCheckRef | null>(null);
   const unchanged = sameTarget(target, current);
   const name = usage.agent.name;
   const pinned = target.state === "pinned" ? String(target.version) : "";
@@ -134,7 +151,11 @@ export function ChangeVersionDialog({
     target.state === "fork" ? forks.find((fork) => fork.id === target.fork_id) : undefined;
   const read = reads(target, usage, targetFork, mainLatest, (number) => known.get(number)?.id);
   // A check that measured this very version on the agent answers what the warning asks.
-  const checked = usage.checked_versions?.find((ref) => ref.version_id === read.id);
+  const checked =
+    usage.checked_versions?.find((ref) => ref.version_id === read.id) ??
+    (current.state === "pinned" && target.state === "main"
+      ? (updateCheck ?? undefined)
+      : undefined);
   const label =
     read.fork === null
       ? t("versionOption", { number: read.number })
@@ -153,6 +174,9 @@ export function ChangeVersionDialog({
           acknowledge_unknown: checked.state === "unknown" && understood,
         }
       : null;
+  // Only main's newest version on a pinned agent can be checked on that agent alone.
+  const canCheckFirst =
+    needsAck && seesChecks && !checked && current.state === "pinned" && target.state === "main";
   const leavesMain = !unchanged && current.state === "main" && target.state !== "main";
   const picked = target.state === "pinned" ? known.get(target.version) : undefined;
 
@@ -207,6 +231,22 @@ export function ChangeVersionDialog({
       </span>
     </label>
   );
+
+  if (checking) {
+    return (
+      <SkillCheckDialog
+        skillId={skillId}
+        change={{ updateAgentId: usage.agent.id }}
+        forkId={null}
+        onOpenChange={(open) => !open && setChecking(false)}
+        onChecked={(check) => {
+          setUpdateCheck(foundOn(check, usage.agent.id));
+          setUnderstood(false);
+          setChecking(false);
+        }}
+      />
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -327,6 +367,11 @@ export function ChangeVersionDialog({
                       ? t("unchecked", { version: label, name })
                       : t("checksUnseen", { version: label, name })}
                   </p>
+                  {canCheckFirst && (
+                    <Button variant="outline" size="sm" onClick={() => setChecking(true)}>
+                      {t("checkFirst")}
+                    </Button>
+                  )}
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="skill-binding-understood"
