@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "de9e976fa4a1"
 ---
 
 # Skills { #skills }
@@ -287,7 +287,14 @@ Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
 Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
 leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
 **Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
-nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
+nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md).
+
+Ein Judge bewertet den Satz und vergleicht jede Antwort mit der, die Personen
+positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal
+gestellt: Eine Antwort, die jemand bewertet hat, gewinnt gegen eine, die nur
+fehlschlug, so verlangt eine Frage nie eine Antwort und verbietet sie zugleich.
+
+Dann die eigenen Fragen des Agents:
 
 - **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
   eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
@@ -295,7 +302,8 @@ nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Da
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
   den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
   Satz des Skills geprüft, und seine Zeile sagt das. Ein Agent, den die Fragen
-  des Skills als schlechter zeigen, wird nicht nach seinen eigenen gefragt.
+  des Skills als schlechter zeigen, wird nicht nach seinen eigenen gefragt, und
+  seine Zeile sagt, dass sie nicht gestellt wurden.
 - **Thorough**: das ganze Dataset des Agents, gefragt auch dann, wenn die Fragen
   des Skills den Agent als schlechter zeigten, damit seine Zeile sagt, wo die
   Änderung ihn gebrochen hat. Eine Änderung der Beschreibung
@@ -310,6 +318,12 @@ nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Da
     gewollte Regeländerung besteht keine Frage, die noch die alte Antwort
     erwartet: Aktualisieren Sie zuerst die Testfragen.
 
+Ein Satz von Fragen, den nichts bewerten kann oder dessen Fragen alle aus den
+Unterhaltungen stammen, aus denen die Änderung gelernt hat, wird für diesen Agent
+ausgelassen, und der Rest wird trotzdem gefragt. Ein Agent, für den nichts zu
+fragen bleibt, ist unbekannt, mit diesem Grund. Jeder Satz zählt nur die Fragen,
+die er stellt.
+
 ### Die Regel { #the-rule }
 
 - Kein Agent darf **schlechter** werden, durch eine Regression, die erneutes
@@ -317,9 +331,16 @@ nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Da
 - Mindestens ein Agent muss **besser** werden.
 - Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
   Rauschen**: eine Warnung, keine Sperre.
-- Ein Agent, der nicht geprüft werden konnte - keine Fragen, kein Zugriff, kein
-  Budget mehr, keine veröffentlichte Version, ein fehlgeschlagener Run - ist
-  **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
+- Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
+  bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
+  kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
+  fehlgeschlagener Run, eine angehaltene Prüfung - ist **unbekannt**, und eine
+  Person bestätigt das vor dem Anwenden.
+
+Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
+sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Eine Änderung
+an einer Linie, die kein Agent liest, besteht sofort: Sie erreicht niemanden, und
+die Prüfung sagt, dass es niemanden zu prüfen gab.
 
 Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
 zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
@@ -328,16 +349,26 @@ fand.
 Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
 Held-out-Fragen des Agents.
 
-Das Urteil einer Person in der [Prüfwarteschlange](datasets.md#review) über eine
-Antwort, die eine Prüfung bewertet hat, beurteilt diesen Agent neu: seine Zahlen,
-das Urteil der Prüfung und das Ergebnis des Improve-Versuchs, den die Prüfung
-gemessen hat, folgen diesem Urteil. Eine entschiedene Prüfung behält ihre
-Entscheidung, und ein Agent, den die Prüfung nicht ausführen konnte, bleibt
-unbekannt.
+Eine Prüfung schickt ihre bestätigten Regressionen und die Antworten, die der
+Judge nicht bewerten konnte, in die [Prüfwarteschlange](datasets.md#review), jede
+als Antwort mit der vorgeschlagenen Änderung markiert. Das Urteil einer Person
+dort über eine Antwort, die eine Prüfung bewertet hat, beurteilt diesen Agent neu:
+seine Zahlen, das Urteil der Prüfung und das Ergebnis des Improve-Versuchs, den
+die Prüfung gemessen hat, folgen diesem Urteil.
+
+Das Urteil gilt dieser einen
+Antwort; das erneute Fragen behält seine eigenen Bewertungen, also bleibt eine
+Regression, die es bestätigt hat. Ein Agent, den eine schnelle Prüfung nicht nach
+seinen eigenen Fragen gefragt hat, weil die des Skills ihn als schlechter zeigten,
+ist unbekannt, wenn diese Regression zurückgenommen wird. Eine entschiedene
+Prüfung behält ihre Entscheidung, und ein Agent, den die Prüfung nicht ausführen
+konnte, bleibt unbekannt.
 
 Der Anteil jedes Agents sind seine eigenen Eval-Runs, abgerechnet über sein
 Budget. Die Schätzung nennt einen Preis, wahrscheinlich und höchstens, und vor
-dem Start die Agents, deren Budget ihn nicht deckt. Starten braucht `runs:view`
+dem Start die Agents, deren Budget ihn nicht deckt. Dieselbe Prüfung noch einmal
+gestartet, während sie läuft, gibt diese Prüfung zurück, sodass sie nie doppelt
+bezahlt wird. Starten braucht `runs:view`
 und Bearbeitungszugriff auf den Skill. Ein Agent, den Sie nicht ausführen dürfen,
 wird nicht ausgeführt, und einer, den Sie nicht sehen dürfen, ist eine Zahl, nie
 ein Name.

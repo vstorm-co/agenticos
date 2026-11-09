@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "de9e976fa4a1"
 ---
 
 # Skille { #skills }
@@ -267,14 +267,22 @@ Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie
 Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
 pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
 **Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
-mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o pytania samego agenta:
+mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md).
+
+Zestaw ocenia sędzia, porównując każdą odpowiedź z tą, którą ludzie ocenili w
+górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, którą
+ktoś ocenił, wygrywa z taką, która tylko się nie udała, więc jedno pytanie nigdy
+nie wymaga odpowiedzi i jednocześnie jej nie zabrania.
+
+Potem o pytania samego agenta:
 
 - **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
   held-out samego skilla jest za mało do pięciu, których wymaga wynik - których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
   ze zmienianymi liniami. Agent bez takich pytań jest sprawdzany tylko na
   zestawie skilla, a jego wiersz to mówi. Agent, którego pytania skilla pokazały
-  jako gorszego, nie jest pytany o własne.
+  jako gorszego, nie jest pytany o własne, a jego wiersz mówi, że nie zostały
+  zadane.
 - **Thorough**: cały dataset agenta, zadawany nawet wtedy, gdy pytania skilla
   pokazały agenta jako gorszego, żeby jego wiersz mówił, gdzie zmiana go zepsuła.
   Zmiana opisu skilla jest zawsze sprawdzana
@@ -288,6 +296,11 @@ mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o p
     reguły nie przejdzie żadnego pytania, które wciąż oczekuje starej
     odpowiedzi: najpierw zaktualizuj pytania testowe.
 
+Zestaw pytań, którego nic nie potrafi ocenić albo którego wszystkie pytania
+pochodzą z rozmów, z których zmiana się nauczyła, jest dla tego agenta pomijany,
+a reszta i tak jest zadawana. Agent, któremu nie zostało nic do zadania, jest
+nieznany, z tym powodem. Każdy zestaw liczy tylko pytania, które zadaje.
+
 ### Reguła { #the-rule }
 
 - Żaden agent nie może być **gorszy** o regresję potwierdzoną ponownymi
@@ -295,9 +308,15 @@ mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o p
 - Co najmniej jeden agent musi być **lepszy**.
 - Różnica, której sprawdzenie nie potwierdziło, jest **w granicach szumu**: to
   ostrzeżenie, nie blokada.
-- Agent, którego nie dało się sprawdzić - brak pytań, brak dostępu, brak
-  budżetu, brak opublikowanej wersji, nieudany run - jest **nieznany**, a
-  osoba potwierdza to przed zastosowaniem.
+- Agent, którego nie dało się sprawdzić - brak pytań, pytania, których nic nie
+  ocenia albo wzięte w całości z rozmów samej zmiany, brak dostępu, brak
+  budżetu, brak opublikowanej wersji, nieudany run, zatrzymane sprawdzenie - jest
+  **nieznany**, a osoba potwierdza to przed zastosowaniem.
+
+Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
+razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę.
+Zmiana linii, której nie czyta żaden agent, przechodzi od razu: do nikogo nie
+trafia, a sprawdzenie mówi, że nie było kogo sprawdzić.
 
 Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
 razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
@@ -305,15 +324,25 @@ regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi.
 pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
 held-out agenta.
 
-Werdykt osoby w [kolejce przeglądu](datasets.md#review) na odpowiedź ocenioną
+Sprawdzenie wysyła swoje potwierdzone regresje i odpowiedzi, których sędzia nie
+umiał ocenić, do [kolejki przeglądu](datasets.md#review), każdą oznaczoną jako
+odpowiedź udzieloną z proponowaną zmianą. Werdykt osoby na odpowiedź ocenioną
 przez sprawdzenie ocenia tego agenta od nowa: jego liczby, werdykt sprawdzenia i
 wynik próby Improve, którą sprawdzenie mierzyło, idą za tym werdyktem.
-Rozstrzygnięte sprawdzenie zachowuje swoją decyzję, a agent, którego sprawdzenie
-nie mogło uruchomić, zostaje nieznany.
+
+Werdykt
+dotyczy tej jednej odpowiedzi; ponowne pytania zachowują własne oceny, więc
+regresja, którą potwierdziły, zostaje. Agent, którego szybkie sprawdzenie nie
+zapytało o własne pytania, bo pytania skilla pokazały go jako gorszego, jest
+nieznany, gdy ta regresja zostanie cofnięta. Rozstrzygnięte sprawdzenie
+zachowuje swoją decyzję, a agent, którego sprawdzenie nie mogło uruchomić,
+zostaje nieznany.
 
 Część każdego agenta to jego własne runy evali, rozliczane z jego budżetu.
 Estymacja podaje jedną cenę, najpewniej i najwyżej, i przed startem wymienia
-agentów, których budżet jej nie pokryje. Start wymaga `runs:view` i prawa edycji
+agentów, których budżet jej nie pokryje. Ponowny start tego samego sprawdzenia,
+gdy wciąż trwa, zwraca to sprawdzenie, więc nigdy nie płaci się za nie dwa razy.
+Start wymaga `runs:view` i prawa edycji
 skilla. Agent, którego nie możesz uruchomić, nie jest uruchamiany, a ten, którego
 nie widzisz, jest liczbą, nigdy nazwą.
 
