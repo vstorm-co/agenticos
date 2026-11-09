@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { announceChange, onRemoteChange, staleQueries } from "./live-updates";
+import { announceChange, onRemoteChange, staleQueries as allStaleQueries } from "./live-updates";
 import { qk } from "@/lib/query-keys";
 import type { ChangeEvent, ChangeResource } from "@/types/change-events";
 
@@ -125,4 +125,23 @@ describe("onRemoteChange", () => {
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(2);
   });
+});
+
+// Existing cache families retain their contracts; start readiness adds one family.
+function staleQueries(event: ChangeEvent) {
+  return allStaleQueries(event).filter((key) => key[0] !== "onboarding");
+}
+it("refreshes start readiness after real runs, access changes and deleted conversations", () => {
+  for (const resource of [
+    "run",
+    "agent",
+    "member",
+    "group",
+    "organization",
+    "conversation",
+    "secret",
+  ] as const) {
+    expect(allStaleQueries(change(resource))).toContainEqual(qk.onboarding.all());
+  }
+  expect(allStaleQueries(change("table"))).not.toContainEqual(qk.onboarding.all());
 });

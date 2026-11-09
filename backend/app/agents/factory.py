@@ -78,6 +78,7 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.skills._loader import SkillLoader
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
@@ -86,6 +87,7 @@ from app.agents.capabilities.system_reminders import (
 from app.agents.capabilities.tool_search import ConfiguredToolSearch
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
@@ -99,6 +101,9 @@ from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
+from app.agents.tool_errors import ToolErrors
+from app.agents.tool_identity import CaptureToolIdentity
+from app.agents.tool_recovery import ToolRecovery
 from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
     AnswerUnknownTools,
@@ -415,6 +420,10 @@ def build_agent(
             ),
         )
     )
+    if any(binding.enabled and binding.capability_id == "skills" for binding in bindings) and (
+        resources or {}
+    ).get("skills"):
+        configured.append(SkillLoader())
     if voice is not None:
         configured = voice_configured(configured)
 
@@ -488,10 +497,13 @@ def build_agent(
     # Made before the capabilities, because a run reviewer, code mode and
     # `CacheWatch` write onto it.
     recorder = RunRecorder()
-    asking = (
-        frozenset({CONNECT_ACCOUNT})
-        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-        else frozenset()
+    asking = frozenset(
+        name
+        for name, kind in (
+            (CONNECT_ACCOUNT, ConnectOnUse),
+            (REQUEST_COMPUTER_ACCESS, RequestComputerOnUse),
+        )
+        if any(isinstance(extra, kind) for extra in extra_capabilities)
     )
     gate = ApprovalGate(
         routine_policy=routine_policy,
@@ -505,6 +517,9 @@ def build_agent(
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
         CountedRepair(tally=repairs),
+        ToolErrors(),
+        ToolRecovery(),
+        CaptureToolIdentity.for_spec(spec),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -533,7 +548,7 @@ def build_agent(
         # switched (#2301). A call is told by its text twin instead.
         *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
         *extra_capabilities,
-        *(() if voice is None else (AnswerUnknownTools(),)),
+        AnswerUnknownTools(structured=voice is None),
         *(
             ()
             if call is None

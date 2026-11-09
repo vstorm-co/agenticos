@@ -366,8 +366,8 @@ class CapabilityBindingSpec(BaseModel):
                 kept.setdefault(LOAD_CAPABILITY, carried)
             logger.warning(
                 "Migrating `%s` for skills tools this spec version no longer exposes: %s. "
-                "A skill is opened with `load_capability` now, which is what its approval "
-                "moves to.",
+                "A skill is opened with `read_skill`; its approval retains the stable "
+                "`load_capability` key.",
                 key,
                 ", ".join(sorted(withdrawn)),
             )

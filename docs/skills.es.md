@@ -1,5 +1,5 @@
 ---
-source_sha: "4644400bc7f1"
+source_sha: "5ccafc29c291"
 ---
 
 # Skills { #skills }
@@ -16,9 +16,9 @@ skills le dan la vuelta a eso:
 
 ```mermaid
 flowchart LR
-    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
+    A["available skills<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_capability - the body"]
+    B -->|yes| C["read_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -102,20 +102,18 @@ A través de la [capability `skills`](reference/capabilities.md#skills). Cada sk
 que recibe un agent se convierte en una **capability propia**, listada para el
 modelo con su nombre y su descripción y abierta cuando hace falta:
 
-| Cómo                        | Qué hace                                                               |
-| --------------------------- | ---------------------------------------------------------------------- |
-| El catálogo de capabilities | Nombres y descripciones de una línea de todo lo vinculado a este agent |
-| `load_capability`           | El cuerpo completo de un skill, traído a la conversación               |
-| `read_skill_resource`       | Un archivo al lado de un skill                                         |
+| Cómo | Qué hace |
+| --- | --- |
+| Skills disponibles | Nombres y descripciones de una línea de todo lo vinculado a este agent |
+| `read_skill` | El cuerpo completo de un skill, traído a la conversación |
+| `read_skill_resource` | Un archivo al lado de un skill |
 
-`load_capability` es la herramienta del propio framework de agents, no una que
-publique esta plataforma, así que un spec no la concede ni la renombra. Sí puede
-**controlarla**, porque es la llamada que abre un skill: `tool_approval` sobre ella
-es como un agent pregunta a una persona antes de que un skill llegue al modelo, y un
-spec que controlaba el antiguo `load_skill` se migra a ella en lugar de quedarse sin
-control. Lo que la capability aporta como herramienta propia es
-`read_skill_resource`, y solo cuando al menos uno de los skills vinculados trae un
-archivo que leer.
+`read_skill` presenta el cargador diferido nativo del framework con nombres de
+skills. Las políticas de aprobación conservan la clave estable `load_capability`,
+por lo que los specs publicados y las aprobaciones pendientes siguen funcionando.
+La antigua clave de aprobación `load_skill` sigue migrándose a ella. No hay una
+herramienta separada para listar. `read_skill_resource` lee archivos auxiliares
+solo después de abrir el skill.
 
 Un spec vincula skills por id en `skill_ids`, así que un agent ve los que se le
 dieron y nada más.
@@ -361,13 +359,13 @@ pequeña promesa que hace el [catálogo MCP](mcp.md#the-catalog): alguien lo mir
 Responden a preguntas distintas, y la diferencia importa cuando un agent recibe
 la equivocada.
 
-|                 | Skills                            | [Conocimiento](file-processing.md)  |
-| --------------- | --------------------------------- | ----------------------------------- |
-| Contiene        | Procedimiento — cómo hacemos esto | Documentos — lo que sabemos         |
-| Lo escribe      | Una persona, deliberadamente      | Se ingiere en bloque                |
-| Se recupera por | El modelo eligiendo un nombre     | Búsqueda semántica sobre fragmentos |
-| Cita            | Nada; _es_ la instrucción         | El pasaje y su fuente               |
-| Escala          | Decenas                           | Miles de documentos                 |
+|  | Skills | [Conocimiento](file-processing.md) |
+| --- | --- | --- |
+| Contiene | Procedimiento — cómo hacemos esto | Documentos — lo que sabemos |
+| Lo escribe | Una persona, deliberadamente | Se ingiere en bloque |
+| Se recupera por | El modelo eligiendo un nombre | Búsqueda semántica sobre fragmentos |
+| Cita | Nada; _es_ la instrucción | El pasaje y su fuente |
+| Escala | Decenas | Miles de documentos |
 
 !!! example "Cuál es cuál"
 

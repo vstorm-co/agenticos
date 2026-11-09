@@ -50,8 +50,8 @@ class GssapiTicketAcceptor:
             # and from CI by design - see the module docstring. The import is
             # inside the `try` for the same reason, and the `except` below is
             # what a deployment missing the extra actually gets.
-            import gssapi  # ty: ignore[unresolved-import]
-            from gssapi.exceptions import GSSError  # ty: ignore[unresolved-import]
+            import gssapi  # ty: ignore[import-not-found]
+            from gssapi.exceptions import GSSError  # ty: ignore[import-not-found]
         except ImportError as exc:
             raise ConfigurationError(message=MISSING_EXTRA) from exc
 

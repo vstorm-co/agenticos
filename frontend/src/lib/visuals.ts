@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 /**
  * Visuals: what a `draw` or `revise_visual` call shows, from its arguments.
  *
@@ -155,7 +156,7 @@ export function resolveVisual(
   while (current !== undefined) {
     if (chain.length >= MAX_CHAIN) return null;
     chain.push(current);
-    if (current.name !== REVISE) break;
+    if (toolLookupName(current) !== REVISE) break;
     const base: unknown = current.args.visual_id;
     current = typeof base === "string" ? known.get(base) : undefined;
     if (current === undefined) return null;

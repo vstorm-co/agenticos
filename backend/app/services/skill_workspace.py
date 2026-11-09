@@ -1,6 +1,6 @@
 """Skills as files in the workspace, and what the agent writes back.
 
-A skill reaches the model as instructions it pulls in with `load_capability`, and
+A skill reaches the model as instructions it pulls in with `read_skill`, and
 its files through `read_skill_resource`. That is enough to *read* a checklist and
 not enough to use one: a skill whose resource is `reconcile.py` was handing an
 agent a script it could quote and not run, while the same agent had a shell one

@@ -101,7 +101,9 @@ on resumes it as its publisher, so it needs permission to run the workflow. A ca
 be restored, still paused, or deleted with its versions, runs and shares; one whose
 runs have not ended is refused with `WORKFLOW_IN_USE`.
 
-Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives only the workflow result. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives the workflow result and any agent questions. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+
+An agent step can call `ask_user_question` to pause with **Waiting for user**. Answer its question card in the originating chat or on the run page. Your answer completes the pending tool call, and the workflow worker resumes the same agent conversation. The agent can ask again before returning its final result. Other independent branches may continue while this step waits.
 
 Agents called from workflows can use their AgenticOS MCP tools in the background worker as well as in the web chat.
 
@@ -116,7 +118,7 @@ connection that sets the order: the step it points to runs after the one it leav
 Each node is a card with the step's icon, its name and one line under it: what it
 is set up to do - a condition, a URL, the number of mapped fields - after the
 agent, model or table it works with. A step with more than one way
-out lists its ports by name: **true** and **false**, **Each item** and **Done**,
+out lists its ports by name: **true** and **false**, a loop's **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
 publish carries a setup mark (red after testing or publishing): hovering lists the first items, and clicking it
 opens the step.
@@ -173,10 +175,11 @@ connects a server. An app's action rows are picked, not dragged: only
 the step's own rows can be dragged onto the canvas.
 
 A new step never lands on top of another, is selected, opens its settings when it
-has any, and the canvas scrolls to it when it falls outside the view. Inside a
-loop's body every new step is wired into the body, so it stays there. The picker
-shows what is valid where you are: **Loop item** and **Loop result** only inside a
-loop's body, and a loop until loops are nested as deep as publishing allows.
+has any, and the canvas scrolls to it when it falls outside the view. A step added
+or pasted inside a loop's body belongs to that body, wired after the last step with
+an output free or, when none has one, left for you to wire. A new loop already holds
+its **Loop item** and **Loop result**, so the picker never offers them; it offers a
+loop until loops are nested as deep as publishing allows.
 
 Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
 **Delete step**. With several steps selected, a bar at the bottom deletes them together.
@@ -514,9 +517,14 @@ loop body** on the step, which says how many steps the body holds, enters that
 view, and the **Workflow scope** breadcrumb in the canvas's corner shows where you
 are, from **Workflow** down to the loop you opened. Each crumb navigates back out.
 
-A body starts at **Loop item**, which the loop's **Each item** port connects to,
-and ends at **Loop result**; nothing in it connects back to the loop, which
-continues through **Done** once every item has been through the body. The step picker and the binding sources follow the scope you are in, and a step in a body may read
+A body starts at **Loop item** and ends at **Loop result**. Every step remembers
+the loop it belongs to, so removing a wire never moves a step out of a body; a step
+**Loop item** does not lead to is reported until you connect it. No wire runs from
+the loop into its body or back to the loop, which continues through **Done** once
+every item has been through the body. **Loop item** and **Loop result** go only with
+their loop: deleting the loop deletes its whole body, and copying it copies the body.
+
+The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
 [node reference](reference/workflow-nodes.md#loops).
 
@@ -909,6 +917,15 @@ other trigger has a door of its own. A test run of the draft takes any trigger, 
 field is, and an API call whose input does not fit is refused with the fields that
 are wrong. See [core.input](reference/workflow-nodes.md#core-input).
 
+For nested objects and arrays, configure an optional JSON Schema Draft 2020-12
+`input_schema` on **Manual**, **API request** or **Called by a workflow** instead
+of simple fields. The schema is saved with the published version, and every run
+must satisfy that version's contract before it starts. API and MCP callers can
+inspect the same contract before sending input. See
+[JSON Schema input contracts](reference/workflow-nodes.md#json-schema-input-contracts)
+for configuration, references and validation errors. Existing simple-field inputs
+and workflows without a contract keep their behavior.
+
 ### From the chat { #from-the-chat }
 
 The chat's picker of who answers lists, below the agents, the published workflows
@@ -1246,7 +1263,7 @@ steps read from each other rather than from the originals. Every edit shortcut i
 inert while the editor is read-only - a published version, or **View only**;
 `Escape` still cancels a stray connection, and `?` still shows the shortcuts.
 
-Copy and paste have three limits:
+Copy and paste have four limits:
 
 - **A bound step reads from where it read before.** A copied step keeps its
   bindings. One that reads from a step you did not copy keeps reading from the
@@ -1258,6 +1275,10 @@ Copy and paste have three limits:
 - **The shortcuts belong to the canvas.** They work while focus is on the canvas, and
   clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus in a step's settings or the step picker keeps the keys for those fields, so click
   the canvas before pressing them.
+- **A paste lands only where the palette would put it.** Inside a loop, pasting a
+  trigger is refused, and so is a loop that would nest more than three deep with the
+  loops it carries. The whole paste is refused and the clipboard keeps it, so open
+  the top level, or a shallower loop, and paste there.
 
 Agent image attachments share a 20 MB byte ceiling, checked before each file
 is loaded, including repeated references. MCP results redact resolved authentication

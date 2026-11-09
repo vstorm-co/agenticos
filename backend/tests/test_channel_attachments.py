@@ -1322,24 +1322,33 @@ async def test_attachment_attempt_budget_survives_sender_reassembly():
 
 
 @pytest.mark.parametrize("text", ["@support improve the map", "improve the map"])
-async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(text: str) -> None:
+@pytest.mark.parametrize("has_backfill", [False, True])
+async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
+    text: str, has_backfill: bool
+) -> None:
     from pydantic_ai.messages import ModelRequest, UserPromptPart
+
+    from app.services.message_history import ModelHistory
 
     earlier = ModelRequest(parts=[UserPromptPart(content="Alice asked for the town-hall app.")])
     backfill = ModelRequest(parts=[UserPromptPart(content="Earlier channel discussion.")])
     with (
         patch.object(
-            ChannelMessageRouter, "_load_history", new=AsyncMock(return_value=[earlier])
+            ChannelMessageRouter,
+            "_load_history",
+            new=AsyncMock(return_value=ModelHistory([earlier], revision=7)),
         ) as load,
         patch.object(
             ChannelMessageRouter,
             "_thread_context",
-            new=AsyncMock(return_value=([backfill], [], [])),
+            new=AsyncMock(return_value=([backfill] if has_backfill else [], [], [])),
         ),
     ):
         _, agents, _ = await _route_one_file(text)
     answer = agents.answer if text.startswith("@") else agents.answer_default
-    assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
+    history = answer.await_args.kwargs["message_history"]
+    assert isinstance(history, ModelHistory) and history.revision == 7
+    assert history == ([backfill, earlier] if has_backfill else [earlier])
     load.assert_awaited_once()
 
 

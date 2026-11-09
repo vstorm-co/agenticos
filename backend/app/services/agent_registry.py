@@ -159,6 +159,7 @@ from app.services.access import (
     resolve_access,
     visible_resource_ids,
 )
+from app.services.agent_defaults import ARCHITECT
 from app.services.channels.base import ROOM_HANDLES
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import (
@@ -1492,6 +1493,14 @@ class AgentRegistryService:
         groups = await groups_sharing(
             self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
         )
+        assistant = (
+            await organization_assistant_repo.get(self.db, ctx.organization_id)
+            if any(
+                agent.shipped_template and agent.shipped_template.get("key") == ARCHITECT
+                for agent in agents
+            )
+            else None
+        )
         rows = [
             AgentRead(
                 id=agent.id,
@@ -1511,6 +1520,24 @@ class AgentRegistryService:
                 can_run=agent.id in runnable,
                 can_edit=agent.id in editable,
                 can_publish=agent.id in publishable,
+                is_starter=bool(
+                    agent.shipped_template
+                    and agent.shipped_template.get("key") == agent_templates.STARTER_TEMPLATE
+                ),
+                setup_required=bool(
+                    agent.shipped_template
+                    and (
+                        agent.shipped_template.get("key") == agent_templates.STARTER_TEMPLATE
+                        or (
+                            agent.shipped_template.get("key") == ARCHITECT
+                            and assistant is not None
+                            and assistant.enabled
+                            and assistant.agent_id == agent.id
+                        )
+                    )
+                    and agent.status == AgentStatus.DRAFT.value
+                    and agent.current_version_id is None
+                ),
                 shared_user_count=shared_counts.get(agent.id, 0),
                 shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),
@@ -3406,15 +3433,16 @@ class AgentRegistryService:
         A new version put in front of their trigger by somebody else - a publish
         an environment follows, a promotion, a rollback - could read their mailbox
         with their connections, so their consent does not carry over to it; their
-        own publishes keep it (#2027) - in person only. Through one of their API
-        keys, or by an administrator impersonating them, it is somebody else's
-        publish: the rule `agent_trigger._acts_as_themselves` sets for granting
-        the consent holds for keeping it.
+        own publishes keep it (#2027) - in person, which includes a key or MCP
+        token they issued. By an administrator impersonating them, or an agent's
+        run credential, it is somebody else's publish: the rule
+        `agent_trigger._acts_as_themselves` sets for granting the consent holds
+        for keeping it.
 
         An explicitly pinned routine keeps its immutable spec, so changing the
         default or an environment does not withdraw its unchanged consent.
         """
-        in_person = ctx.api_key_id is None and current_impersonator() is None
+        in_person = ctx.acts_in_person and current_impersonator() is None
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
             self.db, agent_id=agent.id, kept_for=ctx.user_id if in_person else None
         )

@@ -51,6 +51,7 @@ from pydantic_ai.tools import RunContext
 
 from app.agents.channel_reference import recorded_channel_messages
 from app.agents.ephemeral_media import dump_messages
+from app.agents.model_context import check_model_context
 
 # What a model setting may be, when it is written down. Everything else on
 # `ModelSettings` - `extra_headers`, `extra_body` - is provider passthrough, and
@@ -250,6 +251,7 @@ class RecordingModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
+        await check_model_context()
         self.recorder.observe_request(messages, model_settings, model_request_parameters)
         started, clock = datetime.now(UTC), time.perf_counter()
         try:
@@ -274,6 +276,7 @@ class RecordingModel(WrapperModel):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
+        await check_model_context()
         self.recorder.observe_request(messages, model_settings, model_request_parameters)
         started, clock = datetime.now(UTC), time.perf_counter()
         # Both halves inside the guard, because both can raise and each leaves the

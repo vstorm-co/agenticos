@@ -272,6 +272,21 @@ def ml_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
 
 
+FORKS_PER_MINUTE = 10
+"""How many conversations one member may fork in one organization, per minute."""
+
+
+def fork_limit() -> Limit:
+    """What one member may fork in one organization, per minute.
+
+    A fork is a small request that stores a copy of a whole conversation, so the
+    thing rationed is how fast one member can grow the shared database by forking
+    the same long thread again and again. Ten a minute is far past what somebody
+    trying approaches by hand does.
+    """
+    return Limit(attempts=FORKS_PER_MINUTE)
+
+
 def table_write_limit() -> Limit:
     """What one member may write to Virtual Tables in one organization, per minute.
 
@@ -837,3 +852,30 @@ async def count_refused_key(connection: HTTPConnection) -> None:
         caller=f"ip:{caller_ip(connection)}",
         limit=auth_limit(),
     )
+
+
+async def enforce_conversation_share(
+    *, organization_id: UUID, actor_id: UUID, recipient_id: UUID
+) -> None:
+    """Bound direct-share delivery across conversations and notification channels.
+
+    IDs of newly created conversations cannot reset any quota. Count valid share
+    attempts before persisting the share or enqueueing its notification; all four
+    counters retain a local floor if Redis is unavailable.
+    """
+    org = f"org:{organization_id}"
+    # A refused pair must not spend the allowance shared with other members.
+    for scope, caller, attempts in (
+        ("pair", f"{org}:actor:{actor_id}:recipient:{recipient_id}", 5),
+        ("actor", f"{org}:actor:{actor_id}", 20),
+        ("recipient", f"{org}:recipient:{recipient_id}", 20),
+        ("organization", org, 100),
+    ):
+        decision = await consume_with_local_floor(
+            surface=f"conversation_share_{scope}", caller=caller, limit=Limit(attempts=attempts)
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many conversation shares. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )

@@ -57,7 +57,7 @@ from app.services.rag.provenance import iso_doc_date
 from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
-from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
+from app.services.sync_source import PAUSED_SOURCE, SyncSourceService, SyncState, sync_fingerprint
 from app.worker.attempt import is_final_attempt
 from app.worker.jobs import IngestDocument, SyncCollection, SyncConnectorSource, sync_source_key
 
@@ -1357,7 +1357,6 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
 
-        config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         if source.collection_name is None or source.collection_name != assigned_collection:
             # Both callers guarantee this before dispatching: `trigger_sync`
             # refuses a source with no collection, and the scheduler's own
@@ -1378,6 +1377,17 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             )
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
+        if not source.is_active:
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=PAUSED_SOURCE,
+            )
+            await source_svc.update_after_sync(source_id, "error", PAUSED_SOURCE)
+            return {"status": "error", "message": PAUSED_SOURCE}
+        config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         collection_name = source.collection_name
         sync_mode = source.sync_mode
         organization_id = source.organization_id

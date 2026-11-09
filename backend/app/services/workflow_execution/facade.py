@@ -8,6 +8,7 @@ anything about the run itself is touched.
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
@@ -15,6 +16,7 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from pydantic import JsonValue
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,6 +60,7 @@ from app.schemas.workflow_run import (
     WorkflowFileRead,
     WorkflowNodeRunList,
     WorkflowNodeRunRead,
+    WorkflowQuestionRead,
     WorkflowRunFilters,
     WorkflowRunGraph,
     WorkflowRunList,
@@ -74,6 +77,7 @@ from app.services.workflow_execution import (
     dispatch_queue,
     dispatcher,
     events,
+    input_validation,
     limits,
 )
 from app.services.workflow_execution.exceptions import (
@@ -109,6 +113,9 @@ from app.workflows.triggers import (
 )
 
 logger = logging.getLogger(__name__)
+
+type QuestionResponses = Mapping[str, list[dict[str, JsonValue]]]
+type WorkflowQuestions = list[WorkflowQuestionRead]
 
 
 @dataclass(frozen=True)
@@ -170,8 +177,8 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     return payload
 
 
-def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
-    """Refuse `payload` when the graph's entry declares fields it does not fit: a Manual,
+async def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
+    """Refuse `payload` when the graph's entry declares a contract it does not fit: a Manual,
     API, Form or Called by a workflow trigger.
 
     Raises:
@@ -183,9 +190,13 @@ def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None
         return
     # The graph passed `validate_graph` - at publish, or just now for a draft -
     # so its config fits.
-    # Only the fields: a Form trigger's config carries its page's words beside them.
-    fields = TriggerInputConfig.model_validate({"fields": entry.config.get("fields", [])})
-    problems = input_problems(fields, payload)
+    # A Form trigger's config also carries its page's presentation settings.
+    schema = entry.config.get("input_schema")
+    if schema is not None:
+        problems = await input_validation.schema_problems(schema, payload)
+    else:
+        contract = TriggerInputConfig.model_validate({"fields": entry.config.get("fields", [])})
+        problems = input_problems(contract, payload)
     if problems:
         raise WorkflowRunInputInvalidError(problems=problems)
 
@@ -260,6 +271,7 @@ class WorkflowExecutionService:
         run_input: dict[str, Any] | None = None,
         deadline_seconds: int | None = None,
         reply_conversation_id: UUID | None = None,
+        source_message_id: UUID | None = None,
         step: WorkflowStepTest | None = None,
         entry_node_id: UUID | None = None,
         source_artifact_id: UUID | None = None,
@@ -289,6 +301,10 @@ class WorkflowExecutionService:
         caller's own conversation, which the chat surface checked belongs to
         them. The run's result is written there when it ends.
 
+        `source_message_id` identifies the turn written by the chat surface. Its
+        provenance is retained on retries and called workflows, independently
+        of reply delivery. It is never taken from `run_input`.
+
         `source_artifact_id` and `source_version_number` record the page and the
         version of it a run started from (`triggered_by = app`).
 
@@ -309,9 +325,11 @@ class WorkflowExecutionService:
                 that does not start from a chat message.
             WorkflowRunInputTooLargeError: `run_input` is over
                 `WORKFLOW_RUN_MAX_INPUT_BYTES`.
-            WorkflowRunInputInvalidError: The version being run starts from
-                Manual or API with declared fields, and `run_input` does not
-                fit them.
+            WorkflowRunInputInvalidError: The selected trigger's fields or JSON
+                Schema refuse `run_input`, or schema validation exceeds its limit.
+            RateLimitError: Every isolated schema-validation slot is busy.
+            WorkflowInputValidationUnavailableError: The isolated validator fails
+                before it can return a trustworthy answer.
             WorkflowInlineStorageLimitError: Input and snapshot reservations exceed
                 the retained-payload allowance; no run is created.
             WorkflowAdmissionQuotaError: Admitting this run would push the
@@ -378,7 +396,7 @@ class WorkflowExecutionService:
                 "fired_at": datetime.now(UTC).isoformat(),
                 "input": {**configured, **payload},
             }
-        _check_declared_input(graph, payload)
+        await _check_declared_input(graph, payload)
         run, _entry = await self._admit(
             ctx,
             workflow,
@@ -391,6 +409,8 @@ class WorkflowExecutionService:
             payload=payload,
             deadline_seconds=deadline_seconds,
             reply_conversation_id=reply_conversation_id,
+            source_conversation_id=reply_conversation_id,
+            source_message_id=source_message_id,
             source_artifact_id=source_artifact_id,
             source_version_number=source_version_number,
             impersonated=impersonated,
@@ -483,7 +503,7 @@ class WorkflowExecutionService:
         if call_entry is not None:
             graph = entry_graph(graph, call_entry.id)
         payload = _checked_input(run_input)
-        _check_declared_input(graph, payload)
+        await _check_declared_input(graph, payload)
         await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         parent_step = await workflow_run_repo.get_node_run_by_id(self.db, parent_node_run_id)
@@ -526,6 +546,9 @@ class WorkflowExecutionService:
             payload=payload,
             deadline_seconds=None,
             reply_conversation_id=None,
+            source_conversation_id=parent.source_conversation_id,
+            source_message_id=parent.source_message_id,
+            has_chat_source=parent.has_chat_source,
             causation=causation,
             parent_node_run_id=parent_node_run_id,
             retry_of_run_id=retry_of_run_id,
@@ -552,6 +575,9 @@ class WorkflowExecutionService:
         payload: dict[str, Any],
         deadline_seconds: int | None,
         reply_conversation_id: UUID | None,
+        source_conversation_id: UUID | None = None,
+        source_message_id: UUID | None = None,
+        has_chat_source: bool = False,
         causation: Causation | None = None,
         retry_of_run_id: UUID | None = None,
         parent_node_run_id: UUID | None = None,
@@ -653,6 +679,9 @@ class WorkflowExecutionService:
             run_input=payload,
             inline_result_bytes=initial_bytes,
             reply_conversation_id=reply_conversation_id,
+            source_conversation_id=source_conversation_id,
+            source_message_id=source_message_id,
+            has_chat_source=has_chat_source,
             retry_of_run_id=retry_of_run_id,
             parent_node_run_id=parent_node_run_id,
         )
@@ -914,6 +943,75 @@ class WorkflowExecutionService:
         run, workflow = await self._load_with_workflow(ctx, run_id, Perm.WORKFLOWS_VIEW)
         return _read(run, can_cancel=await self._may_resolve(ctx, run, workflow))
 
+    async def questions(self, ctx: AuthContext, run_id: UUID) -> WorkflowQuestions:
+        """The open questions asked of this run's execution principal."""
+        from app.services.workflow_execution import question_tree
+
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+
+        async def can_answer(current: WorkflowRun) -> bool:
+            return await self._reachable(ctx, current.workflow_id, Perm.WORKFLOWS_RUN) is not None
+
+        return await question_tree.read(
+            self.db,
+            ctx,
+            run,
+            load=lambda child_id: self._load(ctx, child_id, Perm.WORKFLOWS_VIEW),
+            can_answer=can_answer,
+        )
+
+    async def answer_questions(
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        node_run_id: UUID,
+        responses: QuestionResponses,
+    ) -> WorkflowRunRead:
+        """Record an answer and queue the same agent step, without executing it here.
+
+        Only the signed-in execution principal may answer. The queued continuation
+        rechecks workflow authority, its deadline and its remaining budget.
+        """
+        from app.services.workflow_execution import questions
+
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_RUN)
+        if (
+            ctx.user_id is None
+            or ctx.api_key_id is not None
+            or run.execution_principal_user_id != ctx.user_id
+            or run.public_origin
+        ):
+            raise AuthorizationError(
+                message="Only the person this workflow asked may answer",
+                details={"run_id": run_id},
+            )
+        locked = await workflow_run_repo.get_run_for_update(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if locked is None:
+            raise WorkflowRunNotFoundError(run_id=run_id)
+        if WorkflowRunStatus(locked.status).is_terminal:
+            raise WorkflowRunAlreadyTerminalError(run_id=run_id, status=locked.status)
+        node = await workflow_run_repo.get_node_run_by_id_for_update(self.db, node_run_id)
+        if node is None or node.workflow_run_id != locked.id:
+            raise WorkflowStepNotFoundError(node_run_id=node_run_id)
+        await questions.accept(self.db, ctx, run=locked, node=node, responses=responses)
+        return _read(locked, can_cancel=True)
+
+    async def answer_agent_questions(
+        self,
+        ctx: AuthContext,
+        agent_run_id: UUID,
+        responses: QuestionResponses,
+    ) -> WorkflowRunRead | None:
+        """Route an existing question card back to its owning workflow, if any."""
+        node = await workflow_run_repo.find_node_run_for_agent_run(
+            self.db, agent_run_id, organization_id=ctx.organization_id
+        )
+        if node is None:
+            return None
+        return await self.answer_questions(ctx, node.workflow_run_id, node.id, responses)
+
     async def list(
         self,
         ctx: AuthContext,
@@ -1009,6 +1107,9 @@ class WorkflowExecutionService:
             payload=original.input,
             deadline_seconds=None,
             reply_conversation_id=None,
+            source_conversation_id=original.source_conversation_id,
+            source_message_id=original.source_message_id,
+            has_chat_source=original.has_chat_source,
             retry_of_run_id=original.id,
             # A retry is a root of its own, so it keeps the run's flag, not
             # its chain's: a member retrying a public child from the console

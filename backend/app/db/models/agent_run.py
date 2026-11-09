@@ -54,7 +54,7 @@ class RunStatus(enum.StrEnum):
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
     AWAITING_ANSWER = "awaiting_answer"
-    """Parked on an `ask_user` question the person left without answering (#2064).
+    """Parked on an unanswered `ask_user` question (#2064).
     It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"

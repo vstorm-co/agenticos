@@ -131,6 +131,9 @@ class CallWorker:
             # The same provenance set, not a copy: a clip the twin makes may start
             # from an image the call drew, and what the twin makes is the call's.
             built.deps.generated_files = ctx.deps.generated_files
+            # A worker's calls are shown and stored on the spoken turn too.
+            built.deps.tool_definitions = ctx.deps.tool_definitions
+            built.deps.tool_identities = ctx.deps.tool_identities
             task_id = f"hand-off-{uuid4().hex[:12]}"
             started_at = datetime.now(UTC)
             error: str | None = None

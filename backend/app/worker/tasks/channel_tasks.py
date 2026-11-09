@@ -37,7 +37,12 @@ async def deliver_handback(job: ChannelHandback) -> None:
                 output=job.output,
                 tool_calls=tuple(
                     RecordedToolCall(
-                        call.tool_call_id, call.tool_name, dict(call.args), call.result
+                        call.tool_call_id,
+                        call.tool_name,
+                        dict(call.args),
+                        call.result,
+                        call.tool_id,
+                        call.presentation_kind,
                     )
                     for call in job.tool_calls
                 ),

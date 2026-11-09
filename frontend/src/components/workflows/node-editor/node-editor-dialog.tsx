@@ -429,7 +429,8 @@ export function NodeEditorDialog({
           )}
         </div>
         <footer className="border-border flex items-center justify-between gap-2 border-t px-3 py-3 sm:px-6 sm:py-4">
-          {readOnly ? (
+          {/* A loop's Loop item and Loop result go only with their loop. */}
+          {readOnly || definition?.loop_body_only === true ? (
             <span />
           ) : (
             <Button

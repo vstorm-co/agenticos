@@ -488,6 +488,8 @@ export interface PublishedModel {
 }
 
 export interface Agent {
+  is_starter?: boolean;
+  setup_required?: boolean;
   id: string;
   slug: string;
   name: string;

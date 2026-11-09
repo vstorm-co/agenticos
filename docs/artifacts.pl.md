@@ -1,5 +1,5 @@
 ---
-source_sha: "df184b376180"
+source_sha: "28281f424c57"
 ---
 
 # Aplikacje { #artifacts }
@@ -965,7 +965,7 @@ nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
 ustawieniem. Obraz mapy w aplikacji czatowej
 jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
 
-**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. Agent woli ją od mapy z kafelkami, która zostaje na poziom ulic.
+**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. To domyślny wariant nowych map, także tras między miastami. Agent ładuje lokalne kontury krajów i rysuje pinezki oraz połączenia bez dodatkowej konfiguracji. Administrator może włączyć podkład uliczny przez `VISUAL_MAP_TILES`; gdy kafelki są niedostępne, agent powinien użyć mapy SVG.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
 właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych

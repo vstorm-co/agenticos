@@ -136,14 +136,17 @@ export function GradingPanel({
         </p>
       )}
       {unreferenced && (
-        <div className="bg-muted/50 flex flex-wrap items-center gap-3 rounded-xl border p-4 text-sm">
-          <Lightbulb className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-          <p className="min-w-0 flex-1">
-            {t("suggestReference", { count: dataset.stats.with_reference })}
-          </p>
+        <div className="bg-muted/50 flex flex-col gap-3 rounded-xl border p-4 text-sm sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <Lightbulb className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <p className="min-w-0">
+              {t("suggestReference", { count: dataset.stats.with_reference })}
+            </p>
+          </div>
           <Button
             size="sm"
             variant="outline"
+            className="w-full shrink-0 sm:w-auto"
             onClick={() => set("reference", { ...draft.reference, enabled: true })}
           >
             {t("suggestReferenceAction")}

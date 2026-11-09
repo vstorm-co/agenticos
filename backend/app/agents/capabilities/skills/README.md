@@ -6,10 +6,20 @@ relevant.
 
 Three decisions worth keeping:
 
-**The catalog is the model's own.** Each skill is a deferred capability, so its
-name and description sit in pydantic-ai's capability list and `load_capability`
-opens it. This platform publishes no `list_skills` or `load_skill` of its own -
-two tools that restate a mechanism the framework already has.
+**Loading remains native.** Each skill is a deferred capability. `_loader.py`
+adapts the framework's catalog to “available skills” and its loader to
+`read_skill`; `read_skill_resource` reads supporting files. The pinned SDK has no
+public loader configuration (upstream pydantic-ai#12781), so the private imports
+are isolated in this adapter. No globals or dependencies are patched.
+
+Its namespaced typed parts extend the SDK's native load parts, preserving load
+state, duplicate detection, tools and authoritative instruction delivery in text,
+streaming and realtime. Persist messages through `dump_messages`, which serializes
+generic copies of only the extended loader parts, retaining their kind and fields.
+Other SDK serializers, including instruction ids and cache baselines, stay in
+effect. Legacy typed calls and returns are adapted before a run,
+including pending approvals; their call ids and arguments remain unchanged.
+The spec's stable approval key remains `load_capability`.
 
 **Skills are passed in memory.** The library accepts `Skill` objects directly,
 so a run never touches the disk - no temp-file cleanup, no race between two runs

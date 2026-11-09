@@ -1,5 +1,5 @@
 ---
-source_sha: "4644400bc7f1"
+source_sha: "5ccafc29c291"
 ---
 
 # Skills { #skills }
@@ -16,9 +16,9 @@ Skills drehen das um:
 
 ```mermaid
 flowchart LR
-    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
+    A["available skills<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_capability - the body"]
+    B -->|yes| C["read_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -102,20 +102,18 @@ Lange Textressourcen werden seitenweise gelesen, damit nicht jedes Modell-Reques
 ein Agent bekommt, wird zu einer **eigenen Capability** — dem Modell mit Name und
 Beschreibung aufgelistet und bei Bedarf geöffnet:
 
-| Wie                    | Was es tut                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| Der Capability-Katalog | Namen und einzeilige Beschreibungen von allem, was an diesen Agent gebunden ist |
-| `load_capability`      | Der vollständige Textkörper eines Skills, in die Unterhaltung geholt            |
-| `read_skill_resource`  | Eine Datei neben einem Skill                                                    |
+| Wie | Was es tut |
+| --- | --- |
+| Verfügbare Skills | Namen und einzeilige Beschreibungen von allem, was an diesen Agent gebunden ist |
+| `read_skill` | Der vollständige Textkörper eines Skills, in die Unterhaltung geholt |
+| `read_skill_resource` | Eine Datei neben einem Skill |
 
-`load_capability` ist das Tool des Agent-Frameworks selbst und keines, das diese
-Plattform veröffentlicht — ein Spec kann es also weder gewähren noch umbenennen.
-**Absichern** kann es das sehr wohl, denn dieser Aufruf öffnet einen Skill:
-`tool_approval` darauf ist, wie ein Agent einen Menschen fragt, bevor ein Skill das
-Modell erreicht, und ein Spec, der das frühere `load_skill` abgesichert hatte, wird
-darauf migriert statt ungesichert zu bleiben. Als eigenes Tool steuert die
-Capability `read_skill_resource` bei, und das auch nur, wenn mindestens einer der
-gebundenen Skills eine Datei zum Lesen mitbringt.
+`read_skill` gibt dem nativen verzögerten Loader des Frameworks Skill-spezifische
+Namen. Freigaberichtlinien behalten den stabilen Schlüssel `load_capability`,
+damit veröffentlichte Specs und ausstehende Freigaben weiter funktionieren. Der
+alte Freigabeschlüssel `load_skill` wird weiterhin darauf migriert. Es gibt kein
+separates Auflistungstool. `read_skill_resource` liest Begleitdateien erst nach
+dem Öffnen des Skills.
 
 Ein Spec bindet Skills über ihre Id in `skill_ids`, sodass ein Agent genau die
 sieht, die ihm gegeben wurden, und sonst nichts.
@@ -374,13 +372,13 @@ hat es sich angesehen.
 Sie beantworten verschiedene Fragen, und der Unterschied zählt, wenn ein Agent
 das Falsche bekommt.
 
-|                 | Skills                            | [Knowledge](file-processing.md) |
-| --------------- | --------------------------------- | ------------------------------- |
-| Enthält         | Verfahren — wie wir das machen    | Dokumente — was wir wissen      |
-| Geschrieben von | Einem Menschen, absichtlich       | In großer Zahl eingelesen       |
-| Gefunden über   | Das Modell, das einen Namen wählt | Semantische Suche über Chunks   |
-| Zitiert         | Nichts; er _ist_ die Anweisung    | Die Passage und ihre Quelle     |
-| Größenordnung   | Zehner                            | Tausende von Dokumenten         |
+|  | Skills | [Knowledge](file-processing.md) |
+| --- | --- | --- |
+| Enthält | Verfahren — wie wir das machen | Dokumente — was wir wissen |
+| Geschrieben von | Einem Menschen, absichtlich | In großer Zahl eingelesen |
+| Gefunden über | Das Modell, das einen Namen wählt | Semantische Suche über Chunks |
+| Zitiert | Nichts; er _ist_ die Anweisung | Die Passage und ihre Quelle |
+| Größenordnung | Zehner | Tausende von Dokumenten |
 
 !!! example "Was ist was"
 

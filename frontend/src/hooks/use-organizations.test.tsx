@@ -17,7 +17,7 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { Organization } from "@/types";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), upload: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -425,4 +425,13 @@ describe("useOrganizations", () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
+});
+
+it("uploads an organization logo and refreshes the shared organization list", async () => {
+  const result = await hook();
+  const file = new File(["image"], "company.png", { type: "image/png" });
+  vi.mocked(apiClient.upload).mockResolvedValue({});
+  await result.current.uploadAvatar("org-1", file);
+  expect(apiClient.upload).toHaveBeenCalledWith("/orgs/org-1/avatar", file);
+  expect(apiClient.get).toHaveBeenCalledWith("/orgs");
 });

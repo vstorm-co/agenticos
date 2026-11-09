@@ -1,5 +1,5 @@
 ---
-source_sha: "07ab4376c975"
+source_sha: "3503412daf98"
 ---
 
 # API HTTP { #the-http-api }
@@ -16,11 +16,11 @@ produkcyjny deployment nie publikuje własnej listy tras.
 
 Trzy drogi wejścia, dla trzech różnych wywołujących.
 
-|                           | Nagłówek                               | Dla                                                                                                                                             |
-| ------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Klucz API organizacji** | `Authorization: Bearer aos_…`          | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
-| **JWT**                   | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem                                                           |
-| **Ciasteczko sesji**      | ustawiane przez konsolę                | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu                                                                  |
+|  | Nagłówek | Dla |
+| --- | --- | --- |
+| **Klucz API organizacji** | `Authorization: Bearer aos_…` | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
+| **JWT** | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem |
+| **Ciasteczko sesji** | ustawiane przez konsolę | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu |
 
 Klucze organizacji wysyłaj przez `Authorization: Bearer aos_…`. `X-API-Key` służy osobnemu
 poświadczeniu usług wdrożenia; klucz `aos_…` w tym nagłówku nie uwierzytelnia żądania organizacji.
@@ -60,6 +60,24 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
+
+**Pracę, która działa jako ty, ustawiasz też kluczem, który sam wydałeś.** Klucz,
+który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworzyć i
+zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
+twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
+cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
+podlega jej przejrzanym źródłom i budżetowi. Nie może tego zrobić credential
+uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
+ciebie podszywa.
+
+Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
+klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i
+`PATCH /api/v1/conversations/{id}` otwierają i zmieniają nazwę czatu
+(`agents:run`) - na przykład wątku tematycznego, do którego pisze routine.
+`POST /api/v1/me/mcp-connections/{id}/test` sprawdza twoje połączenie i odświeża
+jego narzędzia (`agents:run`).
 
 Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`
@@ -336,6 +354,31 @@ To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
 węzły działają w tle. `input` to to, co przekazuje dalej wyzwalacz [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). Tutaj uruchamia się tylko wersja, która startuje od tego wyzwalacza albo bez żadnego: każda inna odpowiada `409
 WORKFLOW_TRIGGER_MISMATCH`, bo uruchamia ją webhook, harmonogram, wiadomość na czacie albo rekord tabeli. `"mode": "test"` uruchamia zamiast tego bieżący draft, od dowolnego wyzwalacza, i
 wymaga `workflows:edit`.
+
+Przed wywołaniem odczytaj `GET /api/v1/workflows/{id}/input-schema` z
+`workflows:view`. Odpowiedź zawiera opublikowane `version_id` i listę `entries` z
+`entry_node_id`, `trigger` i efektywnym `input_schema` dla każdego wejścia Manual,
+API, Called by a workflow lub Form. Przekaż `version_id`, aby sprawdzić konkretną
+opublikowaną wersję. Kontrakty JSON Schema są zwracane bez zmian; proste pola są
+przedstawiane jako JSON Schema, a nietypowane wejścia zwracają `{"type": "object"}`.
+Użyj kontraktu wybranego wejścia i przekaż jego `entry_node_id` przy uruchamianiu.
+
+Dotychczasowe proste pola `integer` wymagają dodatkowo tokenów całkowitych JSON:
+`1` jest przyjmowane, a `1.0` i `1e0` są odrzucane. Odkrywanie oznacza te pola
+przez `x-agenticos-strict-integer: true`, także wewnątrz opcjonalnych pól
+dopuszczających null. Zwykły JSON Schema nie potrafi wymusić tej różnicy zapisu,
+więc sama walidacja schematu nie wystarcza dla tych pól; rozstrzyga walidacja
+serwera. Surowe kontrakty JSON Schema stosują standardową semantykę integer.
+
+Opcjonalny [kontrakt wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+jest sprawdzany przed przyjęciem runu. Niezgodność zwraca
+`422 WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami w `error.details.fields`;
+run nie powstaje. Każdy wpis ma `field` i `message`; zagnieżdżone ścieżki żądania
+zawierają indeksy tablic, na przykład `input.items.0.sku`. Dla dotychczasowych
+wywołujących `error.details.problems` zachowuje też `field`, `message` i `type`
+ze ścieżkami względem obiektu wejścia. Kontrakt pochodzi z bieżącej opublikowanej
+wersji albo ze szkicu dla `"mode": "test"`. Obowiązuje tak samo przez WebSocket
+i MCP oraz gdy wywołuje inny workflow.
 
 `deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
@@ -680,33 +723,33 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 
 **Klient wysyła** ramki JSON, a przez relay także binarne audio:
 
-| Ramka      | Pola                                                                                                                               | Kiedy                                                 |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `start`    | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` i `resume_token` (ponowne połączenie), `context` (zmienne embeda) | Najpierw, w ciągu 10 sekund                           |
-| `approval` | `id`, `decision` (`approve` albo `deny`)                                                                                           | Rozstrzygnięcie zatwierdzenia, na które czeka rozmowa |
-| `mute`     | `muted`                                                                                                                            | Relay: mikrofon wyciszony                             |
-| `played`   | `bytes`                                                                                                                            | Relay: ile audio agenta zostało odtworzone            |
-| `end`      | ---                                                                                                                                | Rozłączenie się                                       |
-| _binarna_  | 16-bitowy PCM z częstotliwością wejściową modelu                                                                                   | Relay: audio dzwoniącego                              |
+| Ramka | Pola | Kiedy |
+| --- | --- | --- |
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` i `resume_token` (ponowne połączenie), `context` (zmienne embeda) | Najpierw, w ciągu 10 sekund |
+| `approval` | `id`, `decision` (`approve` albo `deny`) | Rozstrzygnięcie zatwierdzenia, na które czeka rozmowa |
+| `mute` | `muted` | Relay: mikrofon wyciszony |
+| `played` | `bytes` | Relay: ile audio agenta zostało odtworzone |
+| `end` | --- | Rozłączenie się |
+| _binarna_ | 16-bitowy PCM z częstotliwością wejściową modelu | Relay: audio dzwoniącego |
 
 **Serwer wysyła:**
 
-| Ramka                  | Pola                                                                                                                                  | Znaczy                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `answer`               | `sdp`                                                                                                                                 | WebRTC: odpowiedź providera dla połączenia peer przeglądarki                                                                        |
-| `ready`                | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token`         | Rozmowa jest zestawiona. `resume_token` jest wysyłany tylko tutaj i tylko temu dzwoniącemu; ponowne połączenie odsyła go z powrotem |
-| `state`                | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Kto mówi albo co robi agent                                                                                                         |
-| `caption`              | `role`, `turn_id`, `part` oraz jedno z: `delta` (dopisz), `text` (zastąp dotychczasowym sprawdzonym tekstem) albo `final`             | Napis na żywo                                                                                                                       |
-| `turn_saved`           | `message`                                                                                                                             | Zakończona tura, jako wiadomość, w której została zapisana; zastępuje napisy niosące jej `turn_id`                                  |
-| `tool`                 | `name`, `status` (`running` albo `done`)                                                                                              | Narzędzie, które agent uruchamia                                                                                                    |
-| `approval_required`    | `id`, `tool`, `args`, `said`, `timeout_seconds`                                                                                       | Zatwierdzenie dla osoby w rozmowie: dokładne argumenty i to, co według transkrypcji powiedziała                                     |
-| `approval_unavailable` | `tool`, `args`                                                                                                                        | Wywołanie narzędzia, którego ten dzwoniący nie może zatwierdzić głosem                                                              |
-| `approval_settled`     | `id`, `outcome` (`approved`, `denied` albo `expired`)                                                                                 | Jak zakończyło się zatwierdzenie                                                                                                    |
-| `notice`               | `kind`, `message` (opcjonalne)                                                                                                        | Coś do powiedzenia słowami: trafienie guardraila, osiągany limit                                                                    |
-| `limit`                | `seconds_left`                                                                                                                        | Czas rozmowy prawie się skończył                                                                                                    |
-| `clear_playback`       | ---                                                                                                                                   | Relay: odrzuć zakolejkowane audio agenta                                                                                            |
-| `ended`                | `reason`, `message`                                                                                                                   | Rozmowa się skończyła                                                                                                               |
-| _binarna_              | 16-bitowy PCM z częstotliwością wyjściową modelu                                                                                      | Relay: audio agenta                                                                                                                 |
+| Ramka | Pola | Znaczy |
+| --- | --- | --- |
+| `answer` | `sdp` | WebRTC: odpowiedź providera dla połączenia peer przeglądarki |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Rozmowa jest zestawiona. `resume_token` jest wysyłany tylko tutaj i tylko temu dzwoniącemu; ponowne połączenie odsyła go z powrotem |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Kto mówi albo co robi agent |
+| `caption` | `role`, `turn_id`, `part` oraz jedno z: `delta` (dopisz), `text` (zastąp dotychczasowym sprawdzonym tekstem) albo `final` | Napis na żywo |
+| `turn_saved` | `message` | Zakończona tura, jako wiadomość, w której została zapisana; zastępuje napisy niosące jej `turn_id` |
+| `tool` | `name`, `status` (`running` albo `done`) | Narzędzie, które agent uruchamia |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Zatwierdzenie dla osoby w rozmowie: dokładne argumenty i to, co według transkrypcji powiedziała |
+| `approval_unavailable` | `tool`, `args` | Wywołanie narzędzia, którego ten dzwoniący nie może zatwierdzić głosem |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` albo `expired`) | Jak zakończyło się zatwierdzenie |
+| `notice` | `kind`, `message` (opcjonalne) | Coś do powiedzenia słowami: trafienie guardraila, osiągany limit |
+| `limit` | `seconds_left` | Czas rozmowy prawie się skończył |
+| `clear_playback` | --- | Relay: odrzuć zakolejkowane audio agenta |
+| `ended` | `reason`, `message` | Rozmowa się skończyła |
+| _binarna_ | 16-bitowy PCM z częstotliwością wyjściową modelu | Relay: audio agenta |
 
 **Odwiedzający widget lub hostowaną stronę dowiaduje się mniej.** Jego `ready`
 nie zawiera `run_id`; `cap_seconds` to limit rozmowy - najdłuższa rozmowa
@@ -752,13 +795,13 @@ providera.
 
 Idzie z tym pięć route'ów HTTP:
 
-| Route                                          | Bramka                                                                    | Odpowiada                                                                                                                                                                                                                                           |
-| ---------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/agents/{agent_id}/voice`          | `agents:run` na tym agencie, łącznie z grantem; w przeciwnym razie `404`  | Czy rozmowa by się rozpoczęła, dlaczego nie (`no_voice`, `not_offered` albo `no_key`), transport i najdłuższa rozmowa                                                                                                                               |
-| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Głos z wersji roboczej sekcji Voice mówiący jedno stałe zdanie, jako `audio/wav`. W cache per głos i język; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` na osobę                                                                                          |
-| `GET /api/v1/providers/realtime-models`        | `agents:view`                                                             | Katalog realtime, z którego wybiera sekcja głosu                                                                                                                                                                                                    |
-| `GET /api/v1/voice/usage?start=…&end=…`        | `runs:view`                                                               | Sekundy rozmów i liczba rozmów dla rozmów rozpoczętych w chwili `start` lub później i przed `end`, według agenta (rozmowy usuniętego agenta jako jeden wiersz bez id i nazwy). `end`, który nie jest późniejszy niż `start`, jest odrzucany z `422` |
-| `GET /api/v1/runs?modality=voice`              | `runs:view`                                                               | Tylko rozmowy (`text` tylko dla wpisanych runów); rozmowa, która połączyła się ponownie, to jeden wiersz z `voice_chain`, ze wszystkimi połączeniami zsumowanymi                                                                                    |
+| Route | Bramka | Odpowiada |
+| --- | --- | --- |
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Czy rozmowa by się rozpoczęła, dlaczego nie (`no_voice`, `not_offered` albo `no_key`), transport i najdłuższa rozmowa |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Głos z wersji roboczej sekcji Voice mówiący jedno stałe zdanie, jako `audio/wav`. W cache per głos i język; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` na osobę |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | Katalog realtime, z którego wybiera sekcja głosu |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Sekundy rozmów i liczba rozmów dla rozmów rozpoczętych w chwili `start` lub później i przed `end`, według agenta (rozmowy usuniętego agenta jako jeden wiersz bez id i nazwy). `end`, który nie jest późniejszy niż `start`, jest odrzucany z `422` |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Tylko rozmowy (`text` tylko dla wpisanych runów); rozmowa, która połączyła się ponownie, to jeden wiersz z `voice_chain`, ze wszystkimi połączeniami zsumowanymi |
 
 Zatwierdzenie należące do trwającej rozmowy jest rozstrzygane w rozmowie:
 `POST /api/v1/approvals/{id}` odrzuca je z `400`.
@@ -823,14 +866,14 @@ honorowany na jednej trasie - asynchronicznym runie.
 
 ## Konwencje { #conventions }
 
-|                        |                                                                                                |
-| ---------------------- | ---------------------------------------------------------------------------------------------- |
-| Prefiks                | `/api/v1`                                                                                      |
-| Tworzenie              | `POST`, `201`                                                                                  |
-| Częściowa aktualizacja | `PATCH`                                                                                        |
-| Usuwanie               | `DELETE`, `204`, bez ciała                                                                     |
-| Stronicowanie          | parametry zapytania `skip` (≥ 0) i `limit` (1–100); odpowiedzi listowe niosą `items` i `total` |
-| Ścieżki                | kebab-case                                                                                     |
+|  |  |
+| --- | --- |
+| Prefiks | `/api/v1` |
+| Tworzenie | `POST`, `201` |
+| Częściowa aktualizacja | `PATCH` |
+| Usuwanie | `DELETE`, `204`, bez ciała |
+| Stronicowanie | parametry zapytania `skip` (≥ 0) i `limit` (1–100); odpowiedzi listowe niosą `items` i `total` |
+| Ścieżki | kebab-case |
 
 ## Stabilność, szczerze { #stability-honestly }
 

@@ -89,9 +89,7 @@ waiting, which leaves the queue undecided - a run says how many as
 `routed_replacing` - and an answer older than the one waiting is not sent.
 Another agent's answer to the case waits beside it.
 
-A dataset's own **Evals** tab lists every agent measured on it, each with its
-trend and runs, and its header's **Run evals** opens the start dialog on the
-dataset, asking which agent to test.
+A dataset’s **Results → Test runs** view lists every agent measured on it with a shared trend and runs table. **Run evals** opens the start dialog on the dataset, asking which agent to test. Runs whose answers all failed with the same setup error show **Could not run** instead of a pass rate and are excluded from the quality trend.
 
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
@@ -201,6 +199,11 @@ tool with a test connection on the run's environment runs against it, a tool
 known to only read runs on the normal connection, and anything that writes without
 a test connection is not executed - the call and its arguments are kept as an
 intended call, which the trajectory scorer still judges.
+
+Every isolated attempt uses a disposable workspace scoped to its own run, even
+when the agent normally shares files by conversation, user or agent. It needs
+no chat conversation and cannot reuse those persistent files. The workspace is
+released when the run finishes.
 
 A case taken from a conversation can be answered **from the recording** of the
 run it came from (`from_recordings`): a call that matches the recording gets the

@@ -518,6 +518,8 @@ class ApprovalService:
         for run in claimed:
             if run is None or run.status != RunStatus.AWAITING_ANSWER.value:
                 continue
+            if (run.paused_state or {}).get("question_results"):
+                continue
             destination = chat_destination(run)
             if destination is not None:
                 await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="expired")
@@ -539,6 +541,12 @@ class ApprovalService:
             )
             if destination is not None:
                 notices.append(_notice(run, destination, EXPIRED_NOTICE))
+            if run.surface == RunSurface.WORKFLOW.value:
+                spawn_after_commit(
+                    self.db,
+                    wake_after_approval_decision(run.id, organization_id=run.organization_id),
+                    name="workflow-question-expiry-wake",
+                )
             ended += 1
         await self._tell_chats(notices)
         if ended:

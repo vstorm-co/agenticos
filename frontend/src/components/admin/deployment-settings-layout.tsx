@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Bell,
   ChevronRight,
@@ -27,6 +28,8 @@ const SECTIONS = [
 type Section = (typeof SECTIONS)[number]["id"];
 
 type Props = Record<Section, ReactNode> & {
+  guided?: boolean;
+  onContinue?: () => void;
   dirty: boolean;
   pending: boolean;
   onSave: () => void;
@@ -34,10 +37,24 @@ type Props = Record<Section, ReactNode> & {
 };
 
 /** Keep drafts mounted across sections, including independently saved credentials. */
-export function DeploymentSettingsLayout({ dirty, pending, onSave, onDiscard, ...content }: Props) {
+export function DeploymentSettingsLayout({
+  dirty,
+  pending,
+  onSave,
+  onDiscard,
+  guided,
+  onContinue,
+  ...content
+}: Props) {
   const t = useTranslations("pages.adminSettingsLayout");
   const tc = useTranslations("common");
-  const [active, setActive] = useState<Section>("identity");
+  const tStart = useTranslations("start.administration");
+  const requestedSection = useSearchParams().get("section");
+  const [active, setActive] = useState<Section>(
+    guided
+      ? "access"
+      : (SECTIONS.find((section) => section.id === requestedSection)?.id ?? "identity"),
+  );
 
   return (
     <div className="space-y-5 pb-6">
@@ -54,16 +71,24 @@ export function DeploymentSettingsLayout({ dirty, pending, onSave, onDiscard, ..
               {t("discard")}
             </Button>
           )}
-          <Button onClick={onSave} disabled={pending || !dirty}>
+          <Button
+            onClick={dirty ? onSave : onContinue}
+            disabled={pending || (!dirty && !onContinue)}
+          >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            {tc("save")}
+            {onContinue ? tStart("saveContinue") : tc("save")}
           </Button>
         </div>
       </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[190px_minmax(0,1fr)]">
+      <div
+        className={cn("grid items-start gap-5", !guided && "lg:grid-cols-[190px_minmax(0,1fr)]")}
+      >
         <nav
           aria-label={t("title")}
-          className="bg-card flex gap-1 overflow-x-auto rounded-xl p-2 lg:sticky lg:top-24 lg:flex-col"
+          className={cn(
+            "bg-card flex gap-1 overflow-x-auto rounded-xl p-2",
+            guided ? "flex-wrap" : "lg:sticky lg:top-24 lg:flex-col",
+          )}
         >
           {SECTIONS.map(({ id, icon: Icon }) => (
             <button
@@ -91,7 +116,16 @@ export function DeploymentSettingsLayout({ dirty, pending, onSave, onDiscard, ..
               <p className="text-muted-foreground mb-4 max-w-2xl text-sm leading-6">
                 {t(`${id}Hint`)}
               </p>
-              <div className="space-y-5">{content[id]}</div>
+              <div
+                className={cn(
+                  "gap-5",
+                  guided && (id === "access" || id === "identity")
+                    ? "grid md:grid-cols-2 [&>*]:min-w-0"
+                    : "space-y-5",
+                )}
+              >
+                {content[id]}
+              </div>
             </section>
           ))}
         </div>

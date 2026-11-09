@@ -30,6 +30,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.suggestion import SuggestionStatus
+from app.db.models.system_agent_profile import DAILY_BRIEFING
 from app.db.models.user import User
 from app.repositories import (
     agent_repo,
@@ -122,7 +123,17 @@ async def _agent(
     return agent
 
 
-async def _run(db, org, agent, user, *, surface: RunSurface, cost: str, started_at=_NOW) -> None:
+async def _run(
+    db,
+    org,
+    agent,
+    user,
+    *,
+    surface: RunSurface,
+    cost: str,
+    started_at=_NOW,
+    system_role: str | None = None,
+) -> None:
     db.add(
         AgentRun(
             id=uuid.uuid4(),
@@ -131,6 +142,7 @@ async def _run(db, org, agent, user, *, surface: RunSurface, cost: str, started_
             user_id=user.id,
             status=RunStatus.COMPLETED.value,
             surface=surface.value,
+            system_role=system_role,
             started_at=started_at,
             cost_usd=Decimal(cost),
         )
@@ -237,7 +249,15 @@ class TestBackgroundSpend:
         org = await _organization(db, user)
         agent = await _agent(db, org)
         await _run(db, org, agent, user, surface=RunSurface.PROACTIVE, cost="0.10")
-        await _run(db, org, agent, user, surface=RunSurface.PROACTIVE, cost="0.05")
+        await _run(
+            db,
+            org,
+            agent,
+            user,
+            surface=RunSurface.PROACTIVE,
+            cost="0.05",
+            system_role=DAILY_BRIEFING,
+        )
         await _run(db, org, agent, user, surface=RunSurface.WEB, cost="5")
         await _run(db, org, agent, other, surface=RunSurface.PROACTIVE, cost="1")
         await _run(
@@ -256,7 +276,7 @@ class TestBackgroundSpend:
 
         assert spent == Decimal("0.15")
         assert (
-            await agent_run_repo.last_proactive_run_at(db, organization_id=org.id, user_id=user.id)
+            await agent_run_repo.last_nightly_run_at(db, organization_id=org.id, user_id=user.id)
             == _NOW
         )
 
@@ -265,7 +285,7 @@ class TestBackgroundSpend:
         org = await _organization(db, user)
 
         assert (
-            await agent_run_repo.last_proactive_run_at(db, organization_id=org.id, user_id=user.id)
+            await agent_run_repo.last_nightly_run_at(db, organization_id=org.id, user_id=user.id)
             is None
         )
         assert await agent_run_repo.proactive_spend_since(
@@ -492,6 +512,7 @@ class TestWhatTheNightlyLookSends:
             surface=RunSurface.PROACTIVE,
             cost="0.01",
             started_at=_NOW - timedelta(days=1),
+            system_role=DAILY_BRIEFING,
         )
         look = NightlyLook(db)
         look.thinker = thinker = self._thinker(agent)
@@ -570,6 +591,7 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
             surface=RunSurface.PROACTIVE,
             cost="0.01",
             started_at=at,
+            system_role=DAILY_BRIEFING,
         )
 
     async def test_a_prompt_with_no_run_yet_is_not_read_and_a_later_look_reads_it(self, db) -> None:
@@ -727,8 +749,10 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
 
         assert await self._read(db, org, person) == [_CLEAN]
 
-    async def test_a_prompt_decided_before_the_last_look_is_not_new_again(self, db) -> None:
-        """The last look read it, so it wakes nobody a second time."""
+    async def test_a_legacy_look_without_receipts_does_not_claim_a_prompt_was_read(
+        self, db
+    ) -> None:
+        """Old timestamps cannot establish which prompts were actually read."""
         org, person, agent, chat = await self._scene(db)
         look_at = _NOW - timedelta(hours=1)
         await self._looked_at(db, org, person, look_at)
@@ -742,7 +766,7 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
         )
         await self._prompt(db, chat, _CLEAN, run=run, created_at=look_at - timedelta(minutes=5))
 
-        assert await self._read(db, org, person) is None
+        assert await self._read(db, org, person) == [_CLEAN]
 
     async def test_a_late_verdict_that_refuses_wakes_nobody(self, db) -> None:
         org, person, agent, chat = await self._scene(db)
@@ -1478,3 +1502,225 @@ async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
             if not task.done():
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("target", ["default", "pinned", "environment"])
+async def test_nightly_screens_routines_with_the_version_they_fire(db, target):
+    from app.db.models.agent_environment import AgentEnvironment
+
+    person = await _person(db)
+    colleague = await _person(db)
+    org = await _organization(db, person)
+    plain = {**_GUARDED, "capabilities": []}
+    agent = await _agent(db, org, spec=_GUARDED if target == "default" else plain)
+    guarded = AgentVersion(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        version=2,
+        spec=_GUARDED,
+    )
+    db.add(guarded)
+    await db.flush()
+    environment = AgentEnvironment(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        name="guarded",
+        version_id=guarded.id,
+    )
+    db.add(environment)
+    await db.flush()
+    refused = await _turn(db, org, agent, person, status=RunStatus.GUARDRAIL_BLOCKED)
+    for creator, prompt, last in (
+        (person, _BLOCKED, None),
+        (person, _CLEAN, None),
+        (colleague, "colleague private", None),
+        (person, "last fire refused", refused.id),
+    ):
+        db.add(
+            AgentTrigger(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                agent_id=agent.id,
+                created_by_user_id=creator.id,
+                prompt=prompt,
+                trigger_type="schedule",
+                schedule_kind="interval",
+                interval_seconds=3600,
+                next_fire_at=_NOW + timedelta(hours=1),
+                last_run_id=last,
+                pinned_version_id=guarded.id if target == "pinned" else None,
+                environment_id=environment.id if target == "environment" else None,
+            )
+        )
+    await db.flush()
+    look = NightlyLook(db)
+    look.thinker = thinker = MagicMock(
+        starter_agent=AsyncMock(return_value=agent), think=AsyncMock(return_value=None)
+    )
+    await look.look(org.id, person.id)
+    material = json.loads(thinker.think.await_args.kwargs["prompt"])
+    assert material["their_routines"] == [_CLEAN]
+
+
+@pytest.mark.security
+async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
+    person = await _person(db)
+    org = await _organization(db, person)
+    first = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    other = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    db.add_all([first, other])
+    await db.flush()
+    message = Message(id=uuid.uuid4(), conversation_id=first.id, role="user", content=_BLOCKED)
+    good = Message(id=uuid.uuid4(), conversation_id=first.id, role="user", content=_CLEAN)
+    db.add_all([message, good])
+    await db.flush()
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart
+
+    first.summary_messages = ModelMessagesTypeAdapter.dump_python(
+        [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+    )
+    first.summary_ordinal = message.ordinal
+    await db.flush()
+    await conversation_repo.mark_message_refused(
+        db, message_id=message.id, conversation_id=other.id
+    )
+    await db.refresh(message)
+    assert message.guardrail_refused is False
+    await conversation_repo.mark_message_refused(
+        db, message_id=message.id, conversation_id=first.id
+    )
+    await db.refresh(message)
+    await db.refresh(good)
+    assert message.guardrail_refused is True
+    assert good.guardrail_refused is False
+    await db.refresh(first)
+    assert first.summary_messages is None and first.summary_ordinal is None
+    from app.services.message_history import REFUSED_TURN
+
+    history = await ConversationService(db).model_history(first.id, limit=20)
+    rendered = str(history)
+    assert _BLOCKED not in rendered and REFUSED_TURN in rendered and _CLEAN in rendered
+    requests = await conversation_repo.person_requests_since(
+        db, organization_id=org.id, user_id=person.id, since=_NOW - timedelta(days=1), limit=10
+    )
+    assert all(request.message.id != message.id for request in requests)
+
+
+@pytest.mark.security
+async def test_retention_cannot_make_a_refused_routine_look_unfired(db):
+    person = await _person(db)
+    org = await _organization(db, person)
+    agent = await _agent(db, org, spec=_GUARDED)
+    refused = await _turn(db, org, agent, person, status=RunStatus.GUARDRAIL_BLOCKED)
+    trigger = AgentTrigger(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        created_by_user_id=person.id,
+        prompt=_BLOCKED,
+        trigger_type="schedule",
+        schedule_kind="interval",
+        interval_seconds=3600,
+        next_fire_at=_NOW + timedelta(hours=1),
+        last_run_id=refused.id,
+        last_fired_at=_NOW,
+    )
+    db.add(trigger)
+    await db.flush()
+    await db.delete(refused)
+    await db.flush()
+    await db.refresh(trigger)
+    assert trigger.last_run_id is None
+    version = await agent_repo.get_version(db, agent.current_version_id, organization_id=org.id)
+    version.spec = {**_GUARDED, "capabilities": []}
+    await db.flush()
+    look = NightlyLook(db)
+    look.thinker = thinker = MagicMock(
+        starter_agent=AsyncMock(return_value=agent), think=AsyncMock(return_value=None)
+    )
+    await look.look(org.id, person.id)
+    assert json.loads(thinker.think.await_args.kwargs["prompt"])["their_routines"] == []
+
+
+@pytest.mark.security
+async def test_a_refusal_after_the_compacted_prefix_keeps_that_summary(db):
+    person = await _person(db)
+    org = await _organization(db, person)
+    chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    db.add(chat)
+    await db.flush()
+    before = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=_CLEAN
+    )
+    refused = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=_BLOCKED
+    )
+    chat.summary_messages = [{"accepted": "prior prefix"}]
+    chat.summary_ordinal = before.ordinal
+    await db.flush()
+    await conversation_repo.mark_message_refused(db, message_id=refused.id, conversation_id=chat.id)
+    await db.refresh(chat)
+    assert chat.summary_messages == [{"accepted": "prior prefix"}]
+    assert chat.summary_ordinal == before.ordinal
+
+
+@pytest.mark.security
+async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engine):
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart
+
+    person = await _person(db)
+    org = await _organization(db, person)
+    chat = Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=_BLOCKED
+    )
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    loaded, finish = asyncio.Event(), asyncio.Event()
+    unsafe = ModelMessagesTypeAdapter.dump_python(
+        [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+    )
+
+    async def compact() -> None:
+        async with factory() as writer:
+            history = await ConversationService(writer).model_history(chat.id, limit=20)
+            assert history.revision == 0 and _BLOCKED in str(history)
+            await writer.commit()
+            loaded.set()
+            await finish.wait()
+            await ConversationService(writer).keep_summary(
+                chat.id, unsafe, expected_revision=history.revision
+            )
+            await writer.commit()
+
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(compact())
+        await asyncio.wait_for(loaded.wait(), 5)
+        async with factory() as refuser:
+            await conversation_repo.mark_message_refused(
+                refuser, message_id=source.id, conversation_id=chat.id
+            )
+            await refuser.commit()
+        finish.set()
+    await db.refresh(chat)
+    assert chat.summary_messages is None and chat.summary_ordinal is None
+    assert chat.guardrail_revision == 1
+    safe_history = await ConversationService(db).model_history(chat.id, limit=20)
+    assert safe_history.revision == 1 and _BLOCKED not in str(safe_history)
+    safe_summary = ModelMessagesTypeAdapter.dump_python(
+        [ModelRequest(parts=[UserPromptPart(content="An accepted summary after the refusal")])],
+        mode="json",
+    )
+    await ConversationService(db).keep_summary(
+        chat.id, safe_summary, expected_revision=safe_history.revision
+    )
+    await db.refresh(chat)
+    assert chat.summary_messages == safe_summary
+    assert "An accepted summary after the refusal" in str(
+        await ConversationService(db).model_history(chat.id, limit=20)
+    )

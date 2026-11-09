@@ -51,6 +51,7 @@ import {
   sharedErrorHandlerProblems,
   errorRoutingProblems,
   answeringStepProblems,
+  loopBodyProblems,
 } from "./rules";
 import { analyse } from "./joins";
 import { deriveScopes, nodeScopeMap, resolveDefinitions } from "./topology";
@@ -164,6 +165,7 @@ function validateSingleGraph(
     ...portNameClashes(graph, definitions),
     ...quickLogProblems(graph, definitions),
     ...rule6NestedScopeBoundaries(graph, scopes, nodeScope),
+    ...loopBodyProblems(graph, definitions, nodeScope),
     ...rule8OnePort(graph, definitions),
     ...errorRoutingProblems(graph, definitions),
     ...sharedErrorHandlerProblems(analysis),

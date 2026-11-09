@@ -4,12 +4,13 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
+from app.db.vector_tables import VectorWriterKind
 
 
 class DocumentStatus(enum.StrEnum):
@@ -60,7 +61,17 @@ class RAGDocument(TimestampMixin, Base):
     # source: two sources feeding one collection can both list an address, and
     # one of them no longer listing it is not reason enough to remove it (#1879).
 
+    writer_kind: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=VectorWriterKind.DOCUMENT,
+        server_default=VectorWriterKind.LEGACY_UNKNOWN,
+    )
+
     __table_args__ = (
+        CheckConstraint(
+            "writer_kind IN ('document', 'operator', 'legacy_unknown')", name="writer_kind"
+        ),
         Index("rag_documents_source_path_idx", "source_path", postgresql_using="hash"),
     )
     status: Mapped[str] = mapped_column(

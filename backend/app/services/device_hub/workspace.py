@@ -99,6 +99,11 @@ class DeviceWorkspace:
         return self._target.computer_grant is not None
 
     @property
+    def local_coding_allowed(self) -> bool:
+        """Whether this target can host a native coding harness without an upgrade."""
+        return self._target.mode == "full_access"
+
+    @property
     def session_id(self) -> UUID:
         """The app session the computer is reached through - its screen too."""
         return self._session_id

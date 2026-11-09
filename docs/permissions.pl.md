@@ -1,5 +1,5 @@
 ---
-source_sha: "97f7f1a368ce"
+source_sha: "8042876abacb"
 ---
 
 # Uprawnienia { #permissions }
@@ -97,7 +97,9 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
 `promotions:override` promuje wersję na
 [środowisko strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals),
@@ -163,13 +165,13 @@ nim na poziomie `SHARED` widzi serwery organizacji, własne i te jej udostępnio
 
 Uporządkowany jako `NONE < OWN < SHARED < TEAM < ALL`.
 
-| Scope    | Sięga                                                       |
-| -------- | ----------------------------------------------------------- |
-| `NONE`   | niczego                                                     |
-| `OWN`    | wierszy, które należą do tej osoby                          |
-| `SHARED` | jej własnych, plus wszystkiego widocznego dla organizacji   |
-| `TEAM`   | jej własnych, plus widocznego dla zespołu i dla organizacji |
-| `ALL`    | każdego wiersza w organizacji                               |
+| Scope | Sięga |
+| --- | --- |
+| `NONE` | niczego |
+| `OWN` | wierszy, które należą do tej osoby |
+| `SHARED` | jej własnych, plus wszystkiego widocznego dla organizacji |
+| `TEAM` | jej własnych, plus widocznego dla zespołu i dla organizacji |
+| `ALL` | każdego wiersza w organizacji |
 
 !!! info "Dlaczego operatory porównania są przeciążone"
 
@@ -184,14 +186,14 @@ własnych.
 
 ### Wbudowane role { #the-built-in-roles }
 
-| Rola       | Zamysł                                 | Agents                                        | Secrets                       | Globalne                                                                                                                    |
-| ---------- | -------------------------------------- | --------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `owner`    | jest właścicielem organizacji          | wszystko `ALL`                                | `ALL`                         | wszystko, łącznie z `org:delete`                                                                                            |
-| `admin`    | prowadzi ją na co dzień                | wszystko `ALL`                                | `ALL`                         | wszystko **poza** `org:delete`                                                                                              |
-| `builder`  | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `operator` | utrzymuje działający system w zdrowiu  | `view`/`run` `ALL`, bez edycji                | `view` `SHARED`               | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view`                         |
-| `member`   | codzienny użytkownik                   | `view`/`run` `SHARED`, `edit` `OWN`           | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view`                                                                              |
-| `viewer`   | czyta                                  | `view` `SHARED`                               | żadne                         | `members:view`                                                                                                              |
+| Rola | Zamysł | Agents | Secrets | Globalne |
+| --- | --- | --- | --- | --- |
+| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
+| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | czyta | `view` `SHARED` | żadne | `members:view` |
 
 Rozróżnienie między `builder` a `admin` jest tym ciekawym: builder widzi całą
 organizację, żeby się od niej uczyć, ale edytuje tylko to, co jego albo co z nim
@@ -287,11 +289,11 @@ odpowiedź, że taki nie istnieje. Szkic i tak nie może zostać uruchomiony i n
 sięga po niego żadna ekspozycja, więc to rozstrzyga, kto go widzi, a nie co
 robi.
 
-| Poziom      | Pozwala                                                                                 |
-| ----------- | --------------------------------------------------------------------------------------- |
-| `read`      | zobaczyć konfigurację                                                                   |
-| `use`       | dodatkowo uruchomić go albo podpiąć                                                     |
-| `edit`      | dodatkowo go zmienić                                                                    |
+| Poziom | Pozwala |
+| --- | --- |
+| `read` | zobaczyć konfigurację |
+| `use` | dodatkowo uruchomić go albo podpiąć |
+| `edit` | dodatkowo go zmienić |
 | `edit_data` | dodatkowo zmienić dane, które pokazuje strona — [tylko strony](#a-page-that-reads-data) |
 
 W konsoli to jeden dialog, tak jak udostępnia się dokument: przycisk **Share**
@@ -640,10 +642,10 @@ wpuściła, stworzonej przez kogoś, kto rolę jednak miał.
 
 ## Co czyta frontend { #what-the-frontend-reads }
 
-| Endpoint              | Odpowiada                                                                       |
-| --------------------- | ------------------------------------------------------------------------------- |
+| Endpoint | Odpowiada |
+| --- | --- |
 | `GET /me/permissions` | rolą wywołującego, `is_app_admin` oraz każdym uprawnieniem wraz z jego scope'em |
-| `GET /roles/catalog`  | całym katalogiem i tym, co pakuje w sobie każda rola                            |
+| `GET /roles/catalog` | całym katalogiem i tym, co pakuje w sobie każda rola |
 
 Oba są **wygodą dla interfejsu i niczym więcej**. Serwer sprawdza każde
 uprawnienie ponownie na endpoincie, który wykonuje działanie, więc klient

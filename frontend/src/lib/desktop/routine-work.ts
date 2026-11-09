@@ -1,4 +1,7 @@
-/** Explicit native grants are scoped to one routine, owner, organization and device. */
+/**
+ * Explicit native grants: for one routine on one session, or for every routine of
+ * the person in an organization (`routine_id: null`), on this computer.
+ */
 import { z } from "zod";
 
 import type { LocalTarget } from "@/lib/desktop/commands";
@@ -19,7 +22,7 @@ const grantSchema = z.object({
   id: z.uuid(),
   identity: deviceIdentitySchema,
   organization_id: z.uuid(),
-  routine_id: z.uuid(),
+  routine_id: z.uuid().nullable(),
   name: z.string(),
   root: z.string().min(1),
   operations: localOperationsSchema,
@@ -27,7 +30,8 @@ const grantSchema = z.object({
 export type RoutineGrant = z.infer<typeof grantSchema>;
 export interface RoutineGrantRequest {
   organization_id: string;
-  routine_id: string;
+  /** One routine, or null for every routine of this person. */
+  routine_id: string | null;
   user_id: string;
   device_id: string;
   name: string;
@@ -60,13 +64,53 @@ export async function allowRoutine(request: RoutineGrantRequest): Promise<LocalT
   ) {
     throw new ShellError("malformed", "routine permission binding changed");
   }
+  return targetFor(grant, grant.identity.device_id, grant.root, grant.operations);
+}
+
+function targetFor(
+  grant: RoutineGrant,
+  deviceId: string,
+  folder: string,
+  operations: LocalOperations,
+): LocalTarget {
   return {
-    device_id: grant.identity.device_id,
-    folder: grant.root,
-    mode: grant.operations.write ? "workspace_write" : "read_only",
+    device_id: deviceId,
+    folder,
+    mode: operations.write ? "workspace_write" : "read_only",
     routine_grant: grant.id,
-    operations: grant.operations,
+    operations,
   };
+}
+
+function within(folder: string, root: string): boolean {
+  const parent = root.replace(/[\\/]+$/, "");
+  return (
+    folder === parent ||
+    parent === "" ||
+    folder.startsWith(`${parent}/`) ||
+    folder.startsWith(`${parent}\\`)
+  );
+}
+
+/**
+ * A routine's folder under the person's grant for every routine, on the session
+ * signed in now - no dialog. Null when no such grant covers the folder and the
+ * operations asked for.
+ */
+export function coveredByAllRoutines(
+  grants: readonly RoutineGrant[],
+  deviceId: string,
+  folder: string,
+  operations: LocalOperations,
+): LocalTarget | null {
+  const grant = grants.find(
+    (candidate) =>
+      candidate.routine_id === null &&
+      within(folder, candidate.root) &&
+      (!operations.write || candidate.operations.write) &&
+      (!operations.execute || candidate.operations.execute),
+  );
+  return grant ? targetFor(grant, deviceId, folder, operations) : null;
 }
 
 export async function listRoutineGrants(organizationId: string, userId: string) {

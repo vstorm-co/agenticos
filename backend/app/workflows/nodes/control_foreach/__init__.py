@@ -3,7 +3,6 @@
 from app.workflows._registry import register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.nodes.control_foreach._handler import (
-    BODY_PORT,
     DONE_PORT,
     ForeachConfig,
     ForeachInput,
@@ -15,7 +14,6 @@ from app.workflows.nodes.control_foreach._handler import (
 )
 
 __all__ = [
-    "BODY_PORT",
     "DONE_PORT",
     "ForeachConfig",
     "ForeachInput",
@@ -37,7 +35,6 @@ register(
         output_schema=ForeachOutput,
         ports=(
             Port(id="in", label="In", kind="input", schema=None),
-            Port(id=BODY_PORT, label="Each item", kind="output", schema=None),
             Port(id=DONE_PORT, label="Done", kind="output", schema=ForeachOutput),
         ),
         effect_kind="pure",

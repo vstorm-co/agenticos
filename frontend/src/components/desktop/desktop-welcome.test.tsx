@@ -81,14 +81,14 @@ describe("DesktopWelcome", () => {
     expect(screen.queryByRole("button", { name: "Skip for now" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Open AgenticOS" }));
     expect(env.finish).toHaveBeenCalled();
-    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
   });
 
   it("can be skipped, and still marks itself as done", async () => {
     render(<DesktopWelcome />);
     await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
     expect(env.finish).toHaveBeenCalled();
-    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
   });
 
   it("reports a shell that would not remember it, and still moves on", async () => {
@@ -99,7 +99,7 @@ describe("DesktopWelcome", () => {
     await next();
     await userEvent.click(screen.getByRole("button", { name: "Send a test" }));
     await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
-    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
     expect(env.report).toHaveBeenCalledWith("could not finish onboarding", expect.any(Error));
     expect(env.report).toHaveBeenCalledWith(
       "could not send a test notification",

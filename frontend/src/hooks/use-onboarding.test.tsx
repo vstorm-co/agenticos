@@ -67,9 +67,12 @@ describe("useOnboardingTour", () => {
     servePermissions();
   });
 
-  it("auto-opens on the dashboard for a user who has not finished onboarding", async () => {
+  it("leaves the first task unobstructed until the person requests a tour", async () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.isOpen).toBe(true));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
+    expect(result.current.isOpen).toBe(false);
+    act(() => useOnboardingStore.getState().openTour());
+    expect(result.current.isOpen).toBe(true);
     expect(result.current.steps.length).toBe(LAUNCH_ALL);
     expect(result.current.isFirst).toBe(true);
   });
@@ -131,6 +134,7 @@ describe("useOnboardingTour", () => {
       user({ onboarding_completed_at: "2026-02-02T00:00:00Z" }),
     );
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => result.current.dismiss());
@@ -172,6 +176,7 @@ describe("useOnboardingTour", () => {
 
     act(() => useOnboardingStore.getState().openPage());
     expect(result.current.steps.map((step) => step.id)).toEqual([
+      "organization-switcher",
       "dashboard-filters",
       "dashboard-customize",
       "notification-bell",
@@ -235,6 +240,7 @@ describe("useOnboardingTour", () => {
     // A user who has *not* finished onboarding: the guard here is the mode, not
     // the flag, so a "?" replay must still not mark them done.
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => useOnboardingStore.getState().openPage());
@@ -246,6 +252,7 @@ describe("useOnboardingTour", () => {
   it("surfaces an API error's message when the write fails", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(500, "boom"));
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
     act(() => result.current.dismiss());
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("boom"));
@@ -254,6 +261,7 @@ describe("useOnboardingTour", () => {
   it("falls back to a generic message when the failure is not an API error", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new Error("network"));
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
     act(() => result.current.dismiss());
     await waitFor(() =>
@@ -263,6 +271,7 @@ describe("useOnboardingTour", () => {
 
   it("steps forward and back, clamped at both ends", async () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => result.current.back());
@@ -281,6 +290,7 @@ describe("useOnboardingTour", () => {
     // guard keeps the modal from springing back open.
     vi.mocked(apiClient.patch).mockResolvedValue(user());
     const { result, rerender } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => result.current.dismiss());

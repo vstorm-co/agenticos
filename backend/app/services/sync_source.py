@@ -37,6 +37,10 @@ from app.schemas.sync_source import (
 )
 from app.worker.jobs import SYNC_SOURCE, Priority, SyncConnectorSource, sync_source_key
 
+# `is_active` is how an operator pauses a source; a run refuses a paused one
+# whoever asked for it, and the scheduler already never selects one.
+PAUSED_SOURCE = "This source is paused; activate it to sync."
+
 # The credential field names the two shipped connectors used to hold in `config`.
 # Kept as a list so a caller posting the old shape is told what to do instead of
 # having the value silently dropped (#937).
@@ -510,6 +514,21 @@ class SyncSourceService:
             triggered_by_user_id=None,
         )
 
+    @staticmethod
+    def refuse_paused(source: SyncSource) -> None:
+        """Refuse a manual run of a source an operator has paused.
+
+        For a route that has loaded and authorized the source and goes on to
+        `trigger_sync`: pausing stops the schedule, and without this a trigger
+        still ran the source. `_sync_source` checks again, because a source can
+        be paused after the trigger.
+
+        Raises:
+            BadRequestError: If the source is not active.
+        """
+        if not source.is_active:
+            raise BadRequestError(message=PAUSED_SOURCE, details={"source_id": str(source.id)})
+
     async def trigger_sync(self, source_id: str, *, user_id: UUID | None = None) -> SyncLog:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.
 
@@ -520,10 +539,11 @@ class SyncSourceService:
 
         Raises:
             NotFoundError: If sync source does not exist.
-            BadRequestError: If source has no assigned collection.
+            BadRequestError: If source is paused or has no assigned collection.
         """
 
         source = await self.get_source(source_id)
+        self.refuse_paused(source)
         if not source.collection_name:
             raise BadRequestError(
                 message="Cannot sync a source without an assigned knowledge base collection.",

@@ -7,6 +7,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 import {
   Alert,
   AlertDescription,
@@ -38,7 +39,6 @@ import { useUrlOverlay } from "@/hooks/use-url-state";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
-import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface KBDetailPageProps {
@@ -110,13 +110,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     deleteSyncSource,
   } = useKBDetail(id);
 
-  // Presentation, never enforcement - the write routes resolve access per
-  // row on the server. A Viewer holds `collections:view` only; offering them
-  // upload and delete would be offering actions that can only refuse.
-  const { can } = usePermissions();
-  const mayEdit = can(Perm.collectionsEdit);
+  // The same per-resource decision as the write routes, including grants.
+  const mayEdit = kb?.can_edit === true;
   // A topic is made of people's questions, which the server shows only to a
   // member who reads every run.
+  const { can } = usePermissions();
   const maySeeGaps = can(Perm.runsView);
   const tab = parseTab(tabParam, maySeeGaps);
 

@@ -1030,7 +1030,7 @@ async def classification_candidates(
     missed: set[UUID] = set()
     if rows:
         rated = await db.execute(
-            select(MessageRating.message_id, func.trim(MessageRating.comment, type_=Text))
+            select(MessageRating.message_id, func.trim(MessageRating.comment, type_=Text()))
             .where(_down_rated_with_comment(MessageRating.message_id))
             .where(MessageRating.message_id.in_(message_ids))
             .order_by(func.coalesce(MessageRating.updated_at, MessageRating.created_at).desc())

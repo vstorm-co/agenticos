@@ -474,6 +474,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     return ApprovalMarked(
         FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ORIGIN: origin})),
         policy=spec.approval,
+        in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
     )
@@ -539,6 +540,9 @@ Top-level in the metadata for the reason `NEEDS_APPROVAL` is: a server cannot wr
 there, so it cannot claim to be another account.
 """
 
+PLATFORM_TOOL = "agenticos_platform_tool"
+"""Set only by the in-process transport, never by a server-provided annotation."""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -566,6 +570,7 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
 
@@ -579,6 +584,7 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
+                        PLATFORM_TOOL: self.in_process,
                         NEEDS_APPROVAL: name not in self.ungated
                         and needs_approval(tool.tool_def, self.policy),
                         **named,

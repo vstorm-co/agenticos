@@ -1,5 +1,6 @@
 "use client";
 
+import { isLoopbackAddress } from "@/lib/local-server";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ interface InviteMemberDialogProps {
 
 export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDialogProps) {
   const t = useTranslations("teams");
+  const start = useTranslations("start");
   const [email, setEmail] = useState("");
   const [chosen, setChosen] = useState<OrgRole | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +95,11 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
         <DialogHeader>
           <DialogTitle>{sent ? t("inviteReady") : t("inviteMember")}</DialogTitle>
         </DialogHeader>
+        {typeof window !== "undefined" && isLoopbackAddress(window.location.origin) && (
+          <p role="note" className="text-muted-foreground text-sm">
+            {start("localTeamWarning")}
+          </p>
+        )}
         {sent ? (
           <div className="space-y-4">
             <p className="text-muted-foreground text-sm">

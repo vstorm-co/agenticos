@@ -417,6 +417,7 @@ class TestStart:
 
     @pytest.mark.security
     @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    @pytest.mark.parametrize("schema_contract", [False, True], ids=["fields", "schema"])
     @pytest.mark.parametrize(
         ("field_type", "value", "problem_path"),
         [
@@ -426,13 +427,31 @@ class TestStart:
         ],
     )
     async def test_an_input_that_does_not_fit_the_declared_fields_is_refused_unwritten(
-        self, trigger_id: str, field_type: str, value: object, problem_path: str
+        self,
+        trigger_id: str,
+        field_type: str,
+        value: object,
+        problem_path: str,
+        schema_contract: bool,
     ) -> None:
+        contract = {"fields": [{"name": "seats", "type": field_type}]}
+        if schema_contract:
+            contract = {
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "seats": {"type": "integer"}
+                        if field_type == "integer"
+                        else {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["seats"],
+                }
+            }
         entry = NodeInstance(
             id=uuid.uuid4(),
             definition_id=trigger_id,
             definition_version=1,
-            config={"fields": [{"name": "seats", "type": field_type}]},
+            config=contract,
             layout=NodePosition(x=0, y=0),
         )
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
@@ -1384,3 +1403,77 @@ def test_input_accepts_literal_escape_text_and_multilingual_strings():
 
     payload = {"value": "literal \\u0000 and 日本語", "tuple": (True, 42)}
     assert _checked_input(payload) == payload
+
+
+@pytest.mark.parametrize(
+    ("path", "kind", "expected"),
+    [
+        ("items.0.name", "minLength", "items.0.name"),
+        ("", "type", ""),
+        ("input", "required", "input"),
+        ("$", "type", "$"),
+        ("input", "json_invalid", ""),
+    ],
+)
+@pytest.mark.parametrize("root", ["input", "values"])
+def test_input_errors_expose_shared_field_paths_and_preserve_legacy_problems(
+    path: str, kind: str, expected: str, root: str
+) -> None:
+    problems = [{"field": path, "message": "Use the declared type", "type": kind}]
+    refusal = WorkflowRunInputInvalidError(problems=problems, root=root)
+    assert refusal.details == {
+        "fields": [
+            {"field": ".".join(filter(None, (root, expected))), "message": "Use the declared type"}
+        ],
+        "problems": problems,
+    }
+
+
+async def test_a_child_workflow_rejects_nested_input_before_admitting_a_run() -> None:
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="trigger.workflow_call",
+        definition_version=1,
+        config={
+            "input_schema": {
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string", "minLength": 2}},
+                            "required": ["name"],
+                        },
+                    }
+                },
+                "required": ["items"],
+            }
+        },
+        layout=NodePosition(x=0, y=0),
+    )
+    graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+    workflow = _workflow(live_trigger="trigger.workflow_call")
+    version = _version(graph=graph.model_dump(mode="json"))
+    causation = Causation(
+        root_run_id=uuid.uuid4(), causation_run_id=uuid.uuid4(), visited_trigger_ids=[], depth=1
+    )
+    with (
+        patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+        pytest.raises(WorkflowRunInputInvalidError) as refused,
+    ):
+        await WorkflowExecutionService(MagicMock()).admit_call(
+            _ctx(),
+            workflow,
+            version,
+            run_input={"items": [{"name": "X"}]},
+            causation=causation,
+            parent_node_run_id=uuid.uuid4(),
+        )
+    assert refused.value.details["problems"] == [
+        {
+            "field": "items.0.name",
+            "message": "Must contain at least 2 characters",
+            "type": "minLength",
+        },
+    ]
+    create_run.assert_not_awaited()

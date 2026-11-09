@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "1aaedaaa4081"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -470,6 +470,10 @@ flowchart TD
     Wiersz `RAGDocument` zapisywany jest **najpierw**, a cztery środkowe kroki
     wykonują się w zadaniu w tle z własną sesją - dlatego upload odpowiada
     `202 {"status": "processing"}`, zamiast czekać.
+
+Równoległe pierwsze zapisy do tej samej kolekcji czekają na utworzenie jej
+tabeli i indeksów w jednej transakcji. Jeśli tworzenie się nie powiedzie,
+transakcja jest wycofywana, a oczekujący zapis może utworzyć tabelę.
 
 Są dwa adresy, pod które może trafić upload —
 `POST /rag/collections/{name}/ingest` i `POST /kb/{kb_id}/documents` — i oba
@@ -1091,10 +1095,38 @@ z prośbą o ponowienie, bo każde czekające żądanie zajmuje połączenie z b
 a dość takich żądań odrzuca wszystkie pozostałe. Usunięcie czeka na koniec zapisu.
 
 Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
-chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez
-bazy, bez organizacji i bez wiersza nie da się odróżnić od chunka operatora: on też
-zachowuje tabelę, zostaje do `rag-drop <name>` i należy do zakresu aplikacji, więc
-czyta go baza app-scoped o tej nazwie.
+chunk wskazany przez jej własne wiersze znika razem z nią. Historyczny fragment bez
+bazy, organizacji i wiersza śledzącego ma nieznane pochodzenie. Zachowuje tabelę,
+ale **baza aplikacyjna nie może go odczytać**, nawet gdy administrator aplikacji
+przejmie nazwę ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+Baza aplikacyjna przejmuje globalne nieprzypisane fragmenty i wiersze śledzące tylko
+gdy ich `writer_kind` to `operator`. Nowe zapisy z `rag-ingest` i synchronizacji CLI
+utrwalają to pochodzenie; ingestowanie przez platformę zapisuje `document`, które
+pozostaje po usunięciu użytkownika lub bazy. Migracja
+`0300_unfiled_writer_provenance.py` nie ufa dawnym znacznikom pochodzenia, zachowuje
+pewne przypisania do dokumentów, a niejednoznaczne dane izoluje jako `legacy_unknown`.
+Odczyt nieprzypisanych danych organizacji nadal ogranicza tenant.
+
+**Po aktualizacji:** wykonaj audyt zachowanej kolekcji z powłoki serwera. Komenda
+korzysta wyłącznie z bazy danych i zwraca zagregowane liczby, bez treści dokumentów:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Dopiero po sprawdzeniu źródła i potwierdzeniu, że nieznane globalne nieprzypisane dane
+są importem operatora przeznaczonym dla każdej organizacji, uruchom:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+Wymagane jest interaktywne potwierdzenie (`--yes` zastępuje je w automatyzacji).
+Aktualizacja jest atomowa i powtarzalna; pomija fragmenty i wiersze o znanym
+pochodzeniu dokumentowym. Niepewne dane pozostaw w izolacji; ponownie zaimportuj je
+do uprawnionej bazy albo usuń istniejącą procedurą operatora `rag-drop <name>`.
+Przejęcie nazwy w konsoli nigdy nie potwierdza pochodzenia danych.
 
 W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo

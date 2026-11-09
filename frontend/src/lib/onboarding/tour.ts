@@ -92,6 +92,8 @@ export const TABLE_DETAIL = "table-detail";
  */
 export const WORKFLOW_DETAIL = "workflow-detail";
 
+export const WORKFLOW_RUN_DETAIL = "workflow-run-detail";
+
 export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
 
 /** One workflow's log, `/workflows/<id>/logs`: "?"-only and shown in place, like its runs. */
@@ -293,6 +295,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "welcome", inTour: true },
 
+  // Sidebar controls belong to the dashboard's help tour. Optional because the
+  // phone drawer may be closed when the tour reaches this step.
+  {
+    id: "organization-switcher",
+    page: ROUTES.DASHBOARD,
+    target: "organization-switcher",
+    optional: true,
+  },
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
@@ -809,6 +819,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "workflow-step-view",
     optional: true,
   },
+  {
+    id: "workflow-input-contract",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-input-contract",
+    permission: Perm.workflowsEdit,
+    optional: true,
+  },
   // Every workflow's runs, filtered on the server: one describing stop on the list.
   {
     id: "workflows-runs",
@@ -821,6 +838,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // who reached the page may see a workflow, which is all both stops need.
   { id: "workflow-stats", page: WORKFLOW_RUNS_DETAIL, target: "workflow-stats" },
   { id: "workflow-run-history", page: WORKFLOW_RUNS_DETAIL, target: "workflow-run-history" },
+  {
+    id: "workflow-run-questions",
+    page: WORKFLOW_RUN_DETAIL,
+    target: "workflow-run-questions",
+    optional: true,
+  },
   // One workflow's log, `/workflows/<id>/logs`: the lines its steps' quick logs wrote.
   { id: "workflow-logs", page: WORKFLOW_LOGS_DETAIL, target: "workflow-logs" },
   // The alert rules under it: drawn for anyone who may view the workflow, anchored on
@@ -1517,6 +1540,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;
   if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
   if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
+  if (/^\/workflows\/[^/]+\/runs\/[^/]+$/.test(path)) return WORKFLOW_RUN_DETAIL;
   if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
   if (WORKFLOW_LOGS_PATH.test(path)) return WORKFLOW_LOGS_DETAIL;
   if (/^\/workflows\/[^/]+$/.test(path) && path !== ROUTES.WORKFLOW_ALL_RUNS)

@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 import type { BrowseOutcome, BrowserFrame, ToolCall } from "@/types/chat";
 
 /**
@@ -277,29 +278,31 @@ export interface TurnBrowseVisit {
 export function turnBrowseVisits(calls: ToolCall[], browses: Browse[]): TurnBrowseVisit[] {
   const live = new Map(browses.map((browse) => [browse.callId, browse]));
   const visits = new Map<string, TurnBrowseVisit>();
-  const desktopLive = calls.some((call) => DESKTOP_TOOLS.has(call.name) && live.has(call.id));
+  const desktopLive = calls.some(
+    (call) => DESKTOP_TOOLS.has(toolLookupName(call)) && live.has(call.id),
+  );
   let active = "main";
   for (const call of calls) {
     const browse = live.get(call.id) ?? null;
-    if (DESKTOP_TOOLS.has(call.name)) {
+    if (DESKTOP_TOOLS.has(toolLookupName(call))) {
       if (browse) visits.set(`desktop:${call.id}`, { id: call.id, call, browse });
       else if (!desktopLive && !visits.has("desktop"))
         visits.set("desktop", { id: call.id, call, browse });
       continue;
     }
-    if (!BROWSER_TOOLS.has(call.name)) continue;
-    if (call.name === "browser_tabs" || call.name === "browser_close_tab") {
+    if (!BROWSER_TOOLS.has(toolLookupName(call))) continue;
+    if (toolLookupName(call) === "browser_tabs" || toolLookupName(call) === "browser_close_tab") {
       const selected =
         typeof call.result === "string" ? /^\* (\S+):/m.exec(call.result)?.[1] : null;
       if (selected) active = selected;
       continue;
     }
     const page = recordedBrowserPage(call);
-    if (call.name === "browser_switch_tab") {
+    if (toolLookupName(call) === "browser_switch_tab") {
       if (!browse && !page.url) continue;
       if (typeof call.args.tab_id === "string") active = call.args.tab_id;
     }
-    if (call.name === "browser_new_tab") {
+    if (toolLookupName(call) === "browser_new_tab") {
       const tab = typeof call.result === "string" ? /^TAB: (\S+)/m.exec(call.result)?.[1] : null;
       if (!browse && (!tab || !recordedBrowserPage({ args: {}, result: call.result }).url))
         continue;

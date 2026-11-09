@@ -8,6 +8,8 @@ from typing import Any, NewType
 
 from pydantic import BaseModel, Field, computed_field, model_validator
 
+from app.db.vector_tables import VectorWriterKind
+
 # The parser-created `Document.id` stamped on every chunk as `parent_doc_id`,
 # distinct from the relational `RAGDocument.id` UUID (which records it separately
 # as `RAGDocument.vector_document_id`, a `String(255)`). Filters and the scope's
@@ -77,6 +79,7 @@ class DocumentMetadata(BaseModel):
     organization_id: str | None = None
     # Trusted worker correlation, excluded from public chunk metadata.
     rag_document_id: uuid.UUID | None = Field(default=None, exclude=True)
+    writer_kind: VectorWriterKind = Field(default=VectorWriterKind.DOCUMENT, exclude=True)
     source: str | None = None
     document_type: str | None = None
     organizational_unit: str | None = None

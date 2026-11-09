@@ -424,4 +424,4 @@ async def _read(db: AsyncSession, ctx: AuthContext, row: WorkflowRun) -> Workflo
         raise NotFoundError(message="Run not found", details={"run_id": str(row.id)}) from exc
 
 
-_PAUSED = frozenset({"waiting_approval", "needs_attention"})
+_PAUSED = frozenset({"waiting_approval", "waiting_for_user", "needs_attention"})

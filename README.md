@@ -226,6 +226,7 @@ It runs on your own infrastructure with Docker Compose and works with 28 model p
 |---|---|
 | Your company already has AgenticOS | Ask for the workspace URL and sign in through your browser, or [install the desktop app](#install-the-desktop-app). |
 | You want a workspace for your company | Have your IT team [deploy a server](#deploy-a-company-server), or [ask Vstorm to help](https://vstorm.co/contact-us/). |
+| You want to try it on your computer without terminal commands | [Install the desktop app](#install-the-desktop-app), choose **On this computer** and follow setup. Review the [requirements](https://vstorm-co.github.io/agenticos/desktop/#running-it) first; AI requires a configured model, while recorded examples need none. |
 | You are a developer exploring locally | [Run the Docker quickstart](#try-it-locally). |
 
 ### Try it locally

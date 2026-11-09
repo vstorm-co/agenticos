@@ -6910,3 +6910,27 @@ async def test_persistent_platform_automation_requires_binding_approval(policy):
         MagicMock()
     )
     assert all(tools[name].tool_def.metadata[NEEDS_APPROVAL] is True for name in names)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("in_process", [False, True])
+async def test_only_the_owned_in_process_transport_can_stamp_platform_tool_provenance(
+    in_process: bool,
+) -> None:
+    from pydantic_ai.toolsets.abstract import ToolsetTool
+
+    from app.agents.mcp import PLATFORM_TOOL, ApprovalMarked
+
+    inner = MagicMock()
+    definition = _mcp_tool("agenticos_create_project", True)
+    definition.metadata[PLATFORM_TOOL] = True
+    inner.get_tools = AsyncMock(
+        return_value={
+            definition.name: ToolsetTool(
+                toolset=inner, tool_def=definition, max_retries=1, args_validator=MagicMock()
+            )
+        }
+    )
+    tools = await ApprovalMarked(inner, in_process=in_process).get_tools(MagicMock())
+    assert tools[definition.name].tool_def.metadata[PLATFORM_TOOL] is in_process

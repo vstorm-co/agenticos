@@ -1,5 +1,5 @@
 ---
-source_sha: "7645d69888a7"
+source_sha: "246a8fe6bac4"
 ---
 
 # Governance { #governance }
@@ -95,11 +95,11 @@ Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, R
     einem einzelnen Agent, ist überhaupt keine Obergrenze. Siehe
     [warum sie sich nicht zusammenlegen lassen](#why-they-cannot-be-collapsed).
 
-| Ebene                       | Gesetzt in                         | Misst                                                          | Angehoben von                                  |
-| --------------------------- | ---------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
-| **Agent, monatlich**        | dem Spec des Agents                | den eigenen Runs dieses Agents                                 | wer den Agent bearbeiten darf                  |
-| **Abteilung, monatlich**    | den Einstellungen der Abteilung    | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
-| **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run _und_ jeder Ingestion in der Organisation            | wer `budgets:manage` hält                      |
+| Ebene | Gesetzt in | Misst | Angehoben von |
+| --- | --- | --- | --- |
+| **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
+| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
+| **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run _und_ jeder Ingestion in der Organisation | wer `budgets:manage` hält |
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
 Organisation** — dem `DEFAULT_ORG_MONTHLY_BUDGET_USD` des Deployments
@@ -501,9 +501,9 @@ beantwortet.
 Die Child-Zeile ist das, was zwei verschiedene Fragen beantwortbar macht, und sie
 wollen entgegengesetzte Arithmetik:
 
-| Die Frage                                         | Child-Zeilen                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Was schuldet die Organisation?**                | **ausgeschlossen** - die Zeile des Parents enthält diese Token bereits, beides zu zählen stellt der Organisation also eine Anfrage doppelt in Rechnung                                                                                                                                                                                            |
+| Die Frage | Child-Zeilen |
+| --- | --- |
+| **Was schuldet die Organisation?** | **ausgeschlossen** - die Zeile des Parents enthält diese Token bereits, beides zu zählen stellt der Organisation also eine Anfrage doppelt in Rechnung |
 | **Was hat _dieser Agent_ diesen Monat gekostet?** | **eingeschlossen** - die Zeilen eines Delegates sind der einzige Ort, an dem seine eigenen Ausgaben festgehalten sind, und jede hält die eigenen Anfragen dieses Agents und die seiner Inline-Spezialisten ([#228](https://github.com/vstorm-co/agenticos/issues/228)), aber nicht die seiner veröffentlichten Delegates, die eigene Zeilen haben |
 
 Die zweite ist das, was „der Researcher hat diesen Monat 40 $ gekostet"
@@ -643,6 +643,22 @@ der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget d
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
 
+Der nächtliche Blick wird 20 Stunden nach seinem eigenen letzten Versuch
+fällig. Beobachtungen und Speicherwartung verschieben diesen Zeitpunkt nicht.
+Beobachtungen zählen weiterhin zum persönlichen Proaktivitätsbudget.
+
+Ein erfolgreicher Blick speichert die Person und einen Hash jedes gelesenen
+Prompts, ohne den Text zu kopieren. Das Abschließen einer bereits gelesenen
+Genehmigungs- oder Fragepause löst daher keinen weiteren bezahlten Modellaufruf
+aus. Ein zurückgestellter Prompt bleibt ungelesen, bis ein späterer Blick ihn
+berücksichtigt; geänderter Text ist wieder neu. Fehlgeschlagene Modellaufrufe
+markieren keine Prompts als gelesen.
+
+Nach dem Upgrade verschieben alte Hintergrund-Runs ohne Rollenzuordnung den
+nächsten Blick nicht. Bestehende Nachrichten haben keinen Lesenachweis, sodass
+geeignete aktuelle Prompts einmal nachgeholt werden können. Die üblichen
+Schalter und Budgets gelten weiterhin.
+
 Der nächtliche Job liest nur einen Prompt, der den Eingabe-Guardrail des Agents
 passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
 [Guardrails](reference/capabilities.md#guardrails):
@@ -661,6 +677,13 @@ passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
   genauso gelesen, also bleibt die Ablehnung eines Eingabe-Guardrails draußen,
   denn sie hat keine Antwort hinterlassen. Ein gesprochener Turn zeichnet kein
   Model auf, also bleibt er draußen, sobald sein Run weg ist.
+
+Routinen-Prompts werden mit der festgelegten Agent-Version, der Version der
+benannten Umgebung oder der aktuellen Agent-Version geprüft, wie beim Start
+der Routine. Ein fehlendes Ziel oder eine unlesbare Spec wird ausgelassen, ebenso
+eine Routine, deren letzter Lauf abgelehnt wurde. Eine bereits gestartete Routine,
+deren letzter Run durch die Aufbewahrung gelöscht wurde, wird ebenfalls ausgelassen:
+Ein unbekanntes Ergebnis kann eine Ablehnung nicht aufheben.
 
 Ein Prompt, den ein Guardrail geschwärzt hat, passiert, und der Job liest ihn so,
 wie er gespeichert ist, also ungeschwärzt
@@ -903,10 +926,10 @@ liefen (#2575). **Organisationen → KI und Dienste → Hintergrunddienste** (`b
 listet jede Rolle mit ihrem Modell, den Ausgaben dieses Monats und ihren letzten
 Ausführungen.
 
-| Rolle                | Was sie tut                                                                                                                                                                       | Konfiguriert                                                    |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `daily_briefing`     | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing                                                                                                   | Im Tab Proaktivität: dasselbe Modell und Limit, hier nur lesbar |
-| `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget     |
+| Rolle | Was sie tut | Konfiguriert |
+| --- | --- | --- |
+| `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Im Tab Proaktivität: dasselbe Modell und Limit, hier nur lesbar |
+| `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
 
 Die Gedächtnispflege benötigt den AgenticOS-Starter nicht. Ihr Run behält den Ursprungsagenten als Speicherreferenz und wird als `memory_maintenance` abgerechnet; ausgeführt werden nur die Extraktionsanweisungen der Plattform auf dem für die Rolle gewählten Modell. Entfernen oder Zurückziehen des Starters deaktiviert die Extraktion anderer veröffentlichter Agenten nicht.
 
@@ -938,13 +961,13 @@ Die Liste nimmt dieselbe zweiseitige Arithmetik wie die Summen oben, aus
 demselben Grund — sodass eine Oberfläche, die auf einen Agent eingeengt ist,
 zeigt, was _dieser Agent_ getan hat, die Arbeit seiner Delegates eingeschlossen:
 
-| Frage                                              | Antwort                                                                                                                                                                                                               |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /runs`                                        | Runs, die jemand gestartet hat. `parent_run_id IS NULL`                                                                                                                                                               |
+| Frage | Antwort |
+| --- | --- |
+| `GET /runs` | Runs, die jemand gestartet hat. `parent_run_id IS NULL` |
 | `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in **Aktivität** (Aktivität), denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
-| `GET /runs?parent_run_id=<id>`                     | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations`                                                                                   |
-| `GET /runs/<id>`                                   | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet                                                                                                                                                |
-| `GET /runs/<id>/transcript`                        | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten)                                                                                          |
+| `GET /runs?parent_run_id=<id>` | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations` |
+| `GET /runs/<id>` | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet |
+| `GET /runs/<id>/transcript` | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten) |
 
 **Einen Run zu lesen ist autorisiert, nicht besessen.**
 
@@ -1000,10 +1023,10 @@ Ankunft auf einem Channel erfinden, den jemand einmal benutzt hat.
 Zwei Aggregate nehmen die andere Seite, und beide werden über einen Agent
 gefragt:
 
-| Frage                                                 | Child-Zeilen                                                                                                                                                                                                                                                                                                            |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `by_agent` — die Adoption-Karte                       | **eingeschlossen.** Ausgeschlossen hat ein Agent, der vierhundertmal am Tag als jemandes Delegate läuft, keine Zeile, und die Karte bezeichnet jeden veröffentlichten Agent ohne Zeile als vergessen und bietet an, ihn zu archivieren. Ihre Balken können daher die Run-Summe daneben übersteigen; nichts summiert sie |
-| `?group_by=version` — die Karte zum Versionsvergleich | **eingeschlossen.** Ein Spezialist, der nur je als Delegate ausgeführt wird, hätte sonst nichts, was sich über seine Versionen vergleichen ließe                                                                                                                                                                        |
+| Frage | Child-Zeilen |
+| --- | --- |
+| `by_agent` — die Adoption-Karte | **eingeschlossen.** Ausgeschlossen hat ein Agent, der vierhundertmal am Tag als jemandes Delegate läuft, keine Zeile, und die Karte bezeichnet jeden veröffentlichten Agent ohne Zeile als vergessen und bietet an, ihn zu archivieren. Ihre Balken können daher die Run-Summe daneben übersteigen; nichts summiert sie |
+| `?group_by=version` — die Karte zum Versionsvergleich | **eingeschlossen.** Ein Spezialist, der nur je als Delegate ausgeführt wird, hätte sonst nichts, was sich über seine Versionen vergleichen ließe |
 
 Die Invariante, die so oder so überlebt: Die Segmente des Ausgangs-Donuts
 summieren sich weiterhin auf `total_runs`, und sein Segment `awaiting_approval`
@@ -1051,9 +1074,9 @@ als zu 20 % ausgeschöpft.
 Jede Zeile je Agent trägt **zwei Kostenzahlen unter zwei verschiedenen Namen**,
 und das ist die Regel dieser Seite durchgehend:
 
-|                     |                                                                                                                                                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cost_usd`          | Sein Anteil am Fenster, **nur Runs der obersten Ebene**, sodass sich die Spalte auf die Summe darüber addiert                                                                                                           |
+|  |  |
+| --- | --- |
+| `cost_usd` | Sein Anteil am Fenster, **nur Runs der obersten Ebene**, sodass sich die Spalte auf die Summe darüber addiert |
 | `month_to_date_usd` | Sein **eigener** Kalendermonat, delegierte Zeilen **eingeschlossen** — die Ausgaben, auf die sein `monthly_cap_usd` ein Cap ist. Er addiert sich nicht auf den Monat der Organisation und wird auch nicht so gezeichnet |
 
 `partial_run_count` sagt, wie viel davon überhaupt eine Tatsache ist: wie viele
@@ -1123,12 +1146,12 @@ wurde, und er trägt den Namen und die Notiz der entscheidenden Person, denn ein
 nackte UUID ist keine Spur der Verantwortlichkeit. Auf einer entschiedenen Zeile
 gibt es bewusst keine Bedienelemente.
 
-| Parameter                    |                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`                     | Wiederholbar. Abwesend heißt ausstehend — die Queue                                                                                                                                                                                                                                                                                                             |
-| `triggered_by_user_id`       | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person. Sie lässt Runs aus, in denen der Veröffentlicher für ein nicht verknüpftes Chat-Konto eingesprungen ist; solche Zeilen tragen stattdessen `asked_in_chat` (Plattform, Name und Bot), und ihre `triggered_by_*`-Felder sind leer |
-| `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich                                                                                                                                                                                                                                                                                                   |
-| `oldest_first`               | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss                                                                                                                                                                 |
+| Parameter |  |
+| --- | --- |
+| `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
+| `triggered_by_user_id` | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person. Sie lässt Runs aus, in denen der Veröffentlicher für ein nicht verknüpftes Chat-Konto eingesprungen ist; solche Zeilen tragen stattdessen `asked_in_chat` (Plattform, Name und Bot), und ihre `triggered_by_*`-Felder sind leer |
+| `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich |
+| `oldest_first` | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss |
 
 Jede Zeile nennt drei Dinge, die in anderen Tabellen liegen — den Agent, die
 Person, deren Run den Aufruf geparkt hat, und die Person, die entschieden hat.
@@ -1140,18 +1163,18 @@ anonym.
 
 ### Die Run-Historie einengen { #narrowing-run-history }
 
-| Parameter                    |                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `status`                     | Wiederholbar. `?status=failed&status=budget_exceeded` ist die Zeig-mir-die-Probleme-Abfrage, und die beiden sind genau deshalb getrennte Status, damit nach dem einen zu fragen nicht heißt, nach dem anderen zu fragen                                                                                                                                                              |
-| `surface`                    | Woher der Run kam                                                                                                                                                                                                                                                                                                                                                                    |
-| `user_id`                    | Als wer der Run lief, was nicht immer der ist, der gefragt hat — die Runs eines Widgets tragen die Identität des Widget-Besitzers, weil der Besucher anonym ist                                                                                                                                                                                                                      |
-| `model_label`                | Das Modell **so, wie der Run es festgehalten hat**, exakt verglichen. Nicht über den Modellkatalog aufgelöst: Die Spalte ist das, was geantwortet hat, und ein Profil, aus dem es kam, kann seither umbenannt oder gelöscht worden sein. Die Modellkarte des Dashboards zählt dieselben Zeichenketten, sodass „die Runs hinter diesem Balken" auf beiden Bildschirmen eine Menge ist |
-| `started_from`, `started_to` | An beiden Enden einschließlich, denn ein Bereichswähler übergibt ganze Tage                                                                                                                                                                                                                                                                                                          |
-| `environment_id`             | Runs auf der Version, die dieses Environment festpinnt. **Nie ein delegierter Run:** Die Version eines Delegates kommt von einem Pin, also wird die Spalte auf einem solchen bewusst nie geschrieben, und auf `production` einzuengen lässt jede Delegation fallen. Eine Oberfläche, die Delegationen einschließt, muss das sagen                                                    |
-| `exposure_id`                | Runs, die über eine Bindung zugelassen wurden. Null für das Dashboard und die API                                                                                                                                                                                                                                                                                                    |
-| `agent_version_id`           | Runs, die einen eingefrorenen Spec ausgeführt haben — das „zeig mir die Zeilen hinter dieser Zahl" der Versionsleiste                                                                                                                                                                                                                                                                |
-| `rated`                      | `down` oder `up` — Runs, bei denen jemand eine vom Run erzeugte Message bewertet hat                                                                                                                                                                                                                                                                                                 |
-| `order_by`, `descending`     | `started_at` (die Voreinstellung, neueste zuerst), `duration`, `cost` oder `tokens`                                                                                                                                                                                                                                                                                                  |
+| Parameter |  |
+| --- | --- |
+| `status` | Wiederholbar. `?status=failed&status=budget_exceeded` ist die Zeig-mir-die-Probleme-Abfrage, und die beiden sind genau deshalb getrennte Status, damit nach dem einen zu fragen nicht heißt, nach dem anderen zu fragen |
+| `surface` | Woher der Run kam |
+| `user_id` | Als wer der Run lief, was nicht immer der ist, der gefragt hat — die Runs eines Widgets tragen die Identität des Widget-Besitzers, weil der Besucher anonym ist |
+| `model_label` | Das Modell **so, wie der Run es festgehalten hat**, exakt verglichen. Nicht über den Modellkatalog aufgelöst: Die Spalte ist das, was geantwortet hat, und ein Profil, aus dem es kam, kann seither umbenannt oder gelöscht worden sein. Die Modellkarte des Dashboards zählt dieselben Zeichenketten, sodass „die Runs hinter diesem Balken" auf beiden Bildschirmen eine Menge ist |
+| `started_from`, `started_to` | An beiden Enden einschließlich, denn ein Bereichswähler übergibt ganze Tage |
+| `environment_id` | Runs auf der Version, die dieses Environment festpinnt. **Nie ein delegierter Run:** Die Version eines Delegates kommt von einem Pin, also wird die Spalte auf einem solchen bewusst nie geschrieben, und auf `production` einzuengen lässt jede Delegation fallen. Eine Oberfläche, die Delegationen einschließt, muss das sagen |
+| `exposure_id` | Runs, die über eine Bindung zugelassen wurden. Null für das Dashboard und die API |
+| `agent_version_id` | Runs, die einen eingefrorenen Spec ausgeführt haben — das „zeig mir die Zeilen hinter dieser Zahl" der Versionsleiste |
+| `rated` | `down` oder `up` — Runs, bei denen jemand eine vom Run erzeugte Message bewertet hat |
+| `order_by`, `descending` | `started_at` (die Voreinstellung, neueste zuerst), `duration`, `cost` oder `tokens` |
 
 **Jeder Filter engt die Zählung ebenso ein wie die Seite**, sodass `total` immer
 die Zeilen darunter beschreibt. Die Liste und die Zählung sind zwei Abfragen, und
@@ -1288,12 +1311,12 @@ Zeilen, die jemand gegen eine Rechnung abgleicht, einem Finanzteam übergibt ode
 an ein Audit hängt. Eine Seite, die die Frage auf dem Bildschirm beantworten kann
 und außerhalb davon nicht, schickt Menschen in die Datenbank.
 
-| Frage                   | Antwort                                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `GET /runs/export`      | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
-| `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide`                             |
-| `GET /spend/export`     | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view`                         |
-| `GET /audit/export`     | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read`                                       |
+| Frage | Antwort |
+| --- | --- |
+| `GET /runs/export` | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
+| `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide` |
+| `GET /spend/export` | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view` |
+| `GET /audit/export` | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read` |
 
 Der Audit-Export ist der einzige, der auch **JSONL** anbietet (`?fmt=jsonl`),
 ein JSON-Objekt pro Zeile, weil eine Audit-Spur ebenso oft von einer
@@ -1650,11 +1673,11 @@ retten ([#925](https://github.com/vstorm-co/agenticos/issues/925)).
 Eine Chat-Sitzung trägt also einen **Freigabe-Modus**, auf dem Send-Frame neben
 der Modell-Übersteuerung und in den Run hineingelesen:
 
-| Modus                                 | Was er tut                                                                                                                                 |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Follow the agent** (Voreinstellung) | Der Spec entscheidet. Genau das Verhalten, das es vor dem Bedienelement gab, und das, was ein Client bekommt, der nichts sendet            |
-| **Approve everything**                | Stehende Zustimmung für diese Unterhaltung: Jeder gegatete Aufruf wird gewährt, ohne zu parken — und jeder schreibt trotzdem seine Zeile   |
-| **Ask about everything**              | Gate jedes Tool, das der Agent erreichen kann, einschließlich derer, die der Spec ungegatet ließ, und derer, die keiner Capability gehören |
+| Modus | Was er tut |
+| --- | --- |
+| **Follow the agent** (Voreinstellung) | Der Spec entscheidet. Genau das Verhalten, das es vor dem Bedienelement gab, und das, was ein Client bekommt, der nichts sendet |
+| **Approve everything** | Stehende Zustimmung für diese Unterhaltung: Jeder gegatete Aufruf wird gewährt, ohne zu parken — und jeder schreibt trotzdem seine Zeile |
+| **Ask about everything** | Gate jedes Tool, das der Agent erreichen kann, einschließlich derer, die der Spec ungegatet ließ, und derer, die keiner Capability gehören |
 
 Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
 
@@ -1913,21 +1936,21 @@ getan hat. Keiner trägt einen Datensatz, einen Filterwert oder eine Zeile: Sie
 halten Versionen, Fingerabdrücke, Anfrage-IDs und die Worte, die eine Person
 bestätigt hat.
 
-| Aktion                                                                  | Aufgezeichnet, wenn                                                                                                                                                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `artifact.published`                                                    | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert                                                                                                                                                                                                       |
-| `artifact.data_consented`                                               | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat                                                                                 |
-| `artifact.data_withdrawn`                                               | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat                                                                                                                              |
-| `artifact.auto_consent_changed`                                         | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat                                                                                                                                                                                                                                            |
-| `artifact.edit_data_granted`                                            | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat                                                                                                                                                                                                                 |
-| `artifact.owner_changed`                                                | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat                                                                                                                                                                                                                 |
-| `artifact.share_requested`                                              | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents                                                                                                                                                                                                                              |
-| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem                                                                                                                                                                                                                                                                                                                |
-| `organization.public_live_data_changed`                                 | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert                                                                                                                                                                                                                    |
-| `artifact.public_data_consented`                                        | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
-| `artifact.public_data_withdrawn`                                        | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt                                                                                                                                                                                                                     |
-| `artifact.public_data_voided`                                           | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived`                                                                                                                                                           |
-| `artifact.action_started`                                               | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen                                                                                                                                                                        |
+| Aktion | Aufgezeichnet, wenn |
+| --- | --- |
+| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert |
+| `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
+| `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
+| `artifact.auto_consent_changed` | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
+| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat |
+| `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
+| `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
+| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |
+| `organization.public_live_data_changed` | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert |
+| `artifact.public_data_consented` | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
+| `artifact.public_data_withdrawn` | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt |
+| `artifact.public_data_voided` | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived` |
+| `artifact.action_started` | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen |
 
 **Public pages with live data** ist eine Einstellung der Organisation, standardmäßig
 aus, in den Einstellungen der Organisation neben dem Verzicht auf Freigaben. Sie
@@ -2078,11 +2101,11 @@ Alerts**. Ein deploymentweites Publikum machte den lauten Agent und den, den
 niemand verpassen darf, zu derselben Einstellung, sodass der einzige Weg, den
 ersten leiser zu stellen, war, für den zweiten taub zu werden.
 
-| Alert         | Löst aus, wenn                                             | Voreingestelltes Publikum                  |
-| ------------- | ---------------------------------------------------------- | ------------------------------------------ |
-| **Budget**    | dieser Agent sein eigenes monatliches Cap erreicht hat     | die Admins und der Besitzer des Agents     |
-| **Freigaben** | ein Tool-Aufruf geparkt hat                                | wer den Run gestartet hat, plus die Admins |
-| **Nutzung**   | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus                                        |
+| Alert | Löst aus, wenn | Voreingestelltes Publikum |
+| --- | --- | --- |
+| **Budget** | dieser Agent sein eigenes monatliches Cap erreicht hat | die Admins und der Besitzer des Agents |
+| **Freigaben** | ein Tool-Aufruf geparkt hat | wer den Run gestartet hat, plus die Admins |
+| **Nutzung** | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus |
 
 Das Log eines Workflows hat eigene Alerts, die auf der Logs-Seite des Workflows gesetzt
 werden statt in einer Spec; siehe [Alerts](workflows.md#log-alerts). Sie lösen aus, wenn
@@ -2093,12 +2116,12 @@ dieselben Glocken- und E-Mail-Einstellungen wie im Rest dieses Abschnitts, unter
 
 Ein Publikum ist eine Liste von Rollen, nicht von Adressen:
 
-| Publikum    | Löst sich auf zu                                                                 |
-| ----------- | -------------------------------------------------------------------------------- |
-| `admins`    | die Owner und Admins der Organisation, **plus die App-Admins des Deployments**   |
-| `owner`     | der Besitzer des Agents                                                          |
+| Publikum | Löst sich auf zu |
+| --- | --- |
+| `admins` | die Owner und Admins der Organisation, **plus die App-Admins des Deployments** |
+| `owner` | der Besitzer des Agents |
 | `initiator` | wer den Run gestartet hat; niemand, bei einem Run, den ein Zeitplan begonnen hat |
-| `chosen`    | genau die daneben benannten Mitglieder                                           |
+| `chosen` | genau die daneben benannten Mitglieder |
 
 Rollen statt Adressen, weil ein Spec in das Repository eines Kunden exportiert
 wird und die Menschen darin überlebt: `admins` bedeutet nach einer Umstrukturierung
@@ -2137,9 +2160,9 @@ Approvals-Tab: Die Ablehnung kam als abwesender Tab an statt als Satz.
 
 Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitten:
 
-| Empfänger hält         | Bekommt                                                                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `approvals:decide`     | die Anfrage, mit dem Link zur Queue                                                                                                                          |
+| Empfänger hält | Bekommt |
+| --- | --- |
+| `approvals:decide` | die Anfrage, mit dem Link zur Queue |
 | irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, ihn freizugeben ist Sache eines Owners, Admins oder Operators, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
@@ -2399,15 +2422,15 @@ Ort für die Fristen je Tenant.
 
 ### Die Klassen { #the-classes }
 
-| Klasse                 | Was mitgeht                                                                                                                                                                                                                              | Gemessen ab                                                                                         |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Gespräche              | Nachrichten, Tool-Aufrufe und Dateien; eine gesperrte Charge lässt Gespräche mit nicht abgeschlossenen Runs aus, und ein dauerhafter Auftrag zur Dateilöschung wird zusammen mit den Zeilen bestätigt                                    | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist            |
-| Runs                   | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben                                                                                                                                                                                      | Dem Start des Runs                                                                                  |
-| Workspaces             | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend _ist_ die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung                                                                                 |
-| Apps                   | Eine [veröffentlichte Seite](artifacts.md), alle Versionen, Grants und der öffentliche Link; die Dateilöschung wird in derselben Transaktion eingereiht                                                                                  | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
-| Gedächtnis             | Die Gedächtnisdateien eines Agenten                                                                                                                                                                                                      | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen               |
-| Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei                                                                                                                                                                                      | Dem Zeitpunkt des Hochladens                                                                        |
-| Audit                  | Einträge auf der Spur dieser Organisation                                                                                                                                                                                                | Dem Zeitpunkt des Eintrags                                                                          |
+| Klasse | Was mitgeht | Gemessen ab |
+| --- | --- | --- |
+| Gespräche | Nachrichten, Tool-Aufrufe und Dateien; eine gesperrte Charge lässt Gespräche mit nicht abgeschlossenen Runs aus, und ein dauerhafter Auftrag zur Dateilöschung wird zusammen mit den Zeilen bestätigt | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
+| Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
+| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend _ist_ die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung |
+| Apps | Eine [veröffentlichte Seite](artifacts.md), alle Versionen, Grants und der öffentliche Link; die Dateilöschung wird in derselben Transaktion eingereiht | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
+| Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
+| Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
+| Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |
 
 **Ein Dokument, das noch eingelesen wird, ebenfalls nicht.** Ein Worker hält es,
 und ihm Zeile und hochgeladenes Original unter einer Ingestion wegzunehmen, die
