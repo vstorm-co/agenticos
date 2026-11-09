@@ -7,6 +7,7 @@ which says so in its own docstring) and must not be called from anywhere a
 member's request reaches.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
@@ -14,24 +15,29 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_ai.messages import (
     CapabilityLoadDeltaPart,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
 )
+from pydantic_ai_harness.media import externalize_media, restore_media
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.capabilities.media._store import BoundedOrganizationMediaStore, MediaReadLimitError
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ConcurrentChangeError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LOCK_NOT_AVAILABLE, lock_wait_within
+from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 from app.db.session import get_db_context
@@ -53,6 +59,7 @@ from app.schemas.conversation import (
     ConversationAgent,
     ConversationCost,
     ConversationCreate,
+    ConversationForkOrigin,
     ConversationUpdate,
     MessageCreate,
     MessageRead,
@@ -78,6 +85,12 @@ logger = logging.getLogger(__name__)
 API_HISTORY_MESSAGES = 200
 """How much of a conversation an API run sends the model: what a channel thread
 sends, with the same summary taking over beyond it."""
+
+
+_UNFINISHED_RUN = frozenset(
+    {RunStatus.RUNNING, RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER}
+)
+"""Run states a history cannot be forked in: still writing, or parked on a person."""
 
 
 def _api_title(prompt: str) -> str:
@@ -214,6 +227,18 @@ def model_context_check(
                 await source_check(db)
 
     return check
+
+
+MAX_FORK_MESSAGES = 2_000
+MAX_FORK_TOOL_CALLS = 10_000
+MAX_FORK_BYTES = 20 * 1024 * 1024
+FORK_ROW_RESERVATION_BYTES = 1024
+FORK_CONVERSATION_RESERVATION_BYTES = 4096
+MAX_MEMBER_FORK_BYTES = 100 * 1024 * 1024
+MAX_ORGANIZATION_FORK_BYTES = 1024 * 1024 * 1024
+MAX_FORK_MEDIA_READS = 100
+FORK_MEDIA_TIMEOUT = 10
+_FORK_SUMMARY = TypeAdapter(list[dict[str, JsonValue]])
 
 
 class ConversationService:
@@ -532,7 +557,9 @@ class ConversationService:
         eight while each route had to remember. It is turned **off** by the
         callers that use this only to authorize and then discard the row:
         `GET /conversations/{id}/messages` resolves it through `transcript`, which
-        serializes no star.
+        serializes no star. The same flag carries the fork's origin (#2762) and
+        the reader's share permission, which are the reader's as much as the
+        star is.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -584,7 +611,93 @@ class ConversationService:
         # to nobody in particular there.
         if include_favourite:
             await self._attach_favourites([conversation], user_id=user_id)
+            await self._attach_fork_origins([conversation], user_id=user_id)
+            await self._attach_share_permission(conversation, user_id=user_id)
         return conversation
+
+    async def get_metadata(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+    ) -> Conversation:
+        """Read authorized metadata, including agents recovered from legacy runs."""
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            ctx=ctx,
+        )
+        await self.attach_agents([conversation])
+        return conversation
+
+    async def visible_conversation_ids(self, ctx: AuthContext, ids: set[UUID]) -> set[UUID]:
+        """Resolve a notification batch without one database read per direct share."""
+        if not ids or ctx.user_id is None or ctx.organization_id is None:
+            return set()
+        rows = await conversation_repo.read_candidates(
+            self.db, organization_id=ctx.organization_id, ids=ids
+        )
+        shares = await conversation_share_repo.share_permissions(
+            self.db, user_id=ctx.user_id, conversation_ids=[row.id for row in rows]
+        )
+        projects = (
+            set(await self.visible_project_ids(ctx.user_id, ctx.organization_id, reader=ctx))
+            if any(row.project_id is not None for row in rows)
+            else set()
+        )
+        visible: set[UUID] = set()
+        remaining: list[Conversation] = []
+        for row in rows:
+            if row.origin == "workflow":
+                continue
+            if row.project_id is not None:
+                if row.project_id in projects:
+                    visible.add(row.id)
+            elif row.user_id == ctx.user_id or row.id in shares:
+                visible.add(row.id)
+            else:
+                remaining.append(row)
+        channels = (
+            await conversation_repo.channel_thread_ids(self.db, [row.id for row in remaining])
+            if remaining
+            else set()
+        )
+        ownerless = [row.id for row in remaining if row.user_id is None]
+        triggers = (
+            await conversation_repo.trigger_log_ids(self.db, ownerless) if ownerless else set()
+        )
+        for row in remaining:
+            if (
+                row.id in channels
+                and await channel_membership.confirms_participation(
+                    self.db, conversation_id=row.id, user_id=ctx.user_id
+                )
+            ) or (row.id in triggers and await self._may_read_trigger_log(row, ctx)):
+                visible.add(row.id)
+        return visible
+
+    async def _attach_share_permission(
+        self, conversation: Conversation, *, user_id: UUID | None
+    ) -> None:
+        """Say what a reader's share of somebody else's conversation lets them do.
+
+        So a console that opened it by link or from a notification - a thread
+        its own listing does not hold - can tell a reader from a writer before a
+        message is refused. Null for the owner and for anyone reading it
+        another way.
+        """
+        permission = None
+        if (
+            user_id is not None
+            and conversation.user_id != user_id
+            and conversation.project_id is None
+        ):
+            share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
+            permission = share.permission if share is not None else None
+        conversation.share_permission = permission  # ty: ignore[unresolved-attribute]
 
     async def _may_read(
         self, conversation: Conversation, user_id: UUID, *, ctx: AuthContext | None = None
@@ -907,7 +1020,7 @@ class ConversationService:
         total = await conversation_repo.count_conversations(
             self.db, user_id=None, organization_id=organization_id, project_id=project_id
         )
-        await self._attach_agents(items)
+        await self.attach_agents(items)
         await self._attach_running(items)
         await self._attach_unread(items, user_id=user_id)
         await self._attach_people(items)
@@ -1032,11 +1145,24 @@ class ConversationService:
             project_id=project_id,
             for_model=for_model,
         )
-        await self._attach_agents(items)
+        await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
+        await self._attach_fork_origins(items, user_id=user_id)
         await self._attach_running(items)
         await self._attach_unread(items, user_id=user_id)
         return items, total
+
+    async def attach_listing_state(
+        self, conversations: Sequence[Conversation], *, user_id: UUID
+    ) -> None:
+        """What a sidebar row shows beyond the row: its agents, a run at work, an unseen answer.
+
+        For a listing assembled elsewhere - the conversations shared with the
+        reader - so its rows read the way the reader's own list does.
+        """
+        await self.attach_agents(conversations)
+        await self._attach_running(conversations)
+        await self._attach_unread(conversations, user_id=user_id)
 
     async def _attach_unread(
         self, conversations: Sequence[Conversation], *, user_id: UUID | None
@@ -1083,7 +1209,7 @@ class ConversationService:
     async def _attach_running(self, conversations: Sequence[Conversation]) -> None:
         """Say, per row, since when a run has been at work in it, so a list can
         show the thread is busy. Set on the ORM object for the reason
-        `_attach_agents` is, and one query for the page."""
+        `attach_agents` is, and one query for the page."""
         if not conversations:
             return
         activity = await conversation_repo.running_activity(
@@ -1094,7 +1220,7 @@ class ConversationService:
             conversation.running_since = current.since if current else None  # ty: ignore[unresolved-attribute]
             conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[unresolved-attribute]
 
-    async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
+    async def attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
 
         Set on the ORM object rather than returned alongside it, because the
@@ -1131,7 +1257,7 @@ class ConversationService:
     ) -> None:
         """Say, per row, whether this reader has starred it.
 
-        Set on the ORM object for the reason `_attach_agents` is: the route
+        Set on the ORM object for the reason `attach_agents` is: the route
         serializes the row straight through the read schema. One query for the
         page, and none at all for a listing with no reader - the admin one,
         where a star belongs to nobody in particular and the column would be a
@@ -1181,7 +1307,7 @@ class ConversationService:
         await conversation_repo.set_favourite(
             self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
         )
-        await self._attach_agents([conversation])
+        await self.attach_agents([conversation])
         conversation.is_favourite = favourite  # ty: ignore[unresolved-attribute]
         return conversation
 
@@ -1306,6 +1432,233 @@ class ConversationService:
             title=data.title,
             project_id=data.project_id,
         )
+
+    async def fork(
+        self,
+        conversation_id: UUID,
+        *,
+        message_id: UUID,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+    ) -> Conversation:
+        """A new chat for the owner, holding this one's history up to one of its answers (#2762).
+
+        Forking is the owner's own tool: a reader holding a share, view or edit,
+        cannot fork, and is told the conversation does not exist, as every other
+        refusal here does. The fork stays in the source's project, so an owner
+        who may no longer start chats there is refused rather than handed the
+        project's history outside it.
+
+        The answer must be an assistant turn of this conversation, and no run
+        that wrote the history up to it may still be writing or waiting on a
+        person: a parked call copied into the fork would wait there for ever,
+        since no run in the fork can settle it.
+
+        Raises:
+            NotFoundError: If the conversation is unknown, not the caller's, or
+                the message is not one of its answers.
+            BadRequestError: If a run in the copied history has not finished, or
+                the prefix exceeds 2,000 messages, 10,000 tool calls or 20 MiB.
+            ConcurrentChangeError: If the source is busy; no partial fork remains.
+        """
+        source = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if source.user_id != user_id:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        answer = await conversation_repo.get_fork_point(self.db, message_id)
+        if answer is None or answer.conversation_id != source.id or answer.role != "assistant":
+            raise NotFoundError(
+                message="Message not found",
+                details={"conversation_id": conversation_id, "message_id": message_id},
+            )
+        try:
+            async with lock_wait_within(self.db, wait_ms=1_000):
+                return await self._fork_locked(source, answer, user_id=user_id, ctx=ctx)
+        except DBAPIError as failed:
+            if getattr(failed.orig, "sqlstate", None) not in {LOCK_NOT_AVAILABLE, "40P01"}:
+                raise
+            raise ConcurrentChangeError(
+                message="This conversation is being updated. Try forking it again.",
+                details={"conversation_id": conversation_id},
+            ) from failed
+
+    async def _fork_locked(
+        self, source: Conversation, answer: Message, *, user_id: UUID, ctx: AuthContext
+    ) -> Conversation:
+        """Authorize and copy the current locked prefix within one bounded transaction."""
+        counts = await conversation_repo.lock_fork_history(
+            self.db,
+            source=source,
+            through=answer,
+            message_limit=MAX_FORK_MESSAGES,
+            tool_call_limit=MAX_FORK_TOOL_CALLS,
+        )
+        if counts is None:
+            raise NotFoundError(message="Message not found", details={"message_id": answer.id})
+        if source.project_id is not None:
+            # Imported here: the project service builds on this one.
+            from app.services.project import ProjectService
+
+            await ProjectService(self.db).check_can_start(ctx, source.project_id)
+        if counts.messages > MAX_FORK_MESSAGES or counts.tool_calls > MAX_FORK_TOOL_CALLS:
+            raise BadRequestError(
+                message="This conversation is too large to fork",
+                details={
+                    "max_messages": MAX_FORK_MESSAGES,
+                    "max_tool_calls": MAX_FORK_TOOL_CALLS,
+                },
+            )
+        runs = await conversation_repo.run_ids_through(
+            self.db, conversation_id=source.id, ordinal=answer.ordinal
+        )
+        unfinished = sorted(
+            outcome.status
+            for outcome in (await conversation_repo.run_outcomes(self.db, runs)).values()
+            if outcome.status in _UNFINISHED_RUN
+        )
+        if unfinished:
+            raise BadRequestError(
+                message="A run in this history is still being written or waits on a decision - fork it once it has finished",
+                details={"message_id": answer.id, "run_status": unfinished[0]},
+            )
+        # The row holds the latest checklist, not a version per answer. Carry it
+        # only where it cannot reveal later work or replace an earlier plan.
+        if source.plan_items is not None and await conversation_repo.has_message_after(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        ):
+            raise BadRequestError(
+                message="Fork the latest answer to preserve this conversation's checklist",
+                details={"conversation_id": source.id, "message_id": answer.id},
+            )
+        if await conversation_repo.has_fork_visual_images(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        ):
+            raise BadRequestError(
+                message="Fork before drawings with stored images; their image files cannot be copied",
+                details={"message_id": answer.id},
+            )
+        payload_bytes = await conversation_repo.fork_payload_bytes(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        )
+        if payload_bytes > MAX_FORK_BYTES:
+            raise BadRequestError(
+                message="This conversation is too large to fork",
+                details={"max_bytes": MAX_FORK_BYTES},
+            )
+        summary, copy_bytes = await self._restore_fork_summary(
+            source, answer, payload_bytes=payload_bytes
+        )
+        copy_bytes += FORK_CONVERSATION_RESERVATION_BYTES + FORK_ROW_RESERVATION_BYTES * (
+            counts.messages + counts.tool_calls
+        )
+        volume = await conversation_repo.retained_fork_volume(
+            self.db, organization_id=source.organization_id, user_id=user_id
+        )
+        if (
+            volume.member_bytes + copy_bytes > MAX_MEMBER_FORK_BYTES
+            or volume.organization_bytes + copy_bytes > MAX_ORGANIZATION_FORK_BYTES
+        ):
+            raise BadRequestError(
+                message="Fork copy storage limit reached. Delete unused forks before creating another.",
+                details={
+                    "max_member_bytes": MAX_MEMBER_FORK_BYTES,
+                    "max_organization_bytes": MAX_ORGANIZATION_FORK_BYTES,
+                },
+            )
+        fork = await conversation_repo.fork_conversation(
+            self.db, source=source, through=answer, restored_summary=summary, copy_bytes=copy_bytes
+        )
+        # Its owner made it a moment ago: it holds nothing they have not seen.
+        await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=fork.id)
+        await self._attach_fork_origins([fork], user_id=user_id)
+        return fork
+
+    async def _restore_fork_summary(
+        self, source: Conversation, answer: Message, *, payload_bytes: int
+    ) -> tuple[list[dict[str, JsonValue]] | None, int]:
+        """Inline source media before any insert; a failed restore refuses the copy."""
+        summary = await conversation_repo.fork_summary(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        )
+        if summary is None:
+            return None, payload_bytes
+        try:
+            store = BoundedOrganizationMediaStore(
+                source.organization_id,
+                source.id,
+                max_bytes=MAX_FORK_BYTES - payload_bytes + summary.stored_bytes,
+                max_reads=MAX_FORK_MEDIA_READS,
+            )
+            async with asyncio.timeout(FORK_MEDIA_TIMEOUT):
+                restored = await restore_media(summary.messages, media_store=store)
+                # Escape literal marker-shaped caller data again: replay walks
+                # this stored snapshot once more. The unreachable threshold
+                # keeps every restored byte inline and never writes a blob.
+                restored = _FORK_SUMMARY.validate_python(
+                    await externalize_media(
+                        restored,
+                        media_store=store,
+                        threshold_bytes=2**63 - 1,
+                    )
+                )
+            size = len(json.dumps(restored, ensure_ascii=False).encode("utf-8"))
+            if payload_bytes - summary.stored_bytes + size > MAX_FORK_BYTES:
+                raise MediaReadLimitError("Restored summary exceeds the copy budget")
+            stored_size = await conversation_repo.fork_summary_bytes(self.db, restored)
+            if payload_bytes - summary.stored_bytes + stored_size > MAX_FORK_BYTES:
+                raise MediaReadLimitError("Stored summary exceeds the copy budget")
+        except (ValueError, OSError, TimeoutError) as failed:
+            # No clone rows exist yet. Never persist unresolved markers as a
+            # successful fork, or log the marker/payload in the public error.
+            raise BadRequestError(
+                message="This conversation's summary cannot be copied within the fork limits",
+                details={"max_bytes": MAX_FORK_BYTES, "max_media_references": MAX_FORK_MEDIA_READS},
+            ) from failed
+        return restored, payload_bytes - summary.stored_bytes + stored_size
+
+    async def _attach_fork_origins(
+        self, conversations: Sequence[Conversation], *, user_id: UUID | None
+    ) -> None:
+        """Say, per row, which conversation it was forked from - to its owner alone.
+
+        Set on the ORM object for the reason `_attach_favourites` is. A reader who
+        does not own both the fork and its source gets nothing, so sharing a fork
+        does not name the conversation it came from.
+        """
+        sources = {
+            conversation.id: conversation.forked_from_conversation_id
+            for conversation in conversations
+            if conversation.forked_from_conversation_id is not None
+            and user_id is not None
+            and conversation.user_id == user_id
+        }
+        titles = (
+            await conversation_repo.owned_titles(
+                self.db, owner_id=user_id, conversation_ids=set(sources.values())
+            )
+            if sources and user_id is not None
+            else {}
+        )
+        for conversation in conversations:
+            source_id = sources.get(conversation.id)
+            conversation.forked_from = (  # ty: ignore[unresolved-attribute]
+                None
+                if source_id is None or source_id not in titles
+                else ConversationForkOrigin(
+                    conversation_id=source_id,
+                    message_id=conversation.forked_from_message_id,
+                    title=titles[source_id],
+                )
+            )
 
     async def update_conversation(
         self,

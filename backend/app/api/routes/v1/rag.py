@@ -756,6 +756,7 @@ async def trigger_sync_source(
     that base (`CollectionAccessService.writable_sync_source`).
     """
     source = await access.writable_sync_source(ctx, source_id)
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),

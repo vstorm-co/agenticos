@@ -1,5 +1,5 @@
 ---
-source_sha: "5f28c27a069e"
+source_sha: "a73281723216"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -84,7 +84,7 @@ zaznaczenia przy każdej rzeczy i poziomem udostępnienia. Każde to ten sam gra
 który zapisuje panel Share, więc wymaga tego samego prawa do edycji.
 
 Członkowie dostają powiadomienie, gdy coś udostępniono ich grupie - w skrzynce i,
-jeśli chcą, e-mailem; *Shared with your group* w ustawieniach powiadomień to
+jeśli chcą, e-mailem; *Shared with you or your group* w ustawieniach powiadomień to
 wyłącza. Karty w całej konsoli mówią, dla kogo jest każda rzecz: *Wszyscy*, jej
 działy z nazwy - jedno i drugie, gdy jest dla wszystkich i należy do działu -
 albo *Prywatne*.
