@@ -225,7 +225,9 @@ function Box({
     >
       <div className="flex h-11 items-center gap-1.5 px-3.5">
         <GitCommitHorizontal className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+        {/* The name is what the box is for, so the words around it give way first. */}
         <span
+          title={name}
           className={cn(
             "min-w-0 truncate text-sm",
             box.kind === "version" && "font-mono font-medium",
@@ -234,15 +236,18 @@ function Box({
           {name}
         </span>
         {box.kind === "version" && box.latest && (
-          <span className="text-muted-foreground text-xs">{t("latest")}</span>
+          <span className="text-muted-foreground min-w-0 shrink-[4] truncate text-xs">
+            {t("latest")}
+          </span>
         )}
         {box.kind === "version" && (
           <button
             type="button"
             aria-pressed={inComparison}
             aria-label={t("compare", { version: name })}
+            title={inComparison ? t("comparing") : t("compareShort")}
             className={cn(
-              "ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs",
+              "ml-auto flex shrink-0 items-center rounded-md p-1.5",
               inComparison
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:text-foreground",
@@ -259,7 +264,6 @@ function Box({
             }}
           >
             <Columns2 className="size-3.5" aria-hidden />
-            {inComparison ? t("comparing") : t("compareShort")}
           </button>
         )}
       </div>
