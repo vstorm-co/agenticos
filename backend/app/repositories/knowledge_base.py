@@ -301,7 +301,7 @@ async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[
 
 
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
-    """Every knowledge base claiming this collection name, oldest first.
+    """Every knowledge base claiming this collection name, ordered by creation time and id.
 
     Plural because the column is not unique: two organizations can name a
     collection the same thing, and `get_by_collection_name` then answers with
@@ -312,7 +312,7 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
     result = await db.execute(
         select(KnowledgeBase)
         .where(KnowledgeBase.collection_name == collection_name)
-        .order_by(KnowledgeBase.created_at)
+        .order_by(KnowledgeBase.created_at, KnowledgeBase.id)
     )
     return list(result.scalars().all())
 
@@ -329,7 +329,7 @@ async def list_by_collection_names(
     result = await db.execute(
         select(KnowledgeBase)
         .where(KnowledgeBase.collection_name.in_(collection_names))
-        .order_by(KnowledgeBase.created_at)
+        .order_by(KnowledgeBase.created_at, KnowledgeBase.id)
     )
     by_name: dict[str, list[KnowledgeBase]] = {}
     for kb in result.scalars():
@@ -373,16 +373,19 @@ def choose_for_collection(
 ) -> KnowledgeBase | None:
     """:func:`get_for_collection`'s choice among the bases claiming one name.
 
-    `candidates` are :func:`list_by_collection_name`'s rows, oldest first. Apart
-    so a caller resolving many rows against one name - a base's sync sources -
-    loads the candidates once and decides each row the way the sync does.
+    Choose the oldest base, breaking timestamp ties by id, regardless of input
+    order. A caller resolving many sources can load the candidates once and
+    decide each source the way the sync does.
 
     The fallback is an app-scoped base only. "No organization" is not enough: a
     personal base outside any organization has none either, and resolving to it
     would sync into and embed through one person's base for every organization
     without a base of its own (#2537).
     """
-    for kb in candidates:
-        if organization_id is None or kb.organization_id == organization_id:
-            return kb
-    return next((kb for kb in candidates if kb.scope == KBScope.APP.value), None)
+    own = [
+        kb for kb in candidates if organization_id is None or kb.organization_id == organization_id
+    ]
+    eligible = own or [kb for kb in candidates if kb.scope == KBScope.APP.value]
+    if not eligible:
+        return None
+    return min(eligible, key=lambda kb: (kb.created_at, kb.id))

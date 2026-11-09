@@ -2668,6 +2668,7 @@
       "syncSources": "Kaynakları eşitle",
       "syncSourcesFailedDescription": "Bu bilgi tabanının eşitleme kaynakları isteği başarısız oldu; bu nedenle kaynak olup olmadığı bilinmiyor.",
       "syncSourcesFailedTitle": "Eşitleme kaynakları yüklenemedi",
+      "sourcePaused": "Bu kaynak duraklatıldı. Eşitlemek için etkinleştirin.",
       "triggerSyncNow": "Eşitlemeyi şimdi başlat",
       "triggerSyncNow2": "Eşitlemeyi şimdi başlat",
       "typeSize": "Tür / boyut",

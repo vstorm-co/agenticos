@@ -6627,6 +6627,7 @@
       "syncSources": "Sync sources",
       "syncSourcesFailedDescription": "The request for this base's sync sources failed, so whether it has any is unknown.",
       "syncSourcesFailedTitle": "Couldn't load the sync sources",
+      "sourcePaused": "This source is paused. Activate it to sync.",
       "triggerSyncNow": "Trigger sync now",
       "triggerSyncNow2": "Trigger sync now",
       "typeSize": "Type / size",

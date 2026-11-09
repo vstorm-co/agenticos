@@ -57,7 +57,7 @@ from app.services.rag.provenance import iso_doc_date
 from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
-from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
+from app.services.sync_source import PAUSED_SOURCE, SyncSourceService, SyncState, sync_fingerprint
 from app.worker.attempt import is_final_attempt
 from app.worker.jobs import IngestDocument, SyncCollection, SyncConnectorSource, sync_source_key
 
@@ -1340,6 +1340,16 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             await hold_name(db, LockScope.COLLECTION_TEARDOWN, assigned_collection)
             await db.refresh(source)
         attempt_started_at = datetime.now(UTC)
+        if not source.is_active:
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=PAUSED_SOURCE,
+            )
+            await source_svc.update_after_sync(source_id, "error", PAUSED_SOURCE)
+            return {"status": "error", "message": PAUSED_SOURCE}
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
             message = f"Unknown connector: {source.connector_type}"

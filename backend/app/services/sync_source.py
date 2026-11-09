@@ -37,6 +37,8 @@ from app.schemas.sync_source import (
 )
 from app.worker.jobs import SYNC_SOURCE, Priority, SyncConnectorSource, sync_source_key
 
+PAUSED_SOURCE = "This source is paused; activate it to sync."
+
 # The credential field names the two shipped connectors used to hold in `config`.
 # Kept as a list so a caller posting the old shape is told what to do instead of
 # having the value silently dropped (#937).
@@ -520,10 +522,12 @@ class SyncSourceService:
 
         Raises:
             NotFoundError: If sync source does not exist.
-            BadRequestError: If source has no assigned collection.
+            BadRequestError: If source is paused or has no assigned collection.
         """
 
         source = await self.get_source(source_id)
+        if not source.is_active:
+            raise BadRequestError(message=PAUSED_SOURCE, details={"source_id": source.id})
         if not source.collection_name:
             raise BadRequestError(
                 message="Cannot sync a source without an assigned knowledge base collection.",

@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Paused knowledge sync sources refuse manual API and CLI triggers, disable the
+  console sync button, and stop queued jobs before downloads. Collection-name
+  resolution breaks creation-time ties by base id and refuses ambiguous new
+  source assignments (#2744).
+
 ## [1.59.1] - 2026-11-09
 
 ### Fixed
