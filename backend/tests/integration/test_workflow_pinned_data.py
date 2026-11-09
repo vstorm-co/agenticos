@@ -199,6 +199,21 @@ class TestTheStepsGraph:
             step_subgraph(graph, item.id, {})
         assert refused.value.details["reason"] == "inside_a_loop"
 
+    def test_a_step_reached_two_ways_keeps_each_ancestor_once(self):
+        entry = _node("core.input")
+        left, right = _node("data.map", MAPPING), _node("data.map", MAPPING)
+        out = _node("core.output")
+        graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, left, right, out),
+            edges=(_edge(entry, left), _edge(entry, right), _edge(left, out), _edge(right, out)),
+        )
+
+        narrowed = step_subgraph(graph, out.id, {})
+
+        assert [node.id for node in narrowed.nodes] == [entry.id, left.id, right.id, out.id]
+        assert len(narrowed.edges) == 4
+
     def test_a_step_the_draft_does_not_have_is_refused(self):
         with pytest.raises(StepNotTestableError) as refused:
             step_subgraph(_Line().graph, uuid.uuid4(), {})
