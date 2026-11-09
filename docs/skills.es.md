@@ -1,5 +1,5 @@
 ---
-source_sha: "87cbe5c00b84"
+source_sha: "8a39e7dc93f6"
 ---
 
 # Skills { #skills }
@@ -324,7 +324,8 @@ desconocido, con ese motivo. Cada conjunto cuenta solo las preguntas que hace.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo
-reconozca. Un cambio en una línea que ningún agent lee pasa enseguida: no llega a
+reconozca. El diálogo lo dice antes de empezar y ofrece las preguntas de prueba del skill, o la calificación que les falta.
+Un cambio en una línea que ningún agent lee pasa enseguida: no llega a
 nadie, y la comprobación dice que no había a quién comprobar.
 
 Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
@@ -360,13 +361,23 @@ puedes ver es un número, nunca un nombre.
 ### Cuando un agent quedó peor { #when-an-agent-got-worse }
 
 **Check on agents** en Skills calcula el precio de la comprobación, la ejecuta,
-muestra el resultado de cada agent y luego aplica o descarta el cambio. Mientras se
-ejecuta, una barra cuenta los agents terminados y cada agent muestra si espera, se
-está comprobando o ya tiene su resultado. Puedes cerrar el diálogo: la página del
-skill muestra entonces **Comprobación en curso**, y **Mostrar** vuelve a abrir la
-comprobación hasta que la decidas. Una
-comprobación que inició una [sesión de Improve](#improving-a-skill) se decide en
-esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
+muestra el resultado de cada agent y luego ofrece exactamente lo que la
+comprobación permite. Mientras se ejecuta, una barra cuenta los agents terminados.
+Después cada agent se abre a lo que arregló y rompió, etapa por etapa, con un enlace
+al run de cada etapa; la página de ese run dice que es una etapa de la comprobación
+y enlaza de vuelta a ella. Puedes cerrar el diálogo: la página del skill muestra
+entonces **Comprobación en curso**, y **Mostrar** vuelve a abrir la comprobación
+hasta que la decidas. El Historial del skill lista las comprobaciones de la línea,
+la más nueva primero, con lo que halló cada una y lo que se hizo con ella, y
+**Detalles** abre una. Una comprobación que inició una
+[sesión de Improve](#improving-a-skill) se decide en esa sesión, y Check on agents
+lleva a ella.
+
+**Volver a editar** devuelve el texto comprobado al editor - aquel en el que se
+escribió, o uno nuevo abierto desde Mostrar o Detalles en la línea de la propia
+comprobación -, así que no se pierde nada de lo escrito, y guardarlo se rechaza si la
+línea ya tiene una versión más nueva que la comprobada; la comprobación de una propuesta ofrece en su lugar **Seguir
+mejorando**, que inicia una sesión. En main una persona aún puede:
 
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
@@ -374,12 +385,14 @@ esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
   publicar cada uno, y un entorno que espera una promoción debe recibir antes la
   versión fijada;
 - **crear un fork**, dejando main como está - se ofrece sea cual sea el
-  resultado, en el paso Aceptar de [Improve](#improving-a-skill) o a través de la
+  resultado, en el diálogo de la comprobación, en el paso Aceptar de
+  [Improve](#improving-a-skill) o a través de la
   API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Pasan al fork los agents
   a los que ayudó, salvo que elijas otros con `agent_ids`; una lista vacía no mueve
   a ninguno, y un agent que lee el skill a través de un especialista se mueve en su
   Builder;
-- **descartarlo**.
+- **descartarlo**, tras una confirmación: una comprobación descartada ya no se
+  puede decidir, y su registro queda en el Historial.
 
 En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión de
 main, y un fork nunca parte de otro fork. Una comprobación se niega a aplicar si
@@ -593,6 +606,7 @@ decisión que le corresponde a esa persona.
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents elegidos, o lo descarta |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Comprueba un resultado de nuevo en la línea tal como está ahora |
 | `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
+| `GET /api/v1/skill-checks/awaiting` | Las comprobaciones que inició una persona y que siguen en curso o esperan una decisión, en skills que quien llama puede editar |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

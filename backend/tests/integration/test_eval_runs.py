@@ -2145,6 +2145,34 @@ async def test_a_skill_checks_regression_waits_for_a_person_marked_as_the_propos
     assert (answers[current].proposed, answers[current].version) == (False, base.number)
 
 
+async def test_a_score_says_which_attempt_of_its_eval_run_gave_it(db) -> None:
+    """The review queue tells a case's first answer from the re-asks that confirmed it."""
+    ctx = await _owner(db)
+    _, _, v7 = await _checked_run(db, ctx)
+    rows = (
+        (
+            await db.execute(
+                select(EvalRunCase.case_score_id, EvalRunCase.attempt).where(
+                    EvalRunCase.eval_run_id == v7.id, EvalRunCase.case_score_id.is_not(None)
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
+    expected = dict(rows)
+    assert any(attempt > 0 for attempt in expected.values())
+
+    attempts = await eval_run_repo.score_attempts(
+        db, list(expected), organization_id=ctx.organization_id
+    )
+    queue = await ScoringService(db).review_queue(ctx)
+
+    assert attempts == expected
+    assert all(item.eval_attempt == expected[item.id] for item in queue.items)
+    assert await eval_run_repo.score_attempts(db, [], organization_id=ctx.organization_id) == {}
+
+
 async def test_a_skill_checks_answer_never_takes_a_waiting_scores_place(db) -> None:
     """A regression an ordinary run sent waits for a person; the same case broken by a
     check of a change nobody accepted does not push it out of the queue."""

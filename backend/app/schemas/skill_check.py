@@ -187,6 +187,9 @@ class SkillCheckRead(SkillCheckEstimate):
     candidate_version_id: UUID | None = Field(
         default=None, description="The main version that update would move it to"
     )
+    candidate: CandidateText = Field(
+        description="The text checked, so a person can go back to editing it"
+    )
     status: CheckStatus
     verdict: CheckVerdict | None = None
     warnings: list[Literal["within_noise"]] = Field(default_factory=list)
@@ -210,6 +213,21 @@ class SkillCheckRead(SkillCheckEstimate):
     )
     created_at: datetime
     finished_at: datetime | None = None
+
+
+class SkillCheckAwaiting(BaseSchema):
+    """A check of a skill change a person has to come back to, as "Waiting for you" lists it."""
+
+    id: UUID
+    skill_id: UUID
+    skill_name: str
+    line: LineRef
+    status: CheckStatus = Field(description="`running`, or `done` and waiting for a decision")
+    verdict: CheckVerdict | None = None
+    agents: int = Field(
+        description="The agents it checks, counting the ones the caller may not see"
+    )
+    created_at: datetime
 
 
 class SkillCheckList(BaseSchema):

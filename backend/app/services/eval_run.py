@@ -368,6 +368,8 @@ class RunPlan:
     ungraded: int = 0
     """Cases no required scorer can decide, which leave the result inconclusive."""
     excluded_case_ids: list[UUID] = field(default_factory=list)
+    not_asked: int = 0
+    """Of the excluded cases, the ones a sample of named questions did not pick."""
 
 
 @dataclass(frozen=True)
@@ -586,12 +588,13 @@ class EvalRunService:
             raise BadRequestError(
                 message="The selected questions are not available in this dataset version"
             )
-        excluded = [
-            case.case_id
-            for case in cases
-            if case.source_conversation_id in left_out
-            or (selected_ids is not None and case.case_id not in selected_ids)
-        ]
+        evidence = {case.case_id for case in cases if case.source_conversation_id in left_out}
+        unselected = (
+            set()
+            if selected_ids is None
+            else {case.case_id for case in cases if case.case_id not in selected_ids} - evidence
+        )
+        excluded = [case.case_id for case in cases if case.case_id in evidence | unselected]
         if excluded:
             cases = [case for case in cases if case.case_id not in excluded]
             if not cases:
@@ -782,6 +785,7 @@ class EvalRunService:
             missing_baseline=missing,
             ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
             excluded_case_ids=excluded,
+            not_asked=len(unselected),
         )
 
     async def _named_earlier(self, ctx: AuthContext, run_id: UUID) -> ArmPlan:
@@ -1643,7 +1647,11 @@ class EvalRunService:
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
             proposal_check=(
-                None if proposal_check is None else proposal_check.model_dump(mode="json")
+                None
+                if proposal_check is None
+                else proposal_check.model_copy(update={"not_asked": plan.not_asked}).model_dump(
+                    mode="json"
+                )
             ),
         )
         arms = [
@@ -2741,7 +2749,7 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
+        invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:
             knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
             if knowledge is not None and knowledge.invalidated:
@@ -2769,7 +2777,7 @@ class EvalRunService:
         ):
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
-            invalid_reason_code = None
+            invalid_reason_code = "too_few_held_out"
         if (
             measured is not None
             and invalid_reason is None

@@ -301,8 +301,9 @@ reason. Each set counts only the questions it asks.
   **unknown**, and a person acknowledges it before applying.
 
 A check where no agent can be checked still starts, and finishes at once with
-every agent unknown, for a person to acknowledge. A change to a line no agent
-reads passes at once: it reaches nobody, and the check says there was nobody to
+every agent unknown, for a person to acknowledge. The dialog says so before the
+start and offers the skill's test questions, or the grading its questions lack. A
+change to a line no agent reads passes at once: it reaches nobody, and the check says there was nobody to
 check.
 
 An agent is judged once, on the held-out questions of all its stages together: a
@@ -334,23 +335,34 @@ name.
 ### When an agent got worse { #when-an-agent-got-worse }
 
 **Check on agents** under Skills prices the check, runs it, shows each agent's
-result and then applies or discards the change. While it runs, a bar counts the
-agents done, and each agent shows whether it waits, runs or has its result. You can
-close the dialog: the skill's page then shows **Check running**, and **Show** opens
-the check again, until you decide it. A check an
+result and then offers exactly what the check allows. While it runs, a bar counts the
+agents done. Each agent then opens to what it fixed and broke, stage by stage, with
+a link to each stage's run; that run's page says it is one stage of the check and
+links back to it. You can close the dialog: the skill's page then shows **Check
+running**, and **Show** opens the check again, until you decide it. The skill's
+History lists the line's checks, newest first, with what each found and what was
+done with it, and **Details** opens one. A check an
 [Improve session](#improving-a-skill) started is decided in that session, and Check
-on agents links there instead. On main a person may still:
+on agents links there instead.
+
+**Back to editing** takes the checked text back to the editor - the one it was
+written in, or a new one opened from Show or Details on the check's own line - so
+nothing typed is lost, and saving it is refused once the line has a version newer
+than the one it was checked on; a
+proposal's check offers **Improve further** instead, which starts a session. On
+main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them, and an
   environment that waits for promotion must take the pinned version first;
-- **make a fork**, leaving main as it is - offered whatever the result, at
-  [Improve's](#improving-a-skill) Accept step, or through the API,
+- **make a fork**, leaving main as it is - offered whatever the result, in the
+  check's dialog, at [Improve's](#improving-a-skill) Accept step, or through the API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`. The agents it helped move onto
   the fork, unless you pick others with `agent_ids`; an empty list moves none, and
   an agent reading the skill through a specialist is moved in its Builder;
-- **discard** it.
+- **discard** it, after a confirmation: a discarded check cannot be decided again,
+  and its record stays in History.
 
 On a fork only improving further and discarding remain: a pin names a main
 version, and a fork never starts from another fork. A check refuses to apply
@@ -556,6 +568,7 @@ make.
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents picked, or discards it |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |
 | `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
+| `GET /api/v1/skill-checks/awaiting` | The checks a person started, still running or waiting for a decision, on skills the caller may edit |
 
 ## Getting skills into an organization
 

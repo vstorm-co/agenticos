@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { CircleCheck, GitMerge, TrendingUp } from "lucide-react";
+import { CircleCheck, FlaskConical, GitMerge, TrendingUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { useImprovementsAwaiting } from "@/hooks/use-improvements";
+import { useSkillChecksAwaiting } from "@/hooks/use-skill-check";
+import { useSkillProposalsAwaiting } from "@/hooks/use-skill-changes";
 import { useSkillImprovementsAwaiting } from "@/hooks/use-skill-improvement";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useBehindMain } from "@/hooks/use-skill-merge";
@@ -25,19 +27,22 @@ interface Waiting {
   name: string;
   href: string;
   /** What the button does and where it leads; none for something the reader may not act on. */
-  action: { label: string; href: string; merge?: boolean } | null;
+  action: { label: string; href: string; icon: "improve" | "merge" | "check" } | null;
   what: string;
 }
 
 /** Which of the card's reads failed. */
-type Source = "agents" | "skills" | "behind";
+type Source = "agents" | "skills" | "checks" | "proposals" | "behind";
+
+const ICON = { improve: TrendingUp, merge: GitMerge, check: FlaskConical };
 
 /**
  * Improvement sessions waiting for a person - an agent's or a skill's: stopped after
- * a step, or with a result to review. Each opens its session at the step that waits.
- * After them, the pinned agents and forks main has moved past, furthest behind first:
- * a fork is caught up from here, a pinned agent on its skill's page. The three are read
- * apart, so one that fails leaves the others listed.
+ * a step, or with a result to review - and checks of a skill change a person started,
+ * running or waiting for a decision, newest first. Each opens where it waits. After
+ * them, the skill changes agents proposed, then the pinned agents and forks main has
+ * moved past, furthest behind first: a fork is caught up from here, a pinned agent on
+ * its skill's page. Each is read apart, so one that fails leaves the others listed.
  */
 export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.improvements-waiting");
@@ -48,16 +53,29 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
   const { can } = usePermissions();
   const readsSkills = can(Perm.skillsView);
   const behind = useBehindMain({ enabled: readsSkills });
-  const isLoading = agents.isLoading || skills.isLoading || behind.isLoading;
-  const failed = (["agents", "skills", "behind"] as const).filter(
-    (source: Source) => ({ agents, skills, behind })[source].error,
+  const checks = useSkillChecksAwaiting();
+  // Proposals are decided under skills:edit, and listed only to who may decide them.
+  const editsSkills = can(Perm.skillsEdit);
+  const proposals = useSkillProposalsAwaiting({ enabled: editsSkills });
+  const reads = { agents, skills, checks, proposals, behind };
+  // Only the reads made count: one the reader may not make neither fails nor succeeds.
+  const made = (Object.keys(reads) as Source[]).filter(
+    (source) => (source !== "proposals" || editsSkills) && (source !== "behind" || readsSkills),
   );
-  // A manual refetch ignores `enabled`, so the read the reader may not make is left out.
+  const isLoading = made.some((source) => reads[source].isLoading);
+  const failed = made.filter((source) => reads[source].error);
+  // A manual refetch ignores `enabled`, so the reads the reader may not make are left out.
   const refetch = () =>
-    Promise.all([agents.refetch(), skills.refetch(), ...(readsSkills ? [behind.refetch()] : [])]);
+    Promise.all([
+      agents.refetch(),
+      skills.refetch(),
+      checks.refetch(),
+      ...(editsSkills ? [proposals.refetch()] : []),
+      ...(readsSkills ? [behind.refetch()] : []),
+    ]);
   const what = (item: Parameters<typeof stopOf>[0] & { next_step_blocked?: unknown }) =>
     t(item.next_step_blocked ? "what.blocked" : `what.${stopOf(item) ?? "result"}`);
-  const open = { label: t("open"), merge: false };
+  const open = { label: t("open"), icon: "improve" as const };
   const sessions: (Waiting & { createdAt: string })[] = [
     ...(agents.error ? [] : agents.sessions).map((item) => ({
       id: item.id,
@@ -79,9 +97,32 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
       what: what(item),
       createdAt: item.created_at,
     })),
+    ...(checks.error ? [] : checks.checks).map((item) => ({
+      id: `check:${item.id}`,
+      name: t("skill", {
+        name: item.skill_name,
+        kind: item.line.fork_id === null ? "main" : "fork",
+        line: item.line.name,
+      }),
+      href: ROUTES.SKILL_DETAIL(item.skill_id),
+      action: {
+        label: t("open"),
+        href: `${ROUTES.SKILL_DETAIL(item.skill_id)}?tab=history${item.line.fork_id === null ? "" : `&show=fork:${item.line.fork_id}`}&check=${item.id}`,
+        icon: "check" as const,
+      },
+      what: t(`what.check.${item.status}`, { count: item.agents }),
+      createdAt: item.created_at,
+    })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const items: Waiting[] = [
     ...sessions,
+    ...(proposals.error ? [] : proposals.changes).map((item) => ({
+      id: `proposal:${item.id}`,
+      name: t("proposal", { name: item.name, kind: item.skill_id === null ? "new" : "edit" }),
+      href: ROUTES.SKILLS,
+      action: { label: t("review"), href: ROUTES.SKILLS, icon: "check" as const },
+      what: t("what.proposal", { count: item.reaches.length + item.reaches_hidden }),
+    })),
     ...(behind.error ? [] : (behind.behind?.items ?? [])).map((item) => {
       const skill = ROUTES.SKILL_DETAIL(item.skill.id);
       return {
@@ -101,7 +142,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
             ? {
                 label: t("catchUp"),
                 href: `${skill}/improve/new?fork=${item.fork.id}&merge=catch_up`,
-                merge: true,
+                icon: "merge" as const,
               }
             : { ...open, href: skill },
         what: t(`behind.${item.kind}`, {
@@ -116,7 +157,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
     <WidgetFrame title={title} hint={hint} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
-      ) : failed.length === 3 ? (
+      ) : failed.length === made.length ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : items.length === 0 ? (
         <WidgetEmptyBody
@@ -137,11 +178,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
               {item.action && (
                 <Button asChild size="sm" variant="outline" className="shrink-0">
                   <Link href={item.action.href}>
-                    {item.action.merge ? (
-                      <GitMerge className="h-4 w-4" aria-hidden />
-                    ) : (
-                      <TrendingUp className="h-4 w-4" aria-hidden />
-                    )}
+                    <ActionIcon icon={item.action.icon} />
                     {item.action.label}
                   </Link>
                 </Button>
@@ -150,7 +187,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
           ))}
         </ul>
       )}
-      {!isLoading && failed.length > 0 && failed.length < 3 && (
+      {!isLoading && failed.length > 0 && failed.length < made.length && (
         <div role="alert" className="text-muted-foreground flex items-center gap-2 text-xs">
           <span>
             {failed.map((source) => (
@@ -166,4 +203,9 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
       )}
     </WidgetFrame>
   );
+}
+
+function ActionIcon({ icon }: { icon: keyof typeof ICON }) {
+  const Icon = ICON[icon];
+  return <Icon className="h-4 w-4" aria-hidden />;
 }

@@ -138,6 +138,7 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(skill_checks.router, prefix="/skills", tags=["skills:checks"])
+v1_router.include_router(skill_checks.awaiting, tags=["skills:checks"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
 v1_router.include_router(

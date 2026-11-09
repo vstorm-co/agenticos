@@ -36,6 +36,18 @@ describe("sideName", () => {
     );
   });
 
+  it("names a check stage's sides by the text each read", () => {
+    const stage = { ...check({ kind: "skill", skill_check_id: "c-1" }) };
+    expect(sideName(candidate, t, stage)).toBe("Proposed text");
+    expect(sideName(baseline, t, stage)).toBe("Current text");
+    expect(sideName(baseline, t, { ...stage, current: { number: 4, fork_name: null } })).toBe(
+      "Current v4",
+    );
+    expect(sideName(baseline, t, { ...stage, current: { number: 2, fork_name: "Prints" } })).toBe(
+      "Current “Prints” v2",
+    );
+  });
+
   it("names a baseline, and any side of another run, by what it ran", () => {
     expect(sideName(baseline, t, check())).toBe("v2");
     expect(sideName({ ...baseline, source: "draft", version_number: null }, t, check())).toBe(

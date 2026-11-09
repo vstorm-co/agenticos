@@ -1,5 +1,5 @@
 ---
-source_sha: "87cbe5c00b84"
+source_sha: "8a39e7dc93f6"
 ---
 
 # Skille { #skills }
@@ -314,7 +314,7 @@ nieznany, z tym powodem. Każdy zestaw liczy tylko pytania, które zadaje.
   **nieznany**, a osoba potwierdza to przed zastosowaniem.
 
 Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
-razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę.
+razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.
 Zmiana linii, której nie czyta żaden agent, przechodzi od razu: do nikogo nie
 trafia, a sprawdzenie mówi, że nie było kogo sprawdzić.
 
@@ -350,12 +350,22 @@ nie widzisz, jest liczbą, nigdy nazwą.
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
 **Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
-wynik każdego agenta, a potem stosuje albo odrzuca zmianę. W trakcie pasek liczy
-sprawdzonych agentów, a przy każdym agencie widać, czy czeka, trwa, czy ma już
-wynik. Okno można zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a
-**Pokaż** otwiera sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Sprawdzenie, które
-uruchomiła [sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check
-on agents prowadzi do niej. Na main osoba może nadal:
+wynik każdego agenta, a potem proponuje dokładnie to, na co sprawdzenie pozwala. W
+trakcie pasek liczy sprawdzonych agentów. Potem każdy agent rozwija się do tego, co
+naprawił i zepsuł, etap po etapie, z linkiem do runu każdego etapu; strona tego runu
+mówi, że jest jednym etapem sprawdzenia, i prowadzi z powrotem do niego. Okno można
+zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a **Pokaż** otwiera
+sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Historia skilla wymienia
+sprawdzenia linii, od najnowszego, z tym, co każde znalazło i co z nim zrobiono, a
+**Szczegóły** otwierają jedno z nich. Sprawdzenie, które uruchomiła
+[sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check on agents
+prowadzi do niej.
+
+**Wróć do edycji** zabiera sprawdzony tekst z powrotem do edytora - tego, w którym
+go napisano, albo nowego, otwartego z Pokaż lub Szczegóły na linii samego
+sprawdzenia - więc nic, co wpisano, nie przepada, a zapis jest odrzucany, gdy linia
+ma już wersję nowszą niż ta, na której sprawdzano; sprawdzenie propozycji daje zamiast tego **Popraw dalej**, które
+zaczyna sesję. Na main osoba może nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
@@ -363,12 +373,13 @@ on agents prowadzi do niej. Na main osoba może nadal:
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
 - **zrobić fork**, zostawiając main bez zmian - dostępny niezależnie od wyniku,
-  w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
+  w oknie sprawdzenia, w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Na fork przechodzą agenci,
   którym zmiana pomogła, chyba że wybierzesz innych w `agent_ids`; pusta lista nie
   przenosi nikogo, a agenta czytającego skill przez specjalistę przenosi się w jego
   Builderze;
-- **odrzucić** ją.
+- **odrzucić** ją, po potwierdzeniu: o odrzuconym sprawdzeniu nie da się już
+  zdecydować, a jego zapis zostaje w Historii.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
 wersję main, a fork nigdy nie zaczyna się od innego forka. Sprawdzenie odmawia
@@ -581,6 +592,7 @@ czyimś imieniu albo kończy się decyzją, którą ta osoba podejmuje sama.
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla wybranych agentów albo go odrzuca |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |
 | `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
+| `GET /api/v1/skill-checks/awaiting` | Sprawdzenia uruchomione przez osobę, które trwają albo czekają na decyzję, na skillach, które wywołujący może edytować |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

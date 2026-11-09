@@ -14,6 +14,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
 import { useDataset } from "@/hooks/use-datasets";
+import { useSkill } from "@/hooks/use-skills";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -25,7 +26,7 @@ import { ImprovementMeasurement } from "./improvement-measurement";
 import { ComparisonCard } from "./comparison-card";
 import { sideName, type SideCheck } from "./names";
 import { StartEvalDialog } from "./start-eval-dialog";
-import { VerdictHeader } from "./verdict-header";
+import { VerdictHeader, type CheckStage } from "./verdict-header";
 
 /** As many cases as the API filters on by id in one request. */
 const CASE_IDS = 100;
@@ -48,6 +49,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const canTestAgain =
     agent?.can_run === true && agent.can_edit === true && dataset?.can_run === true;
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
+  // A skill's check runs one agent on both sides, so each side is named by that agent.
+  const checked = candidates[0]?.skill_ids?.[0];
+  const checkId = run?.proposal_check?.skill_check_id ?? null;
+  const { skill: stageSkill } = useSkill(checkId !== null && checked ? checked : null);
   const [arm, setArm] = useUrlState("arm");
   const [tag, setTag] = useUrlState("tag");
   const [brokenParam, setBrokenParam] = useUrlState("broken");
@@ -105,8 +110,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
 
   const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
   const candidate = candidates.find((item) => item.id === focus);
-  // A skill's check runs one agent on both sides, so each side is named by that agent.
-  const checked = run.arms.find((item) => item.role === "candidate")?.skill_ids?.[0];
   const check: SideCheck | null | undefined =
     run.proposal_check?.kind === "skill" && agent
       ? {
@@ -118,6 +121,13 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         }
       : run.proposal_check;
   const named = { ...run, proposal_check: check };
+  const stage: CheckStage | null =
+    checkId !== null && checked && agent
+      ? { skillId: checked, skillName: stageSkill?.name ?? null, agent: agent.name, checkId }
+      : null;
+  // A sampled stage leaves the questions it did not ask out, which no change was derived from.
+  const notAsked = run.proposal_check?.not_asked ?? 0;
+  const fromEvidence = (run.excluded_case_ids?.length ?? 0) - notAsked;
   const brokenIds = (comparison?.cases ?? [])
     .filter((item) => item.flip === "regression")
     .map((item) => item.case_id);
@@ -149,6 +159,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             : undefined
         }
         onTestAgain={canTestAgain ? () => setTestingAgain(true) : undefined}
+        stage={stage}
         onRetryComparison={!live && comparisonError ? () => void refetchComparison() : undefined}
         onShowBroken={() => {
           setOnly(null);
@@ -156,15 +167,25 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           cases.current?.scrollIntoView?.({ behavior: "smooth" });
         }}
       />
-      {run.proposal_check?.measurement && (
+      {run.proposal_check?.measurement && !stage && (
         <ImprovementMeasurement measurement={run.proposal_check.measurement} />
       )}
-      {(run.excluded_case_ids?.length ?? 0) > 0 && (
+      {stage && (
         <p role="note" className="text-muted-foreground text-sm">
-          {t("excludedEvidence", { count: run.excluded_case_ids?.length ?? 0 })}
+          {t("checkStage.pooled")}
         </p>
       )}
-      {(candidate?.skill_ids?.length ?? 0) > 0 ? (
+      {notAsked > 0 && (
+        <p role="note" className="text-muted-foreground text-sm">
+          {t("notAsked", { count: notAsked })}
+        </p>
+      )}
+      {fromEvidence > 0 && (
+        <p role="note" className="text-muted-foreground text-sm">
+          {t("excludedEvidence", { count: fromEvidence })}
+        </p>
+      )}
+      {stage ? null : (candidate?.skill_ids?.length ?? 0) > 0 ? (
         <Link href={ROUTES.SKILLS} className="text-sm underline">
           {t("backToSkillChange")}
         </Link>
@@ -216,7 +237,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         baselineSummary={comparison?.baseline_summary ?? null}
       />
       {!live && comparison && (
-        <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} />
+        <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} check={check} />
       )}
       {testingAgain && (
         <StartEvalDialog

@@ -14,6 +14,12 @@ vi.mock("@/hooks", () => ({
   useUsageStats: (...args: unknown[]) => useUsageStatsMock(...args),
 }));
 
+const others = vi.hoisted(() => ({ review: 0, suites: 0, suggestions: 0, settled: true }));
+vi.mock("@/hooks/use-waiting-on-me", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-waiting-on-me")>()),
+  useWaitingOnMe: () => others,
+}));
+
 const PERIOD: Period = { preset: "30d", from: "2026-09-14", to: "2026-10-13" };
 
 function usage(overrides: Partial<UsageStats> = {}): UsageStats {
@@ -86,17 +92,18 @@ describe("a person's own period", () => {
     );
   });
 
-  it("draws the four measures, and links to what is waiting", () => {
+  it("draws the four measures, and counts what waits as the greeting does", () => {
+    others.review = 2;
+    others.suggestions = 1;
     renderWidget({ usage: usage() });
 
     expect(screen.getByText("Your runs")).toBeVisible();
     expect(screen.getByText("86%")).toBeVisible();
     expect(screen.getByText("of 73 runs")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Review them" })).toHaveAttribute(
-      "href",
-      "/runs?tab=approvals",
-    );
+    expect(screen.getByText("1 call, 2 answers to review, and 1 suggestion")).toBeVisible();
     expect(screen.getByText("Spent")).toBeVisible();
+    others.review = 0;
+    others.suggestions = 0;
   });
 
   it("says nothing is waiting, at zero, rather than drawing an empty card", () => {

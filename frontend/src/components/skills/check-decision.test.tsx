@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,11 +6,39 @@ import { CheckDecision } from "./check-decision";
 import { checkAgent, finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
 
-function decide(check: SkillCheck) {
+vi.mock("@/hooks/use-skill-versions", () => ({
+  useSkillAgents: () => ({
+    agents: {
+      items: [{ agent: { id: "agent-Online desk", slug: "desk" }, can_change: true }],
+    },
+    error: null,
+    retry: vi.fn(),
+    retrying: false,
+  }),
+}));
+
+function decide(check: SkillCheck, onEdit?: () => void) {
   const onApply = vi.fn();
   const onDiscard = vi.fn();
-  render(<CheckDecision check={check} busy={false} onApply={onApply} onDiscard={onDiscard} />);
-  return { onApply, onDiscard };
+  const onFork = vi.fn().mockResolvedValue(null);
+  render(
+    <CheckDecision
+      check={check}
+      busy={false}
+      onApply={onApply}
+      onFork={onFork}
+      onDiscard={onDiscard}
+      onEdit={onEdit}
+    />,
+  );
+  return { onApply, onDiscard, onFork };
+}
+
+async function discard() {
+  await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+  await userEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Discard" }),
+  );
 }
 
 describe("CheckDecision", () => {
@@ -62,7 +90,80 @@ describe("CheckDecision", () => {
 
     expect(screen.getByText(/This change is to a fork/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await discard();
     expect(onDiscard).toHaveBeenCalled();
+  });
+
+  it("offers every way out the check returns when no agent got better", async () => {
+    const onEdit = vi.fn();
+    decide(
+      finishedCheck({
+        verdict: "no_better",
+        outcomes: ["improve_further", "fork_for_helped", "discard"],
+      }),
+      onEdit,
+    );
+
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Save as a fork…" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Back to editing" }));
+    expect(onEdit).toHaveBeenCalled();
+  });
+
+  it("improves further in a new session when no editor holds the text", () => {
+    decide(
+      finishedCheck({
+        verdict: "no_better",
+        outcomes: ["improve_further", "discard"],
+        line: { fork_id: "f-1", name: "Prints" },
+      }),
+    );
+
+    expect(screen.getByRole("link", { name: "Improve further" })).toHaveAttribute(
+      "href",
+      "/skills/s-1/improve/new?fork=f-1",
+    );
+    expect(screen.queryByRole("button", { name: "Save as a fork…" })).toBeNull();
+  });
+
+  it("improves main further in a session on main", () => {
+    decide(finishedCheck({ verdict: "no_better", outcomes: ["improve_further"] }));
+
+    expect(screen.getByRole("link", { name: "Improve further" })).toHaveAttribute(
+      "href",
+      "/skills/s-1/improve/new",
+    );
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
+  });
+
+  it("makes a fork for the agents picked, acknowledging the ones nobody could check", async () => {
+    const { onFork } = decide(
+      finishedCheck({
+        verdict: "needs_ack",
+        outcomes: ["apply", "improve_further", "fork_for_helped", "discard"],
+        agents: [checkAgent({ state: "better" }), checkAgent({ name: "C", state: "unknown" })],
+      }),
+    );
+
+    expect(screen.getByRole("button", { name: "Save as a fork…" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make the fork and move 1 agent" }));
+
+    expect(onFork).toHaveBeenCalledWith({
+      name: "Online desk",
+      agent_ids: ["agent-Online desk"],
+      acknowledge_unknown: true,
+    });
+  });
+
+  it("discards only once the person confirms it", async () => {
+    const { onDiscard } = decide(finishedCheck());
+
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.getByText("Discard this change?")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onDiscard).not.toHaveBeenCalled();
   });
 });

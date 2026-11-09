@@ -499,6 +499,11 @@ class CaseScoreRead(BaseSchema):
     case_masked: bool = False
     eval_run_id: UUID | None = None
     skill_check: SkillCheckAnswer | None = None
+    eval_attempt: int | None = Field(
+        default=None,
+        description="For an eval run's answer, which attempt gave it: 0 for the case's first "
+        "answer, 1 and up for a re-ask that confirmed a change; null for any other answer",
+    )
     results: list[ScorerResult]
     judge: JudgePin | None = None
     passed: bool | None = None

@@ -18,6 +18,8 @@ export type SideCheck = ProposalCheckRecord & {
 
 /**
  * A side by what it ran - a published version by its number, otherwise its source.
+ * A stage of a skill's check names its sides by the text each read, since the
+ * page says once which agent the stage ran on.
  *
  * The candidate of a check of the authoring assistant's proposal is named by what
  * it adds to the side it is measured against, so both names say what differs. A
@@ -29,6 +31,14 @@ export function sideName(
   t: Translate,
   check?: SideCheck | null,
 ): string {
+  if (check?.kind === "skill" && check.skill_check_id && side.role !== undefined) {
+    if (side.role === "candidate") return t("checkStage.proposed");
+    const current = check.current;
+    if (!current) return t("checkStage.current");
+    return current.fork_name === null
+      ? t("checkStage.currentVersion", { version: current.number })
+      : t("checkStage.currentFork", { fork: current.fork_name, version: current.number });
+  }
   if (check?.kind === "skill" && check.agent !== undefined && side.role !== undefined) {
     if (side.role === "candidate") return t("skillProposed", { agent: check.agent });
     const current = check.current;

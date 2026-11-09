@@ -18,6 +18,8 @@ import {
   type ShownAgents,
 } from "@/components/skills/skill-lines";
 import { CheckRunning } from "@/components/skills/check-running";
+import type { CheckedDraft } from "@/components/skills/skill-check-dialog";
+import { SkillChecks } from "@/components/skills/skill-checks";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
@@ -54,6 +56,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<CheckedDraft | null>(null);
   // The editor is heavy to draw, so the button says it is opening until it is.
   const [opening, startOpening] = useTransition();
   const [deleting, setDeleting] = useState(false);
@@ -84,6 +87,15 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const base = skill.latest_version_id;
   // Counted by the server, so agents the reader cannot see and every serving environment count.
   const followers = fork === null ? (mainVersions.versions[0]?.agents ?? 0) : fork.agents;
+  // A checked text is edited on the line it was checked on, whichever the page shows.
+  const editChecked = (checked: CheckedDraft) => {
+    setDraft(checked);
+    if (checked.forkId !== (fork?.id ?? null)) {
+      setShowParam(checked.forkId === null ? "main" : `fork:${checked.forkId}`);
+    }
+    setEditing(true);
+  };
+  const checks = skill.can_edit === true && can(Perm.runsView);
 
   return (
     <div className="space-y-6">
@@ -102,9 +114,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
-      {skill.can_edit && can(Perm.runsView) && (
-        <CheckRunning skillId={id} forkId={fork?.id ?? null} />
-      )}
+      {checks && <CheckRunning skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
@@ -138,7 +148,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           />
           {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
         </TabsContent>
-        <TabsContent value="history">
+        <TabsContent value="history" className="space-y-4">
           <SkillHistory
             key={fork?.id ?? "main"}
             skillId={id}
@@ -149,6 +159,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             forks={forks}
             onLine={(next) => setShowParam(next === null ? "main" : `fork:${next}`)}
           />
+          {checks && <SkillChecks skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree
@@ -175,7 +186,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             ),
           ).map((usage) => usage.agent.name)}
           canCheck={can(Perm.runsView)}
-          onClose={() => setEditing(false)}
+          draft={draft ?? undefined}
+          onClose={() => {
+            setEditing(false);
+            setDraft(null);
+          }}
           onDelete={() => setDeleting(true)}
         />
       )}

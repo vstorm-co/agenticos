@@ -1136,6 +1136,9 @@ class ScoringService:
         checked = await skill_check_repo.check_answers(
             self.db, [read.id for read in reads], organization_id=ctx.organization_id
         )
+        attempts = await eval_run_repo.score_attempts(
+            self.db, [read.id for read in reads], organization_id=ctx.organization_id
+        )
         hidden = {
             agent.id
             for agent in agents.values()
@@ -1173,6 +1176,7 @@ class ScoringService:
                             arm="proposed" if checked[read.id].proposed else "current",
                             version=checked[read.id].version,
                         ),
+                        "eval_attempt": attempts.get(read.id),
                     }
                 )
             )

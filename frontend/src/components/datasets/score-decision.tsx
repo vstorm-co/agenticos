@@ -13,6 +13,8 @@ export type Verdict = { passed: boolean | null; note: string | null };
 interface ScoreDecisionProps {
   /** The decision on record, if somebody made one. */
   decided: boolean | null;
+  /** A model graded the answer, so overturning it says the judge was wrong. */
+  judged?: boolean;
   compact?: boolean;
   caseTags?: string[];
   note: string | null;
@@ -27,6 +29,7 @@ interface ScoreDecisionProps {
 /** A person's review decision on a score, with the note that says why. */
 export function ScoreDecision({
   decided,
+  judged = false,
   compact = false,
   caseTags = [],
   note,
@@ -55,7 +58,7 @@ export function ScoreDecision({
           />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(true)}>
-              {t("markPassed")}
+              {judged ? t("markPassed") : t("markPassedUngraded")}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(false)}>
               {t("markFailed")}

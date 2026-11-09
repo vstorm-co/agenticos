@@ -90,6 +90,7 @@ from app.schemas.skill_check import (
     SkillCheckAgentRead,
     SkillCheckApplied,
     SkillCheckApply,
+    SkillCheckAwaiting,
     SkillCheckEstimate,
     SkillCheckFork,
     SkillCheckForked,
@@ -108,7 +109,7 @@ from app.schemas.skill_version import (
     VersionRef,
 )
 from app.services import skill_check_rules as rules
-from app.services.access import AGENT, DATASET, accessible_ids
+from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
@@ -129,6 +130,8 @@ TEST_SET_FROM_EVIDENCE = 12
 """How many recent answers a skill's first test questions are made from."""
 
 _SETTLED_RUNS = (EvalRunStatus.COMPLETED, EvalRunStatus.CANCELLED, EvalRunStatus.FAILED)
+_AWAITING_LIMIT = 20
+"""How many open checks "Waiting for you" lists; it shows the newest few."""
 
 
 @dataclass(frozen=True)
@@ -1301,6 +1304,51 @@ class SkillCheckService:
         )
         return SkillCheckList(items=await self._reads(ctx, checks), total=total)
 
+    async def awaiting(self, ctx: AuthContext) -> list[SkillCheckAwaiting]:
+        """Checks a person started that are still running or wait for a decision, on skills
+        the caller may edit - the ones they could decide - newest first."""
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Reading a skill check needs runs:view",
+                details={"permission": "runs:view"},
+            )
+        skills = await skill_repo.get_many(
+            self.db,
+            await skill_check_repo.open_skill_ids(self.db, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
+        )
+        editable = await accessible_ids(
+            self.db, ctx, skills.values(), Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        checks = await skill_check_repo.list_open(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_ids=editable,
+            limit=_AWAITING_LIMIT,
+        )
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id for check in checks], organization_id=ctx.organization_id
+        )
+        agents = Counter(row.check_id for row in rows)
+        forks = await skill_version_repo.get_forks(
+            self.db,
+            {check.fork_id for check in checks if check.fork_id is not None},
+            organization_id=ctx.organization_id,
+        )
+        return [
+            SkillCheckAwaiting(
+                id=check.id,
+                skill_id=check.skill_id,
+                skill_name=skills[check.skill_id].name,
+                line=_line_ref(None if check.fork_id is None else forks.get(check.fork_id)),
+                status=CheckStatus(check.status),
+                verdict=None if check.verdict is None else CheckVerdict(check.verdict),
+                agents=agents[check.id],
+                created_at=check.created_at,
+            )
+            for check in checks
+        ]
+
     async def _readable_skill(self, ctx: AuthContext, skill_id: UUID) -> Skill:
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(
@@ -1364,6 +1412,9 @@ class SkillCheckService:
                     source=CheckSource(check.source),
                     agent_id=check.agent_id,
                     candidate_version_id=check.candidate_version_id,
+                    candidate=CandidateText(
+                        description=check.candidate_description, content=check.candidate_content
+                    ),
                     status=status,
                     verdict=verdict,
                     warnings=["within_noise"]

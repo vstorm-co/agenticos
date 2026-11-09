@@ -607,6 +607,7 @@ class TestTheRule:
         assert states == {"A": "better", "B": "no_change", "C": "no_change"}
         assert (read.status, read.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
         assert read.outcomes[0] is CheckOutcome.APPLY
+        assert read.candidate == NEW
 
     async def test_one_agent_worse_blocks_and_offers_the_four_ways(self, db, monkeypatch):
         lab = await _lab(db)
@@ -1405,6 +1406,73 @@ class TestIsolation:
             await SkillCheckService(db).list_checks(
                 member, lab.skill.id, fork_id=None, skip=0, limit=10
             )
+
+
+class TestAwaiting:
+    """What "Waiting for you" lists: checks a person started and has to come back to."""
+
+    async def test_a_check_left_open_waits_until_it_is_decided(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+
+        [running] = await service.awaiting(lab.ctx)
+        assert (running.id, running.skill_name, running.line.name, running.agents) == (
+            check.id,
+            lab.skill.name,
+            "main",
+            3,
+        )
+        assert running.status is CheckStatus.RUNNING
+        evals.outcomes = {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(), lab.c.id: Outcome()}
+        await _run_to_end(service, evals, lab, check.id)
+        [done] = await service.awaiting(lab.ctx)
+        assert (done.status, done.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
+
+        await service.discard(lab.ctx, lab.skill.id, check.id)
+        assert await service.awaiting(lab.ctx) == []
+
+    async def test_checks_on_main_and_a_fork_are_listed_by_line_newest_first(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        on_main = await service.start(lab.ctx, lab.skill.id, _start())
+        on_fork = await service.start(lab.ctx, lab.skill.id, _start(fork_id=lab.fork_id))
+
+        listed = await service.awaiting(lab.ctx)
+
+        assert {item.id: item.line.name for item in listed} == {
+            on_main.id: "main",
+            on_fork.id: on_fork.line.name,
+        }
+        assert on_fork.line.name != "main"
+
+    async def test_a_check_a_session_or_a_catch_up_decides_is_not_listed(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+
+        for source in ("session", "catch_up"):
+            await skill_check_repo.update(db, row=row, values={"source": source})
+            assert await service.awaiting(lab.ctx) == []
+
+    @pytest.mark.security
+    async def test_only_who_may_decide_it_sees_it(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        await service.start(lab.ctx, lab.skill.id, _start())
+        operator = await _member(db, lab.ctx, OrgRoleName.OPERATOR)
+        viewer = await _member(db, lab.ctx, OrgRoleName.VIEWER)
+
+        assert await service.awaiting(operator) == []
+        with pytest.raises(AuthorizationError):
+            await service.awaiting(viewer)
 
 
 class TestTestSet:
