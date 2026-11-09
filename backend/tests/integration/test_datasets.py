@@ -44,6 +44,7 @@ from app.db.models.user import User
 from app.repositories import dataset_repo, project_repo
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import (
+    AnswerAs,
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
@@ -674,6 +675,33 @@ async def test_a_batch_skips_an_answer_added_while_it_waited_for_the_lock(db, mo
     assert (version, skipped) == (None, 1)
     held = await service.list_cases(ctx, dataset.id)
     assert [case.source_message_id for case in held.items] == [answer.id]
+
+
+async def test_a_batch_can_keep_one_answer_per_question(db) -> None:
+    """Two conversations asking the same thing, one answer kept as the one to give, the
+    other as the one to avoid, would make the question contradict itself."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    _, first = await _rated_down_turn(db, ctx)
+    _, second = await _rated_down_turn(db, ctx)
+    kept_as: dict[uuid.UUID, AnswerAs] = {
+        first.id: "reference_answer",
+        second.id: "counter_example",
+    }
+    both = await service.create(ctx, DatasetCreate(name="both"))
+    one = await service.create(ctx, DatasetCreate(name="one"))
+
+    await service.add_from_messages(ctx, both.id, [first.id, second.id], answer_as=kept_as)
+    version, skipped = await service.add_from_messages(
+        ctx, one.id, [first.id, second.id], answer_as=kept_as, one_per_question=True
+    )
+
+    assert len((await service.list_cases(ctx, both.id)).items) == 2
+    held = await service.list_cases(ctx, one.id)
+    assert [(case.source_message_id, case.reference_answer) for case in held.items] == [
+        (first.id, "You have 90 days.")
+    ]
+    assert (version is not None, skipped) == (True, 1)
 
 
 async def test_an_answer_already_a_case_is_not_added_twice(db) -> None:

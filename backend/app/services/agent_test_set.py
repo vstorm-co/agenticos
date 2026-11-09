@@ -49,7 +49,7 @@ from app.schemas.agent_test_set import (
 from app.schemas.case_generation import MAX_GENERATED, CaseGenerationRequest, CaseOriginLiteral
 from app.schemas.dataset import AnswerAs, DatasetCreate
 from app.schemas.resource_grant import as_visibility
-from app.schemas.scoring import DatasetScoring, DatasetScoringUpdate, JudgeCreate
+from app.schemas.scoring import DatasetScoring, JudgeCreate
 from app.services.access import DATASET, resolve_access
 from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
@@ -57,7 +57,7 @@ from app.services.case_generation import CaseGenerationService
 from app.services.dataset import DatasetService
 from app.services.grading_model import grading_profile
 from app.services.rag.vectorstore import BaseVectorStore
-from app.services.scoring import STARTING_CRITERION, ScoringService
+from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
 
 TOO_FEW = 3
@@ -455,17 +455,7 @@ class AgentTestSetService:
         )
 
     async def _switch_on(self, ctx: AuthContext, dataset: Dataset, judge_id: UUID | None) -> None:
-        """The judge on, with a starting criterion, and the reference compared."""
-        await self.db.refresh(dataset)
-        scoring = DatasetScoring.model_validate(dataset.scoring)
-        scoring.judge.agent_id = judge_id
-        scoring.judge.enabled = True
-        if not scoring.judge.criteria:
-            scoring.judge.criteria = [STARTING_CRITERION]
-        scoring.reference.enabled = True
-        await self.scoring.set_scoring(
-            ctx, dataset.id, DatasetScoringUpdate.model_validate(scoring.model_dump())
-        )
+        await self.scoring.judge_by_reference(ctx, dataset.id, judge_id)
 
     async def _request(self, ctx: AuthContext, agent: Agent, count: int) -> CaseGenerationRequest:
         spec = await self._spec(ctx, agent)

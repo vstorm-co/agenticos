@@ -1439,8 +1439,24 @@ class SkillImprovementService:
         await skill_improvement_repo.update_iteration(
             self.db,
             iteration=iteration,
-            values={"check_verdict": verdict.value, "verdict": _VERDICTS[verdict].value},
+            values={
+                "check_verdict": verdict.value,
+                "verdict": (await self._attempt_verdict(check, verdict)).value,
+            },
         )
+
+    async def _attempt_verdict(
+        self, check: SkillCheck, verdict: CheckVerdict
+    ) -> ImprovementVerdict:
+        """A check's verdict as the attempt's result. One that measured no agent - none
+        reads the line, or none could be checked - says nothing of the change, though it
+        may still be applied once the unknown agents are acknowledged."""
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=check.organization_id
+        )
+        if all(row.state == AgentState.UNKNOWN.value for row in rows):
+            return ImprovementVerdict.INCONCLUSIVE
+        return _VERDICTS[verdict]
 
     async def wake_for_check(self, check_id: UUID, *, organization_id: UUID) -> None:
         """Advance the session a finished check belongs to, rather than at the next sweep."""
@@ -1921,7 +1937,7 @@ class SkillImprovementService:
             iteration=iteration,
             values={
                 "check_verdict": verdict.value,
-                "verdict": _VERDICTS[verdict].value,
+                "verdict": (await self._attempt_verdict(check, verdict)).value,
                 "cost_usd": iteration.cost_usd + cost,
                 "ended_at": datetime.now(UTC),
             },

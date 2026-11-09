@@ -12,7 +12,7 @@ import { ROUTES } from "@/lib/constants";
  * conversations the change learned from, or null for any other refusal.
  */
 export function evidenceOnlyDataset(error: unknown): string | null {
-  if (!(error instanceof ApiError) || error.details?.reason !== "all_cases_are_evidence") {
+  if (!(error instanceof ApiError) || error.details?.reason !== "all_evidence") {
     return null;
   }
   const id = error.details.dataset_id;

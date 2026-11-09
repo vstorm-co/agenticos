@@ -35,7 +35,7 @@ const EVIDENCE_ONLY = new ApiError(
     error: {
       code: "BAD_REQUEST",
       message: "Every case of 'Refunds' was taken from the conversations",
-      details: { dataset_id: "d7", excluded: 3, reason: "all_cases_are_evidence" },
+      details: { dataset_id: "d7", excluded: 3, reason: "all_evidence" },
     },
   },
 );

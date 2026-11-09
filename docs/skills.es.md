@@ -1,5 +1,5 @@
 ---
-source_sha: "f004b23232dd"
+source_sha: "87cbe5c00b84"
 ---
 
 # Skills { #skills }
@@ -276,6 +276,12 @@ agent. Cada skill tiene un conjunto, creado a través de la API -
 cargaron el skill - o con **Añadir preguntas de prueba** junto a un agent que
 [Improve](#improving-a-skill) no pudo comprobar, y editado como cualquier otro
 [dataset](datasets.md).
+
+Un juez califica el conjunto, comparando cada respuesta con la que las personas
+valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace una
+vez: una respuesta que alguien valoró gana a una que solo falló, así que una
+pregunta nunca pide una respuesta y a la vez la prohíbe.
+
 Después, las preguntas del propio agent:
 
 - **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
@@ -284,7 +290,7 @@ Después, las preguntas del propio agent:
   respuesta más reciente cargó el skill - las que comparten más palabras con las
   líneas que toca el cambio. Un agent sin ninguna se comprueba solo con el
   conjunto del skill, y su fila lo dice. A un agent que las preguntas del skill
-  muestran peor no se le hacen las suyas.
+  muestran peor no se le hacen las suyas, y su fila dice que no se hicieron.
 - **Thorough**: el dataset entero del agent, preguntado aunque las preguntas del
   skill mostraran al agent peor, para que su fila diga dónde lo rompió el cambio.
   Un cambio en la descripción del
@@ -299,6 +305,11 @@ Después, las preguntas del propio agent:
     falla en cada pregunta que aún espera la respuesta antigua: actualiza antes
     las preguntas de prueba.
 
+Un conjunto de preguntas que nada puede calificar, o cuyas preguntas vienen todas
+de las conversaciones de las que aprendió el cambio, se omite para ese agent, y el
+resto se pregunta igualmente. Un agent al que no le queda nada que preguntar es
+desconocido, con ese motivo. Cada conjunto cuenta solo las preguntas que hace.
+
 ### La regla { #the-rule }
 
 - Ningún agent puede quedar **peor**, por una regresión que las repreguntas
@@ -306,9 +317,15 @@ Después, las preguntas del propio agent:
 - Al menos un agent tiene que quedar **mejor**.
 - Una diferencia que la comprobación no pudo confirmar está **dentro del
   ruido**: un aviso, no un bloqueo.
-- Un agent que no se pudo comprobar - sin preguntas, sin acceso, sin budget, sin
-  versión publicada, con un run fallido - es **desconocido**, y una persona lo
-  reconoce antes de aplicar.
+- Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
+  califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
+  sin budget, sin versión publicada, con un run fallido, con la comprobación
+  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar.
+
+Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
+y termina enseguida, con todos los agents desconocidos, para que una persona lo
+reconozca. Un cambio en una línea que ningún agent lee pasa enseguida: no llega a
+nadie, y la comprobación dice que no había a quién comprobar.
 
 Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
 juntas: un resultado necesita cinco para el agent, no cinco por etapa, y una
@@ -317,15 +334,26 @@ otra. Todas las
 preguntas del conjunto del skill son held-out, y una comprobación rápida solo
 toma preguntas held-out del agent.
 
-El veredicto de una persona en la [cola de revisión](datasets.md#review) sobre una
-respuesta que una comprobación calificó vuelve a juzgar a ese agent: sus
+Una comprobación envía sus regresiones confirmadas, y las respuestas que el juez
+no pudo calificar, a la [cola de revisión](datasets.md#review), cada una marcada
+como respuesta dada con el cambio propuesto, y nunca en lugar de una respuesta que
+ya espera en esa pregunta. El veredicto de una persona allí
+sobre una respuesta que una comprobación calificó vuelve a juzgar a ese agent: sus
 recuentos, el veredicto de la comprobación y el resultado del intento de Improve
-que la comprobación midió siguen ese veredicto. Una comprobación decidida conserva
-su decisión, y un agent que la comprobación no pudo ejecutar sigue desconocido.
+que la comprobación midió siguen ese veredicto.
+
+El veredicto es sobre esa única
+respuesta; las repreguntas conservan sus propias calificaciones, así que una
+regresión que confirmaron se mantiene. Un agent al que una comprobación rápida no
+hizo sus propias preguntas, porque las del skill lo mostraron peor, es desconocido
+cuando esa regresión se retira. Una comprobación decidida conserva su decisión, y
+un agent que la comprobación no pudo ejecutar sigue desconocido.
 
 La parte de cada agent son sus propios runs de evals, cargados a su budget. La
 estimación da un precio, lo más probable y como mucho, y nombra antes de empezar
-a los agents cuyo budget no lo cubre. Empezar requiere `runs:view` y acceso de
+a los agents cuyo budget no lo cubre. Empezar otra vez la misma comprobación
+mientras se ejecuta devuelve esa comprobación, así que nunca se paga dos veces.
+Empezar requiere `runs:view` y acceso de
 edición al skill. Un agent que no puedes ejecutar no se ejecuta, y uno que no
 puedes ver es un número, nunca un nombre.
 

@@ -180,7 +180,7 @@ describe("SkillStart", () => {
         error: {
           code: "BAD_REQUEST",
           message: "Every case was taken from the conversations",
-          details: { dataset_id: "d7", excluded: 3, reason: "all_cases_are_evidence" },
+          details: { dataset_id: "d7", excluded: 3, reason: "all_evidence" },
         },
       }),
     );
