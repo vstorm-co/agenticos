@@ -118,7 +118,7 @@ describe("the notifications settings page", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "App updated - Email" })).toBeInTheDocument();
     expect(
-      screen.getByRole("switch", { name: "Shared with your group - Email" }),
+      screen.getByRole("switch", { name: "Shared with you or your group - Email" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("switch", { name: "Department budget at 80% - Email" }),
