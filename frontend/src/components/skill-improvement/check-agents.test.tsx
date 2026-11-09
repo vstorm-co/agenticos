@@ -118,6 +118,20 @@ describe("CheckAgents", () => {
     expect(screen.getByRole("link", { name: "Run on the agent's questions" })).toBeVisible();
   });
 
+  it("names an agent within the test's noise as no change, as its group and count do", () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [checkAgent("Sales", "within_noise"), checkAgent("Billing", "no_change")],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("2 no change")).toBeVisible();
+    expect(screen.getAllByText("No change", { selector: "span" })).toHaveLength(2);
+    expect(screen.queryByText("Within noise")).toBeNull();
+  });
+
   it("sums the agents up above them, counting the ones still checked only while there are any", () => {
     const { rerender } = render(
       <CheckAgents

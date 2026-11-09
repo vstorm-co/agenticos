@@ -15625,7 +15625,6 @@
         "running": "Checking",
         "better": "Better",
         "no_change": "No change",
-        "within_noise": "Within noise",
         "worse": "Worse",
         "unknown": "Unknown"
       },
