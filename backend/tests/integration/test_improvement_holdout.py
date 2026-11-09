@@ -181,8 +181,42 @@ async def test_a_run_too_small_to_judge_alone_can_be_compared_for_a_pool(db):
     pooled = await service.compare(ctx, started.id, holdout_minimum=False)
 
     assert (alone.verdict, alone.gradable_holdout) == ("invalid", 3)
+    assert alone.invalid_reason_code == "too_few_held_out"
     assert (pooled.verdict, pooled.invalid_reason, pooled.gradable_holdout) == ("better", None, 3)
     assert pooled.fixed_confirmed == pooled.compared == 3
+
+
+async def test_a_checked_sample_counts_the_questions_it_did_not_ask_apart(db):
+    """A check that asks a sample leaves the rest of the dataset out; those are not the
+    change's evidence, and the run says how many of its exclusions they are."""
+    ctx, agent, _ = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=7)
+    picked = list(
+        await db.scalars(
+            select(DatasetCase.case_id)
+            .where(DatasetCase.dataset_id == dataset.id, DatasetCase.removed_in.is_(None))
+            .order_by(DatasetCase.position)
+            .limit(2)
+        )
+    )
+    service = EvalRunService(db)
+    baseline = AgentSpec.model_validate(agent.draft_spec)
+    candidate = baseline.model_copy(update={"instructions": baseline.instructions + " 30 days"})
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, case_ids=picked),
+        candidate_spec=candidate,
+        baseline_spec=baseline,
+        proposal_check=ProposalCheckRecord(
+            kind="agent", base_version=None, on_draft=True, suggestions=1
+        ),
+    )
+
+    read = await service.get(ctx, started.id)
+    assert len(read.excluded_case_ids) == 5
+    assert read.proposal_check is not None and read.proposal_check.not_asked == 5
 
 
 async def test_hand_entered_and_generated_evidence_copies_cannot_become_holdout(db):

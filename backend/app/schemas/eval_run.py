@@ -81,6 +81,14 @@ class ProposalCheckRecord(BaseSchema):
         description="The check of a skill change on every agent this run is one stage of",
     )
     evidence_run_ids: list[UUID] = Field(default_factory=list)
+    not_asked: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Of the run's excluded cases, the ones left out because the check asked a sample "
+            "of the dataset, not because they came from the change's evidence"
+        ),
+    )
     attempt_holdout: list[UUID] | None = Field(
         default=None,
         description="An improvement attempt's own draw of measured questions; the dataset's "
@@ -606,7 +614,7 @@ class EvalComparisonRead(BaseSchema):
     overall: OverallLiteral | None
     p_value: float | None
     invalid_reason: str | None
-    invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
+    invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
     regressions_confirmed: int
     regressions_unconfirmed: int
     fixed_confirmed: int
