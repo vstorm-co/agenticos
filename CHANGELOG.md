@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Probe the readiness endpoint after production deploys; the old health URL returned 404 despite a healthy deployment.
+
 - Paused knowledge sources refuse manual API synchronization, and workers
   recheck the pause before downloading or indexing queued or CLI runs.
   Knowledge-base collection-name lookups break creation-date ties by ID,
