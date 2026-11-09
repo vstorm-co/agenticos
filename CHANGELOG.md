@@ -28,6 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Show organization logos and fallback colors in received invitations before joining.
 - Align chat activity rails and keep them outside expanded tool details.
 - Reveal new AgenticOS and Architect setup replies progressively before showing the model setup card.
 - Select and display onboarding monthly budgets in whole dollars.

@@ -9,6 +9,8 @@ export interface ReceivedInvitation {
   id: string;
   organization_id: string;
   organization_name: string;
+  organization_has_avatar: boolean;
+  organization_avatar_color: number | null;
   role: string;
   expires_at: string;
 }

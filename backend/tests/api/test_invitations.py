@@ -21,9 +21,11 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from fastapi import Response
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
+from app.api.routes.v1 import invitations as invitation_routes
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -346,4 +348,33 @@ async def test_recipient_accepts_by_id_without_returning_a_bearer_token(client, 
 async def test_received_invitations_require_authentication(client):
     app.dependency_overrides.pop(deps.get_current_user)
     response = await client.get(f"{settings.API_V1_STR}/invitations/received")
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize("available", [True, False])
+async def test_received_logo_streams_only_an_image_or_returns_not_found(
+    client, service, monkeypatch, available
+):
+    service.received_avatar = AsyncMock(return_value="avatars/org.png")
+    image = AsyncMock(
+        return_value=Response(b"image", media_type="image/png") if available else None
+    )
+    monkeypatch.setattr(invitation_routes, "stored_image_response", image)
+    response = await client.get(
+        f"{settings.API_V1_STR}/invitations/received/{_INVITATION_ID}/avatar"
+    )
+    assert response.status_code == (200 if available else 404)
+    service.received_avatar.assert_awaited_once()
+    assert service.received_avatar.await_args.args[0] == _INVITATION_ID
+    image.assert_awaited_once_with(
+        "avatars/org.png",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )
+
+
+async def test_received_logo_requires_authentication(client):
+    app.dependency_overrides.pop(deps.get_current_user, None)
+    response = await client.get(
+        f"{settings.API_V1_STR}/invitations/received/{_INVITATION_ID}/avatar"
+    )
     assert response.status_code == 401

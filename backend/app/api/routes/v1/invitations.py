@@ -25,6 +25,7 @@ from app.api.deps import (
     require_in_path_org,
 )
 from app.api.public_api import PUBLIC
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.organization import (
@@ -193,6 +194,25 @@ async def received_invitations(service: InvitationSvc, user: CurrentUser) -> Any
     expired invitations and existing memberships are excluded; bearer tokens never leave the server.
     """
     return await service.received(user.id)
+
+
+@token_router.get("/invitations/received/{invitation_id}/avatar", response_model=None)
+async def received_invitation_avatar(
+    invitation_id: UUID, service: InvitationSvc, user: CurrentUser
+) -> Any:
+    """Preview an organization's logo through a live invitation to the current account.
+
+    No membership is needed. Expired, revoked and other recipients' invitations return 404.
+    """
+    path = await service.received_avatar(invitation_id, user.id)
+    response = await stored_image_response(
+        path, headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"}
+    )
+    if response is None:
+        raise NotFoundError(
+            message="Invitation avatar not found", details={"invitation_id": invitation_id}
+        )
+    return response
 
 
 @token_router.post(

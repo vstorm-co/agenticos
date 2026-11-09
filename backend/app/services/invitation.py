@@ -14,7 +14,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import Perm, assignable_roles, role_has
-from app.db.models.organization import Invitation, InvitationStatus
+from app.db.models.organization import Invitation, InvitationStatus, Organization
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
 from app.schemas.organization import ReceivedInvitation
 from app.services.deployment_settings import DeploymentSettingsService
@@ -30,20 +30,35 @@ class InvitationService:
         self.db = db
 
     async def received(self, user_id: UUID) -> list[ReceivedInvitation]:
-        person = await user_repo.get_by_id(self.db, user_id)
-        if person is None:
-            raise NotFoundError(message="User not found", details={"user_id": user_id})
-        rows = await invitation_repo.received(self.db, email=person.email, user_id=user_id)
+        rows = await self._received_rows(user_id)
         return [
             ReceivedInvitation(
                 id=invite.id,
                 organization_id=organization.id,
                 organization_name=organization.name,
+                organization_has_avatar=bool(organization.avatar_url),
+                organization_avatar_color=organization.avatar_color,
                 role=invite.role,
                 expires_at=invite.expires_at,
             )
             for invite, organization in rows
         ]
+
+    async def _received_rows(self, user_id: UUID) -> list[tuple[Invitation, Organization]]:
+        person = await user_repo.get_by_id(self.db, user_id)
+        if person is None:
+            raise NotFoundError(message="User not found", details={"user_id": user_id})
+        return await invitation_repo.received(self.db, email=person.email, user_id=user_id)
+
+    async def received_avatar(self, invitation_id: UUID, user_id: UUID) -> str:
+        """An active addressed invitation grants its recipient a preview of the org logo."""
+        rows = await self._received_rows(user_id)
+        for invite, organization in rows:
+            if invite.id == invitation_id and organization.avatar_url:
+                return organization.avatar_url
+        raise NotFoundError(
+            message="Invitation avatar not found", details={"invitation_id": invitation_id}
+        )
 
     async def accept_received(self, invitation_id: UUID, user_id: UUID) -> Invitation:
         person = await user_repo.get_by_id(self.db, user_id)

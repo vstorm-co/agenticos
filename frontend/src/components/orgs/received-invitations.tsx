@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
+import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { pageOf } from "@/lib/assistant-bubbles";
 import { useChanged } from "@/hooks/use-changed";
@@ -86,12 +87,15 @@ export function ReceivedInvitations() {
                 key={invite.id}
                 className="border-border flex flex-wrap items-center gap-4 rounded-2xl border p-4"
               >
-                <div
-                  className="bg-muted flex size-11 shrink-0 items-center justify-center rounded-xl font-semibold"
-                  aria-hidden
-                >
-                  {invite.organization_name.slice(0, 2).toUpperCase()}
-                </div>
+                <EntityAvatar
+                  seed={invite.organization_id}
+                  name={invite.organization_name}
+                  imageSrc={`/api/invitations/received/${encodeURIComponent(invite.id)}/avatar`}
+                  hasImage={invite.organization_has_avatar}
+                  colorSlot={invite.organization_avatar_color}
+                  className="size-11 shrink-0"
+                  ariaHidden
+                />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium break-words">{invite.organization_name}</p>
                   <p className="text-muted-foreground text-sm">

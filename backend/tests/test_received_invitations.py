@@ -30,7 +30,19 @@ def received(monkeypatch):
     monkeypatch.setattr(
         module.invitation_repo,
         "received",
-        AsyncMock(return_value=[(invite, SimpleNamespace(id=invite.organization_id, name="Acme"))]),
+        AsyncMock(
+            return_value=[
+                (
+                    invite,
+                    SimpleNamespace(
+                        id=invite.organization_id,
+                        name="Acme",
+                        avatar_url="avatars/acme.png",
+                        avatar_color=3,
+                    ),
+                )
+            ]
+        ),
     )
     service = InvitationService(MagicMock())
     service.accept = AsyncMock(return_value=invite)
@@ -43,6 +55,9 @@ async def test_received_list_uses_current_account_email_and_never_exposes_token(
     module.invitation_repo.received.assert_awaited_once_with(
         service.db, email=person.email, user_id=person.id
     )
+    assert rows[0].organization_has_avatar is True
+    assert rows[0].organization_avatar_color == 3
+    assert "avatars/acme.png" not in rows[0].model_dump_json()
     assert rows[0].organization_name == "Acme"
     assert rows[0].id == invite.id
     assert "token" not in rows[0].model_dump_json()
@@ -101,3 +116,33 @@ async def test_received_repository_normalizes_address_and_keeps_account_scope():
     assert "invitee@example.com" in compiled.params.values()
     assert user_id in compiled.params.values()
     assert "organization_members" in str(compiled)
+    assert "invitations.expires_at >" in str(compiled)
+    assert "invitations.status =" in str(compiled)
+    assert "pending" in compiled.params.values()
+
+
+async def test_recipient_can_preview_logo_without_membership(received):
+    person, invite, service = received
+    assert await service.received_avatar(invite.id, person.id) == "avatars/acme.png"
+    module.invitation_repo.received.assert_awaited_once_with(
+        service.db, email=person.email, user_id=person.id
+    )
+
+
+@pytest.mark.parametrize(
+    "case", ["unavailable_invitation", "other_invitation", "no_logo", "missing_user"]
+)
+async def test_logo_preview_requires_a_live_addressed_invitation(received, case):
+    person, invite, service = received
+    if case == "unavailable_invitation":
+        module.invitation_repo.received.return_value = []
+    elif case == "other_invitation":
+        invite.id = uuid4()
+    elif case == "no_logo":
+        module.invitation_repo.received.return_value[0][1].avatar_url = None
+    elif case == "missing_user":
+        module.user_repo.get_by_id.return_value = None
+    with pytest.raises(NotFoundError):
+        await service.received_avatar(
+            uuid4() if case == "other_invitation" else invite.id, person.id
+        )

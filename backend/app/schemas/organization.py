@@ -436,5 +436,7 @@ class ReceivedInvitation(BaseSchema):
     id: UUID
     organization_id: UUID
     organization_name: str
+    organization_has_avatar: bool = False
+    organization_avatar_color: int | None = None
     role: str
     expires_at: datetime

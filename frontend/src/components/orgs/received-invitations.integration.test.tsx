@@ -12,6 +12,24 @@ const env = vi.hoisted(() => ({
   setOrg: vi.fn(),
   items: [] as ReceivedInvitation[],
 }));
+vi.mock("@/components/ui/entity-avatar", () => ({
+  EntityAvatar: ({
+    imageSrc,
+    hasImage,
+    colorSlot,
+  }: {
+    imageSrc: string;
+    hasImage: boolean;
+    colorSlot: number | null;
+  }) => (
+    <span
+      data-testid="organization-avatar"
+      data-src={imageSrc}
+      data-has-image={String(hasImage)}
+      data-color={colorSlot}
+    />
+  ),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => env.path,
   useRouter: () => ({ push: env.push }),
@@ -46,6 +64,8 @@ beforeEach(() => {
       id: "invite",
       organization_id: "company",
       organization_name: "Northwind",
+      organization_has_avatar: true,
+      organization_avatar_color: 3,
       role: "member",
       expires_at: "2026-12-01T00:00:00Z",
     },
@@ -93,6 +113,8 @@ it("offers all invitations and joins only the selected one", async () => {
     id: "second",
     organization_id: "other",
     organization_name: "Acme",
+    organization_has_avatar: false,
+    organization_avatar_color: null,
   });
   mount();
   const buttons = await screen.findAllByRole("button", { name: "Join workspace" });
@@ -141,4 +163,12 @@ it("closes with the dialog control while keeping the invitation available", asyn
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Invitations (1)" })).toBeVisible();
   expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("uses the invitation logo endpoint and the organization's fallback color", async () => {
+  mount();
+  const avatar = await screen.findByTestId("organization-avatar");
+  expect(avatar).toHaveAttribute("data-src", "/api/invitations/received/invite/avatar");
+  expect(avatar).toHaveAttribute("data-has-image", "true");
+  expect(avatar).toHaveAttribute("data-color", "3");
 });
