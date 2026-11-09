@@ -119,7 +119,7 @@ async def test_claiming_a_deleted_personal_name_does_not_publish_its_rowless_leg
             await connection.execute(text(f"DROP TABLE IF EXISTS {table}"))
 
 
-@pytest.mark.parametrize("origin", [None, "legacy_unknown", "document", "operator"])
+@pytest.mark.parametrize("origin", [None, "legacy_unknown", "document", "operator", "sql_null"])
 async def test_operator_confirmation_never_promotes_a_known_document(
     engine: AsyncEngine, origin: str | None
 ) -> None:
@@ -161,7 +161,10 @@ async def test_operator_confirmation_never_promotes_a_known_document(
                         f"INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata) "  # noqa: S608 - validated name
                         "VALUES (:parent, :parent, 'test', '[0.1,0.2,0.3]'::vector, CAST(:meta AS jsonb))"
                     ),
-                    {"parent": parent, "meta": json.dumps(metadata)},
+                    {
+                        "parent": parent,
+                        "meta": None if origin == "sql_null" else json.dumps(metadata),
+                    },
                 )
             await session.commit()
             known_id, unknown_id = known.id, unknown.id
@@ -171,7 +174,9 @@ async def test_operator_confirmation_never_promotes_a_known_document(
             assert before.tracked_document == 1
             assert before.tracked_legacy_unknown == 1
             assert before.tracked_confirmable == 1
-            assert before.confirmable == (2 if origin in (None, "legacy_unknown") else 0)
+            assert before.confirmable == (
+                2 if origin in (None, "legacy_unknown", "sql_null") else 0
+            )
             assert await service.confirm_operator_unfiled(collection) == before.confirmable
             await session.commit()
         async with factory() as session:
@@ -336,6 +341,7 @@ async def test_migration_quarantines_old_tags_and_retains_certain_document_owner
             base_id = base.id
             for parent, kb_id, user_id in (
                 ("private", base.id, None),
+                ("null-private", base.id, None),
                 ("upload", None, owner.id),
                 ("unknown", None, None),
             ):
@@ -349,13 +355,25 @@ async def test_migration_quarantines_old_tags_and_retains_certain_document_owner
                         initiated_by_user_id=user_id,
                     )
                 )
-            for parent in ("private", "upload", "unknown", "rowless"):
+            for parent in (
+                "private",
+                "upload",
+                "unknown",
+                "rowless",
+                "null-private",
+                "null-rowless",
+            ):
                 await session.execute(
                     text(
                         f"INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata) "  # noqa: S608 - validated name
-                        "VALUES (:parent, :parent, 'test', '[0.1,0.2,0.3]'::vector, '{\"writer_kind\":\"operator\"}'::jsonb)"
+                        "VALUES (:parent, :parent, 'test', '[0.1,0.2,0.3]'::vector, CAST(:metadata AS jsonb))"
                     ),
-                    {"parent": parent},
+                    {
+                        "parent": parent,
+                        "metadata": None
+                        if parent.startswith("null-")
+                        else '{"writer_kind":"operator"}',
+                    },
                 )
             await session.commit()
         async with engine.begin() as connection:
@@ -370,6 +388,11 @@ async def test_migration_quarantines_old_tags_and_retains_certain_document_owner
                 "writer_kind": "document",
                 "knowledge_base_id": str(base_id),
             }
+            assert metadata["null-private"] == {
+                "writer_kind": "document",
+                "knowledge_base_id": str(base_id),
+            }
+            assert metadata["null-rowless"] == {"writer_kind": "legacy_unknown"}
             assert metadata["upload"] == {"writer_kind": "document"}
             assert metadata["unknown"] == {"writer_kind": "legacy_unknown"}
             assert metadata["rowless"] == {"writer_kind": "legacy_unknown"}
@@ -385,6 +408,7 @@ async def test_migration_quarantines_old_tags_and_retains_certain_document_owner
             )
             assert kinds == {
                 "private": "document",
+                "null-private": "document",
                 "upload": "document",
                 "unknown": "legacy_unknown",
             }

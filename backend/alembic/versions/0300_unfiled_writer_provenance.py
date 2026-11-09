@@ -47,7 +47,7 @@ def upgrade() -> None:
               AND c.udt_name = 'vector' AND c.table_name LIKE 'rag\\_%' ESCAPE '\\'
           LOOP
             EXECUTE format(
-              'UPDATE public.%I SET metadata = jsonb_set(metadata, ''{writer_kind}'', ''"legacy_unknown"''::jsonb)
+              'UPDATE public.%I SET metadata = jsonb_set(coalesce(metadata, ''{}''::jsonb), ''{writer_kind}'', ''"legacy_unknown"''::jsonb)
                WHERE metadata->>''knowledge_base_id'' IS NULL', target.table_name);
             EXECUTE format(
               'UPDATE public.%I AS chunks

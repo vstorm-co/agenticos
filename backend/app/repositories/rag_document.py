@@ -1135,7 +1135,7 @@ async def confirm_operator_unfiled(db: AsyncSession, collection_name: str) -> in
             text(
                 f"""WITH confirmed AS (
                     UPDATE public.{name} AS chunks
-                    SET metadata = jsonb_set(metadata, '{{writer_kind}}', '"operator"'::jsonb)
+                    SET metadata = jsonb_set(coalesce(metadata, '{{}}'::jsonb), '{{writer_kind}}', '"operator"'::jsonb)
                     WHERE {_CONFIRMABLE_UNFILED} RETURNING 1
                 ) SELECT count(*) FROM confirmed"""  # noqa: S608 - validated identifier
             ),
