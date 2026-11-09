@@ -1,0 +1,163 @@
+.reply {
+  max-width: 640px;
+  container: model-setup / inline-size;
+}
+
+.card {
+  overflow: hidden;
+  border: 1px solid
+    color-mix(in srgb, var(--color-table-purple-foreground) 35%, var(--color-border));
+  border-radius: 18px;
+  background: var(--color-card);
+}
+.artwork {
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: #6d46d7;
+}
+.key {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  color: #5934b7;
+  background: #faf7ff;
+  box-shadow: 0 5px 0 #4f29ae;
+  transform: rotate(-6deg);
+}
+.body {
+  padding: 24px;
+}
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-table-purple-foreground);
+  margin-bottom: 8px;
+}
+.body h3 {
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.body > p:not(.label) {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-muted-foreground);
+}
+.steps {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 24px;
+  font-size: 13px;
+}
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.steps span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--color-table-purple-foreground);
+  background: var(--color-table-purple);
+  font-size: 11px;
+}
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  border-radius: 9px;
+  padding: 11px 16px;
+  color: #fff;
+  background: #7650c7;
+  font-size: 13px;
+  font-weight: 500;
+}
+.action:hover {
+  background: #6743b7;
+}
+.action:focus-visible,
+.ownerLink:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 3px;
+}
+.body .notice {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+}
+.notice svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.owner {
+  border-radius: 10px;
+  background: var(--color-muted);
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.ownerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@container model-setup (max-width: 480px) {
+  .artwork {
+    height: 76px;
+    gap: 12px;
+  }
+  .key {
+    width: 44px;
+    height: 44px;
+  }
+  .artwork > div {
+    transform: scale(0.8);
+  }
+  .body {
+    padding: 18px;
+  }
+  .body h3 {
+    font-size: 20px;
+  }
+  .steps {
+    gap: 8px;
+    margin: 14px 0 18px;
+  }
+  .body .notice {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+}
+@media (max-width: 640px) {
+  .body {
+    padding: 18px;
+  }
+  .artwork {
+    gap: 10px;
+  }
+  .artwork > div {
+    transform: scale(0.85);
+  }
+  .action {
+    width: 100%;
+  }
+}

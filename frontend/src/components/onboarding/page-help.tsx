@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -13,6 +14,7 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
 export function PageHelp({ description }: { description?: ReactNode }) {
   const pathname = usePathname();
   const t = useTranslations("onboarding");
+  const start = useTranslations("start");
   const openPage = useOnboardingStore((state) => state.openPage);
   const hasTour = pageHasSteps(stripLocale(pathname ?? "/"));
   if (!description && !hasTour) return null;
@@ -25,6 +27,11 @@ export function PageHelp({ description }: { description?: ReactNode }) {
       }
     >
       {description}
+      <p className="mt-2">
+        <Link href="/onboarding" className="underline underline-offset-4">
+          {start("openStart")}
+        </Link>
+      </p>
     </ContextHelp>
   );
 }

@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
+import { ReceivedInvitations } from "@/components/orgs/received-invitations";
 import { CookieBanner } from "@/components/legal/cookie-banner";
 import { locales, type Locale } from "@/i18n";
 import { OG_LOCALE, SITE, siteOrigin } from "@/lib/seo";
@@ -64,6 +65,7 @@ export default async function LocaleLayout({
         </a>
         {children}
         <DesktopAccessBridge />
+        <ReceivedInvitations />
         <CookieBanner />
       </NextIntlClientProvider>
     </Providers>

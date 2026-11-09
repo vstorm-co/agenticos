@@ -26,6 +26,7 @@ from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_connected_accounts
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import org_connected_accounts
+from app.api.routes.v1 import me_onboarding
 from app.api.routes.v1 import me_suggestions
 from app.api.routes.v1 import me_watches
 from app.api.routes.v1 import org_mcp_connections
@@ -326,3 +327,5 @@ v1_router.include_router(phone.router, prefix="/phone", tags=["voice"])
 v1_router.include_router(
     coding_accounts.router, prefix="/coding-accounts", tags=["coding-accounts"]
 )
+
+v1_router.include_router(me_onboarding.router, prefix="/me/onboarding", tags=["me:onboarding"])

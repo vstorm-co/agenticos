@@ -139,6 +139,7 @@ const TYPING_SHOWN_MS = 6000;
 
 /** What a running turn streams - drawn only into a turn this tab writes or follows. */
 const TURN_FRAMES: ReadonlySet<string> = new Set([
+  "model_setup_required",
   "model_request_start",
   "part_start",
   "tool_call_delta",
@@ -950,6 +951,33 @@ export function useChat(options: UseChatOptions = {}) {
           // Whichever branch renamed the bubble, the row exists now - and with
           // it the only record of which agent answered here.
           onTurnSaved?.();
+          break;
+        }
+
+        case "model_setup_required": {
+          const data = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("agent_id" in data) ||
+            !("text" in data) ||
+            typeof data.agent_id !== "string" ||
+            typeof data.text !== "string"
+          )
+            break;
+          const agentId = data.agent_id;
+          const text = data.text;
+          turnAgentIdRef.current = agentId;
+          const id = createNewMessage(text);
+          updateMessage(id, (message) => ({
+            ...message,
+            parts: [
+              { id: `${id}-text`, type: "text", content: text },
+              { id: `${id}-setup`, type: "model_setup", setupAgentId: agentId },
+            ],
+            animateSetupReply: true,
+            isStreaming: false,
+          }));
           break;
         }
 
@@ -1780,6 +1808,7 @@ export function useChat(options: UseChatOptions = {}) {
       processingRef.current = true;
       const payload: Record<string, unknown> = {
         message: content,
+        allow_setup_reply: true,
         client_message_id: userMessageId,
         conversation_id: conversationId || null,
       };
@@ -1855,12 +1884,9 @@ export function useChat(options: UseChatOptions = {}) {
         if (test.draft) payload.draft = true;
         else if (test.environmentId) payload.environment_id = test.environmentId;
       }
-      // Ordinary queued messages follow the picker at send time. A computer
-      // access continuation instead stays with the agent that requested it.
-      // The picker keeps a published agent selected
-      // whenever the organization has one, so a frame without an `agent_id`
-      // only happens when nothing is published at all - and the backend
-      // refuses it with the message that says to publish one.
+      // Ordinary queued messages follow the picker at send time, including the
+      // trusted setup-only starter. Computer access continuations stay with the
+      // agent that requested access; the server checks execution or setup access.
       const agentId =
         agentOverride === undefined ? selectionApi.getState().selectedAgentId : agentOverride;
       if (agentId) payload.agent_id = agentId;

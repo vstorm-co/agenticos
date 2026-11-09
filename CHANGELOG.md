@@ -33,6 +33,84 @@ Two things are versioned separately from this file and worth knowing about:
 - MCP schema checks run in isolated processes with bounded concurrency and a deadline,
   so server-controlled regular expressions cannot block the application's event loop.
 
+## [1.61.0] - 2026-11-09
+
+### Added
+
+- A shared first-task hub for web, invitations and desktop, with editable fictional
+  examples, clearly labelled demonstrations without a model, membership-scoped
+  goals and real completed-chat progress. Authorized builders can explicitly
+  prepare a text-only starter without a sandbox.
+
+### Changed
+
+- Require session-bound mailbox proof for received invitations and their logos, paginate older offers, preserve onboarding position across language changes, and use the server clock for snooze expiry. Reject a zero monthly budget before submission.
+
+- Let members enter the trusted AgenticOS setup chat from onboarding without requiring model-management permissions or treating a draft as a runnable agent.
+- Default new maps to bundled SVG country outlines and routes without tile-server setup; keep optional street-map configuration and hide its unconfigured dashboard check.
+- Preserve focus outlines in onboarding profile cards and spacing below form labels.
+- Show organization logos and fallback colors in received invitations before joining.
+- Align chat activity rails and keep them outside expanded tool details.
+- Reveal new AgenticOS and Architect setup replies progressively before showing the model setup card.
+- Select and display onboarding monthly budgets in whole dollars.
+- Show optional deployment settings as cards with immediately visible links.
+- Prefill the onboarding welcome announcement with an editable message and live preview.
+- Place optional onboarding skip actions beside Save and continue in profile cards.
+
+- Match onboarding loading states to workspace cards, profile forms, guided settings, budgets and the first-task canvas.
+
+- Simplify the onboarding budget step to presets and a slider, without a separate numeric input.
+
+- Show pending email invitations after sign-in, with explicit acceptance and organization welcome without needing the emailed link.
+
+- Give Architect the shared model-setup card and a normal chat before model setup, including persisted setup replies in its widget and full chat.
+
+- Guide setup through one decision at a time with a scripted AgenticOS companion,
+  a monthly-budget slider and announcement previews. Separate administrator, new
+  member and returning-member journeys; keep operational credentials optional.
+  Respect legacy completion for existing memberships without hiding a later join.
+
+- Select the shipped AgenticOS before publication and answer first-use chat messages
+  with a persistent model-setup card. Guide builders to configuration and members
+  to their administrator without executing a draft or charging a model call.
+
+- Snooze dismissed start offers for 24 hours. Record walkthrough completion
+  separately after the final step, without requiring optional settings or an AI run.
+
+- Make product tours opt-in, continue accepted invitations into the joined
+  workspace's start, and sign in new password accounts without repeating the login
+  form when possible. Keep the invitation destination if sign-in needs a retry.
+- Localize native desktop setup in English, Polish, German and Turkish, reduce
+  required workspace fields, and keep system permissions optional. Explain local
+  data versus remote AI processing and warn about loopback invitation links.
+- Start administrator onboarding with company workspace creation and immediate
+  team invitations, followed by the existing deployment and organization settings
+  forms. A sequential wizard replaces the settings sidebar, with separate company
+  logo, user identity and agent-context questions, Back and save-and-continue actions.
+  Use actual workspace avatars, equal-height adjacent cards, directional transitions
+  and transient field highlights that respect Motion preferences. Give the chat
+  start notice role-aware guidance, blobby, a clear primary action and a dismiss
+  control that fits desktop and phone layouts. Float it over the desktop console
+  with a translucent surface, preserving both sidebars at full viewport height. Keep personal workspaces optional and enforce
+  effective permissions.
+- Give onboarding the console's controls, animated blobby and violet workspace
+  preview that follows the entered name. Present member examples in a split view
+  with source and result tabs; motion respects reduced-motion preferences.
+
+### Fixed
+
+- Recognize existing agents and personal chat activity, including legacy and
+  failed chats, so automatic welcome links and start offers do not repeat setup.
+  Keep manually opened setup available without resetting existing data.
+- Keep example navigation on the start page and AI setup in a dismissible dialog
+  with Escape support and focus restoration. Separate demonstration material
+  from its recorded result.
+- Keep recorded examples available while a preference save is pending or fails,
+  restore keyboard focus on return, and avoid late chat navigation after leaving
+  the start. Scope pending start operations to their initiating membership.
+- Reserve the dashboard start panel during loading and offer an explicit retry
+  after failed checks, without shifting the adjacent briefing on successful load.
+
 ## [1.60.3] - 2026-11-09
 
 ### Fixed
@@ -20756,7 +20834,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...HEAD
+[1.61.0]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...v1.61.0
 [1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
 [1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
 [1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1

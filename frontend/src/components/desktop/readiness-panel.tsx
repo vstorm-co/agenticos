@@ -56,6 +56,7 @@ export function ReadinessPanel({ repair }: { repair?: string | null }) {
 function ReadyItems({ repair }: { repair?: string | null }) {
   const t = useTranslations("desktop.readiness");
   const setup = useDesktopSetup();
+  const start = useTranslations("start");
   const router = useRouter();
   const retryScreenshot = useMutation({
     mutationFn: retryDesktopScreenshot,
@@ -72,6 +73,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
           <RefreshCw className="size-4" />
         </Button>
       </div>
+      <p className="text-muted-foreground text-sm">{start("optionalHint")}</p>
       <ul className="divide-border divide-y rounded-xl border px-4">
         {setup.items.map((item) => {
           const Icon = ITEM_ICONS[item.key];

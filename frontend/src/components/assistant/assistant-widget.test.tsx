@@ -33,6 +33,13 @@ const state = vi.hoisted(() => ({
   phone: false,
 }));
 
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ isLoaded: true, can: () => true }),
+}));
+vi.mock("@/hooks/use-start", () => ({
+  useStart: () => ({ data: { support_email: "owner@example.com" } }),
+}));
+
 const CONSOLE_LINK = "/agents?highlight=agents-new";
 
 // The chat itself is the console's own and tested where it lives; here it is
@@ -213,6 +220,7 @@ describe("the Architect widget", () => {
     state.assistant = assistant({ status: "needs_model" });
     render(<AssistantWidget />);
 
+    lookAtThePage();
     expect(screen.getByText(/I'm not connected to a model yet/)).toBeInTheDocument();
   });
 
@@ -692,4 +700,37 @@ describe("the Architect widget", () => {
 
     expect(dialog).toHaveClass("hidden");
   });
+});
+
+it("opens the real chat and shared model card before Architect has a model", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: true });
+  render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  expect(chat()).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Connect my AI model" })).toHaveAttribute(
+    "href",
+    "/agents/a1?highlight=agent-model-picker",
+  );
+  expect(screen.queryByText("Architect is typing…")).not.toBeInTheDocument();
+});
+
+it("keeps the setup chat open when Architect becomes ready", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: true });
+  const view = render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  state.assistant = assistant();
+  view.rerender(<AssistantWidget />);
+  expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+  expect(screen.queryByRole("link", { name: "Connect my AI model" })).not.toBeInTheDocument();
+});
+
+it("offers members administrator guidance in the unconfigured Architect chat", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: false });
+  render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  expect(screen.queryByRole("link", { name: "Connect my AI model" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Contact your administrator" })).toHaveAttribute(
+    "href",
+    "mailto:owner@example.com",
+  );
 });

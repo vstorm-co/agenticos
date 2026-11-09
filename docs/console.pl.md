@@ -1,5 +1,5 @@
 ---
-source_sha: "c7783da0b195"
+source_sha: "0fcfc92c2340"
 ---
 
 # Konsola { #the-console }
@@ -13,7 +13,7 @@ odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?"
 nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
 ustawieniach czatu, pod suwakami obok mikrofonu.
 
-Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów. Get started rezerwuje miejsce podczas pobierania checklisty, aby Briefing i karty poniżej nie przeskakiwały.
+Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
 Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
@@ -339,11 +339,7 @@ usunięcie poprosisz. Oprócz
 akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
 udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
-Dopóki organizacja nie ma modelu, nie potrafi odpowiadać. Otwarty wtedy wypisuje
-krótką rozmowę o tym, jak go podpiąć: zdobądź klucz API od dostawcy, otwórz
-Architekta w Agent Builderze, w sekcji **Model** wybierz dostawcę i wklej klucz, a
-potem wybierz model. Przycisk dostaje tylko ktoś, kto może zmieniać ustawienia
-organizacji; pozostali dowiadują się, kto może to zrobić.
+Przed podłączeniem modelu Architect otwiera ten sam czat z graficzną kartą konfiguracji, krótką listą kroków i przyciskiem ustawień modelu. Możesz napisać wiadomość w widżecie lub wybrać szkic Architecta w czacie: zapisze odpowiedź konfiguracyjną i kartę w historii, bez wywołania modelu i bez runu AI. Odpowiedź używa nazwy wybranego agenta. Przyciski konfiguracji respektują uprawnienia; pozostali członkowie widzą wskazówkę do administratora. Po publikacji zwykła rozmowa jest dostępna bez zamykania widżetu.
 
 Architekt jest agentem jak każdy inny, więc jego nazwę, model, wiedzę i resztę
 spec edytuje się w Agent Builderze - może to zrobić ktoś, kto zmienia ustawienia
@@ -885,6 +881,10 @@ avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
 Szczegóły organizacji mają pięć zakładek: **Członkowie** obejmują osoby i zaproszenia; **Organizacja** — profil i domyślne ustawienia głosu; **Budżet i zgody** — wydatki i zasady dostępu; **Proaktywność** — sugestie, monitoring i dostarczanie wyników; **AI i usługi** — Architecta i usługi systemowe. Każdy formularz zachowuje własne wymagania uprawnień. AI i usługi jest dostępne dla zarządzających budżetem także bez prawa konfiguracji Architecta. Wybrana zakładka jest zapisywana w URL, przełączanie zachowuje wersje robocze, a dawne linki `?tab=voice` otwierają Organizację.
 
+Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
+
+Skrzynka wymaga potwierdzenia adresu w bieżącej sesji: świeżego logowania przez OAuth ze zweryfikowanym e-mailem lub linku do logowania wysłanego na konkretny adres. Sesje po zalogowaniu hasłem i starsze sesje widzą **Sprawdź zaproszenia**, skąd mogą poprosić o ten link; oryginalny link zaproszenia nadal działa. Potwierdzenie nie przechodzi do innej sesji ani na zmieniony adres. Lista ma stronicowanie przez **Pokaż kolejne zaproszenia**, a dostęp do logo sprawdza konkretne zaproszenie niezależnie od strony listy.
+
 Bursztynowe kropki oznaczają zakładki organizacji i odpowiadające im karty głosu, nocnych sugestii, utrzymania pamięci oraz Architecta, gdy brakuje konfiguracji lub sugestie są wyłączone. Najedź na kropkę lub ustaw na niej fokus, aby przeczytać wyjaśnienie; kliknij lub dotknij, aby je otworzyć. Wskaźniki korzystają z zapisanych ustawień, znikają po uzupełnieniu konfiguracji i respektują uprawnienia do jej zmiany. Wyłączone sugestie są opcją do uruchomienia, a nie błędem. Karta powiadomień iPhone oznacza też brak klucza Apple. Ograniczenie ruchu wyłącza pulsowanie.
 
 Zapisane logowania do stron mają zwarty panel ustawień na pełną szerokość, zamiast rozciągać jeden wpis na całą stronę. Znane usługi pokazują wbudowane logo marki; pozostałe strony korzystają z własnej favicony bez przesyłania odsyłacza, a gdy obraz jest niedostępny — z ikony globu.
@@ -959,3 +959,90 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 
 **Chat controls → Tools & files** pokazuje konto coding, którego agent potrzebuje, gdy jego Coding agent działa jako **Private cloud task with my account**: tylko ten harness, z logotypem i stanem zgody. Możesz je podłączyć lub nim zarządzać bez wychodzenia z chatu; wszystkie konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.
+
+## Pierwsze zadanie { #your-first-task }
+
+W nowym workspace domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
+
+Gdy nie ma dostępnego opublikowanego agenta, onboarding pozwala też otworzyć rozmowę konfiguracyjną z dostępnym draftem dostarczonego AgenticOS. Członek organizacji nie potrzebuje do tego uprawnień do modeli; otrzymuje wskazówki konfiguracyjne, a nie wynik zadania AI. Niedostępne drafty pozostają zablokowane, a dostępny opublikowany agent ma pierwszeństwo.
+
+Zamknięcie banera startowego lub wybranie **Ukryj na 24 godziny** wycisza propozycję na 24
+godziny według czasu serwera. Potem może wrócić, jeśli konfiguracja nie została ukończona,
+a workspace nadal wymaga pierwszego startu. Po przejściu pytań **Zakończ konfigurację i
+otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia,
+model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne
+stany.
+
+Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
+strony. Na desktopie baner startowy czatu jest półprzezroczystą nakładką nad konsolą.
+Oba panele nawigacji zachowują pełną wysokość. Administratorowi proponuje konfigurację, a członkowi
+przykład; można go zamknąć. Przyjęte zaproszenie otwiera ten sam start w organizacji, do której
+właśnie dołączasz. Rejestracja próbuje od razu zalogować konto; gdy sesja się nie
+powiedzie, formularz logowania zachowuje cel i już utworzone konto.
+
+Start uwzględnia uprawnienia osoby i jej dotychczasową pracę:
+
+| Osoba | Prowadzony start |
+| --- | --- |
+| Administrator aplikacji | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
+| Administrator organizacji | Przygotowanie workspace’u i jego limitu wydatków, bez ustawień wdrożenia. |
+| Nowe konto członka | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie. |
+| Istniejące konto dołączające do kolejnej organizacji | Powitanie w tym workspace, użycie zapisanego profilu lub jego świadomy przegląd. |
+
+Przewodnik AgenticOS objaśnia każdą decyzję przygotowanymi wiadomościami interfejsu.
+Nie są odpowiedziami modelu i nie wywołują AI. Profil i kontekst pracy są wspólne dla
+workspace’ów konta. Dane opcjonalne można pominąć. **Zapisz i kontynuuj** prowadzi
+dalej po udanym zapisie; błąd zapisu pozostawia bieżące pytanie.
+
+Konfiguracja wdrożenia pyta o rejestrację, miejsce startu przyszłych kont i opcjonalny
+komunikat z podglądem. Wysyła tylko zmienione pola. **Zachowaj obecne ustawienia**
+odrzuca szkic tego pytania bez zapisu. Wybór firmy zachowuje skonfigurowaną rolę
+domyślną i nie przenosi istniejących kont. Wygląd aplikacji, głos, dane push iOS oraz
+konserwacja są opcjonalnymi kartami otwierającymi odpowiednią sekcję administratora
+w nowej karcie. Kreator nie włącza automatycznie konserwacji ani nie dodaje kluczy.
+
+Organizacja dostaje propozycje budżetu i suwak. Istniejący
+limit z częścią dziesiętną pozostaje zachowany. Brak limitu jest osobnym wyborem,
+a zero ostrzega o możliwej blokadzie runów. To limit rejestrowanego zużycia, nie
+abonament ani doładowanie. Zaawansowane zatwierdzenia, asystenci i głos pozostają
+zwinięte oraz zachowują swoje uprawnienia i sposób zapisu.
+
+Adres URL zachowuje krok, pytanie konfiguracji i workspace po odświeżeniu. Nie przechowuje
+niezapisanych zmian, nie nadaje dostępu i nie oznacza ukończenia. Zmiana organizacji
+lub odebranie uprawnień uniemożliwiają wznowienie uprzywilejowanego kroku. Zakończenie
+ostatniego etapu zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.
+
+Dawne ukończenie na koncie dotyczy członkostw istniejących do tego czasu. Późniejsze
+członkostwo ma osobny start. Własne rozmowy i ukończone przewodniki nadal chronią
+przed automatycznym powtarzaniem, a opublikowani agenci ukrywają zwykłe propozycje
+startu. Linki po rejestracji i przyjęciu zaproszenia pokazują powitanie osobie bez
+własnej aktywności lub ukończenia także w organizacji z gotowymi agentami. Starsze
+i nieudane rozmowy liczą się jako aktywność bez udawania udanego runu. Ręczny start
+i wznowienie pozostają dostępne. Zwykłe logowanie otwiera chat lub żądany odnośnik.
+
+Nazwa workspace aktualizuje oznaczony podgląd przed utworzeniem. Istniejące organizacje
+pokazują wgrane logo albo ustawiony awatar zastępczy. Sąsiednie karty na desktopie
+mają równą wysokość. Przejścia i podświetlenia pól respektują ustawienia ruchu. Członkowie wybierają
+zapisany przykład w widoku z osobnymi zakładkami odpowiedzi i materiału. Zmiana
+przykładu pozostawia podgląd na stronie. Konfiguracja AI otwiera zamykane okno
+z obsługą Escape i przywracaniem fokusu. Wybór przykładu nie wywołuje modelu.
+
+Wybierz fikcyjną notatkę, pytanie o politykę albo porównanie ofert. Przejrzyj lub
+zmień tekst przed **Uruchom zadanie**. Wykonanie korzysta z modelu agenta i zwykłych
+limitów wydatków; może wiązać się z opłatą dostawcy. Te przykłady tekstowe nie
+wymagają ekranu, mikrofonu, sandboxu ani zewnętrznego konta.
+
+Podgląd przykładu pozostaje dostępny bez agenta. Nie wywołuje
+modelu, nie przetwarza zmian i nie liczy się jako udane wykonanie. Uprawniony
+builder może przygotować wspólnego asystenta tekstowego na świadomie wybranym
+wspólnym modelu. Jego miesięczny limit to 5 USD w ramach budżetu przestrzeni.
+Przygotowanie nie zmienia szkicu istniejącego agenta; do jego zmiany służy
+Builder. Osoba bez tych praw widzi kontakt do właściciela.
+
+Wybór przykładu i pominięcie są zapisane na członkostwie, także dla innego
+urządzenia. Start prowadzi też do ostatniej zakończonej własnej rozmowy webowej.
+Zakończony run dowodzi wykonania, nie oceny przydatności. Wycieczki są opcjonalną
+pomocą; ich zamknięcie nie tworzy udanego wykonania. Integracje, pliki, budowanie
+agentów, zaproszenia i rutyny są opcjonalnymi kolejnymi krokami.
+
+Osoby zarządzające członkami mogą sprawdzić, czy wraz z wybranym członkiem mogą uruchomić wspólnego opublikowanego agenta. Podgląd zwraca tylko tę informację, bez nazw prywatnych agentów i bez wywołania modelu. Nie potwierdza dostępności dostawcy. Centrum startu blokuje zaproszenia z adresu lokalnego komputera; potrzebny jest adres serwera osiągalny dla odbiorcy.
