@@ -81,6 +81,14 @@ it("puts the two versions side by side on a wide screen, and back", async () => 
   );
 });
 
+it("offers no second view for a text with nothing to compare", () => {
+  wide.value = true;
+  render(<DiffView before={lines(10, "keep")} after={lines(10, "keep")} modes={false} />);
+  expect(screen.queryByRole("button", { name: "Side by side" })).toBeNull();
+  expect(screen.getByText(diffLine("keep 1")).closest("table")).not.toBeNull();
+  expect(screen.queryByRole("button", { name: /unchanged/ })).toBeNull();
+});
+
 it("marks a removed line with nothing to pair whole", () => {
   render(<DiffView before={"first\nsecond"} after="first edited" />);
   expect(screen.getByText(diffLine("second")).querySelector("del")).toBeNull();
