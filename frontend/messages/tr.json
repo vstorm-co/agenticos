@@ -1300,6 +1300,8 @@
     "menuOpenSettings": "Ayarları aç",
     "menuDuplicate": "Çoğalt",
     "menuPaste": "Yapıştır",
+    "pasteRefusedTrigger": "Trigger bir run başlatır, bu yüzden yalnızca en üst düzeye yapıştırılabilir.",
+    "pasteRefusedTooDeep": "Döngüler en fazla 3 düzey iç içe olabilir ve bu yapıştırma daha derine iner.",
     "triggerHintApi": "POST /api/v1/workflow-runs ile veya run WebSocket’i üzerinden başlatın. Trigger tüm isteği gösterir. Sonraki adımlar girdiyi payload olarak okur.",
     "validationLabelTaken": "Başka bir adımın adı zaten “{label}”.",
     "validationTriggerSwitchedOff": "Trigger kapatılamaz.",
