@@ -15042,7 +15042,8 @@
       "running": "W trakcie",
       "needs_you": "Wymaga decyzji",
       "skipped": "Pominięto",
-      "pending": "Jeszcze nie rozpoczęto"
+      "pending": "Jeszcze nie rozpoczęto",
+      "ended": "Zakończono bez zmian"
     },
     "paidRestartOwner": "Płatną pracę może wznowić tylko autor sesji, korzystając z pierwotnego konta i poświadczeń. Inni redaktorzy mogą przejrzeć wyniki lub uruchomić własną sesję.",
     "improveAgain": "Popraw ponownie",
@@ -15357,7 +15358,11 @@
       "updatePinned": "Zaktualizuj do v{version}",
       "catchUp": "Dogoń main w forku"
     },
-    "usedSkill": "Użył skilla {name}"
+    "usedSkill": "Użył skilla {name}",
+    "evidenceOnly": {
+      "body": "Każde pytanie tego datasetu pochodzi z rozmów, z których ta zmiana się uczyła, więc żadne nie może jej sprawdzić.",
+      "addQuestions": "Dodaj pytania z innych rozmów"
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",
@@ -15493,10 +15498,10 @@
       "limitHint": "Wypełniony na pierwszą propozycję i każdą próbę, jaką sesja może zrobić. Obniż go, żeby skończyć wcześniej; sesja zatrzymuje się przed krokiem, który by go przekroczył.",
       "unaffordable": "Budget organizacji tego nie pokrywa.",
       "start": "Zacznij",
-      "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, w których wczytano wersje tej linii, {agents, plural, one {od # agenta} few {od # agentów} many {od # agentów} other {od # agenta}}.",
+      "reads": "{runs, plural, one {Czyta # odpowiedź, która wczytała tę linię i została oceniona negatywnie albo się nie udała.} few {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.} many {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.} other {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.}} {agents, plural, one {Linia służy # agentowi.} few {Linia służy # agentom.} many {Linia służy # agentom.} other {Linia służy # agenta.}}",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest czytana.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są czytane.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.}}",
       "checkNamedLater": "Zanim zmiany zostaną sprawdzone, każdy agent, na którym ruszą, jest wymieniony, a ci, na których nie mogą, z powodem.",
-      "noEvidence": "Nie ma źle ocenionych ani nieudanych odpowiedzi, w których wczytano tę linię, więc na razie nie ma się z czego uczyć."
+      "noEvidence": "Żadna odpowiedź, która wczytała tę linię, nie została jeszcze oceniona negatywnie ani się nie udała, więc nie ma się z czego uczyć. Oceń negatywnie odpowiedź w czacie, w której agent użył tego skilla, i zacznij ponownie."
     },
     "understand": {
       "title": "Zrozumienie",
@@ -15629,6 +15634,17 @@
       "live": "Przeniesione i opublikowane: {names}.",
       "drafts": "{count, plural, one {Przeniesiony w drafcie, który czeka na publikację: {names}.} other {Przeniesione w draftach, które czekają na publikację: {names}.}}",
       "nobody": "Żaden agent nie został przeniesiony; przenieś agentów ze strony skilla."
+    },
+    "understandWorking": "Czytamy odpowiedzi, które wczytały ten skill i zostały ocenione negatywnie albo się nie udały, oraz to, na co w skillu wskazują…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "Doganianie main w forku {fork}",
+        "to_main": "Przeniesienie forka {fork} na main"
+      },
+      "plain": {
+        "catch_up": "Doganianie main",
+        "to_main": "Przeniesienie na main"
+      }
     }
   }
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -107,6 +107,8 @@ function serve() {
         owner_user_id: null,
       };
     if (path === "/skills/k1/improvements/s1") return state.session;
+    if (path === "/skills/k1/forks?archived=false")
+      return { items: [{ id: "f1", name: "returns" }], total: 1 };
     if (path === "/skills/k1/improvements/s1/merge")
       return { id: "m1", unresolved: state.unresolved, updated_at: "r1" };
     throw new ApiError(404, "None");
@@ -141,6 +143,24 @@ beforeEach(() => {
 });
 
 describe("a session merging a fork with main", () => {
+  it("names the merge and its fork in the title, not Improve", async () => {
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Catch returns up with main" }),
+    ).toBeVisible();
+
+    cleanup();
+    state.session = merging("to_main", { source_fork_id: "f1" });
+    mount();
+    expect(await screen.findByRole("heading", { name: "Move returns to main" })).toBeVisible();
+
+    cleanup();
+    mount({ sessionId: "new", forkId: "f1", merge: "catch_up" });
+    expect(
+      await screen.findByRole("heading", { name: "Catch returns up with main" }),
+    ).toBeVisible();
+  });
+
   it("starts a catch-up of the fork the address names", async () => {
     mount({ sessionId: "new", forkId: "f1", merge: "catch_up" });
     expect(await screen.findByText("start catch_up of f1")).toBeVisible();

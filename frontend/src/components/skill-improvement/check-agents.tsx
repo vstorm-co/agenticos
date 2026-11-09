@@ -10,22 +10,16 @@ import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, Input, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type {
-  AgentCheckState,
-  SkillCheck,
-  SkillCheckAgent,
-  UnknownReason,
-} from "@/types/skill-checks";
+import type { SkillCheck, SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
 import { AddTestQuestions } from "./add-test-questions";
-import { bucketOf, CheckSummary, FixBreakBar, type Bucket } from "./check-summary";
+import { bucketOf, CheckSummary, FixBreakBar, shownState, type Bucket } from "./check-summary";
 import { StageBreakdown } from "./stage-breakdown";
 
-const TONE: Record<AgentCheckState, Tone> = {
+const TONE: Record<ReturnType<typeof shownState>, Tone> = {
   queued: "neutral",
   running: "neutral",
   better: "good",
   no_change: "neutral",
-  within_noise: "warn",
   worse: "bad",
   unknown: "warn",
 };
@@ -282,7 +276,9 @@ function AgentRow({
               {t("seen")}
             </span>
           )}
-          <StateBadge tone={TONE[row.state]}>{t(`state.${row.state}`)}</StateBadge>
+          <StateBadge tone={TONE[shownState(row.state)]}>
+            {t(`state.${shownState(row.state)}`)}
+          </StateBadge>
           <ChevronDown
             aria-hidden
             className={cn(

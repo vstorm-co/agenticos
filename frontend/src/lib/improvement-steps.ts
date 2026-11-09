@@ -64,7 +64,17 @@ export function currentImprovementStep(session: Improvement): ImprovementStep {
   if (session.status === "accepted" || session.status === "published") return "accept";
   const stop = stopOf(session);
   if (stop) return stop;
-  if (!isActive(session)) return "result";
+  if (!isActive(session)) {
+    // An ended session that never checked an attempt has no result to open on.
+    if (
+      session.status === "rejected" &&
+      !session.iterations.some((round) => round.verdict !== null)
+    )
+      return isMerge(session) || session.iterations.some((round) => round.batch_id !== null)
+        ? "changes"
+        : "understand";
+    return "result";
+  }
   if (CHECKING.includes(session.stage ?? "")) return "check";
   if (PROPOSING.includes(session.stage ?? "") || isMerge(session)) return "changes";
   return "understand";
@@ -110,25 +120,23 @@ export function improvementSteps(
           ? "pending"
           : accepted
             ? "done"
-            : session.status === "rejected"
-              ? "skipped"
-              : active && PROPOSING.includes(stage)
-                ? "running"
-                : merge
-                  ? CHECKING.includes(stage) || session.iterations.some((round) => round.verdict)
-                    ? "done"
-                    : active
-                      ? "pending"
-                      : "skipped"
-                  : session.stop_reason === "knowledge_only"
-                    ? "needs_you"
-                    : active
-                      ? attempt?.batch_id
-                        ? "done"
-                        : "pending"
-                      : session.iterations.some((round) => round.batch_id !== null)
-                        ? "done"
-                        : "skipped",
+            : active && PROPOSING.includes(stage)
+              ? "running"
+              : merge
+                ? CHECKING.includes(stage) || session.iterations.some((round) => round.verdict)
+                  ? "done"
+                  : active
+                    ? "pending"
+                    : "skipped"
+                : session.stop_reason === "knowledge_only"
+                  ? "needs_you"
+                  : active
+                    ? attempt?.batch_id
+                      ? "done"
+                      : "pending"
+                    : session.iterations.some((round) => round.batch_id !== null)
+                      ? "done"
+                      : "skipped",
     check:
       active && CHECKING.includes(stage)
         ? "running"
@@ -139,11 +147,15 @@ export function improvementSteps(
             : "skipped",
     result: open
       ? "pending"
-      : decided || session.status === "ready"
+      : accepted || session.status === "ready"
         ? "done"
-        : session.stop_reason === "knowledge_only"
-          ? "skipped"
-          : "needs_you",
+        : session.status === "rejected"
+          ? session.iterations.some((round) => round.verdict !== null)
+            ? "done"
+            : "skipped"
+          : session.stop_reason === "knowledge_only"
+            ? "skipped"
+            : "needs_you",
     accept: accepted
       ? "done"
       : hasCandidate(session)

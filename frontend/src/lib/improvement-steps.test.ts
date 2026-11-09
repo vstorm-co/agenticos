@@ -89,12 +89,32 @@ it("leaves nothing waiting or running on a session that has ended", () => {
   }
 });
 
-it("shows a rejected proposal as skipped, not accepted", () => {
-  expect(improvementStepStates({ ...SESSION, status: "rejected" })).toMatchObject({
-    changes: "skipped",
-    accept: "skipped",
-    result: "done",
+it("opens an ended session on the last step it reached, never on a skipped one", () => {
+  const ended = (iterations: Improvement["iterations"]): Improvement => ({
+    ...SESSION,
+    status: "rejected",
+    iterations,
   });
+  const written = SESSION.iterations.map((round) => ({ ...round, verdict: null }));
+  for (const session of [ended(SESSION.iterations), ended(written), ended(unmeasured)]) {
+    const step = currentImprovementStep(session);
+    expect(isReachable(improvementSteps(session)[step])).toBe(true);
+  }
+  expect(currentImprovementStep(ended(written))).toBe("changes");
+  expect(currentImprovementStep(ended(unmeasured))).toBe("understand");
+});
+
+it("shows what an ended session wrote and checked as done, and only its decision as skipped", () => {
+  expect(improvementStepStates({ ...SESSION, status: "rejected" })).toEqual({
+    understand: "done",
+    changes: "done",
+    check: "done",
+    result: "done",
+    accept: "skipped",
+  });
+  expect(
+    improvementStepStates({ ...SESSION, status: "rejected", iterations: unmeasured }),
+  ).toMatchObject({ changes: "skipped", check: "skipped", result: "skipped", accept: "skipped" });
 });
 it.each(["failed", "cancelled", "stale"] as const)(
   "does not invent a baseline after %s unmeasured work",

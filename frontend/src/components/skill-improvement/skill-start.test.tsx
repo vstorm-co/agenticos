@@ -53,12 +53,12 @@ beforeEach(() => {
 });
 
 describe("SkillStart", () => {
-  it("says what it reads and from how many agents, before anything is spent", async () => {
+  it("says what it reads and how many agents the line serves, before anything is spent", async () => {
     mount();
 
     expect(
       await screen.findByText(
-        "It reads 12 answers where the line's versions were loaded, from 2 agents.",
+        "It reads 12 answers that loaded this line and were rated down or failed. The line serves 2 agents.",
       ),
     ).toBeVisible();
     expect(screen.getByText("1 more agent you can't see uses this line.")).toBeVisible();
@@ -131,15 +131,29 @@ describe("SkillStart", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
-  it("says when there is nothing to learn from yet", async () => {
+  it("says a single answer it reads in the singular", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ ...ESTIMATE, evidence_runs: 1, agents: 1 });
+    mount();
+
+    expect(
+      await screen.findByText(
+        "It reads 1 answer that loaded this line and was rated down or failed. The line serves 1 agent.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("holds the start up front when there is nothing to learn from, and says how to give some", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       ...ESTIMATE,
-      affordable: false,
+      evidence_runs: 0,
       reason: "no_evidence",
     });
     mount();
 
-    expect(await screen.findByText(/nothing to learn from yet/)).toBeVisible();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again.",
+    );
+    expect(screen.queryByText(/It reads/)).toBeNull();
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   });
 
@@ -158,6 +172,26 @@ describe("SkillStart", () => {
     mount();
 
     expect(await screen.findByText("No agents")).toBeInTheDocument();
+  });
+
+  it("sends a line whose test questions all come from the evidence to add others", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "Every case was taken from the conversations", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Every case was taken from the conversations",
+          details: { dataset_id: "d7", excluded: 3, reason: "all_cases_are_evidence" },
+        },
+      }),
+    );
+    mount();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Add questions from other conversations" }),
+    ).toHaveAttribute("href", "/datasets/d7");
   });
 
   it("says what refused the start, and stays", async () => {

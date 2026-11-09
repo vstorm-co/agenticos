@@ -407,6 +407,41 @@ class TestTheConflicts:
 
 
 class TestACatchUp:
+    async def test_a_limit_too_small_for_the_check_is_raised_at_its_quote(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx)
+        run.budget_usd = Decimal("0.01")
+        await db.flush()
+        service = SkillImprovementService(db)
+
+        short = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
+        lower = await service.estimate_continuation(
+            ctx, skill.id, run.id, SkillContinue(budget_usd=Decimal("0.005"))
+        )
+        raised = await service.estimate_continuation(
+            ctx, skill.id, run.id, SkillContinue(budget_usd=Decimal("1"))
+        )
+        await service.continue_run(
+            ctx,
+            skill.id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=raised.total_usd,
+                candidate_hash=raised.candidate_hash,
+                budget_usd=raised.budget_usd,
+            ),
+        )
+        await db.refresh(run)
+
+        assert (short.affordable, short.budget_usd) == (False, Decimal("0.01"))
+        assert (lower.affordable, lower.budget_usd) == (False, Decimal("0.01"))
+        assert (raised.affordable, raised.budget_usd) == (True, Decimal("1"))
+        assert (run.status, run.budget_usd) == ("running", Decimal("1"))
+
     async def test_it_checks_the_merge_and_main_alone_and_takes_the_merge_in(
         self, db, call_price, monkeypatch
     ):
@@ -712,16 +747,44 @@ class TestAMoveToMain:
             )
         assert read_before is not None
 
-    async def test_one_that_helped_nobody_stops(self, db, call_price, monkeypatch):
+    async def test_a_limit_raised_at_the_quote_is_the_limit_it_keeps(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx, TO_MAIN)
+        raised = run.budget_usd + Decimal("0.01")
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(
+            ctx, skill.id, run.id, SkillContinue(budget_usd=raised)
+        )
+        await service.continue_run(
+            ctx,
+            skill.id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=quote.budget_usd,
+            ),
+        )
+        await db.refresh(run)
+
+        assert quote.budget_usd == raised
+        assert run.budget_usd == raised
+
+    async def test_one_that_helped_nobody_waits_at_its_result(self, db, call_price, monkeypatch):
         _checked(db, monkeypatch)
         ctx = await _owner(db)
         run, _, _ = await _at_changes(db, ctx, TO_MAIN)
         await _check_now(db, ctx, run)
         await db.refresh(run)
 
-        stopped = await _settle(db, run, "no_better")
+        ready = await _settle(db, run, "no_better")
 
-        assert (stopped.status, stopped.stop_reason) == ("stopped", "no_change")
+        assert (ready.status, ready.stop_reason) == ("ready", None)
 
 
 class TestWhatAMergeIsNot:

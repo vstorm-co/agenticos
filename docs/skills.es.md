@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "f004b23232dd"
 ---
 
 # Skills { #skills }
@@ -535,6 +535,17 @@ petición se rechaza, nombrando los agents, cuando:
 - no puedes editar alguno de ellos, o publicar uno que hay que publicar;
 - un entorno que espera una promoción sirve una versión que lo usa. Solo una
   promoción mueve ese entorno, y eso lo decide su responsable.
+
+Una [clave de API de la organización](api.md#organization-api-keys) llega a las
+versiones, los forks y los agents de un skill, como recoge la tabla de abajo.
+
+Los checks (`…/checks…` y `…/update-check`), las preguntas de prueba (`…/test-set`) y las
+sesiones de Improve, las puestas al día con main y los pasos a main con sus merges
+solo responden a una persona con la sesión iniciada, o al Architect o a un cliente
+MCP que actúa por ella; las propuestas de cambio (`/api/v1/skill-changes`) solo
+responden a una persona en la consola. Una clave recibe `403` "API keys are not
+accepted on this endpoint": cada una gasta en nombre de alguien o termina en una
+decisión que le corresponde a esa persona.
 
 | Ruta | Qué hace |
 |---|---|

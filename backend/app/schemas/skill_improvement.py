@@ -319,6 +319,14 @@ class SkillImprovementProblems(BaseSchema):
 
 
 class SkillContinue(BaseSchema):
+    budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=12,
+        decimal_places=6,
+        description="A spending limit to price the step against; the session's own when "
+        "lower or not given, since a limit is only ever raised",
+    )
     mode: CheckMode | None = Field(
         default=None,
         description="For a check: quick (the default) or thorough. A changed description "

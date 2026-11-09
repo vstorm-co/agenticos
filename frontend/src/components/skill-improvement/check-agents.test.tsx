@@ -6,6 +6,8 @@ import { checkAgent, skillCheck } from "@/test-utils/skill-improvement";
 import type { EvalComparison } from "@/types/eval-runs";
 import { ReadOnlyProvider } from "@/components/improvement/read-only";
 import { CheckAgents } from "./check-agents";
+import type { AgentCheckState } from "@/types/skill-checks";
+import catalog from "../../../messages/en.json";
 
 const compared = vi.hoisted(() => ({
   comparison: undefined as Partial<EvalComparison> | undefined,
@@ -116,6 +118,33 @@ describe("CheckAgents", () => {
 
     expect(screen.getAllByRole("button", { name: "Details of Support" })).toHaveLength(2);
     expect(screen.getByRole("link", { name: "Run on the agent's questions" })).toBeVisible();
+  });
+
+  it("keeps a label for every state an agent's check can reach, for the pages that name it", () => {
+    const states: AgentCheckState[] = [
+      "queued",
+      "running",
+      "better",
+      "no_change",
+      "within_noise",
+      "worse",
+      "unknown",
+    ];
+    for (const state of states) expect(catalog.skillImprovement.agents.state).toHaveProperty(state);
+  });
+
+  it("names an agent within the test's noise as no change, as its group and count do", () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [checkAgent("Sales", "within_noise"), checkAgent("Billing", "no_change")],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("2 no change")).toBeVisible();
+    expect(screen.getAllByText("No change", { selector: "span" })).toHaveLength(2);
+    expect(screen.queryByText("Within noise")).toBeNull();
   });
 
   it("sums the agents up above them, counting the ones still checked only while there are any", () => {

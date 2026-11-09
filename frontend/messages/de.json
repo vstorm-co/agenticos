@@ -14940,7 +14940,8 @@
       "running": "Läuft",
       "needs_you": "Ihre Entscheidung",
       "skipped": "Übersprungen",
-      "pending": "Noch nicht begonnen"
+      "pending": "Noch nicht begonnen",
+      "ended": "Ohne Änderungen beendet"
     },
     "paidRestartOwner": "Nur der Anfragende kann mit dem ursprünglichen Konto und den ursprünglichen Anmeldedaten kostenpflichtige Arbeit neu starten. Andere Bearbeiter können Ergebnisse prüfen oder eine eigene Sitzung starten.",
     "improveAgain": "Erneut verbessern",
@@ -15255,7 +15256,11 @@
       "updatePinned": "Auf v{version} aktualisieren",
       "catchUp": "Fork auf Main bringen"
     },
-    "usedSkill": "Hat Skill {name} genutzt"
+    "usedSkill": "Hat Skill {name} genutzt",
+    "evidenceOnly": {
+      "body": "Jede Frage dieses Datasets stammt aus den Gesprächen, aus denen diese Änderung gelernt hat, daher kann keine sie testen.",
+      "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
@@ -15391,10 +15396,10 @@
       "limitHint": "Ausgefüllt für den ersten Vorschlag und jeden Versuch, den die Sitzung machen kann. Senke es, um früher aufzuhören; die Sitzung hält vor einem Schritt an, der es überschreiten würde.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": "Starten",
-      "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, in denen Versionen dieser Linie geladen wurden, {agents, plural, =1 {von 1 Agent} other {von # Agents}}.",
+      "reads": "{runs, plural, =1 {Es liest 1 Antwort, die diese Linie geladen hat und negativ bewertet wurde oder fehlschlug.} other {Es liest # Antworten, die diese Linie geladen haben und negativ bewertet wurden oder fehlschlugen.}} {agents, plural, =1 {Die Linie bedient 1 Agent.} other {Die Linie bedient # Agents.}}",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gelesen.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gelesen.}}",
       "checkNamedLater": "Bevor die Änderungen geprüft werden, wird jeder Agent genannt, auf dem sie laufen, und die, auf denen sie nicht laufen können, mit Grund.",
-      "noEvidence": "Es gibt keine schlecht bewerteten oder fehlgeschlagenen Antworten, in denen diese Linie geladen wurde, also gibt es noch nichts zu lernen."
+      "noEvidence": "Noch keine Antwort, die diese Linie geladen hat, wurde negativ bewertet oder schlug fehl, also gibt es nichts zu lernen. Bewerte im Chat eine Antwort negativ, in der ein Agent diesen Skill verwendet hat, und starte dann erneut."
     },
     "understand": {
       "title": "Verstehen",
@@ -15527,6 +15532,17 @@
       "live": "Darauf verschoben und veröffentlicht: {names}.",
       "drafts": "{count, plural, =1 {Im Entwurf darauf verschoben, der auf Veröffentlichung wartet: {names}.} other {In ihren Entwürfen darauf verschoben, die auf Veröffentlichung warten: {names}.}}",
       "nobody": "Kein Agent wurde darauf verschoben; verschiebe Agents auf der Seite des Skills."
+    },
+    "understandWorking": "Wir lesen die Antworten, die diesen Skill geladen haben und negativ bewertet wurden oder fehlschlugen, und worauf sie im Skill hinweisen…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "{fork} auf main nachziehen",
+        "to_main": "{fork} nach main verschieben"
+      },
+      "plain": {
+        "catch_up": "Auf main nachziehen",
+        "to_main": "Nach main verschieben"
+      }
     }
   }
 }

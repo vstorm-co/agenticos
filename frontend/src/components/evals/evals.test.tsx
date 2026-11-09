@@ -78,6 +78,8 @@ describe("format", () => {
     expect(usd("0", "en")).toBe("$0.00");
     expect(limitText("0.850000", "en")).toBe("0.85");
     expect(limitText("0.9101", "pl")).toBe("0,92");
+    expect(limitText("0.560000", "en")).toBe("0.56");
+    expect(limitText("1.1", "en")).toBe("1.10");
     expect(limitValue(" 0,92 ")).toBe("0.92");
     expect(percent(0.75, "en")).toBe("75%");
     expect(percent(null, "en")).toBe("—");

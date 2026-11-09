@@ -500,6 +500,16 @@ request is refused, naming the agents, when:
 - an environment that waits for promotion serves a version that uses it. Only a
   promotion moves such an environment, and that is its owner's decision.
 
+An [organization API key](api.md#organization-api-keys) reaches a skill's versions,
+forks and agents, as the table below lists.
+
+Checks (`…/checks…` and `…/update-check`), the test set (`…/test-set`), and Improve sessions, catch-ups and
+moves to main with their merges answer only a person signed in, or the Architect or
+an MCP client acting for one; change proposals (`/api/v1/skill-changes`) answer only
+a person in the console. A key gets `403` "API keys are not accepted on this
+endpoint": each spends on someone's behalf or ends in a decision that is theirs to
+make.
+
 | Route | What it does |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | The versions of main, or of a fork with `?fork_id=`, newest first |

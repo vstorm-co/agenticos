@@ -1390,6 +1390,33 @@ class TestCheckAndResult:
         assert read.check is not None and read.check.status == "running"
         assert read.outcomes == []
 
+    async def test_a_limit_raised_at_the_quote_is_the_limit_the_session_keeps(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        raised = run.budget_usd + Decimal("0.01")
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(
+            ctx, run.skill_id, run.id, SkillContinue(budget_usd=raised)
+        )
+        await service.continue_run(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=quote.budget_usd,
+            ),
+        )
+
+        assert quote.budget_usd == raised
+        assert (await db.get(SkillImprovementRun, run.id)).budget_usd == raised
+
     async def test_a_check_still_running_leaves_the_session_working(
         self, db, evidence, monkeypatch
     ):
@@ -1434,7 +1461,7 @@ class TestCheckAndResult:
             ("passed", "ready", None, "better"),
             ("needs_ack", "ready", None, "better"),
             ("blocked", "ready", None, "regression"),
-            ("no_better", "stopped", "no_change", "no_change"),
+            ("no_better", "ready", None, "no_change"),
         ],
     )
     async def test_a_finished_check_becomes_the_attempts_result(
@@ -1451,9 +1478,41 @@ class TestCheckAndResult:
         assert (run.status, run.stop_reason) == (status, stop)
         [attempt] = read.iterations
         assert (attempt.check_verdict, attempt.verdict) == (verdict, measured)
-        assert read.outcomes == (
-            [CheckOutcome.APPLY, CheckOutcome.DISCARD] if status == "ready" else []
+        assert read.outcomes == [CheckOutcome.APPLY, CheckOutcome.DISCARD]
+
+    @pytest.mark.parametrize(
+        ("first", "then"), [("blocked", "no_better"), ("no_better", "blocked")]
+    )
+    async def test_a_verdict_a_person_overturns_leaves_the_session_where_that_verdict_would(
+        self, db, evidence, monkeypatch, first, then
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        service = SkillImprovementService(db)
+
+        async def judged(verdict: str) -> SkillImprovementRun:
+            run = await _at_changes(db, ctx)
+            await _check_now(db, ctx, run)
+            return await _settle(db, run, status="done", verdict=verdict)
+
+        straight = await judged(then)
+        overturned = await judged(first)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=overturned.id, number=1
         )
+        assert iteration is not None and iteration.skill_check_id is not None
+        check = await db.get(SkillCheck, iteration.skill_check_id)
+        assert check is not None
+        check.verdict = then
+        await service.refresh_check_verdict(check, CheckVerdict(then))
+
+        reads = [await service.read(ctx, run.skill_id, run.id) for run in (straight, overturned)]
+        waiting = {item.id for item in await service.awaiting(ctx)}
+
+        assert [
+            (read.status, read.stage, read.stop_reason, read.outcomes, read.id in waiting)
+            for read in reads
+        ] == [("ready", "judging", None, [CheckOutcome.APPLY, CheckOutcome.DISCARD], True)] * 2
 
     async def test_a_check_cancelled_elsewhere_fails_the_step(self, db, evidence, monkeypatch):
         _checked(db, monkeypatch)
@@ -1821,6 +1880,21 @@ async def _with_result(
 
 
 class TestCheckAgain:
+    async def test_a_limit_raised_at_its_quote_is_quoted_and_never_lowered(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        _, run = await _with_result(db, ctx, monkeypatch)
+        service = SkillImprovementService(db)
+        raised = run.budget_usd + Decimal("1")
+
+        quotes = [
+            await service.estimate_recheck(ctx, run.skill_id, run.id, SkillContinue(budget_usd=b))
+            for b in (raised, Decimal("0.000001"))
+        ]
+
+        assert [quote.budget_usd for quote in quotes] == [raised, run.budget_usd]
+
     async def test_a_result_its_line_moved_past_is_stale_and_checked_again_on_the_new_text(
         self, db, evidence, monkeypatch
     ):

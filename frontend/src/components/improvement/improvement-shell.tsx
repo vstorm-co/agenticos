@@ -157,7 +157,10 @@ export function ImprovementShell({
               id,
               label: t(`steps.${id}`),
               status: views[id].state,
-              statusLabel: t(`stepState.${views[id].state}`),
+              statusLabel:
+                id === "accept" && session.status === "rejected"
+                  ? t("stepState.ended")
+                  : t(`stepState.${views[id].state}`),
               tourId: `improvement-step-${id}`,
               disabled: !isReachable(views[id]),
             }))}

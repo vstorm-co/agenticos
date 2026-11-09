@@ -23,7 +23,7 @@ from app.api.deps import (
     SkillVersionSvc,
     require,
 )
-from app.api.public_api import ASSISTANT, PUBLIC
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
@@ -38,12 +38,6 @@ from app.schemas.skill import (
     SkillResourceRead,
     SkillResourceUpdate,
     SkillUpdate,
-)
-from app.schemas.skill_merge import (
-    MergeDescriptionEdit,
-    MergeFilePick,
-    MergePartEdit,
-    SkillMergeRead,
 )
 from app.schemas.skill_usage import SkillUsageRead
 from app.schemas.skill_version import (
@@ -404,62 +398,6 @@ async def return_fork_to_main(
     the fork with the reason. Agents the caller may not see are counted and left alone.
     """
     return await service.return_to_main(ctx, skill_id, fork_id, data)
-
-
-@router.get(
-    "/{skill_id}/improvements/{run_id}/merge",
-    response_model=SkillMergeRead,
-    dependencies=[ASSISTANT],
-)
-async def get_skill_merge(skill_id: UUID, run_id: UUID, service: SkillCatchUpSvc, ctx: Auth) -> Any:
-    """The three-way merge a session catching a fork up, or moving it to main, works on.
-
-    Each text says which side it comes from; a conflict nobody has settled has no
-    result, and the check waits until none is left.
-    """
-    return await service.read_merge(ctx, skill_id, run_id)
-
-
-@router.patch(
-    "/{skill_id}/improvements/{run_id}/merge/description",
-    response_model=SkillMergeRead,
-    dependencies=[ASSISTANT],
-)
-async def edit_skill_merge_description(
-    skill_id: UUID, run_id: UUID, data: MergeDescriptionEdit, service: SkillCatchUpSvc, ctx: Auth
-) -> Any:
-    """Write the merged description, while the session waits at Changes."""
-    return await service.edit_description(ctx, skill_id, run_id, data)
-
-
-@router.patch(
-    "/{skill_id}/improvements/{run_id}/merge/parts/{index}",
-    response_model=SkillMergeRead,
-    dependencies=[ASSISTANT],
-)
-async def edit_skill_merge_part(
-    skill_id: UUID,
-    run_id: UUID,
-    index: int,
-    data: MergePartEdit,
-    service: SkillCatchUpSvc,
-    ctx: Auth,
-) -> Any:
-    """Write one part of the merged instructions, while the session waits at Changes."""
-    return await service.edit_part(ctx, skill_id, run_id, index, data)
-
-
-@router.patch(
-    "/{skill_id}/improvements/{run_id}/merge/files",
-    response_model=SkillMergeRead,
-    dependencies=[ASSISTANT],
-)
-async def pick_skill_merge_file(
-    skill_id: UUID, run_id: UUID, data: MergeFilePick, service: SkillCatchUpSvc, ctx: Auth
-) -> Any:
-    """Keep one side's version of a file, while the session waits at Changes. Taking the
-    side the file is absent from drops it."""
-    return await service.pick_file(ctx, skill_id, run_id, data)
 
 
 @router.get("/{skill_id}/agents", response_model=SkillAgentList)
