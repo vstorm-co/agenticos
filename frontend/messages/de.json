@@ -8590,7 +8590,7 @@
     "check": {
       "title": "Diese Änderung auf jedem Agent prüfen, der den Skill nutzt",
       "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
-      "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
+      "price": "Wahrscheinlich {expected}, höchstens {most}. Der Anteil jedes Agents geht auf sein Budget.",
       "start": "Prüfung starten",
       "running": "Wird geprüft. Das dauert einige Minuten. Du kannst das schließen: Die Prüfung läuft weiter, und <page>die Seite des Skills</page> zeigt sie als „Prüfung läuft“, bis du entscheidest.",
       "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
@@ -8608,16 +8608,8 @@
         "no_budget": "Nicht geprüft: sein Budget deckt die Prüfung nicht.",
         "no_published_version": "Nicht geprüft: er hat keine veröffentlichte Version.",
         "inconclusive": "Nicht geprüft: nicht jede Antwort ließ sich bewerten.",
-        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen."
-      },
-      "state": {
-        "queued": "Wartet",
-        "running": "Läuft",
-        "better": "Besser",
-        "no_change": "Unverändert",
-        "within_noise": "Im Rauschen",
-        "worse": "Schlechter",
-        "unknown": "Unbekannt"
+        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen.",
+        "other": "Nicht geprüft: die Prüfung konnte ihn nicht messen."
       },
       "verdict": {
         "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
@@ -8630,7 +8622,15 @@
       "inSession": "Diese Prüfung gehört zu einer Verbesserungssitzung und wird dort entschieden.",
       "openSession": "Sitzung öffnen",
       "progress": "{done} von {total} Agents geprüft",
-      "progressLabel": "Geprüfte Agents"
+      "progressLabel": "Geprüfte Agents",
+      "backToEditing": "Zurück zum Bearbeiten",
+      "improveFurther": "Weiter verbessern",
+      "discardConfirm": {
+        "title": "Diese Änderung verwerfen?",
+        "description": "Die Änderung wird nicht übernommen, und über diese Prüfung lässt sich nicht mehr entscheiden. Was sie gefunden hat, bleibt in den Prüfungen des Skills."
+      },
+      "nobody": "Keiner dieser Agents lässt sich prüfen, die Prüfung würde also nichts messen. Füge Testfragen hinzu, damit sie es kann, oder mach ohne Prüfung weiter und bestätige, dass niemand geprüft wurde.",
+      "startUnchecked": "Ohne Prüfung weiter"
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen"
@@ -15304,7 +15304,8 @@
         "no_budget": "Nicht geprüft: Sein Budget ist aufgebraucht.",
         "no_published_version": "Nicht geprüft: Er hat keine veröffentlichte Version.",
         "failed": "Nicht geprüft: Seine Prüfung ist fehlgeschlagen.",
-        "inconclusive": "Nicht geprüft: Sein Run konnte nicht jede Antwort bewerten. Prüfen Sie erneut."
+        "inconclusive": "Nicht geprüft: Sein Run konnte nicht jede Antwort bewerten. Prüfen Sie erneut.",
+        "other": "Nicht geprüft: Die Prüfung konnte ihn nicht messen."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {

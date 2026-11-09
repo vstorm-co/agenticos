@@ -35,7 +35,7 @@ import type { SkillFork } from "@/types/skill-versions";
  * that text - the files and the category are main's. The version a save is written
  * over is the one on screen when the dialog opened, or the one a file written here
  * made, so a line somebody else moved since is refused, and the text stays for the
- * person to keep.
+ * person to keep. A text brought back from a check opens in place of the stored one.
  */
 export function EditSkillDialog({
   skill,
@@ -43,6 +43,7 @@ export function EditSkillDialog({
   followers,
   readers,
   canCheck,
+  draft,
   onClose,
   onDelete,
 }: {
@@ -54,6 +55,8 @@ export function EditSkillDialog({
   readers: string[];
   /** Whether the reader may check a change on the line's agents before it goes live. */
   canCheck: boolean;
+  /** A checked text to go on editing, written over the line's newest version. */
+  draft?: { description: string; content: string };
   onClose: () => void;
   onDelete: () => void;
 }) {
@@ -171,7 +174,7 @@ export function EditSkillDialog({
         ) : (
           <SkillWorkbench
             key={`${skill.id}:${opened}`}
-            skill={shown}
+            skill={draft ? { ...shown, ...draft } : shown}
             fork={fork !== null}
             canEdit={skill.can_edit === true}
             isSaving={edit.isPending || save.isPending}
@@ -215,6 +218,7 @@ export function EditSkillDialog({
           }}
           forkId={fork?.id ?? null}
           onOpenChange={(open) => !open && setChecking(null)}
+          onEdit={() => setChecking(null)}
           onApplied={() => {
             void saveCategory(checking.change).then(onClose, (failure: unknown) =>
               setRefusal(getErrorMessage(failure, tErrors)),

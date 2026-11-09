@@ -36,15 +36,22 @@ const GROUPS: Bucket[] = ["worse", "unknown", "pending", "same", "better"];
 const OPEN_FIRST = new Set<Bucket>(["worse", "unknown", "pending"]);
 /** Below this many agents every group is open: there is nothing to scroll past. */
 const COLLAPSE_FROM = 8;
-const REASONS: (UnknownReason | null)[] = [
+const REASONS: (UnknownReason | "other" | null)[] = [
   "no_questions",
   "no_budget",
   "no_access",
   "no_published_version",
   "inconclusive",
   "failed",
+  "other",
   null,
 ];
+
+/** A reason this page does not know by name is still a reason: it reads as "other". */
+const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
+  row.unknown_reason === null || REASONS.includes(row.unknown_reason)
+    ? row.unknown_reason
+    : "other";
 
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
@@ -190,7 +197,7 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
             {open &&
               (bucket === "unknown" ? (
                 REASONS.map((reason) => {
-                  const why = members.filter((item) => item.unknown_reason === reason);
+                  const why = members.filter((item) => reasonOf(item) === reason);
                   if (why.length === 0) return null;
                   return (
                     <div key={reason ?? "other"} className="space-y-1.5 pl-5">
@@ -306,7 +313,7 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
         <p className="text-sm">{t("fixedBroken", { fixed: row.fixed, broken: row.broken })}</p>
       )}
       {row.unknown_reason !== null && (
-        <p className="text-muted-foreground text-sm">{t(`unknown.${row.unknown_reason}`)}</p>
+        <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
       )}
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>

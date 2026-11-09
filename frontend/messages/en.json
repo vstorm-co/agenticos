@@ -8712,7 +8712,7 @@
     "check": {
       "title": "Check this change on every agent that uses it",
       "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
-      "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
+      "price": "Most likely {expected}, at most {most}. Each agent's share is billed to that agent.",
       "start": "Start the check",
       "running": "Checking. This takes a few minutes. You can close this: the check keeps running, and <page>the skill's page</page> shows it as Check running until you decide it.",
       "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
@@ -8730,16 +8730,8 @@
         "no_budget": "Not checked: its budget cannot cover the check.",
         "no_published_version": "Not checked: it has no published version.",
         "inconclusive": "Not checked: the check could not grade every answer.",
-        "failed": "Not checked: its run failed."
-      },
-      "state": {
-        "queued": "Waiting",
-        "running": "Running",
-        "better": "Better",
-        "no_change": "No change",
-        "within_noise": "Within noise",
-        "worse": "Worse",
-        "unknown": "Unknown"
+        "failed": "Not checked: its run failed.",
+        "other": "Not checked: the check could not measure it."
       },
       "verdict": {
         "passed": "No agent got worse and at least one got better.",
@@ -8752,7 +8744,15 @@
       "inSession": "This check belongs to an improvement session, so it is decided there.",
       "openSession": "Open the session",
       "progress": "{done} of {total} agents checked",
-      "progressLabel": "Agents checked"
+      "progressLabel": "Agents checked",
+      "backToEditing": "Back to editing",
+      "improveFurther": "Improve further",
+      "discardConfirm": {
+        "title": "Discard this change?",
+        "description": "The change is not applied and this check cannot be decided again. What it found stays in the skill's checks."
+      },
+      "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
+      "startUnchecked": "Go on without a check"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions"
@@ -15632,7 +15632,8 @@
         "no_budget": "Not checked: its budget is spent.",
         "no_published_version": "Not checked: it has no published version.",
         "failed": "Not checked: its check failed.",
-        "inconclusive": "Not checked: its run could not grade every answer. Check it again."
+        "inconclusive": "Not checked: its run could not grade every answer. Check it again.",
+        "other": "Not checked: the check could not measure it."
       },
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {

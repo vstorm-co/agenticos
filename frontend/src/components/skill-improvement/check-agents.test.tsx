@@ -60,6 +60,24 @@ describe("CheckAgents", () => {
     expect(screen.getAllByText("Not checked: its budget is spent.")).toHaveLength(2);
   });
 
+  it("keeps an agent unknown for a reason it does not know by name, and says so", async () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Billing", "unknown", {
+              unknown_reason: "evidence_only" as unknown as "failed",
+              stages: [],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    await openAll();
+    expect(screen.getAllByText("Not checked: the check could not measure it.")).toHaveLength(2);
+  });
+
   it("says what each agent fixed and broke, with a link to the run", async () => {
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     await openAll();

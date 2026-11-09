@@ -93,11 +93,20 @@ export interface SkillCheck extends SkillCheckEstimate {
   outcomes: CheckOutcome[];
   outcome: CheckOutcome | null;
   proposal_id: string | null;
+  /** The text checked, which a person may go back to editing. */
+  candidate: { description: string; content: string };
   /** The skill improvement session that started it, which decides it. */
   session_id?: string | null;
   applied_version_id: string | null;
   created_at: string;
   finished_at: string | null;
+}
+
+export interface SkillCheckFork {
+  name: string;
+  /** The agents that move onto the fork; left out, the ones the change helped. */
+  agent_ids?: string[];
+  acknowledge_unknown?: boolean;
 }
 
 export interface SkillCheckApply {

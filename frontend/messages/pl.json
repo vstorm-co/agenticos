@@ -8472,7 +8472,7 @@
     "check": {
       "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
       "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
-      "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
+      "price": "Najpewniej {expected}, najwyżej {most}. Część każdego agenta idzie z jego budżetu.",
       "start": "Uruchom sprawdzenie",
       "running": "Trwa sprawdzanie, to zajmie kilka minut. Możesz to zamknąć: sprawdzanie trwa dalej, a <page>strona skilla</page> pokazuje je jako „Sprawdzanie trwa”, dopóki o nim nie zdecydujesz.",
       "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
@@ -8490,16 +8490,8 @@
         "no_budget": "Nie sprawdzono: jego budżet nie pokryje sprawdzenia.",
         "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
         "inconclusive": "Nie sprawdzono: nie udało się ocenić każdej odpowiedzi.",
-        "failed": "Nie sprawdzono: jego run się nie powiódł."
-      },
-      "state": {
-        "queued": "Czeka",
-        "running": "W toku",
-        "better": "Lepiej",
-        "no_change": "Bez zmian",
-        "within_noise": "W granicach szumu",
-        "worse": "Gorzej",
-        "unknown": "Nie wiadomo"
+        "failed": "Nie sprawdzono: jego run się nie powiódł.",
+        "other": "Nie sprawdzono: sprawdzenie nie mogło go zmierzyć."
       },
       "verdict": {
         "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
@@ -8512,7 +8504,15 @@
       "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
       "openSession": "Otwórz sesję",
       "progress": "Sprawdzono {done} z {total} agentów",
-      "progressLabel": "Sprawdzeni agenci"
+      "progressLabel": "Sprawdzeni agenci",
+      "backToEditing": "Wróć do edycji",
+      "improveFurther": "Popraw dalej",
+      "discardConfirm": {
+        "title": "Odrzucić tę zmianę?",
+        "description": "Zmiana nie zostanie zastosowana i o tym sprawdzeniu nie da się już zdecydować. To, co znalazło, zostaje w sprawdzeniach skilla."
+      },
+      "nobody": "Żadnego z tych agentów nie da się sprawdzić, więc sprawdzenie niczego by nie zmierzyło. Dodaj pytania testowe, żeby mogło, albo przejdź dalej bez sprawdzenia i potwierdź, że nikogo nie sprawdzono.",
+      "startUnchecked": "Dalej bez sprawdzenia"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje"
@@ -15406,7 +15406,8 @@
         "no_budget": "Nie sprawdzono: jego budget jest wyczerpany.",
         "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
         "failed": "Nie sprawdzono: sprawdzenie się nie powiodło.",
-        "inconclusive": "Nie sprawdzono: run nie ocenił wszystkich odpowiedzi. Sprawdź ponownie."
+        "inconclusive": "Nie sprawdzono: run nie ocenił wszystkich odpowiedzi. Sprawdź ponownie.",
+        "other": "Nie sprawdzono: sprawdzenie nie mogło go zmierzyć."
       },
       "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
       "stage": {

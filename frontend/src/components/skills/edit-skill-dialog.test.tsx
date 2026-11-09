@@ -23,18 +23,21 @@ vi.mock("./skill-check-dialog", () => ({
     onApplied,
     onOpenChange,
     onLineMoved,
+    onEdit,
   }: {
     change: { candidate: { content: string }; baseVersionId: string };
     forkId: string | null;
     onApplied: () => void;
     onOpenChange: (open: boolean) => void;
     onLineMoved: () => void;
+    onEdit: () => void;
   }) => (
     <div>
       <p>{`checking ${change.candidate.content} over ${change.baseVersionId} on ${forkId ?? "main"}`}</p>
       <button onClick={onLineMoved}>The line moved</button>
       <button onClick={onApplied}>Apply the checked change</button>
       <button onClick={() => onOpenChange(false)}>Close the check</button>
+      <button onClick={onEdit}>Edit the checked text</button>
     </div>
   ),
 }));
@@ -71,7 +74,7 @@ const RETURNS: SkillFork = {
   created_at: "2026-10-30T10:00:00Z",
 };
 
-function mount(fork: SkillFork | null = null) {
+function mount(fork: SkillFork | null = null, draft?: { description: string; content: string }) {
   const onClose = vi.fn();
   const onDelete = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -82,6 +85,7 @@ function mount(fork: SkillFork | null = null) {
       followers={3}
       readers={["Support", "Billing"]}
       canCheck
+      draft={draft}
       onClose={onClose}
       onDelete={onDelete}
     />,
@@ -376,6 +380,37 @@ describe("EditSkillDialog", () => {
 
     expect(apiClient.post).not.toHaveBeenCalled();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("goes back to the text it checked, still in the editor", async () => {
+    mount();
+
+    await userEvent.clear(description());
+    await userEvent.type(description(), "When a customer returns an order.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit the checked text", hidden: true }));
+
+    expect(screen.queryByText(/^checking/)).toBeNull();
+    expect(description()).toHaveValue("When a customer returns an order.");
+  });
+
+  it("opens on a text a check brought back, to edit it further over the newest version", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "m13", number: 13 });
+    mount(null, { description: "Returns, as checked.", content: "Refund within 45 days." });
+
+    expect(description()).toHaveValue("Returns, as checked.");
+    await userEvent.type(description(), " Again.");
+    await save();
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/skills/s1/versions",
+      expect.objectContaining({
+        base_version_id: "m12",
+        description: "Returns, as checked. Again.",
+        content: "Refund within 45 days.",
+      }),
+    );
   });
 
   it("says when the category could not follow a change its check applied", async () => {

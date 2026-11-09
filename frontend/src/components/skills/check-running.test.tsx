@@ -11,7 +11,18 @@ vi.mock("@/hooks/use-skill-check", () => ({
   useOpenSkillCheck: () => held.open,
 }));
 vi.mock("./skill-check-dialog", () => ({
-  SkillCheckDialog: ({ resume }: { resume: string }) => <div role="dialog">{resume}</div>,
+  SkillCheckDialog: ({
+    resume,
+    onEdit,
+  }: {
+    resume: string;
+    onEdit: (candidate: { description: string; content: string }) => void;
+  }) => (
+    <div role="dialog">
+      {resume}
+      <button onClick={() => onEdit({ description: "D", content: "C" })}>Edit it</button>
+    </div>
+  ),
 }));
 
 beforeEach(() => {
@@ -20,7 +31,7 @@ beforeEach(() => {
 
 describe("CheckRunning", () => {
   it("draws nothing while no check waits on the line", () => {
-    const { container } = render(<CheckRunning skillId="s-1" forkId={null} />);
+    const { container } = render(<CheckRunning skillId="s-1" forkId={null} onEdit={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -33,16 +44,19 @@ describe("CheckRunning", () => {
         checkAgent({ name: "Gift shop", state: "running" }),
       ],
     });
-    render(<CheckRunning skillId="s-1" forkId={null} />);
+    const onEdit = vi.fn();
+    render(<CheckRunning skillId="s-1" forkId={null} onEdit={onEdit} />);
 
     expect(screen.getByText("Check running: 1 of 2 agents checked.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("c-7");
+    await userEvent.click(screen.getByRole("button", { name: "Edit it" }));
+    expect(onEdit).toHaveBeenCalledWith({ description: "D", content: "C" });
   });
 
   it("says a finished check waits for a decision", () => {
     held.open = finishedCheck({ agents: [checkAgent({ name: "Online desk", state: "better" })] });
-    render(<CheckRunning skillId="s-1" forkId="f-1" />);
+    render(<CheckRunning skillId="s-1" forkId="f-1" onEdit={vi.fn()} />);
 
     expect(
       screen.getByText("A check finished on 1 agent and waits for your decision."),
