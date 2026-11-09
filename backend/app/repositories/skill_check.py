@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -110,17 +110,32 @@ async def list_for_skill(
     return list(rows.scalars()), total
 
 
-async def list_open(db: AsyncSession, *, organization_id: UUID, limit: int) -> list[SkillCheck]:
+def _open(organization_id: UUID) -> list[ColumnElement[bool]]:
     """Checks a person started - by hand or on a proposal - still running or waiting for a
-    decision, newest first. A session's check is decided in its session and a pinned
-    agent's catch-up by moving the agent, so neither is one of them."""
+    decision. A session's check is decided in its session and a pinned agent's catch-up
+    by moving the agent, so neither is one of them."""
+    return [
+        SkillCheck.organization_id == organization_id,
+        SkillCheck.status.in_([CheckStatus.RUNNING.value, CheckStatus.DONE.value]),
+        SkillCheck.source.in_([CheckSource.MANUAL.value, CheckSource.PROPOSAL.value]),
+    ]
+
+
+async def open_skill_ids(db: AsyncSession, *, organization_id: UUID) -> list[UUID]:
+    """The skills with an open check a person started."""
+    rows = await db.execute(select(SkillCheck.skill_id).where(*_open(organization_id)).distinct())
+    return list(rows.scalars())
+
+
+async def list_open(
+    db: AsyncSession, *, organization_id: UUID, skill_ids: Collection[UUID], limit: int
+) -> list[SkillCheck]:
+    """The open checks a person started on these skills, newest first."""
+    if not skill_ids:
+        return []
     rows = await db.execute(
         select(SkillCheck)
-        .where(
-            SkillCheck.organization_id == organization_id,
-            SkillCheck.status.in_([CheckStatus.RUNNING.value, CheckStatus.DONE.value]),
-            SkillCheck.source.in_([CheckSource.MANUAL.value, CheckSource.PROPOSAL.value]),
-        )
+        .where(*_open(organization_id), SkillCheck.skill_id.in_(list(skill_ids)))
         .order_by(SkillCheck.created_at.desc(), SkillCheck.id)
         .limit(limit)
     )

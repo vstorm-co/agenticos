@@ -108,7 +108,7 @@ from app.schemas.skill_version import (
     VersionRef,
 )
 from app.services import skill_check_rules as rules
-from app.services.access import AGENT, DATASET, SKILL, accessible_ids, resolve_access
+from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
@@ -1249,57 +1249,42 @@ class SkillCheckService:
                 message="Reading a skill check needs runs:view",
                 details={"permission": "runs:view"},
             )
-        checks = await skill_check_repo.list_open(
-            self.db, organization_id=ctx.organization_id, limit=_AWAITING_LIMIT * 5
+        skills = await skill_repo.get_many(
+            self.db,
+            await skill_check_repo.open_skill_ids(self.db, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
         )
-        editable: dict[UUID, Skill | None] = {}
-        mine: list[SkillCheck] = []
-        for check in checks:
-            if check.skill_id not in editable:
-                skill = await skill_repo.get(
-                    self.db, check.skill_id, organization_id=ctx.organization_id
-                )
-                editable[check.skill_id] = (
-                    skill
-                    if skill is not None
-                    and await resolve_access(
-                        self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
-                    )
-                    else None
-                )
-            if editable[check.skill_id] is not None and len(mine) < _AWAITING_LIMIT:
-                mine.append(check)
+        editable = await accessible_ids(
+            self.db, ctx, skills.values(), Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        checks = await skill_check_repo.list_open(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_ids=editable,
+            limit=_AWAITING_LIMIT,
+        )
         rows = await skill_check_repo.list_agents(
-            self.db, [check.id for check in mine], organization_id=ctx.organization_id
+            self.db, [check.id for check in checks], organization_id=ctx.organization_id
         )
         agents = Counter(row.check_id for row in rows)
-        awaiting: list[SkillCheckAwaiting] = []
-        for check in mine:
-            skill = editable[check.skill_id]
-            assert skill is not None
-            fork = (
-                None
-                if check.fork_id is None
-                else await skill_version_repo.get_fork(
-                    self.db,
-                    check.fork_id,
-                    organization_id=ctx.organization_id,
-                    skill_id=check.skill_id,
-                )
+        forks = await skill_version_repo.get_forks(
+            self.db,
+            {check.fork_id for check in checks if check.fork_id is not None},
+            organization_id=ctx.organization_id,
+        )
+        return [
+            SkillCheckAwaiting(
+                id=check.id,
+                skill_id=check.skill_id,
+                skill_name=skills[check.skill_id].name,
+                line=_line_ref(None if check.fork_id is None else forks.get(check.fork_id)),
+                status=CheckStatus(check.status),
+                verdict=None if check.verdict is None else CheckVerdict(check.verdict),
+                agents=agents[check.id],
+                created_at=check.created_at,
             )
-            awaiting.append(
-                SkillCheckAwaiting(
-                    id=check.id,
-                    skill_id=skill.id,
-                    skill_name=skill.name,
-                    line=_line_ref(fork),
-                    status=CheckStatus(check.status),
-                    verdict=None if check.verdict is None else CheckVerdict(check.verdict),
-                    agents=agents[check.id],
-                    created_at=check.created_at,
-                )
-            )
-        return awaiting
+            for check in checks
+        ]
 
     async def _readable_skill(self, ctx: AuthContext, skill_id: UUID) -> Skill:
         if not ctx.has(Perm.RUNS_VIEW):

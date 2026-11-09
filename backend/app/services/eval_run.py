@@ -588,12 +588,13 @@ class EvalRunService:
             raise BadRequestError(
                 message="The selected questions are not available in this dataset version"
             )
-        excluded = [
-            case.case_id
-            for case in cases
-            if case.source_conversation_id in left_out
-            or (selected_ids is not None and case.case_id not in selected_ids)
-        ]
+        evidence = {case.case_id for case in cases if case.source_conversation_id in left_out}
+        unselected = (
+            set()
+            if selected_ids is None
+            else {case.case_id for case in cases if case.case_id not in selected_ids} - evidence
+        )
+        excluded = [case.case_id for case in cases if case.case_id in evidence | unselected]
         if excluded:
             cases = [case for case in cases if case.case_id not in excluded]
             if not cases:
@@ -780,9 +781,7 @@ class EvalRunService:
             missing_baseline=missing,
             ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
             excluded_case_ids=excluded,
-            not_asked=0
-            if selected_ids is None
-            else sum(1 for case_id in excluded if case_id not in selected_ids),
+            not_asked=len(unselected),
         )
 
     async def _named_earlier(self, ctx: AuthContext, run_id: UUID) -> ArmPlan:

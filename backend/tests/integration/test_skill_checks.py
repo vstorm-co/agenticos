@@ -1146,6 +1146,21 @@ class TestAwaiting:
         await service.discard(lab.ctx, lab.skill.id, check.id)
         assert await service.awaiting(lab.ctx) == []
 
+    async def test_checks_on_main_and_a_fork_are_listed_by_line_newest_first(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        on_main = await service.start(lab.ctx, lab.skill.id, _start())
+        on_fork = await service.start(lab.ctx, lab.skill.id, _start(fork_id=lab.fork_id))
+
+        listed = await service.awaiting(lab.ctx)
+
+        assert {item.id: item.line.name for item in listed} == {
+            on_main.id: "main",
+            on_fork.id: on_fork.line.name,
+        }
+        assert on_fork.line.name != "main"
+
     async def test_a_check_a_session_or_a_catch_up_decides_is_not_listed(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)
