@@ -15,7 +15,8 @@ import { CheckEstimate } from "./check-estimate";
  * line or its agents moved since the check. Pricing spends nothing, so the price
  * and the agents it runs on are on screen first; pressing is the consent to that
  * price, and a price that moved meanwhile is shown again for a second press. A price
- * over what the session has left takes a higher limit for this check.
+ * over what the session has left takes a higher limit for this check, priced again
+ * against that limit.
  */
 export function CheckAgain({
   session,
@@ -34,13 +35,12 @@ export function CheckAgain({
   const [error, setError] = useState<string | null>(null);
   const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
   const [asked, setAsked] = useState(session.budget_usd);
-  // The quote is priced against the session's limit; the server holds a higher one to the price.
-  const covered = quote !== null && (quote.affordable || Number(asked) > Number(quote.budget_usd));
   const price = estimate.mutateAsync;
 
+  // A raised limit is priced again: what the session spent counts against it too.
   useEffect(() => {
     let current = true;
-    price().then(
+    price(asked).then(
       (value) => {
         if (current) setQuote(value);
       },
@@ -51,7 +51,7 @@ export function CheckAgain({
     return () => {
       current = false;
     };
-  }, [price, tErrors]);
+  }, [price, asked, tErrors]);
 
   async function start(value: SkillContinuationEstimate) {
     setError(null);
@@ -64,7 +64,7 @@ export function CheckAgain({
         return;
       }
       try {
-        setQuote(await price());
+        setQuote(await price(asked));
         setMoved(true);
       } catch (again) {
         setError(getErrorMessage(again, tErrors));
@@ -114,7 +114,10 @@ export function CheckAgain({
           {error}
         </p>
       )}
-      <Button disabled={!covered || recheck.isPending} onClick={() => quote && void start(quote)}>
+      <Button
+        disabled={!quote?.affordable || recheck.isPending}
+        onClick={() => quote && void start(quote)}
+      >
         {quote ? t("go", { cost: usd(quote.total_usd, locale) }) : t("goUnpriced")}
       </Button>
     </section>

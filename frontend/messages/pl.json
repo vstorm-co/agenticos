@@ -8774,6 +8774,7 @@
         "checksUnseen": "Nie widzisz, czy {version} sprawdzono na agencie {name}. Jego odpowiedzi mogą się zmienić.",
         "answeredBefore": "{name} odpowiadał już z {version}.",
         "checkFirst": "Najpierw sprawdź",
+        "staysPinned": "Sprawdzenie wykazało, że {version} pogorszyła agenta {name}, więc zostaje on przypięty.",
         "environmentName": "„{name}”"
       },
       "history": {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -116,17 +116,32 @@ describe("CheckAgain", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Pricing is down");
   });
 
-  it("holds a check the session's limit does not cover until the limit is raised", async () => {
-    serve(async () => skillSession(), [{ ...QUOTE, affordable: false }]);
+  it("holds a check the session's limit does not cover until a raised limit is priced to cover it", async () => {
+    vi.mocked(apiClient.post).mockImplementation(async (path: string, body?: unknown) => {
+      const asked = (body as { budget_usd?: string }).budget_usd;
+      if (path === ESTIMATE) return { ...QUOTE, budget_usd: asked, affordable: asked === "5" };
+      if (path === RECHECK) return skillSession();
+      throw new ApiError(404, "None");
+    });
     mount();
 
     expect(await screen.findByText(/costs more than this session has left/)).toBeVisible();
+    expect(apiClient.post).toHaveBeenCalledWith(ESTIMATE, { budget_usd: "2.00" });
     const go = screen.getByRole("button", { name: /Check again/ });
     expect(go).toBeDisabled();
     const limit = screen.getByLabelText("Session spending limit (USD)");
-    await userEvent.clear(limit);
-    await userEvent.type(limit, "5");
-    await userEvent.click(screen.getByRole("button", { name: "Use this limit" }));
+    const raise = async (value: string) => {
+      await userEvent.clear(limit);
+      await userEvent.type(limit, value);
+      await userEvent.click(screen.getByRole("button", { name: "Use this limit" }));
+    };
+
+    await raise("3");
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(ESTIMATE, { budget_usd: "3" }));
+    expect(go).toBeDisabled();
+
+    await raise("5");
+    await waitFor(() => expect(go).toBeEnabled());
     await userEvent.click(go);
 
     expect(apiClient.post).toHaveBeenCalledWith(

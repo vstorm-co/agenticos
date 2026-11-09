@@ -8893,6 +8893,7 @@
         "checksUnseen": "Ob {version} auf {name} geprüft wurde, wird Ihnen nicht angezeigt. Seine Antworten können sich ändern.",
         "answeredBefore": "{name} hat schon mit {version} geantwortet.",
         "checkFirst": "Zuerst prüfen",
+        "staysPinned": "Die Prüfung ergab, dass {version} {name} verschlechtert hat, daher bleibt er festgesetzt.",
         "environmentName": "„{name}“"
       },
       "history": {

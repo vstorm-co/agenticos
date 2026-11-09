@@ -105,6 +105,25 @@ describe("SkillPageHeader", () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
+  it("offers returning an empty fork to a reader who may not read runs", async () => {
+    state.runsView = false;
+    render(
+      <SkillPageHeader
+        skill={SKILL}
+        line="returns"
+        improveHref="/skills/k1/improve/new?fork=f1"
+        merges={{ fork: "returns", catchUp: null, toMain: null, empty: true }}
+        onReturn={{ fork: "returns", open: vi.fn() }}
+        onEdit={vi.fn()}
+        onFork={null}
+      />,
+    );
+
+    await more();
+    expect(screen.getByRole("menuitem", { name: "Return “returns” to main" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "Move “returns” to main" })).toBeNull();
+  });
+
   it("offers deleting the skill beside Edit to an editor", async () => {
     const onDelete = vi.fn();
     render(

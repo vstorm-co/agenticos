@@ -78,6 +78,8 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
   };
   return {
     check: check.data ?? null,
+    /** Reading the check by its id: on its way, or refused. */
+    reading: { isLoading: check.isLoading, error: check.error },
     estimate: useMutation({
       mutationFn: (body: SkillCheckBody) =>
         "update_agent_id" in body

@@ -9015,6 +9015,7 @@
         "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change.",
         "answeredBefore": "{name} has answered with {version} before.",
         "checkFirst": "Check first",
+        "staysPinned": "The check found {version} made {name} worse, so it stays pinned.",
         "environmentName": "“{name}”"
       },
       "history": {

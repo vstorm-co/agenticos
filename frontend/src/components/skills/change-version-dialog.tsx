@@ -122,11 +122,12 @@ export function ChangeVersionDialog({
   const locale = useLocale();
   const router = useRouter();
   const { changeBinding } = useSkillVersionWrites(skillId);
+  // A binding names its fork exactly when it reads one.
   const current: BindingTarget =
     usage.binding.state === "pinned"
       ? { state: "pinned", version: usage.binding.version.number }
-      : usage.binding.state === "fork"
-        ? { state: "fork", fork_id: usage.binding.fork?.id ?? "" }
+      : usage.binding.fork
+        ? { state: "fork", fork_id: usage.binding.fork.id }
         : { state: "main" };
   const [target, setTarget] = useState<BindingTarget>(current);
   const [understood, setUnderstood] = useState(false);
@@ -150,12 +151,10 @@ export function ChangeVersionDialog({
   const targetFork =
     target.state === "fork" ? forks.find((fork) => fork.id === target.fork_id) : undefined;
   const read = reads(target, usage, targetFork, mainLatest, (number) => known.get(number)?.id);
+  // The check run here of main's newest version on the pinned agent, still undecided.
+  const update = current.state === "pinned" && target.state === "main" ? updateCheck : null;
   // A check that measured this very version on the agent answers what the warning asks.
-  const checked =
-    usage.checked_versions?.find((ref) => ref.version_id === read.id) ??
-    (current.state === "pinned" && target.state === "main"
-      ? (updateCheck ?? undefined)
-      : undefined);
+  const checked = update ?? usage.checked_versions?.find((ref) => ref.version_id === read.id);
   const label =
     read.fork === null
       ? t("versionOption", { number: read.number })
@@ -165,15 +164,15 @@ export function ChangeVersionDialog({
   // A check that could not measure the agent answers nothing: it is acknowledged instead.
   const needsAck =
     !unchanged && !read.served && (checked ? checked.state === "unknown" : !answered);
-  // A pinned agent caught up on main's newest version carries the check that measured it,
-  // which decides that check rather than leaving it waiting.
+  // A pinned agent caught up on main's newest version carries the check run for that move,
+  // which decides it rather than leaving it waiting. A past result is decided already, and
+  // the server refuses to decide a check twice, so it only informs the warning.
   const decided =
-    current.state === "pinned" && target.state === "main" && checked
-      ? {
-          check_id: checked.check_id,
-          acknowledge_unknown: checked.state === "unknown" && understood,
-        }
+    update !== null
+      ? { check_id: update.check_id, acknowledge_unknown: update.state === "unknown" && understood }
       : null;
+  // The server refuses that move once the check found the agent worse.
+  const staysPinned = update?.state === "worse";
   // Only main's newest version on a pinned agent can be checked on that agent alone.
   const canCheckFirst =
     needsAck && seesChecks && !checked && current.state === "pinned" && target.state === "main";
@@ -355,6 +354,11 @@ export function ChangeVersionDialog({
                 })}
               </p>
             )}
+            {staysPinned && (
+              <p role="alert" className="text-sm">
+                {t("staysPinned", { version: label, name })}
+              </p>
+            )}
             {!unchanged && !read.served && answered && !checked && (
               <p className="text-muted-foreground text-sm">
                 {t("answeredBefore", { version: label, name })}
@@ -401,7 +405,7 @@ export function ChangeVersionDialog({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={unchanged || (needsAck && !understood)}
+            disabled={unchanged || staysPinned || (needsAck && !understood)}
             loading={changeBinding.isPending}
           >
             {usage.can_publish ? t("submit") : t("submitDraft")}

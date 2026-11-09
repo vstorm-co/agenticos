@@ -29,8 +29,9 @@ import type { Skill } from "@/types/providers";
  * Edit opens the skill's editor on the line the page is showing; a reader without
  * edit access gets it read-only as Open. Improve reads the line's runs, so it is
  * offered to an editor who may also read them, and so are catching the fork shown up
- * with main and moving it to main, which are checked the same way. New fork starts a
- * line of its own from main's newest version.
+ * with main and moving it to main, which are checked the same way. Returning an empty
+ * fork's agents to main checks nothing. New fork starts a line of its own from main's
+ * newest version.
  *
  * On a fork the bar keeps what is done there often - Improve, Catch up, Edit - and the
  * rare ones (moving it to main, returning its agents, a new fork, deleting the skill)
@@ -66,7 +67,10 @@ export function SkillPageHeader({
    * to merge. A fork with no version of its own has nothing yet, and says so.
    */
   merges?: Merges | null;
-  /** Returns the fork shown to main when it has nothing of its own to merge. */
+  /**
+   * Returns the fork shown to main when it has nothing of its own to merge; offered
+   * whenever given, since it moves each agent with the reader's own permissions.
+   */
   onReturn?: { fork: string; open: () => void } | null;
   onEdit: () => void;
   /** The editor is on its way after a press of Edit. */
@@ -80,7 +84,7 @@ export function SkillPageHeader({
   const { can } = usePermissions();
   // Improving and merging read the line's runs, so they are an editor's who may read them.
   const merger = skill.can_edit === true && can(Perm.runsView);
-  const rare = merger && (merges?.toMain || merges?.empty || onReturn);
+  const rare = (merger && (merges?.toMain || merges?.empty)) || onReturn;
   return (
     <PageHeader
       title={<span className="font-mono">{skill.name}</span>}
@@ -166,7 +170,7 @@ export function SkillPageHeader({
                     {t("toMain", { name: merges.fork })}
                   </DropdownMenuItem>
                 )}
-                {merger && onReturn && (
+                {onReturn && (
                   <DropdownMenuItem onSelect={onReturn.open}>
                     <GitMerge className="h-4 w-4" aria-hidden />
                     {t("returnFork.button", { name: onReturn.fork })}

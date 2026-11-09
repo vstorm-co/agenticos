@@ -284,6 +284,16 @@ describe("SkillPage", () => {
     expect(screen.queryByRole("button", { name: /^Restore/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Improve" })).toBeNull();
+    expect(await screen.findByText("No change to this line has been checked yet.")).toBeVisible();
+  });
+
+  it("lists no checks to a reader who may not read runs", async () => {
+    state.runsView = false;
+    state.tab = "history";
+    await mount();
+
+    await screen.findByText("Restored from v4");
+    expect(screen.queryByText("Checks")).toBeNull();
   });
 
   it("draws the version tree with the fork off its base", async () => {
@@ -372,10 +382,18 @@ describe("SkillPage's lines and writes", () => {
 
   it("returns a fork with nothing of its own to main from its page", async () => {
     state.show = "fork:f1";
+    state.runsView = false;
     const empty = { ...RETURNS, latest: null, changes: 0 };
-    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-      path.startsWith("/skills/s1/forks") ? { items: [empty], total: 1 } : serveOnce(path),
-    );
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/skills/s1/forks")) return { items: [empty], total: 1 };
+      if (path === "/skills/s1/agents") {
+        return {
+          ...AGENTS,
+          items: AGENTS.items.map((one) => ({ ...one, can_change: true })),
+        };
+      }
+      return serveOnce(path);
+    });
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
@@ -385,6 +403,45 @@ describe("SkillPage's lines and writes", () => {
       "Return the agents of “Returns” to main",
     );
     expect(screen.queryByRole("link", { name: /up with main/ })).not.toBeInTheDocument();
+  });
+
+  it("offers no return of a fork whose agents the reader may not change", async () => {
+    state.show = "fork:f1";
+    const empty = { ...RETURNS, latest: null, changes: 0 };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/forks") ? { items: [empty], total: 1 } : serveOnce(path),
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Return “Returns” to main" })).toBeNull();
+  });
+
+  it("says main's versions cannot be read rather than guessing who an edit reaches", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/skills/s1/versions?")) throw new Error("versions offline");
+      return serveOnce(path);
+    });
+    await mount();
+
+    expect(await screen.findByText("versions offline")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("offers no editor until main's followers are counted", async () => {
+    let count: () => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/skills/s1/versions?")) {
+        await new Promise<void>((resolve) => (count = resolve));
+      }
+      return serveOnce(path);
+    });
+    await mount();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    await act(async () => count());
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
   it("reads a link to a fork that is gone as everyone, on main", async () => {

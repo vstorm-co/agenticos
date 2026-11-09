@@ -17,6 +17,7 @@ type Mutation = {
 
 const held = vi.hoisted(() => ({
   check: null as SkillCheck | null,
+  reading: { isLoading: false, error: null as unknown },
   estimate: {} as Mutation,
   start: {} as Mutation,
   apply: {} as Mutation,
@@ -56,6 +57,7 @@ function mutation(overrides: Partial<Mutation> = {}): Mutation {
 
 beforeEach(() => {
   held.check = null;
+  held.reading = { isLoading: false, error: null };
   held.estimate = mutation({ data: finishedCheck() });
   held.start = mutation();
   held.apply = mutation();
@@ -163,6 +165,53 @@ describe("SkillCheckDialog", () => {
     expect(held.checkId).toBe("c-9");
     expect(held.estimate.mutate).not.toHaveBeenCalled();
     expect(screen.getByText(/Checking\. This takes a few minutes/)).toBeInTheDocument();
+  });
+
+  it("says a check opened again is being read, and why it could not be", () => {
+    held.reading = { isLoading: true, error: null };
+    const { rerender } = render(
+      <SkillCheckDialog skillId="s-1" resume="c-9" forkId={null} onOpenChange={vi.fn()} />,
+    );
+    expect(screen.getByRole("dialog").querySelector(".animate-pulse")).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    held.reading = {
+      isLoading: false,
+      error: new ApiError(404, "Check not found", {
+        error: { code: "NOT_FOUND", message: "Check not found" },
+      }),
+    };
+    rerender(<SkillCheckDialog skillId="s-1" resume="c-9" forkId={null} onOpenChange={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Check not found");
+    expect(screen.getByRole("dialog").querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("shows a check without stopping or deciding it to a reader who may not decide", () => {
+    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+    const { rerender } = render(
+      <SkillCheckDialog
+        skillId="s-1"
+        resume="c-9"
+        forkId={null}
+        canDecide={false}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Checking\. This takes a few minutes/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop the check" })).toBeNull();
+
+    held.check = finishedCheck();
+    rerender(
+      <SkillCheckDialog
+        skillId="s-1"
+        resume="c-9"
+        forkId={null}
+        canDecide={false}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
   });
 
   it("closes once discarded, and stays open when applying is refused", async () => {

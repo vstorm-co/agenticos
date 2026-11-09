@@ -86,14 +86,18 @@ export function forkSkillImprovement(
   });
 }
 
-/** The price of checking the result's chosen changes again on the line as it is now. */
+/**
+ * The price of checking the result's chosen changes again on the line as it is now,
+ * and whether `budget` - the session's limit, or a higher one - covers it.
+ */
 export function estimateSkillRecheck(
   skillId: string,
   sessionId: string,
+  budget: string,
 ): Promise<SkillContinuationEstimate> {
   return apiClient.post<SkillContinuationEstimate>(
     `${root(skillId)}/${sessionId}/recheck/estimate`,
-    {},
+    { budget_usd: budget },
   );
 }
 

@@ -125,7 +125,9 @@ export function useSkillAccept(skillId: string, sessionId: string) {
 /** Pricing Check again on a stale result, and starting it at that price. */
 export function useSkillRecheck(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
-  const estimate = useMutation({ mutationFn: () => estimateSkillRecheck(skillId, sessionId) });
+  const estimate = useMutation({
+    mutationFn: (budget: string) => estimateSkillRecheck(skillId, sessionId, budget),
+  });
   const recheck = useMutation({
     mutationFn: ({ quote, budget }: { quote: SkillContinuationEstimate; budget: string }) =>
       recheckSkillImprovement(skillId, sessionId, quote, budget),

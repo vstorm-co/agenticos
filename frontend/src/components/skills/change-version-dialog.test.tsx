@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast, type Action } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -144,7 +144,7 @@ describe("ChangeVersionDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("decides the catch-up check that measured main's newest version on the pinned agent", async () => {
+  it("moves a pinned agent to main past a check already decided, without deciding it again", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
     vi.mocked(apiClient.put).mockResolvedValue({
       published: true,
@@ -152,28 +152,88 @@ describe("ChangeVersionDialog", () => {
       environments: ["Production"],
       usage: HR,
     });
-    const check = (state: "worse" | "unknown" | "within_noise") => ({
-      check_id: "c7",
-      version_id: "m12",
-      state,
-      sample: null,
-      at: "2026-11-02T10:00:00Z",
+    renderDialog({
+      ...HR,
+      checked_versions: [
+        {
+          check_id: "c7",
+          version_id: "m12",
+          state: "worse",
+          sample: null,
+          at: "2026-11-02T10:00:00Z",
+        },
+      ],
     });
-    renderDialog({ ...HR, checked_versions: [check("worse")] });
 
     await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
-    expect(await screen.findByText(/v12 was checked on HR bot .*: Worse/)).toBeVisible();
+    expect(await screen.findByText(/v12 was checked on HR bot .*: Worse/)).toHaveClass(
+      "text-warning",
+    );
+    expect(screen.queryByText(/so it stays pinned/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check first" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
     expect(apiClient.put).toHaveBeenLastCalledWith("/skills/s1/agents/a1/binding", {
       state: "main",
-      check_id: "c7",
-      acknowledge_unknown: false,
+    });
+  });
+
+  it("returns an agent on a fork to main only once its answers changing is accepted", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: true,
+      agent_version: 5,
+      environments: ["Production"],
+      usage: HR,
+    });
+    renderDialog({
+      ...HR,
+      binding: {
+        state: "fork",
+        version: { id: "r2", number: 2, fork_id: "f1" },
+        fork: { id: "f1", name: "Returns", base_number: 7, changes: 2 },
+        behind_main: 5,
+      },
     });
 
-    cleanup();
-    renderDialog({ ...HR, checked_versions: [check("within_noise")] });
+    expect(screen.getByRole("radio", { name: "Fork “Returns”, latest" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
     await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
-    expect(await screen.findByText(/v12 was checked on HR bot .*: No change/)).toBeVisible();
+    expect(
+      screen.getByText("v12 has not been checked on HR bot. Its answers may change."),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Check first" })).toBeNull();
+    await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
+    await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
+
+    expect(apiClient.put).toHaveBeenLastCalledWith("/skills/s1/agents/a1/binding", {
+      state: "main",
+    });
+  });
+
+  it("keeps a pinned agent pinned when the check found main's newest version worse on it", async () => {
+    const done = finishedCheck({
+      id: "c9",
+      source: "catch_up",
+      agents: [checkAgent({ name: "HR bot", agent: { id: "a1", name: "HR bot" }, state: "worse" })],
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/checks/c9" ? done : { items: [{ id: "m12", number: 12 }], total: 12 },
+    );
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+      path.endsWith("/update-check/estimate") ? { ...done, status: undefined } : done,
+    );
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Check first" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start the check" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Back to Change version" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The check found v12 made HR bot worse, so it stays pinned.",
+    );
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
+    expect(apiClient.put).not.toHaveBeenCalled();
   });
 
   it("checks main's newest version on a pinned agent first, then moves it with that check", async () => {
@@ -255,28 +315,26 @@ describe("ChangeVersionDialog", () => {
     expect(screen.queryByRole("button", { name: "Check first" })).toBeNull();
   });
 
-  it("asks before deciding a catch-up check that could not measure the agent", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
+  it("asks before deciding a check run here that could not measure the agent", async () => {
+    const done = finishedCheck({ id: "c8", source: "catch_up", agents: [] });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/checks/c8" ? done : { items: [{ id: "m12", number: 12 }], total: 12 },
+    );
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+      path.endsWith("/estimate") ? finishedCheck() : done,
+    );
     vi.mocked(apiClient.put).mockResolvedValue({
       published: true,
       agent_version: 5,
       environments: ["Production"],
       usage: HR,
     });
-    renderDialog({
-      ...HR,
-      checked_versions: [
-        {
-          check_id: "c8",
-          version_id: "m12",
-          state: "unknown",
-          sample: null,
-          at: "2026-11-02T10:00:00Z",
-        },
-      ],
-    });
+    renderDialog();
 
     await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Check first" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start the check" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Back to Change version" }));
     expect(await screen.findByRole("button", { name: "Change and publish" })).toBeDisabled();
     await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
     await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
@@ -557,6 +615,42 @@ describe("ChangeVersionDialog's warnings", () => {
     expect(screen.getByText(/Edited · Anna ·/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show changes" }));
     expect(await screen.findByRole("button", { name: "Hide changes" })).toBeInTheDocument();
+  });
+
+  it("shows a version with no earlier one whole, as what it changed", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions?")
+        ? {
+            items: [
+              {
+                id: "m1",
+                number: 1,
+                fork_id: null,
+                source: "created",
+                restored_from: null,
+                previous: null,
+                created_by: null,
+                created_at: "2026-10-01T10:00:00Z",
+                agents: 0,
+              },
+            ],
+            total: 12,
+          }
+        : { id: "m1", description: "Returns.", content: "Refund within 30 days.", resources: [] },
+    );
+    renderOnMain();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(await screen.findByRole("option", { name: /^v1 · / }));
+    expect(screen.getByText(/^Created · Unknown ·/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show changes" }));
+
+    expect(await screen.findByRole("heading", { name: "Instructions" })).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/versions/m1");
+    expect(
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => /\/versions\/m\d+$/.test(path)),
+    ).toHaveLength(1);
   });
 
   it("asks again for a version picked after the last one was accepted", async () => {

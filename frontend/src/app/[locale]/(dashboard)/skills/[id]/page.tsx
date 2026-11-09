@@ -35,7 +35,7 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
-import type { SkillFork } from "@/types/skill-versions";
+import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
 const TABS = ["agents", "content", "history", "tree"];
@@ -72,11 +72,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   if (error instanceof ApiError && [403, 404].includes(error.status)) {
     return <ResourceUnavailable back={ROUTES.SKILLS} label={tc("back")} />;
   }
-  // Forks name the lines `?show=`, History and Edit act on, so nothing is drawn on a
-  // guess about which one the address meant.
-  const failed = error ?? lines.error;
+  // Forks name the lines `?show=`, History and Edit act on, and main's newest version
+  // counts who an edit of main reaches, so nothing is drawn on a guess about either.
+  const failed = error ?? lines.error ?? mainVersions.error;
   if (failed) return <ErrorState description={getErrorMessage(failed, tErrors)} />;
-  if (skill === undefined || lines.isLoading) {
+  if (skill === undefined || lines.isLoading || mainVersions.isLoading) {
     return <LoadingState variant="skeleton-panel" rows={3} />;
   }
   const { forks } = lines;
@@ -97,7 +97,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
     }
     setEditing(true);
   };
-  const checks = skill.can_edit === true && can(Perm.runsView);
+  // Reading a check's results asks runs:view; stopping or deciding one asks edit access too.
+  const checks = can(Perm.runsView);
+  const decides = checks && skill.can_edit === true;
 
   return (
     <div className="space-y-6">
@@ -107,7 +109,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
         merges={mergesOf(id, fork)}
         onReturn={
-          fork !== null && fork.latest === null && fork.agents > 0
+          fork !== null && fork.latest === null && returnable(agents.agents?.items, fork.id)
             ? { fork: fork.name, open: () => setReturning(fork) }
             : null
         }
@@ -116,7 +118,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
-      {checks && <CheckRunning skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
+      {decides && <CheckRunning skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
@@ -183,7 +185,14 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             forks={forks}
             onLine={(next) => setShowParam(next === null ? "main" : `fork:${next}`)}
           />
-          {checks && <SkillChecks skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
+          {checks && (
+            <SkillChecks
+              skillId={id}
+              forkId={fork?.id ?? null}
+              canDecide={decides}
+              onEdit={editChecked}
+            />
+          )}
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree
@@ -248,6 +257,15 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
       )}
     </div>
   );
+}
+
+/**
+ * Whether returning the fork to main can move any agent: one the reader may change,
+ * bound to the fork itself. Each agent is moved with its own permissions, so the
+ * skill's edit access and runs:view decide nothing here.
+ */
+function returnable(usages: SkillAgentUsage[] | undefined, forkId: string): boolean {
+  return (usages ?? []).some((usage) => usage.can_change && usage.binding.fork?.id === forkId);
 }
 
 /**

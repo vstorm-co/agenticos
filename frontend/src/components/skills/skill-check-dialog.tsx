@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Skeleton,
 } from "@/components/ui";
 import { AddTestQuestions } from "@/components/skill-improvement/add-test-questions";
 import { SetUpGrading } from "@/components/skill-improvement/set-up-grading";
@@ -74,6 +75,7 @@ export function SkillCheckDialog({
   onLineMoved,
   onEdit,
   onChecked,
+  canDecide = true,
 }: {
   skillId: string;
   /**
@@ -96,11 +98,16 @@ export function SkillCheckDialog({
   onEdit?: (draft: CheckedDraft) => void;
   /** An update check is decided by moving its agent, so its finished check goes back. */
   onChecked?: (check: SkillCheck) => void;
+  /** Whether the reader may stop or decide the check, which needs edit access to the skill. */
+  canDecide?: boolean;
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
   const [checkId, setCheckId] = useState<string | null>(resume ?? null);
-  const { check, estimate, start, apply, fork, discard, cancel } = useSkillCheck(skillId, checkId);
+  const { check, reading, estimate, start, apply, fork, discard, cancel } = useSkillCheck(
+    skillId,
+    checkId,
+  );
   const proposalId = change && "proposalId" in change ? change.proposalId : null;
   const description = change && "candidate" in change ? change.candidate.description : null;
   const content = change && "candidate" in change ? change.candidate.content : null;
@@ -163,6 +170,12 @@ export function SkillCheckDialog({
         {estimate.isError && (
           <p className="text-destructive text-sm">{getErrorMessage(estimate.error, tErrors)}</p>
         )}
+        {check === null && reading.error !== null && (
+          <p role="alert" className="text-destructive text-sm">
+            {getErrorMessage(reading.error, tErrors)}
+          </p>
+        )}
+        {!pricing && reading.isLoading && <Skeleton className="h-24 w-full" />}
         {plan !== null && <CheckPlan agents={plan.agents} hidden={plan.hidden} />}
         {check?.status === "running" && <CheckProgress agents={check.agents} />}
         {check !== null && <CheckAgents check={check} />}
@@ -226,15 +239,20 @@ export function SkillCheckDialog({
                 ),
               })}
             </p>
-            <Button
-              variant="ghost"
-              disabled={cancel.isPending}
-              onClick={() =>
-                cancel.mutate(undefined, { onSuccess: () => onOpenChange(false), onError: failed })
-              }
-            >
-              {t("cancel")}
-            </Button>
+            {canDecide && (
+              <Button
+                variant="ghost"
+                disabled={cancel.isPending}
+                onClick={() =>
+                  cancel.mutate(undefined, {
+                    onSuccess: () => onOpenChange(false),
+                    onError: failed,
+                  })
+                }
+              >
+                {t("cancel")}
+              </Button>
+            )}
           </DialogFooter>
         )}
         {session === null && check?.status === "done" && onChecked && (
@@ -254,7 +272,8 @@ export function SkillCheckDialog({
         {session === null &&
           check?.status === "done" &&
           !onChecked &&
-          check.source !== "catch_up" && (
+          check.source !== "catch_up" &&
+          canDecide && (
             <CheckDecision
               check={check}
               busy={apply.isPending || fork.isPending || discard.isPending}

@@ -23,16 +23,19 @@ const TONE: Record<CheckStatus, "default" | "secondary" | "outline" | "destructi
 /**
  * The checks of changes to one line of a skill, newest first: when each ran, the
  * version it was written over, what it found and what was done with it. Details
- * opens the check as it was decided, or to decide it; `?check=` opens one by id,
- * which is how a stage's run page leads back to its check.
+ * opens the check as it was decided, or to decide it for a reader who may; `?check=`
+ * opens one by id, which is how a stage's run page leads back to its check.
  */
 export function SkillChecks({
   skillId,
   forkId,
+  canDecide,
   onEdit,
 }: {
   skillId: string;
   forkId: string | null;
+  /** Whether the reader may decide a check, or only read what each one found. */
+  canDecide: boolean;
   onEdit: (draft: CheckedDraft) => void;
 }) {
   const t = useTranslations("skills.page.checks");
@@ -59,6 +62,7 @@ export function SkillChecks({
           skillId={skillId}
           resume={opened}
           forkId={forkId}
+          canDecide={canDecide}
           onOpenChange={(open) => !open && overlay.close()}
           onEdit={(draft) => {
             // Going back over the overlay's history entry would undo the line the editor opens on.
