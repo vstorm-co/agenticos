@@ -393,6 +393,49 @@ describe("ScoreCard", () => {
     expect(screen.getByText("Fail")).toBeInTheDocument();
   });
 
+  it("overturns a grade no model gave without blaming a judge", () => {
+    render(
+      <ScoreCard score={score({ results: [result({ scorer: "check" })] })} onVerdict={vi.fn()} />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Answer is fine (the grading was wrong)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /the judge was wrong/ })).toBeNull();
+  });
+
+  it("names the side of a skill's check an answer came from, and which re-ask it was", () => {
+    const checked = (arm: "proposed" | "current", version: number | null, attempt = 0) =>
+      score({
+        agent_name: "Store counter",
+        agent_version: 3,
+        eval_run_id: "e-1",
+        eval_attempt: attempt,
+        skill_check: { skill_id: "sk-1", check_id: "c-1", arm, version },
+      });
+    const { rerender } = render(<ScoreCard score={checked("proposed", null)} />);
+    expect(screen.getByText("Skill check · proposed text")).toBeInTheDocument();
+    expect(screen.getByText("Store counter")).toBeInTheDocument();
+    expect(screen.queryByText("Store counter · v3")).toBeNull();
+
+    rerender(<ScoreCard score={checked("current", 3, 2)} />);
+    expect(screen.getByText("Skill check · current v3 · re-ask 2")).toBeInTheDocument();
+
+    rerender(<ScoreCard score={checked("proposed", 4)} />);
+    expect(screen.getByText("Skill check · proposed v4")).toBeInTheDocument();
+
+    rerender(<ScoreCard score={checked("current", null)} />);
+    expect(screen.getByText("Skill check · current text")).toBeInTheDocument();
+  });
+
+  it("says an answer came from an eval run, or was graded by hand", () => {
+    const { rerender } = render(<ScoreCard score={score({ eval_run_id: "e-1" })} />);
+    expect(screen.getByText("Eval run")).toBeInTheDocument();
+
+    rerender(<ScoreCard score={score({ eval_run_id: null })} />);
+    expect(screen.getByText("Graded by hand")).toBeInTheDocument();
+  });
+
   it("records a verdict with the note written beside it", async () => {
     const onVerdict = vi.fn();
     render(<ScoreCard score={score()} onVerdict={onVerdict} />);

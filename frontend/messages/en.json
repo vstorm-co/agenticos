@@ -12031,6 +12031,14 @@
         "startsWith": "Starts with “{text}”",
         "bullets": "Has a bulleted list",
         "json": "Is a JSON object"
+      },
+      "markPassedUngraded": "Answer is fine (the grading was wrong)",
+      "groupSkillCheck": "Skill check · {when}",
+      "origin": {
+        "check": "Skill check · {arm, select, proposed {{known, select, yes {proposed v{version}} other {proposed text}}} other {{known, select, yes {current v{version}} other {current text}}}}",
+        "eval": "Eval run",
+        "hand": "Graded by hand",
+        "rerun": "{source} · re-ask {attempt}"
       }
     },
     "title": "Datasets",

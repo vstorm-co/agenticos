@@ -199,6 +199,38 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("button", { name: /from the queue/ })).toBeNull();
   });
 
+  it("heads a skill check's answers as the check's, each row saying its side and re-ask", () => {
+    const checked = { skill_id: "sk-1", check_id: "c-1", version: 3 };
+    state.answer = {
+      scores: [
+        caseScore({
+          id: "a",
+          eval_run_id: "e1",
+          agent_id: "x",
+          agent_name: "Store counter",
+          skill_check: { ...checked, arm: "proposed", version: null },
+          eval_attempt: 0,
+        }),
+        caseScore({
+          id: "b",
+          eval_run_id: "e1",
+          agent_id: "x",
+          agent_name: "Store counter",
+          skill_check: { ...checked, arm: "current" },
+          eval_attempt: 1,
+        }),
+      ],
+      total: 2,
+    };
+    render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
+
+    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
+      /^Skill check · .+ · Store counter$/,
+    );
+    expect(screen.getByText("Skill check · proposed text")).toBeInTheDocument();
+    expect(screen.getByText("Skill check · current v3 · re-ask 1")).toBeInTheDocument();
+  });
+
   it("links no eval run or Activity run to a reader without runs:view", () => {
     state.canViewRuns = false;
     state.answer = {
@@ -300,7 +332,7 @@ describe("ReviewPanel", () => {
 
     await userEvent.click(screen.getByText(SCORE.question));
     await userEvent.click(
-      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+      screen.getByRole("button", { name: "Answer is fine (the grading was wrong)" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
@@ -343,7 +375,7 @@ describe("ReviewPanel", () => {
     render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
 
     expect(
-      screen.queryByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+      screen.queryByRole("button", { name: "Answer is fine (the grading was wrong)" }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
   });
@@ -505,12 +537,12 @@ it("retains a newly decided answer in place, collapsed with its effect and crite
   });
   const { rerender } = render(<ReviewPanel dataset={dataset()} />);
   expect(
-    screen.queryByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    screen.queryByRole("button", { name: "Answer is fine (the grading was wrong)" }),
   ).not.toBeInTheDocument();
   await userEvent.click(screen.getByText(waiting.question));
   await userEvent.type(screen.getByRole("textbox"), "Cite the policy");
   await userEvent.click(
-    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    screen.getByRole("button", { name: "Answer is fine (the grading was wrong)" }),
   );
   expect(await screen.findByRole("status")).toHaveTextContent("Counts as passed.");
   state.answer = { scores: [], total: 0 };
@@ -552,7 +584,7 @@ it("does not restore a decided answer after switching organizations while its re
   render(<ReviewPanel dataset={dataset()} />);
   await userEvent.click(screen.getByText(waiting.question));
   await userEvent.click(
-    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    screen.getByRole("button", { name: "Answer is fine (the grading was wrong)" }),
   );
   state.answer = { scores: [], total: 0 };
   await act(async () => {

@@ -10,6 +10,7 @@ import type { NoteTarget } from "@/hooks/use-scoring";
 import type { CaseScore } from "@/types/scoring";
 import { ScoreCard, type Verdict } from "./score-card";
 import { ScoreDecision } from "./score-decision";
+import { ScoreOrigin } from "./score-origin";
 
 interface Props {
   score: CaseScore;
@@ -37,6 +38,7 @@ export function ReviewQueueRow(props: Props) {
           <span className="font-medium break-words">
             {score.case_masked ? t("maskedConversation") : score.question}
           </span>
+          <ScoreOrigin score={score} />
         </summary>
         {expanded && (
           <div className="px-3 pb-3">

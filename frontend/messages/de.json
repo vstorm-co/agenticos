@@ -11703,6 +11703,14 @@
         "startsWith": "Beginnt mit „{text}“",
         "bullets": "Hat eine Aufzählung",
         "json": "Ist ein JSON-Objekt"
+      },
+      "markPassedUngraded": "Antwort ist richtig (die Bewertung lag falsch)",
+      "groupSkillCheck": "Skill-Prüfung · {when}",
+      "origin": {
+        "check": "Skill-Prüfung · {arm, select, proposed {{known, select, yes {vorgeschlagene v{version}} other {vorgeschlagener Text}}} other {{known, select, yes {aktuelle v{version}} other {aktueller Text}}}}",
+        "eval": "Eval-Run",
+        "hand": "Von Hand bewertet",
+        "rerun": "{source} · Wiederholung {attempt}"
       }
     },
     "title": "Datasets",

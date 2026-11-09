@@ -105,6 +105,15 @@ export interface ScoreGroup {
  * rather than reordered. Inside a group the scores read in the order they were
  * graded, which for an eval run is the order of the dataset's cases.
  */
+/** Whether a model graded the answer: a judge or a reference comparison reached a verdict. */
+export function judgedBy(score: CaseScore): boolean {
+  return score.results.some(
+    (result) =>
+      (result.scorer === "judge" || result.scorer === "reference") &&
+      (result.status === "pass" || result.status === "fail"),
+  );
+}
+
 export function groupScores(scores: CaseScore[]): ScoreGroup[] {
   const groups: ScoreGroup[] = [];
   for (const score of scores) {

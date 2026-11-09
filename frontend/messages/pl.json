@@ -11795,6 +11795,14 @@
         "startsWith": "Zaczyna się od „{text}”",
         "bullets": "Ma listę punktowaną",
         "json": "Jest obiektem JSON"
+      },
+      "markPassedUngraded": "Odpowiedź jest poprawna (ocena była błędna)",
+      "groupSkillCheck": "Sprawdzenie skilla · {when}",
+      "origin": {
+        "check": "Sprawdzenie skilla · {arm, select, proposed {{known, select, yes {proponowana v{version}} other {proponowany tekst}}} other {{known, select, yes {obecna v{version}} other {obecny tekst}}}}",
+        "eval": "Run ewaluacji",
+        "hand": "Oceniono ręcznie",
+        "rerun": "{source} · powtórka {attempt}"
       }
     },
     "title": "Datasety",

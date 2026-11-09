@@ -44,7 +44,11 @@ export function ReviewGroupHeading({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <h3 className="text-muted-foreground font-mono text-xs font-medium tracking-[0.1em] uppercase">
-        {group.evalRunId === null ? t("groupByHand") : t("groupEvalRun", { when })}
+        {group.evalRunId === null
+          ? t("groupByHand")
+          : first!.skill_check
+            ? t("groupSkillCheck", { when })
+            : t("groupEvalRun", { when })}
         {" · "}
         {first!.agent_name ?? t("agentGone")}
       </h3>
