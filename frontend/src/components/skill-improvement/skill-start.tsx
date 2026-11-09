@@ -91,7 +91,13 @@ export function SkillStart({
   return (
     <section className="space-y-5 rounded-xl border p-6" data-tour="skill-improvement-start">
       <h2 className="font-medium">{t("title")}</h2>
-      <p className="text-sm">{t("reads", { runs: quote.evidence_runs, agents: quote.agents })}</p>
+      {quote.reason === "no_evidence" ? (
+        <p role="alert" className="text-sm">
+          {t("noEvidence")}
+        </p>
+      ) : (
+        <p className="text-sm">{t("reads", { runs: quote.evidence_runs, agents: quote.agents })}</p>
+      )}
       {quote.hidden_agents > 0 && (
         <p className="text-muted-foreground text-xs">
           {t("hidden", { count: quote.hidden_agents })}
@@ -121,9 +127,9 @@ export function SkillStart({
         />
         <p className="text-muted-foreground text-xs">{t("limitHint")}</p>
       </div>
-      {!quote.affordable && (
+      {!quote.affordable && quote.reason === null && (
         <p role="alert" className="text-sm">
-          {quote.reason === "no_evidence" ? t("noEvidence") : t("unaffordable")}
+          {t("unaffordable")}
         </p>
       )}
       {refusal !== null && (
@@ -132,7 +138,7 @@ export function SkillStart({
         </p>
       )}
       <Button
-        disabled={!quote.affordable || !(typed > 0)}
+        disabled={!quote.affordable || quote.reason !== null || !(typed > 0)}
         loading={start.isPending}
         onClick={() => void begin()}
       >

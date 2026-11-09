@@ -15395,10 +15395,10 @@
       "limitHint": "Ausgefüllt für den ersten Vorschlag und jeden Versuch, den die Sitzung machen kann. Senke es, um früher aufzuhören; die Sitzung hält vor einem Schritt an, der es überschreiten würde.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": "Starten",
-      "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, in denen Versionen dieser Linie geladen wurden, {agents, plural, =1 {von 1 Agent} other {von # Agents}}.",
+      "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, die diese Linie geladen haben und negativ bewertet wurden oder fehlschlugen. {agents, plural, =1 {Die Linie bedient 1 Agent.} other {Die Linie bedient # Agents.}}",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gelesen.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gelesen.}}",
       "checkNamedLater": "Bevor die Änderungen geprüft werden, wird jeder Agent genannt, auf dem sie laufen, und die, auf denen sie nicht laufen können, mit Grund.",
-      "noEvidence": "Es gibt keine schlecht bewerteten oder fehlgeschlagenen Antworten, in denen diese Linie geladen wurde, also gibt es noch nichts zu lernen."
+      "noEvidence": "Noch keine Antwort, die diese Linie geladen hat, wurde negativ bewertet oder schlug fehl, also gibt es nichts zu lernen. Bewerte im Chat eine Antwort negativ, in der ein Agent diesen Skill verwendet hat, und starte dann erneut."
     },
     "understand": {
       "title": "Verstehen",

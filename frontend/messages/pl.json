@@ -15497,10 +15497,10 @@
       "limitHint": "Wypełniony na pierwszą propozycję i każdą próbę, jaką sesja może zrobić. Obniż go, żeby skończyć wcześniej; sesja zatrzymuje się przed krokiem, który by go przekroczył.",
       "unaffordable": "Budget organizacji tego nie pokrywa.",
       "start": "Zacznij",
-      "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, w których wczytano wersje tej linii, {agents, plural, one {od # agenta} few {od # agentów} many {od # agentów} other {od # agenta}}.",
+      "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały. {agents, plural, one {Linia służy # agentowi.} few {Linia służy # agentom.} many {Linia służy # agentom.} other {Linia służy # agenta.}}",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest czytana.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są czytane.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.}}",
       "checkNamedLater": "Zanim zmiany zostaną sprawdzone, każdy agent, na którym ruszą, jest wymieniony, a ci, na których nie mogą, z powodem.",
-      "noEvidence": "Nie ma źle ocenionych ani nieudanych odpowiedzi, w których wczytano tę linię, więc na razie nie ma się z czego uczyć."
+      "noEvidence": "Żadna odpowiedź, która wczytała tę linię, nie została jeszcze oceniona negatywnie ani się nie udała, więc nie ma się z czego uczyć. Oceń negatywnie odpowiedź w czacie, w której agent użył tego skilla, i zacznij ponownie."
     },
     "understand": {
       "title": "Zrozumienie",

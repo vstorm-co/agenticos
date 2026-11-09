@@ -15723,10 +15723,10 @@
       "limitHint": "Filled in for the first proposal and every attempt it may make. Lower it to stop sooner; the session stops before a step that would go over it.",
       "unaffordable": "The organization's budget does not cover this.",
       "start": "Start",
-      "reads": "{runs, plural, =1 {It reads 1 answer} other {It reads # answers}} where the line's versions were loaded, {agents, plural, =1 {from 1 agent} other {from # agents}}.",
+      "reads": "{runs, plural, =1 {It reads 1 answer} other {It reads # answers}} that loaded this line and were rated down or failed. {agents, plural, =1 {The line serves 1 agent.} other {The line serves # agents.}}",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not read.} other {# answers are from before skill loads were recorded and are not read.}}",
       "checkNamedLater": "Before the changes are checked, each agent they run on is named, and the ones they cannot run on, with the reason.",
-      "noEvidence": "There are no rated-down or failed answers where this line was loaded, so there is nothing to learn from yet."
+      "noEvidence": "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again."
     },
     "understand": {
       "title": "Understand",
