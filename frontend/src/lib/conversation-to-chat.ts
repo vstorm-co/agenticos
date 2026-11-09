@@ -26,8 +26,17 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
+  setup_agent_id?: string | null;
   type:
-    "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run" | "phone_call";
+    | "text"
+    | "thinking"
+    | "tool"
+    | "ask_user"
+    | "steer"
+    | "mention"
+    | "workflow_run"
+    | "phone_call"
+    | "model_setup";
   file_source?: TurnFileSource | null;
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
@@ -120,6 +129,15 @@ export function replayStoredParts(
         question: entry.question ?? "",
         answer: entry.answer ?? "",
         ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
+      });
+      return;
+    }
+    if (entry.type === "model_setup") {
+      parts.push({
+        id: `${msgId}-setup-${index}`,
+        type: "model_setup",
+        content: entry.text ?? "",
+        setupAgentId: entry.setup_agent_id ?? undefined,
       });
       return;
     }

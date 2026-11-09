@@ -144,6 +144,11 @@ export function AssistantWindow({
             incomingFiles={incoming}
             emptyState={(onPick) => (
               <AssistantWelcome
+                setup={
+                  assistant.status === "needs_model"
+                    ? { agentId, canConfigure: assistant.can_configure }
+                    : undefined
+                }
                 greeting={assistant.greeting}
                 name={name}
                 mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f3dca8ab414"
+source_sha: "bcdc4834f590"
 ---
 
 # Configuración { #configuration }
@@ -877,7 +877,7 @@ dónde se sirven. Consulta [Aplicaciones](artifacts.md).
 | `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | El máximo de bytes de registros que un proceso de la API guarda, durante 30 segundos, para [los enlaces públicos y embeds de las páginas](artifacts.md#the-cache-and-the-cap). Solo en la memoria del proceso, nunca en Redis. Las lecturas menos usadas recientemente salen primero, y una lectura que supere el presupuesto no se guarda. Al menos 1024 |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 | `ARTIFACT_RENDER_CDP_URL` | (vacío) | El endpoint de Chromium DevTools en el que [`preview_artifact`](artifacts.md#seeing-the-page-preview) dibuja las páginas, por ejemplo `http://artifact-render:9222`. Es configuración exclusiva del despliegue: no se comprueba contra `BROWSER_CDP_ALLOWED_HOSTS`, que enumera lo que pueden manejar los autores de agents, y a un agent que navega se le rechaza su host aunque esa lista lo nombre. El backend necesita el extra `browser`. Vacío, una vista previa devuelve su informe sin imagen |
-| `VISUAL_MAP_TILES` | (vacío) | El único servidor de teselas sobre el que un [visual](artifacts.md#visuals) o una app puede dibujar un mapa: `openstreetmap`, `usgs-topo` o una plantilla de URL `https://` con `{z}`, `{x}` y `{y}` una vez cada uno. El despliegue trae cada tesela y la sirve a las páginas desde su propia ruta de teselas; ninguna página habla con el servidor. Vacío dibuja un mapa como un contorno de sus paradas. Un valor que no se puede servir se rechaza al arrancar |
+| `VISUAL_MAP_TILES` | (vacío) | El único servidor de teselas sobre el que un [visual](artifacts.md#visuals) o una app puede dibujar un mapa: `openstreetmap`, `usgs-topo` o una plantilla de URL `https://` con `{z}`, `{x}` y `{y}` una vez cada uno. El despliegue trae cada tesela y la sirve a las páginas desde su propia ruta de teselas; ninguna página habla con el servidor. Sin este ajuste, los mapas nuevos usan contornos de países SVG incluidos, puntos y rutas. Las páginas de itinerarios existentes pueden mostrar un contorno de sus paradas. Un valor que no se puede servir se rechaza al arrancar |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (vacío) | El crédito que se muestra bajo un mapa en un servidor de teselas propio, p. ej. `© OpenStreetMap contributors`. Obligatorio con una plantilla de URL; un preset trae el suyo |
 
 **Las teselas las trae el despliegue, no el navegador del lector.** Una página

@@ -4,6 +4,7 @@ import type { Delegation } from "@/types";
 
 import { memo, useId, useState } from "react";
 
+import { ModelSetupReply } from "./model-setup-reply";
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -643,6 +644,7 @@ function MessageBody({
   const t = useTranslations("chat");
   const parts = message.parts ?? [];
   const useParts = !isUser && parts.length > 0;
+  const setupPart = parts.find((part) => part.type === "model_setup");
   const legacyCalls = message.toolCalls ?? [];
 
   // "Thinking…" placeholder - shown until anything streams in.
@@ -668,10 +670,13 @@ function MessageBody({
         </div>
       )}
 
-      {useParts ? (
+      {!isUser && message.animateSetupReply && setupPart ? (
+        <ModelSetupReply text={message.content} agentId={setupPart.setupAgentId} />
+      ) : useParts ? (
         /* Ordered timeline: each part in arrival order, with runs of tool
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
+          allowSetupActions
           parts={parts}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}

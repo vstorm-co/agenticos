@@ -1,0 +1,33 @@
+.guided {
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 32px;
+}
+.guided > button:first-child {
+  width: 104px;
+  height: 104px;
+}
+.guided > button:first-child > span:first-child {
+  font-size: 28px;
+}
+.details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 440px;
+  text-align: center;
+}
+.details > * {
+  margin-block: 0;
+}
+.details > div {
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .guided {
+    padding: 24px 20px;
+  }
+}

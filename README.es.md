@@ -1,4 +1,4 @@
-<!-- source_sha: fef9b3dae3d0 -->
+<!-- source_sha: 3aeccb10a78f -->
 
 <div align="center">
 
@@ -228,6 +228,7 @@ Funciona en tu propia infraestructura con Docker Compose y es compatible con 28 
 |---|---|
 | Tu empresa ya utiliza AgenticOS | Pide la URL del workspace y entra desde el navegador o [instala la aplicación](#instalar-la-aplicación-de-escritorio). |
 | Tu empresa necesita un workspace | Pide a TI que [despliegue un servidor](#desplegar-un-servidor-de-empresa) o [habla con Vstorm](https://vstorm.co/contact-us/). |
+| Quieres probarlo en tu equipo sin usar la terminal | [Instala la aplicación de escritorio](#instalar-la-aplicación-de-escritorio), elige **En este equipo** y sigue la configuración. Revisa antes los [requisitos](https://vstorm-co.github.io/agenticos/es/desktop/#running-it); la IA necesita un modelo configurado, pero los ejemplos grabados no. |
 | Eres desarrollador y quieres probar en local | [Ejecuta el quickstart con Docker](#pruébalo-en-local). |
 
 ### Pruébalo en local

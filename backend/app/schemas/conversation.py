@@ -90,11 +90,22 @@ class MessagePart(BaseSchema):
     )
 
     type: Literal[
-        "text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention", "phone_call"
+        "text",
+        "thinking",
+        "tool",
+        "ask_user",
+        "workflow_run",
+        "steer",
+        "mention",
+        "phone_call",
+        "model_setup",
     ] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
+    )
+    setup_agent_id: UUID | None = Field(
+        default=None, description="The shipped starter needing a model; never evidence of a run"
     )
     phone_call_id: UUID | None = Field(
         default=None, description="The owned telephone receipt for a phone_call entry."

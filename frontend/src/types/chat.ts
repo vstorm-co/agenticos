@@ -71,6 +71,8 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Local reveal for a newly received setup reply; absent from loaded history. */
+  animateSetupReply?: boolean;
   /** Run-level pause, including gated delegate tools absent from this message. */
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
@@ -195,7 +197,14 @@ export interface ToolCall {
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
 export type MessagePartType =
-  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
+  | "thinking"
+  | "text"
+  | "tool"
+  | "ask_user"
+  | "steer"
+  | "workflow_run"
+  | "phone_call"
+  | "model_setup";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -210,6 +219,7 @@ export interface WorkflowRunPart {
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
+  setupAgentId?: string;
   id: string;
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
@@ -281,6 +291,7 @@ export type WSEventType =
   | "next_steps"
   | "user_prompt"
   | "session_ready"
+  | "model_setup_required"
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"

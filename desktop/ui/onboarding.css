@@ -675,3 +675,15 @@ main:has(> [data-screen="permissions"]:not([hidden])) > .app-icon {
 [data-screen="permissions"] .permission-row {
   padding-block: 0.7rem;
 }
+
+.language-choice {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+.language-choice select {
+  width: auto;
+}

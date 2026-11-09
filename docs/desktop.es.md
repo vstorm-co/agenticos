@@ -1,5 +1,5 @@
 ---
-source_sha: "b0d63e54b2c9"
+source_sha: "2277b0624af5"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -68,11 +68,19 @@ Cuando el workflow de versiones tiene un certificado autofirmado estable (`scrip
 
 ## Ejecutarla { #running-it }
 
-Antes de elegir una instalación local o conectar con un servidor, el asistente inicial
-ofrece permisos opcionales de grabación de pantalla, accesibilidad y micrófono en macOS. Cada botón
-abre los ajustes del sistema correspondientes; la configuración no captura la pantalla
-ni controla el equipo. Se puede continuar sin ninguno. Al volver de Ajustes se
-actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso a las carpetas se solicita al usarlo. El micrófono lo pide macOS con el aviso habitual; los otros dos abren los ajustes del sistema. La primera ventana se abre al 80 % de la pantalla, centrada, y después recuerda su tamaño y posición.
+El asistente empieza con el idioma y la elección entre espacio local y
+servidor de la organización. Grabación de pantalla, accesibilidad y micrófono
+son funciones opcionales disponibles en App readiness o al utilizarlas;
+no son un requisito para elegir la conexión.
+
+Al conectar la aplicación de escritorio, puedes pegar el enlace original de invitación en lugar de solo la dirección del servidor. La aplicación se conecta al servidor del enlace y abre la invitación, conservando el destino durante el inicio de sesión. No acepta la invitación automáticamente ni guarda su token en los ajustes nativos. La revisión opcional de conexión espera a que termine la invitación.
+
+El inicio nativo y la consola admiten inglés, polaco, alemán y turco. La elección
+se pasa a la consola; el idioma guardado en una cuenta existente sigue teniendo
+prioridad. La instalación local pide un nombre de espacio; un nombre de organización
+separado es una opción avanzada. Tras revisar la conexión, **Get started** abre
+el inicio común de tareas. Un espacio local puede enviar contenido a un proveedor
+de IA remoto; instalar localmente no implica IA sin conexión.
 
 Hacen falta Rust de [rustup](https://rustup.rs) y el webview de la plataforma -
 WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux; la
