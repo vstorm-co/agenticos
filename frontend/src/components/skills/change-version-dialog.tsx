@@ -139,8 +139,11 @@ export function ChangeVersionDialog({
     read.fork === null
       ? t("versionOption", { number: read.number })
       : t("forkVersion", { name: read.fork, number: read.number });
+  // The agent has answered with it before, so moving there brings it nothing new.
+  const answered = read.id !== undefined && (usage.answered_with ?? []).includes(read.id);
   // A check that could not measure the agent answers nothing: it is acknowledged instead.
-  const needsAck = !unchanged && !read.served && (!checked || checked.state === "unknown");
+  const needsAck =
+    !unchanged && !read.served && (checked ? checked.state === "unknown" : !answered);
   // A pinned agent caught up on main's newest version carries the check that measured it,
   // which decides that check rather than leaving it waiting.
   const decided =
@@ -308,6 +311,11 @@ export function ChangeVersionDialog({
                   state: tCheck(`state.${checked.state}`),
                   when: formatDate(checked.at, locale),
                 })}
+              </p>
+            )}
+            {!unchanged && !read.served && answered && !checked && (
+              <p className="text-muted-foreground text-sm">
+                {t("answeredBefore", { version: label, name })}
               </p>
             )}
             {needsAck && (

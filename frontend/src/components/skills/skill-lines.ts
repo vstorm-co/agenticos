@@ -57,3 +57,11 @@ export function eachAgentOnce(rows: SkillAgentUsage[]): SkillAgentUsage[] {
     (usage, index) => rows.findIndex((other) => other.agent.id === usage.agent.id) === index,
   );
 }
+
+/**
+ * Whether the agent's answers never used another version than the one it serves:
+ * no change has reached it, so a version no check measured is simply not checked yet.
+ */
+export function neverMoved(usage: SkillAgentUsage): boolean {
+  return (usage.answered_with ?? []).every((id) => id === usage.binding.version.id);
+}

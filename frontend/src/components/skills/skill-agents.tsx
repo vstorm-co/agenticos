@@ -13,7 +13,14 @@ import { cn, formatDate } from "@/lib/utils";
 import type { SkillAgentList, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { ChangeVersionDialog } from "./change-version-dialog";
 import { LineChips } from "./line-chips";
-import { bindingLabel, eachAgentOnce, isShown, readerKey, type ShownAgents } from "./skill-lines";
+import {
+  bindingLabel,
+  eachAgentOnce,
+  isShown,
+  neverMoved,
+  readerKey,
+  type ShownAgents,
+} from "./skill-lines";
 
 /** Each agent that uses the skill, the version it is served, and the way to move it. */
 export function SkillAgents({
@@ -171,7 +178,9 @@ function BindingCell({ usage, seesChecks }: { usage: SkillAgentUsage; seesChecks
                 state: tCheck(`state.${usage.checked.state}`),
                 when: formatDate(usage.checked.at, locale),
               })
-            : t("agentsTable.notChecked")}
+            : neverMoved(usage)
+              ? t("agentsTable.notCheckedYet")
+              : t("agentsTable.notChecked")}
         </p>
       )}
       {usage.environments.map((environment) => (

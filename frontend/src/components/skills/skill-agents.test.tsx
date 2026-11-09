@@ -155,7 +155,8 @@ describe("SkillAgents", () => {
   it("says which agents a check measured on the version they serve, and which are unknown", () => {
     mount(
       LIST([
-        onMain("Support"),
+        onMain("Support", { answered_with: ["m11", "m12"] }),
+        onMain("Fresh", { answered_with: ["m12"] }),
         onMain("Refunds", {
           checked: {
             check_id: "c1",
@@ -168,14 +169,18 @@ describe("SkillAgents", () => {
       ]),
     );
 
-    expect(screen.getByText("Unknown: no check measured this version on it")).toBeInTheDocument();
+    // Support answered with v11 and moved on unchecked; Fresh never served anything else.
+    expect(
+      screen.getByText("Unknown: this version reached it without a check"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not checked yet")).toHaveClass("text-muted-foreground");
     expect(screen.getByText(/Checked on this version .*: Worse/)).toBeInTheDocument();
   });
 
   it("says nothing about checks to a reader who may not see them", () => {
     mount(LIST([onMain("Support")]), null, "all", [], false);
     expect(
-      screen.queryByText(/never checked|no check measured|Checked on this version/),
+      screen.queryByText(/Not checked yet|without a check|Checked on this version/),
     ).toBeNull();
   });
 });

@@ -8478,7 +8478,8 @@
         "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
         "emptyShown": "No agent here.",
         "checked": "Checked on this version {when}: {state}",
-        "notChecked": "Unknown: no check measured this version on it"
+        "notChecked": "Unknown: this version reached it without a check",
+        "notCheckedYet": "Not checked yet"
       },
       "changeVersion": {
         "button": "Change version",
@@ -8507,7 +8508,8 @@
         "leavesMain": "{name} stays on this version and stops getting new main versions.",
         "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}",
         "checkedOn": "{version} was checked on {name} {when}: {state}.",
-        "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change."
+        "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change.",
+        "answeredBefore": "{name} has answered with {version} before."
       },
       "history": {
         "title": "History of {line}",

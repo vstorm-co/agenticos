@@ -36,6 +36,7 @@ from app.repositories import (
     agent_repo,
     promotion_gate_repo,
     skill_check_repo,
+    skill_usage_repo,
     skill_version_repo,
 )
 from app.schemas.resource_usage import AgentUsage
@@ -394,6 +395,14 @@ class SkillAgentService:
                     at=at,
                 ),
             )
+        answered: dict[UUID, list[UUID]] = {}
+        for agent_id, version_id in await skill_usage_repo.answered_versions(
+            self.db,
+            organization_id=skill.organization_id,
+            skill_id=skill.id,
+            agent_ids=[agent.id for agent in checked],
+        ):
+            answered.setdefault(agent_id, []).append(version_id)
         rows: list[SkillAgentUsage] = []
         for use in uses:
             # The default environment first: a reader's row shows what it serves there.
@@ -446,6 +455,7 @@ class SkillAgentService:
                         can_publish=agent.id in publishable,
                         checked=checks.get(agent.id, {}).get(binding.version.id),
                         checked_versions=list(checks.get(agent.id, {}).values()),
+                        answered_with=answered.get(agent.id, []),
                     )
                 )
         return rows

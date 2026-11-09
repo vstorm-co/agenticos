@@ -127,6 +127,8 @@ export interface SkillAgentUsage {
   checked?: AgentCheckRef | null;
   /** Every version a check made after measuring it on this agent, newest check first. */
   checked_versions?: AgentCheckRef[];
+  /** The skill versions this agent's own answers used; empty without `runs:view`. */
+  answered_with?: string[];
 }
 
 /** What a check found on one agent, for the version that check made. */

@@ -102,6 +102,16 @@ describe("ChangeVersionDialog", () => {
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
   });
 
+  it("asks nothing about a version the agent has answered with before", async () => {
+    renderDialog({ ...HR, answered_with: ["r2", "m9"] });
+
+    await userEvent.click(screen.getByRole("radio", { name: "Fork “Returns”, latest" }));
+
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(screen.getByText("HR bot has answered with Returns v2 before.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
+
   it("reads the first page when the agent is pinned past the main version the page knows", async () => {
     renderDialog({
       ...HR,

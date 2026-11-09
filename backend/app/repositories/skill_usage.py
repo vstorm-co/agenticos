@@ -179,6 +179,29 @@ async def usage_by_version(
     return [VersionUsage(*row) for row in rows.all()]
 
 
+async def answered_versions(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, agent_ids: Collection[UUID]
+) -> list[tuple[UUID, UUID]]:
+    """Each `(agent_id, skill_version_id)` an agent's served runs used, at any time."""
+    if not agent_ids:
+        return []
+    rows = await db.execute(
+        select(RunSkillUse.agent_id, RunSkillUse.skill_version_id)
+        .distinct()
+        .where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.skill_id == skill_id,
+            RunSkillUse.skill_version_id.is_not(None),
+            RunSkillUse.agent_id.in_(list(agent_ids)),
+            AgentRun.id == RunSkillUse.run_id,
+            AgentRun.surface != RunSurface.EVAL.value,
+            AgentRun.is_test.is_(False),
+            used(),
+        )
+    )
+    return [(agent_id, version_id) for agent_id, version_id in rows.all() if version_id is not None]
+
+
 async def usage_by_day(
     db: AsyncSession,
     *,
