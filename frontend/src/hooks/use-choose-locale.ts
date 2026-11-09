@@ -33,7 +33,8 @@ export function useChooseLocale(): (next: Locale) => void {
           toast.error(getErrorMessage(error, tErrors)),
         );
       }
-      router.push(pathname, { locale: next });
+      const search = window.location.search;
+      router.push(`${pathname}${search}${window.location.hash}`, { locale: next });
     },
     [pathname, router, signedIn, tErrors],
   );

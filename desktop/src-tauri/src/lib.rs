@@ -461,19 +461,106 @@ fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
     app.state::<SignInProof>().take(&code)
 }
 
+fn connection_setup_path(language: Option<&str>) -> String {
+    language
+        .filter(|language| ["en", "pl", "de", "tr"].contains(language))
+        .map(|language| format!("{language}/{CONNECTION_SETUP}"))
+        .unwrap_or_else(|| CONNECTION_SETUP.to_string())
+}
+
+/// An explicitly pasted invitation may continue on its own server, never another origin.
+/// The token stays in the destination URL only, not in settings or error messages.
+fn connection_target(typed: &str) -> Result<(Url, Option<String>), String> {
+    let mut server =
+        parse_server_url(typed).map_err(|_| "Enter an HTTPS server address or a valid invitation link.".to_owned())?;
+    if !server.username().is_empty() || server.password().is_some() {
+        return Err("A server address cannot contain credentials.".into());
+    }
+    let segments: Vec<_> = server.path().trim_matches('/').split('/').collect();
+    let invitation = match segments.as_slice() {
+        ["invitations", token] => Some(*token),
+        [locale, "invitations", token] if ["en", "pl", "de", "tr"].contains(locale) => Some(*token),
+        _ => None,
+    };
+    if let Some(token) = invitation {
+        if token == "pending"
+            || token.is_empty()
+            || token.len() > 512
+            || !token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            || server.query().is_some()
+            || server.fragment().is_some()
+        {
+            return Err("Paste the original invitation link from your teammate.".into());
+        }
+        let destination = server.path().trim_start_matches('/').to_owned();
+        server.set_path("/");
+        return Ok((server, Some(destination)));
+    }
+    if segments.contains(&"invitations") {
+        return Err("Paste the original invitation link from your teammate.".into());
+    }
+    Ok((server, None))
+}
+
+#[cfg(test)]
+mod onboarding_language_tests {
+    use super::{connection_setup_path, connection_target, CONNECTION_SETUP};
+
+    #[test]
+    fn pasted_invitation_preserves_only_a_same_server_destination() {
+        let (server, destination) = connection_target("https://team.example/pl/invitations/abc_DEF-123").unwrap();
+        assert_eq!(server.as_str(), "https://team.example/");
+        assert_eq!(destination.as_deref(), Some("pl/invitations/abc_DEF-123"));
+        assert_eq!(connection_target("team.example").unwrap().1, None);
+        assert!(connection_target("https://team.example/invitations/pending?flow=secret").is_err());
+        assert!(connection_target("https://team.example/invitations/%2F%2Fevil.example").is_err());
+        assert!(connection_target("https://user:secret@team.example/invitations/token").is_err());
+        assert!(connection_target("http://team.example/invitations/token").is_err());
+        assert!(connection_target("https://team.example/invitations/token?next=https://evil.example").is_err());
+        assert!(!connection_target("http://team.example/invitations/secret")
+            .unwrap_err()
+            .contains("secret"));
+    }
+
+    #[test]
+    fn supported_language_follows_the_connection_without_changing_its_origin() {
+        assert_eq!(connection_setup_path(Some("pl")), format!("pl/{CONNECTION_SETUP}"));
+        assert_eq!(connection_setup_path(None), CONNECTION_SETUP);
+        assert_eq!(connection_setup_path(Some("https://example.com")), CONNECTION_SETUP);
+        assert_eq!(connection_setup_path(Some("../other")), CONNECTION_SETUP);
+    }
+}
+
+#[tauri::command]
+fn set_onboarding_language(app: AppHandle, language: String) -> Result<(), String> {
+    if !["en", "pl", "de", "tr"].contains(&language.as_str()) {
+        return Err("Unsupported language".into());
+    }
+    settings::update(&app, |settings| settings.onboarding_language = Some(language))?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
-    let server = parse_server_url(&url)?;
+    let (server, continuation) = connection_target(&url)?;
     let probed = server.clone();
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, server, Deployment::Server).await
+    arrive(&app, &window, server, Deployment::Server, continuation).await
 }
 
 /// Point the shell at a console that answers, remember where it lives, and
 /// review this connection, including for an existing account.
-async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+async fn arrive(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    server: Url,
+    deployment: Deployment,
+    continuation: Option<String>,
+) -> Result<(), String> {
     if deployment == Deployment::Server {
         let pending = runtime_installer::pending_path(app)?;
         match std::fs::remove_file(pending) {
@@ -494,7 +581,8 @@ async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment
     })?;
     // Granted before the page loads: the welcome asks the shell for its state as it mounts.
     console::grant(app, &server)?;
-    let landing = server.join(CONNECTION_SETUP).map_err(|e| e.to_string())?;
+    let path = continuation.unwrap_or_else(|| connection_setup_path(settings.onboarding_language.as_deref()));
+    let landing = server.join(&path).map_err(|e| e.to_string())?;
     window.navigate(landing).map_err(|e| e.to_string())?;
     retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
@@ -570,7 +658,7 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
     let console = tauri::async_runtime::spawn_blocking(move || local_stack::set_up(&handle, &owner))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, console, Deployment::Local).await
+    arrive(&app, &window, console, Deployment::Local, None).await
 }
 
 /// Resume only the saved managed instance, preserving its connection and session.
@@ -640,7 +728,7 @@ async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<St
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, console, Deployment::Local).await
+    arrive(&app, &window, console, Deployment::Local, None).await
 }
 
 #[tauri::command]
@@ -1484,6 +1572,7 @@ pub fn run() {
             console::pin_agent,
             console::unpin_agent,
             onboarding_state,
+            set_onboarding_language,
             onboarding_permissions::onboarding_permissions,
             onboarding_permissions::request_onboarding_permission,
             local_status,

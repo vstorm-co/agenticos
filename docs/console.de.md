@@ -1,5 +1,5 @@
 ---
-source_sha: "c7783da0b195"
+source_sha: "0fcfc92c2340"
 ---
 
 # Die Konsole { #the-console }
@@ -14,7 +14,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Cha
 hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
 neben dem Mikrofon.
 
-Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an. Get started reserviert beim Laden der Checkliste seinen Platz, damit Briefing und die Karten darunter nicht springen.
+Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
 Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
@@ -363,12 +363,7 @@ Agent-Entwurf und eine Routine, deren Entfernen Sie verlangen. Neben Freigaben u
 Organisation meldet sich seine Sprechblase, wenn ein Run von Ihnen gerade
 fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
-Solange die Organisation kein Modell hat, kann er nicht antworten. Geöffnet tippt
-er dann ein kurzes Gespräch darüber, wie man eins verbindet: einen API-Schlüssel
-beim Provider besorgen, den Architect im Agent Builder öffnen, unter **Modell**
-den Provider wählen und den Schlüssel einfügen, dann ein Modell auswählen. Die
-Schaltfläche bekommt nur, wer die Einstellungen der Organisation ändern darf;
-alle anderen erfahren, wer das kann.
+Vor dem Verbinden eines Modells öffnet der Architect denselben Chat mit einer grafischen Einrichtungskarte, einer kurzen Checkliste und dem Link zu den Modelleinstellungen. Eine Nachricht im Widget oder im Chat mit dem Architect-Entwurf erhält eine gespeicherte Einrichtungsantwort samt Karte, ohne Modellaufruf und ohne KI-Run. Die Antwort verwendet den Namen des gewählten Agents. Konfigurationsaktionen beachten Berechtigungen; andere Mitglieder erhalten Hinweise zum Administrator. Nach der Veröffentlichung bleibt das Widget für die normale Unterhaltung geöffnet.
 
 Der Architect ist ein Agent wie jeder andere, also werden Name, Modell, Wissen
 und der Rest seiner Spec im Agent Builder bearbeitet - von jemandem, der die
@@ -958,6 +953,10 @@ ohne dass eine neue Version veröffentlicht wird.
 
 Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Personen und Einladungen; **Arbeitsbereich** für Profil und Standard-Spracheinstellungen; **Budget und Freigaben** für Ausgaben und Zugriffsregeln; **Proaktivität** für Vorschläge, Überwachung und Zustellung; **KI und Dienste** für Architect und Systemdienste. Jedes Formular behält seine Berechtigungsprüfung. Budgetverantwortliche erreichen KI und Dienste auch ohne Architect-Konfiguration. Die Auswahl steht in der URL, Entwürfe bleiben beim Wechsel erhalten, und bisherige `?tab=voice`-Links öffnen Arbeitsbereich.
 
+Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
+
+Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sitzung: eine neue OAuth-Anmeldung mit verifizierter Adresse oder einen an die Adresse gebundenen E-Mail-Anmeldelink. Passwort- und ältere Sitzungen sehen **Einladungen prüfen** und können dort diesen Link anfordern; der ursprüngliche Einladungslink funktioniert weiterhin. Der Nachweis gilt weder für andere Sitzungen noch für eine geänderte Adresse. **Weitere Einladungen anzeigen** lädt weitere Seiten; der Logoabruf prüft die konkrete Einladung unabhängig von deren Listenseite.
+
 Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 
 Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich über die volle Breite, statt einen Eintrag auf die ganze Seite zu strecken. Bekannte Dienste verwenden mitgelieferte Markenlogos; andere Seiten ihr eigenes Favicon ohne Referrer und bei fehlendem Bild ein Globussymbol.
@@ -1034,3 +1033,98 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 
 **Chat controls → Tools & files** zeigt das Coding-Konto, das ein Agent braucht, wenn sein Coding agent als **Private cloud task with my account** läuft: nur diesen Harness, mit Logo und Zustimmungsstatus. Verbinde oder verwalte es direkt im Chat; alle Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.
+
+## Ihre erste Aufgabe { #your-first-task }
+
+In einem neuen Workspace ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
+
+Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding auch einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
+
+Das Schließen des Startbanners oder **Für 24 Stunden ausblenden** pausiert das Angebot für
+24 Stunden nach Serverzeit. Danach kann es wieder erscheinen, wenn die Einrichtung nicht
+abgeschlossen ist und der Workspace weiterhin einen ersten Einstieg benötigt. Nach den
+Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese
+Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Lauf sind
+nicht erforderlich. Der Abschluss der Einrichtung und eine erfolgreiche Aufgabe sind
+getrennte Zustände.
+
+Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
+Seitenhilfe. Auf dem Desktop liegt der Starthinweis als halbtransparente Ebene über
+der Konsole. Beide Navigationsspalten behalten ihre volle Höhe. Er bietet Administratoren die
+Einrichtung und Mitgliedern ein Beispiel und lässt sich schließen. Eine angenommene Einladung öffnet denselben Start in der beigetretenen
+Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
+fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
+
+Der Einstieg berücksichtigt Berechtigungen und bestehende Arbeit:
+
+| Person | Geführter Einstieg |
+| --- | --- |
+| Anwendungsadministrator | Firmen-Workspace erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
+| Organisationsadministrator | Workspace und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung. |
+| Neues Mitgliedskonto | Begrüßung, optionales persönliches Profil und Arbeitskontext, dann erste Aufgabe. |
+| Bestehendes Konto in einer weiteren Organisation | Begrüßung im Workspace; gespeichertes Profil verwenden oder bewusst überprüfen. |
+
+Ein AgenticOS-Begleiter erklärt Entscheidungen mit vorbereiteten Oberflächentexten.
+Das sind keine Modellantworten und keine KI-Aufrufe. Profil und Arbeitskontext gelten
+in allen Workspaces des Kontos. Optionale Angaben lassen sich überspringen.
+**Speichern und weiter** wechselt nach erfolgreichem Speichern zur nächsten Frage;
+bei einem Fehler bleibt die aktuelle Frage erhalten.
+
+Das Deployment fragt nach Registrierung, Startziel zukünftiger Konten und einer
+optionalen Mitteilung mit Vorschau. Nur bearbeitete Felder werden gesendet.
+**Aktuelle Einstellungen behalten** verwirft den Entwurf dieser Frage ohne Schreiben.
+Die Firmenwahl behält die eingestellte Standardrolle und verschiebt keine bestehenden
+Konten. App-Erscheinungsbild, Sprache, iOS-Push-Zugangsdaten und Wartung sind optionale
+Karten, die den passenden Administrationsbereich in einem neuen Tab öffnen. Der
+Ablauf aktiviert weder Wartung noch hinterlegt er automatisch Zugangsdaten.
+
+Für das Organisationsbudget gibt es Vorschläge und einen Regler. Ein bestehendes Dezimallimit bleibt erhalten. Ohne Limit ist eine eigene
+Auswahl; bei null wird vor möglichen blockierten Läufen gewarnt. Das begrenzt erfasste
+Nutzung und ist kein Abo oder Guthaben. Erweiterte Freigaben, Assistenten und Sprache
+bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.
+
+Die URL erhält Schritt, Einrichtungsfrage und Workspace für ein Neuladen. Ungespeicherte Änderungen,
+Zugriff oder Abschluss werden dadurch nicht gespeichert. Organisationswechsel und
+entzogene Rechte verhindern das Wiederherstellen eines privilegierten Schritts.
+Der Abschluss des letzten Schritts wird für die Mitgliedschaft gespeichert, auch
+wenn optionale Angaben und KI-Einrichtung übersprungen wurden.
+
+Ein früherer Kontoabschluss gilt für Mitgliedschaften, die zu diesem Zeitpunkt bereits
+bestanden. Spätere Mitgliedschaften beginnen separat. Eigene Chats und abgeschlossene
+Abläufe verhindern automatische Neustarts; veröffentlichte Agenten blenden gewöhnliche
+Startangebote aus. Links nach Registrierung oder Einladung begrüßen Mitglieder ohne
+eigene Aktivität oder Abschluss auch in Workspaces mit fertigen Agenten. Ältere und
+fehlgeschlagene Chats zählen als Aktivität, ohne erfolgreiche Läufe zu behaupten.
+Manueller Einstieg und Fortsetzung bleiben verfügbar. Normale Anmeldung öffnet Chat
+oder den gewünschten Link.
+
+Der Workspace-Name aktualisiert vor dem Erstellen eine gekennzeichnete Vorschau.
+Bestehende Organisationen zeigen ihr Logo oder den eingestellten Ersatzavatar.
+Benachbarte Desktop-Karten sind gleich hoch. Übergänge und Feldhervorhebungen
+beachten die Bewegungseinstellungen.
+Mitglieder wählen aufgezeichnete Beispiele mit getrennten Antwort- und Quell-Tabs.
+Beim Wechsel bleibt die Vorschau auf der Seite. Die KI-Einrichtung öffnet einen
+schließbaren Dialog mit Escape und Fokuswiederherstellung. Die Beispielwahl ruft
+kein Modell auf.
+
+Wählen Sie eine fiktive Besprechungsnotiz, eine Richtlinienfrage oder einen
+Angebotsvergleich. Prüfen oder bearbeiten Sie den Text vor **Aufgabe starten**.
+Die Ausführung verwendet das Modell und die Ausgabenlimits des gewählten Agenten
+und kann Anbieterkosten verursachen. Diese Textbeispiele benötigen weder Bildschirm,
+Mikrofon, Sandbox noch ein externes Konto.
+
+Die Beispielvorschau bleibt auch ohne Agenten verfügbar.
+Es ruft kein Modell auf, verarbeitet keine Änderungen und zählt nicht als
+erfolgreicher Lauf. Berechtigte Builder können einen gemeinsamen Textassistenten
+auf einem bewusst gewählten gemeinsamen Chatmodell vorbereiten. Sein monatliches
+Limit beträgt 5 USD innerhalb des Arbeitsbereichsbudgets. Bestehende Entwürfe werden
+nicht geändert; nutzen Sie dafür den Builder. Andere Mitglieder sehen den Kontakt
+des Eigentümers.
+
+Beispielwahl und Ausblenden werden pro Mitgliedschaft auch für andere Geräte
+gespeichert. Der Start verlinkt den letzten abgeschlossenen eigenen Webchat.
+Ein abgeschlossener Lauf belegt die Ausführung, nicht die Nützlichkeit. Touren
+sind optionale Hilfe; ihr Schließen erzeugt keinen erfolgreichen Lauf.
+Integrationen, Dateien, Agentenbau, Einladungen und Routinen sind optionale Folgeschritte.
+
+Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen gemeinsamen veröffentlichten Agenten ausführen können. Die Vorschau liefert nur diese Antwort, keine privaten Agentennamen, und ruft kein Modell auf. Sie bestätigt nicht die Erreichbarkeit des Anbieters. Einladungen von einer Loopback-Adresse sind in diesem Start gesperrt; verwenden Sie eine für den Empfänger erreichbare Serveradresse.

@@ -3,6 +3,8 @@ import type { Locale } from "@/lib/locales";
 export interface User {
   id: string;
   email: string;
+  /** This session proved this exact mailbox through a trusted sign-in. */
+  email_verified?: boolean;
   full_name?: string | null;
   /**
    * An address asked for and not yet confirmed, or null.

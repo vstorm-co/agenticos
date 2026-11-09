@@ -1,0 +1,54 @@
+.artwork {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 168px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #6d46d7;
+  margin-bottom: 4px;
+}
+.orbit {
+  position: absolute;
+  z-index: -1;
+  width: 142px;
+  height: 142px;
+  border: 1px dashed #bca0f7;
+  border-radius: 50%;
+}
+.task {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-top: 8px;
+  border-radius: 14px;
+  background: #faf7ff;
+  color: #5934b7;
+  box-shadow: 0 5px 0 #4f29ae;
+}
+.artwork > div {
+  margin-top: 5px;
+}
+:global(html:not([data-motion="reduce"])) .task {
+  animation: task-arrive 300ms ease-out both;
+}
+@keyframes task-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+@media (max-width: 640px) {
+  .artwork {
+    min-height: 148px;
+  }
+}

@@ -9,7 +9,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 "?" has no walkthrough to replay. Chat has no header: its tips are under the chat
 settings, the sliders beside the microphone.
 
-Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel. Get started reserves its space while checklist data loads, so Briefing and the cards below stay in place.
+Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel.
 
 Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
@@ -322,11 +322,7 @@ remove. Besides approvals and an
 empty organization, its bubble speaks up when a run of yours has just failed
 and when a form has been open, unfinished, for a minute.
 
-Until the organization has a model, it cannot answer. Opening it then types out
-a short conversation explaining how to connect one: get an API key from a
-provider, open the Architect in the Agent Builder, choose the provider under
-**Model** and paste the key, and pick a model. Only somebody who may change the
-organization's settings is given the button; anybody else is told who can do it.
+Before a model is connected, the Architect opens the same chat with a visual setup card, a short checklist and the model-settings action. You can write a message in the widget or select the draft Architect in chat: it saves a setup reply and card in the conversation without calling a model or recording an AI run. The reply uses the selected agent’s name. Configuration actions respect permissions; other members see administrator guidance. Once published, the normal conversation continues without closing the widget.
 
 The Architect is an agent like any other, so its name, model, knowledge and the
 rest of its spec are edited in the Agent Builder - by somebody who may change
@@ -855,6 +851,10 @@ change takes effect at once, without publishing a new version.
 
 Organization details use five tabs: **Members** for people and invitations; **Workspace** for the organization profile and default voice settings; **Budget and approvals** for spending and access policies; **Proactivity** for suggestions, monitoring and delivery; and **AI & services** for the Architect and system services. Controls retain their own permission gates. AI & services is available to budget managers even when Architect configuration is unavailable. The selected tab is stored in the URL, switching tabs preserves drafts, and old `?tab=voice` links open Workspace.
 
+After signing in, addressed email invitations also appear in the console and onboarding without opening the email link. The recipient chooses a workspace and accepts explicitly; Later keeps an Invitations shortcut available. Only live invitations to the account’s current email are shown, excluding shareable links and organizations already joined. Acceptance switches to the chosen organization and opens its welcome flow. The server never returns the invitation token through this inbox.
+
+The inbox requires mailbox proof in the current session: a fresh verified OAuth sign-in or an address-bound email sign-in link. Password-only and legacy sessions see **Check invitations**, which can request that link; the original invitation link remains available. Proof is not inherited by another session or a changed address. The list is paginated with **Show more invitations**, and logo access checks the specific invitation independently of its page.
+
 Amber setup dots mark organization tabs and the matching Voice, nightly-suggestion, memory-maintenance and Architect cards when configuration is incomplete or suggestions are off. Hover or focus the dot for a specific explanation; click or tap it to keep the explanation open. Indicators use saved configuration, disappear when completed and respect the permissions needed to edit it. Disabled suggestions are described as optional setup, not an error. The iPhone push configuration card also marks a missing Apple key. Reduced-motion preferences disable the pulsing animation.
 
 Saved browser sign-ins use a compact, full-width settings panel instead of stretching a single entry to fill the page. Known services use their bundled brand marks; other sites use their own favicon without a referrer, with a globe if the image is unavailable.
@@ -928,3 +928,92 @@ The administration organization directory shows the uploaded organization pictur
 
 
 **Chat controls → Tools & files** shows the coding account an agent needs when its Coding agent runs as **Private cloud task with my account**: only that harness, with its logo and consent status. Connect or manage it without leaving the chat; every account appears under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.
+
+## Your first task
+
+In a new workspace, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
+
+When no published agent is available, onboarding also offers an accessible shipped AgenticOS draft as a setup chat. Members can open it without model-management permissions; it provides configuration guidance, not an AI task result. Inaccessible drafts remain unavailable, and an accessible published agent takes precedence.
+
+Closing the start banner or choosing **Hide for 24 hours** snoozes the offer for 24 hours,
+using server time. It can return afterward if setup is unfinished and the workspace still
+needs a first start. After going through the questions, **Finish setup and open the app**
+records completion for this membership. Optional fields, invitations, a model, an agent
+and an AI run are not required. Completion and a successful task are separate states.
+
+Open **Get started** from the dashboard, the first-use offer or a page's help.
+On desktop, the chat start notice is a translucent overlay above the console.
+Both navigation columns retain their full height. It offers setup guidance to administrators
+and an example to members, and can be dismissed.
+An accepted organization invitation opens this same start in the organization
+you joined. Registration tries to sign you in immediately; if that session
+fails, the sign-in form keeps the destination and the account already created.
+
+The start follows the person's authority and existing work:
+
+| Person | Guided start |
+| --- | --- |
+| Application administrator | Create or choose a company workspace, prepare identity and invitations, then decide how future accounts join. |
+| Organization administrator | Prepare their workspace and its spending limit; no deployment controls. |
+| New member account | Welcome, optional personal profile and work context, then a first task. |
+| Existing account joining another organization | Welcome to that workspace; use the saved personal profile or deliberately review it. |
+
+A scripted AgenticOS companion explains each decision. These are interface messages,
+not model responses, and they make no AI calls. Personal identity and work context
+follow the account across workspaces. Optional details can be skipped. **Save and
+continue** advances after a successful save; a failed save keeps the current question.
+
+Deployment setup asks about registration, the destination of future accounts and
+an optional announcement with a preview. It sends only edited fields. **Keep current
+settings** discards this question's draft without writing it. Choosing a company
+keeps the configured default role and does not move existing accounts. App branding,
+voice, mobile push credentials and maintenance are optional cards linking to the
+appropriate administrator section in a new tab. The walkthrough never activates
+maintenance or uploads credentials automatically.
+
+Organization setup offers budget presets and a slider. An
+existing decimal cap is preserved. No limit is an explicit option; zero warns that
+runs can be blocked. This is a ceiling for tracked usage, not a subscription or
+prepaid credit. Advanced approvals, assistants and voice settings stay collapsed
+and retain their usual permissions and save actions.
+
+The URL keeps the current step, setup question and workspace for a reload. It does not preserve
+unsaved field edits, grant access or mark completion. A changed organization or
+revoked authority cannot restore a privileged step. Finishing the last step records
+membership completion even when optional fields and AI setup were skipped.
+
+Legacy account completion applies to memberships joined by that timestamp. A later
+membership starts separately. Existing personal chats and completed walkthroughs
+continue to suppress automatic restarts; available published agents also hide ordinary
+start offers. Registration and accepted-invitation entry links give a member with no
+personal activity or completion a welcome even in a workspace that already has agents.
+Older and failed chats count as activity without claiming a successful run. Explicit
+Get started and resumed walkthroughs remain available. Ordinary sign-in opens chat
+or the requested deep link.
+
+The workspace name updates a labelled preview before creation. Existing organizations
+use their uploaded logo or configured fallback avatar. Adjacent desktop cards share
+a height. Step transitions and transient field highlights respect Motion preferences. Members choose a
+recorded example in a split view with separate answer and source tabs. Switching
+examples keeps the preview on the page. AI setup opens a dismissible dialog with
+Escape support and focus restoration; no example selection calls a model.
+
+Choose a fictional meeting note, a policy question or an offer comparison.
+Review or edit the text before **Run this task**. Execution uses the selected
+agent's model and normal spending limits, and may incur provider charges. No
+screen, microphone, sandbox or external account is required by these text examples.
+
+The example preview remains available without an agent. It makes
+no model call, does not process your edits and does not count as a successful
+run. A permitted builder can prepare a shared text assistant on a deliberately
+selected shared chat model. Its monthly agent limit is $5, within the workspace
+budget. Preparation never changes an existing agent's draft; use the Builder to
+change an existing assistant. Members without those rights see the owner's contact.
+
+Your example choice and dismissal are stored per membership and follow you to
+another device. The start also links to your latest completed personal web chat.
+A completed run is evidence of execution, not a rating of its usefulness. Tours
+are optional help; closing one does not create a successful run. Integrations,
+files, agent building, team invitations and routines are optional next steps.
+
+Member managers can check whether an existing teammate and they can run a common published agent. The preview returns only that answer, never private agent names, and makes no model call. It does not certify provider availability. Team invitations from a loopback address are blocked in this start; use a server address reachable by the recipient.

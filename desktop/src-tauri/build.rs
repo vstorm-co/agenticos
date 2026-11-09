@@ -41,6 +41,7 @@ const COMMANDS: &[&str] = &[
     "pin_agent",
     "unpin_agent",
     "onboarding_state",
+    "set_onboarding_language",
     "onboarding_permissions",
     "request_onboarding_permission",
     "local_status",

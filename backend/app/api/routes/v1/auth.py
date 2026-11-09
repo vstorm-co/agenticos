@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
+    CurrentSessionId,
     CurrentUser,
     DeploymentSettingsSvc,
     DevicePairingSvc,
@@ -21,6 +22,7 @@ from app.core.exceptions import AuthenticationError
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    verify_special_token,
     verify_token,
 )
 from app.schemas.password_reset import (
@@ -274,11 +276,23 @@ async def change_password(
 
 
 @router.get("/me", response_model=MeRead)
-async def get_current_user_info(current_user: CurrentUser, impersonation: ImpersonationSvc) -> Any:
+async def get_current_user_info(
+    current_user: CurrentUser,
+    impersonation: ImpersonationSvc,
+    sessions: SessionSvc,
+    session_id: CurrentSessionId,
+) -> Any:
     """The account this request acts as - and, when an administrator is acting as
     it, who and until when, which is what the console's banner is drawn from."""
     me = MeRead.model_validate(current_user)
-    return me.model_copy(update={"impersonation": await impersonation.describe()})
+    return me.model_copy(
+        update={
+            "impersonation": await impersonation.describe(),
+            "email_verified": await sessions.has_mailbox_proof(
+                current_user.id, current_user.email, session_id
+            ),
+        }
+    )
 
 
 @router.delete("/impersonation", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -398,6 +412,8 @@ async def verify_magic_link(
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user, return_to = await user_service.consume_magic_link_token(body.token)
+    proof = verify_special_token(body.token, expected_type="magic_link")
+    proved_email = user.email if proof is not None and proof.get("email") == user.email else None
     refresh_token = create_refresh_token(
         subject=str(user.id), credential_version=user.credential_version
     )
@@ -406,6 +422,7 @@ async def verify_magic_link(
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
+        proved_email=proved_email,
     )
     access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return MagicLinkToken(

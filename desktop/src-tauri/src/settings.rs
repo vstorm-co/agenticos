@@ -17,6 +17,8 @@ use crate::pinned::PinnedAgent;
 #[derive(Serialize, Deserialize, Default)]
 pub struct Settings {
     #[serde(default)]
+    pub onboarding_language: Option<String>,
+    #[serde(default)]
     pub server_url: Option<Url>,
     #[serde(default)]
     pub appearance: Appearance,

@@ -301,7 +301,13 @@ Do not restyle it; give the element a width and let it set its own height.
 
 ## Follow a trip: a map
 
-Load Leaflet and the map kit, then hand it the stops:
+Start with the lightweight `AOWorldMap` recipe above: country outlines, a pin for
+each stop, routes between consecutive pins, and `focus` set to the relevant
+countries. This is the default even for trips between cities. It needs no tiles
+or extra configuration. `templates/itinerary.html` selects that map automatically.
+
+Only when `agenticos.map` is configured by the administrator and street detail is
+useful, load Leaflet and the map kit, then hand it the stops:
 
 ```html
 <link rel="stylesheet" href="lib/leaflet-1.9.4/leaflet.css">
@@ -321,9 +327,9 @@ It shows numbered pins joined in order by a dashed line, replays them dropping
 one by one on request (`autoplay: true` plays them on load), and lays the stops
 out as cards under the map; clicking a pin or a card
 jumps to it. Your instructions say whether this deployment has map tiles: with
-them it is a real map with its credit under it, without them an outline of the
-stops. Without tiles, say so in your answer - not as a note inside the drawing -
-with the reason your instructions give. Pass `labels` in the person's
+them it is a street map with its credit under it. Without tiles, or when they
+fail to load, use the lightweight SVG country map with the same stops and routes.
+Explain the lack of street detail only when the person asked for it. Pass `labels` in the person's
 language. A stop may carry `image` (`{{image:NAME}}` from `images`), `imageAlt`,
 and the photo's `credit` and `creditUrl` - show the author and the licence for
 every photo you did not make. Two to twelve stops read best.
