@@ -7000,3 +7000,19 @@ it("keeps the first granted computer continuation when a later delegate declines
     sent.mock.calls.filter(([frame]) => frame.message === "Access granted - please continue."),
   ).toHaveLength(1);
 });
+
+it.each([
+  null,
+  {},
+  { agent_id: "starter" },
+  { agent_id: 7, text: "Connect a model" },
+  { agent_id: "starter", text: 7 },
+])("ignores a malformed setup response without adding a transcript row: %j", (data) => {
+  renderHook(() => useChat(), { wrapper });
+  act(() =>
+    socket.onMessage?.(
+      new MessageEvent("message", { data: JSON.stringify({ type: "model_setup_required", data }) }),
+    ),
+  );
+  expect(useChatStore.getState().messages).toEqual([]);
+});

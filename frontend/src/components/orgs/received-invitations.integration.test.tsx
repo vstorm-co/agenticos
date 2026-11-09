@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, act } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -50,6 +51,7 @@ vi.mock("@/stores/org-store", () => ({
   useOrgStore: (select: (state: { setActiveOrgId: typeof env.setOrg }) => unknown) =>
     select({ setActiveOrgId: env.setOrg }),
 }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 
 function mount() {
@@ -216,4 +218,43 @@ it("loads a second page so older invitations remain reachable", async () => {
   expect(apiClient.get).toHaveBeenCalledWith("/invitations/received", {
     params: { skip: "50", limit: "50" },
   });
+});
+
+it("keeps mailbox verification retryable after delivery fails and can close it", async () => {
+  env.auth.user = { id: "person", email: "person@example.com", email_verified: false };
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Mail unavailable"));
+  mount();
+  fireEvent.click(screen.getByRole("button", { name: "Check invitations" }));
+  fireEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Email me a sign-in link" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Later" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Check invitations" }));
+  fireEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Check your inbox");
+  expect(apiClient.get).not.toHaveBeenCalled();
+  expect(env.setOrg).not.toHaveBeenCalled();
+});
+
+it("ignores a failed acceptance belonging to the account that just signed out", async () => {
+  let reject: (reason: Error) => void = () => {
+    throw new Error("Not started");
+  };
+  vi.mocked(apiClient.post).mockImplementation(
+    () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Join workspace" }));
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+  env.auth = { isAuthenticated: false, user: null };
+  await act(async () => reject(new Error("Expired invitation")));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(toast.error).not.toHaveBeenCalled();
+  expect(env.setOrg).not.toHaveBeenCalled();
+  expect(env.push).not.toHaveBeenCalled();
 });

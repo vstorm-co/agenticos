@@ -52,6 +52,8 @@ import * as myMcpConnection from "./me/mcp-connections/[id]/route";
 import * as myMcpConnectionTest from "./me/mcp-connections/[id]/test/route";
 import * as mcpOauthStart from "./me/mcp-connections/oauth/start/route";
 import * as slashCommands from "./me/slash-commands/[[...path]]/route";
+import * as receivedInvitations from "./invitations/received/route";
+import * as acceptReceivedInvitation from "./invitations/received/[id]/accept/route";
 import * as orgs from "./orgs/route";
 import * as org from "./orgs/[id]/route";
 import * as orgInvitations from "./orgs/[id]/invitations/route";
@@ -205,6 +207,24 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("limits received invitations to session-authenticated reads and acceptance", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(receivedInvitations)).toEqual(["GET"]);
+    expect(Object.keys(acceptReceivedInvitation)).toEqual(["POST"]);
+    expect(
+      (await receivedInvitations.GET(new NextRequest("http://localhost/api/invitations/received")))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await acceptReceivedInvitation.POST(
+          new NextRequest("http://localhost/api/invitations/received/invite/accept", {
+            method: "POST",
+          }),
+        )
+      ).status,
+    ).toBe(401);
+  });
   it("mounts only the supported start verbs behind session authentication", async () => {
     const { NextRequest } = await import("next/server");
     expect(Object.keys(myOnboarding).sort()).toEqual(["GET", "PATCH", "POST"]);
