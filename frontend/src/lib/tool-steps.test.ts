@@ -98,8 +98,8 @@ describe("the line for one tool call", () => {
 
   it("says what happened rather than naming the tool, where the two differ", () => {
     // Which skill it was is the whole content of the step.
-    expect(toolStep("load_capability", { id: "refund_policy" }, true, t).label).toBe(
-      "Refund Policy",
+    expect(toolStep("load_capability", { id: "returns-and-exchanges" }, true, t).label).toBe(
+      "returns-and-exchanges",
     );
     expect(toolStep("load_capability", {}, true, t).label).toBe("Load Skill");
   });

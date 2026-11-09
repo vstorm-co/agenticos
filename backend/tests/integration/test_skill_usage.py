@@ -342,6 +342,41 @@ class TestStatistics:
         assert usage.agents[0].last_loaded_at is not None
         assert [(v.skill_version_id, v.loads) for v in usage.agents[0].versions] == [(None, 4)]
 
+    async def test_a_run_names_the_skills_it_used_at_their_versions(self, db: AsyncSession):
+        """By name and version, for the run's own page; a skill only offered, and one the
+        reader may not see, are left out."""
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+        offered = await _skill(db, org, "shipping")
+        _, stranger = await _org(db)
+        hidden = await _skill(db, org, "payroll")
+        hidden.visibility = "private"
+        hidden.owner_user_id = stranger.id
+        await db.flush()
+        run = await _run(db, org, desk)
+        version = await _version(db, skill, 2)
+        await skill_usage_repo.record_uses(
+            db,
+            [
+                SkillUseRecord(
+                    agent_id=desk.id, skill_id=skill.id, skill_version_id=version, loaded=True
+                ),
+                SkillUseRecord(agent_id=desk.id, skill_id=offered.id, loaded=False),
+                SkillUseRecord(agent_id=desk.id, skill_id=hidden.id, loaded=True),
+            ],
+            organization_id=org.id,
+            run_id=run.id,
+            started_at=datetime.now(UTC),
+        )
+
+        viewer = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.VIEWER)
+        used = await SkillService(db).used_in_run(viewer, run.id)
+
+        assert [(use.name, use.version, use.fork, use.loaded) for use in used] == [
+            ("returns-policy", 2, None, True)
+        ]
+
     async def test_loads_are_split_by_the_version_served(self, db: AsyncSession):
         org, user = await _org(db)
         desk = await _agent(db, org, user, "Desk")

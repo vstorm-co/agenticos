@@ -13,7 +13,9 @@ from app.db.models.agent import AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
+from app.db.models.skill import Skill
 from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories.agent_run import served_runs
 from app.schemas.skill_usage import SkillUseRecord
 
@@ -30,6 +32,14 @@ class VersionUsage(NamedTuple):
     agent_id: UUID
     skill_version_id: UUID | None
     loads: int
+
+
+class RunUse(NamedTuple):
+    skill_id: UUID
+    name: str
+    version: int | None
+    fork: str | None
+    loaded: bool
 
 
 class DayUsage(NamedTuple):
@@ -325,3 +335,26 @@ async def agents_involved(
         .distinct()
     )
     return {agent_id for row in rows.all() for agent_id in row}
+
+
+async def skills_of_run(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> list[RunUse]:
+    """The skills one run used or read, each with the version it was served, by name."""
+    rows = await db.execute(
+        select(
+            RunSkillUse.skill_id,
+            Skill.name,
+            SkillVersion.number,
+            SkillFork.name,
+            RunSkillUse.loaded,
+        )
+        .join(Skill, Skill.id == RunSkillUse.skill_id)
+        .outerjoin(SkillVersion, SkillVersion.id == RunSkillUse.skill_version_id)
+        .outerjoin(SkillFork, SkillFork.id == SkillVersion.fork_id)
+        .where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.run_id == run_id,
+            used(),
+        )
+        .order_by(Skill.name)
+    )
+    return [RunUse(*row) for row in rows.tuples().all()]

@@ -44,6 +44,7 @@ from app.repositories import (
     skill_version_repo,
 )
 from app.repositories.skill import SkillSort
+from app.schemas.agent_run import RunSkillUseRead
 from app.schemas.skill import (
     GalleryIndustryRead,
     GalleryInstallResult,
@@ -1062,6 +1063,32 @@ class SkillService:
                 for industry in skill_library.gallery()
             ]
         )
+
+    async def used_in_run(self, ctx: AuthContext, run_id: UUID) -> list[RunSkillUseRead]:
+        """The skills one run opened or read, by name and version, that the caller may see.
+
+        The caller's access to the run itself is the route's to check.
+        """
+        uses = await skill_usage_repo.skills_of_run(
+            self.db, organization_id=ctx.organization_id, run_id=run_id
+        )
+        skills = await skill_repo.get_many(
+            self.db, [use.skill_id for use in uses], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
+        return [
+            RunSkillUseRead(
+                skill_id=use.skill_id,
+                name=use.name,
+                version=use.version,
+                fork=use.fork,
+                loaded=use.loaded,
+            )
+            for use in uses
+            if use.skill_id in visible
+        ]
 
     async def gallery_preview(self, key: str) -> GallerySkillPreview:
         """One gallery skill's body and files, read before it is installed.

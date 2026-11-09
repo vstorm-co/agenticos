@@ -6475,7 +6475,9 @@
       },
       "surfaceProactive": "Proaktywność",
       "standaloneRequest": "Żądanie do modelu",
-      "standaloneResponse": "Odpowiedź modelu"
+      "standaloneResponse": "Odpowiedź modelu",
+      "skillsUsed": "Użyte skille:",
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

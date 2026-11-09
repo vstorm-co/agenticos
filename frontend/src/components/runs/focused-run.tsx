@@ -15,6 +15,7 @@ import {
   FlaskConical,
   MessageSquare,
   Play,
+  Puzzle,
   Wrench,
   X,
 } from "lucide-react";
@@ -42,7 +43,7 @@ import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import type { AgentRun, EvalCaseLink } from "@/types/runs";
+import type { AgentRun, EvalCaseLink, RunSkillUse } from "@/types/runs";
 import { RunTable } from "./run-table";
 
 /**
@@ -289,6 +290,7 @@ export function FocusedRun({
               {timeAgo(run.started_at, tTime, locale)}
             </span>
           )}
+          {(run.skills_used?.length ?? 0) > 0 && <SkillsUsed uses={run.skills_used ?? []} />}
         </div>
 
         {/* The three numbers somebody opens a run to check, on one filled
@@ -461,5 +463,32 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="text-foreground truncate text-sm font-medium tabular-nums">{children}</dd>
     </div>
+  );
+}
+
+/** The skills a run opened or read, each by name and the version it was served. */
+function SkillsUsed({ uses }: { uses: RunSkillUse[] }) {
+  const t = useTranslations("pages.runs");
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Puzzle className="h-3.5 w-3.5" aria-hidden />
+      {t("skillsUsed")}
+      {uses.map((use) => (
+        <Link
+          key={use.skill_id}
+          href={ROUTES.SKILL_DETAIL(use.skill_id)}
+          className="hover:text-foreground font-mono underline-offset-4 hover:underline"
+        >
+          {use.version === null
+            ? use.name
+            : t("skillVersion", {
+                name: use.name,
+                version: use.version,
+                fork: use.fork ?? "",
+                onFork: use.fork === null ? "no" : "yes",
+              })}
+        </Link>
+      ))}
+    </span>
   );
 }

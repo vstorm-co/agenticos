@@ -6587,7 +6587,9 @@
       },
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
-      "standaloneResponse": "Modellantwort"
+      "standaloneResponse": "Modellantwort",
+      "skillsUsed": "Genutzte Skills:",
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
