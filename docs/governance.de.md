@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "1276ed684962"
 ---
 
 # Governance { #governance }
@@ -632,6 +632,22 @@ der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget d
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
 
+Der nächtliche Blick wird 20 Stunden nach seinem eigenen letzten Versuch
+fällig. Beobachtungen und Speicherwartung verschieben diesen Zeitpunkt nicht.
+Beobachtungen zählen weiterhin zum persönlichen Proaktivitätsbudget.
+
+Ein erfolgreicher Blick speichert die Person und einen Hash jedes gelesenen
+Prompts, ohne den Text zu kopieren. Das Abschließen einer bereits gelesenen
+Genehmigungs- oder Fragepause löst daher keinen weiteren bezahlten Modellaufruf
+aus. Ein zurückgestellter Prompt bleibt ungelesen, bis ein späterer Blick ihn
+berücksichtigt; geänderter Text ist wieder neu. Fehlgeschlagene Modellaufrufe
+markieren keine Prompts als gelesen.
+
+Nach dem Upgrade verschieben alte Hintergrund-Runs ohne Rollenzuordnung den
+nächsten Blick nicht. Bestehende Nachrichten haben keinen Lesenachweis, sodass
+geeignete aktuelle Prompts einmal nachgeholt werden können. Die üblichen
+Schalter und Budgets gelten weiterhin.
+
 Der nächtliche Job liest nur einen Prompt, der den Eingabe-Guardrail des Agents
 passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
 [Guardrails](reference/capabilities.md#guardrails):
@@ -650,6 +666,13 @@ passiert hat, an den er ging, denn das Proaktivitätsmodell hat keine eigenen
   genauso gelesen, also bleibt die Ablehnung eines Eingabe-Guardrails draußen,
   denn sie hat keine Antwort hinterlassen. Ein gesprochener Turn zeichnet kein
   Model auf, also bleibt er draußen, sobald sein Run weg ist.
+
+Routinen-Prompts werden mit der festgelegten Agent-Version, der Version der
+benannten Umgebung oder der aktuellen Agent-Version geprüft, wie beim Start
+der Routine. Ein fehlendes Ziel oder eine unlesbare Spec wird ausgelassen, ebenso
+eine Routine, deren letzter Lauf abgelehnt wurde. Eine bereits gestartete Routine,
+deren letzter Run durch die Aufbewahrung gelöscht wurde, wird ebenfalls ausgelassen:
+Ein unbekanntes Ergebnis kann eine Ablehnung nicht aufheben.
 
 Ein Prompt, den ein Guardrail geschwärzt hat, passiert, und der Job liest ihn so,
 wie er gespeichert ist, also ungeschwärzt

@@ -44,6 +44,12 @@ class Conversation(Base, TimestampMixin):
 
     __tablename__ = "conversations"
     __table_args__ = (
+        Index(
+            "conversations_fork_storage_idx",
+            "organization_id",
+            "user_id",
+            postgresql_where=text("fork_copy_bytes > 0"),
+        ),
         UniqueConstraint("organization_id", "id", name="uq_conversation_org_id"),
         ForeignKeyConstraint(
             ["organization_id", "workflow_id"],
@@ -80,6 +86,32 @@ class Conversation(Base, TimestampMixin):
         index=True,
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    forked_from_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The conversation this one was forked from, when its owner forked it (#2762).
+
+    Not `source_conversation_id`: that one belongs to workflow threads and
+    cascades, and a fork must outlive its source. Shown only to a reader who owns
+    both, so a fork shared onwards does not name where it came from."""
+    forked_from_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        # `use_alter`: messages already reference conversations, and the cycle
+        # needs one of the two keys added after both tables exist.
+        ForeignKey("messages.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+        # Deleting a message has to find the forks naming it; unindexed, every
+        # message of a deleted conversation scanned the whole table.
+        index=True,
+    )
+    """The answer of the source conversation the fork's copied history ends with."""
+    fork_copy_bytes: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default="0", nullable=False
+    )
+    """Copied payload and row reservations charged until the fork itself is deleted."""
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -106,6 +138,11 @@ class Conversation(Base, TimestampMixin):
 
     Null until a summary has run, which for most conversations is for ever.
     """
+
+    guardrail_revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    """Fences summaries built before a turn became refused, including in-flight compaction."""
 
     summary_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """The last transcript row `summary_messages` accounts for.
@@ -168,6 +205,8 @@ class Conversation(Base, TimestampMixin):
     messages: Mapped[list[Message]] = relationship(
         "Message",
         back_populates="conversation",
+        # Named because `forked_from_message_id` is a second key between the two tables.
+        foreign_keys="Message.conversation_id",
         cascade="all, delete-orphan",
         order_by="Message.ordinal",
     )
@@ -420,7 +459,21 @@ class Message(Base, TimestampMixin):
     then reached the model on the next turn. Set on every row of the run when it
     ends `guardrail_blocked`, and on a row written for such a run afterwards."""
 
-    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
+    nightly_read_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    """A successful nightly read, independent of run settlement and retention.
+
+    The digest detects changed text without copying it. Keeping the person's id
+    prevents a reassigned or newly unattributed message inheriting another
+    person's receipt; the foreign key clears that association on account deletion.
+    Missing receipts are deliberately unread after upgrade.
+    """
+    nightly_read_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    conversation: Mapped[Conversation] = relationship(
+        "Conversation", back_populates="messages", foreign_keys=[conversation_id]
+    )
     tool_calls: Mapped[list[ToolCall]] = relationship(
         "ToolCall",
         back_populates="message",
@@ -470,6 +523,7 @@ class ToolCall(Base):
     )
     tool_call_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tool_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     presentation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     args: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)

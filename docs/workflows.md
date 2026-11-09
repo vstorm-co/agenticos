@@ -101,7 +101,9 @@ on resumes it as its publisher, so it needs permission to run the workflow. A ca
 be restored, still paused, or deleted with its versions, runs and shares; one whose
 runs have not ended is refused with `WORKFLOW_IN_USE`.
 
-Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives only the workflow result. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives the workflow result and any agent questions. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+
+An agent step can call `ask_user_question` to pause with **Waiting for user**. Answer its question card in the originating chat or on the run page. Your answer completes the pending tool call, and the workflow worker resumes the same agent conversation. The agent can ask again before returning its final result. Other independent branches may continue while this step waits.
 
 Agents called from workflows can use their AgenticOS MCP tools in the background worker as well as in the web chat.
 
@@ -908,6 +910,15 @@ other trigger has a door of its own. A test run of the draft takes any trigger, 
 **Manual** is the trigger a person starts with **Test draft**; **API request** is the one a system calls, and **Trigger** shows its endpoint and a sample request. Give either its **Input fields** and a run asks for what it needs: **Test draft** and **Start a run** show a form with one box per field instead of the JSON, typed as the
 field is, and an API call whose input does not fit is refused with the fields that
 are wrong. See [core.input](reference/workflow-nodes.md#core-input).
+
+For nested objects and arrays, configure an optional JSON Schema Draft 2020-12
+`input_schema` on **Manual**, **API request** or **Called by a workflow** instead
+of simple fields. The schema is saved with the published version, and every run
+must satisfy that version's contract before it starts. API and MCP callers can
+inspect the same contract before sending input. See
+[JSON Schema input contracts](reference/workflow-nodes.md#json-schema-input-contracts)
+for configuration, references and validation errors. Existing simple-field inputs
+and workflows without a contract keep their behavior.
 
 ### From the chat { #from-the-chat }
 

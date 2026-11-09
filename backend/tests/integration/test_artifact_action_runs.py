@@ -576,15 +576,23 @@ class TestReadingARun:
 
         assert state.output_structured is None
 
+    @pytest.mark.parametrize(
+        "status",
+        [
+            WorkflowRunStatus.WAITING_APPROVAL,
+            WorkflowRunStatus.WAITING_FOR_USER,
+            WorkflowRunStatus.NEEDS_ATTENTION,
+        ],
+    )
     async def test_a_run_waiting_for_a_person_says_so_and_links_the_run_page(
-        self, db: AsyncSession, storage: LocalFileStorage
+        self, db: AsyncSession, storage: LocalFileStorage, status: WorkflowRunStatus
     ) -> None:
         world = await _world(db)
         refund = await _live(world, "Refund")
         page_id = await _page(world, refund)
         vera = await _viewer(world)
         run = await self._started(world, refund, page_id, vera)
-        run.status = WorkflowRunStatus.WAITING_APPROVAL.value
+        run.status = status.value
         await db.flush()
 
         state = await ArtifactService(db).action_run(vera, page_id, run.id)

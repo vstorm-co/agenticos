@@ -189,6 +189,7 @@ export const qk = {
     recentLogs: (limit: number) => ["workflows", "recent-logs", limit] as const,
     runLogs: (runId: string) => ["workflows", "run", runId, "logs"] as const,
     run: (runId: string) => ["workflows", "run", runId] as const,
+    runQuestions: (runId: string) => ["workflows", "run", runId, "questions"] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
     runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
@@ -541,8 +542,16 @@ export const qk = {
   conversationShares: {
     all: () => ["conversation-shares"] as const,
     list: (conversationId: string) => ["conversation-shares", conversationId] as const,
-    sharedWithMe: (skip: number, limit: number) =>
-      ["conversation-shares", "shared-with-me", skip, limit] as const,
+    sharedLists: () => ["conversation-shares", "shared-with-me"] as const,
+    sharedWithMe: (
+      skip: number,
+      limit: number,
+      orgId: string | null = null,
+      includeArchived = true,
+    ) => ["conversation-shares", "shared-with-me", skip, limit, orgId, includeArchived] as const,
+    /** What the reader may do in one conversation their own listing does not hold. */
+    access: (conversationId: string, orgId: string | null) =>
+      ["conversation-shares", "access", conversationId, orgId] as const,
   },
   kb: {
     all: () => ["kb"] as const,

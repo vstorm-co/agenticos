@@ -18,6 +18,7 @@ import {
   visibleTourSteps,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "./tour";
@@ -79,12 +80,19 @@ const ORG_STEPS = [
 ];
 
 describe("pageKey", () => {
+  it("offers an optional question stop on a workflow's single run", () => {
+    expect(pageKey("/workflows/wf/runs/run")).toBe(WORKFLOW_RUN_DETAIL);
+    expect(stepsForPage("/workflows/wf/runs/run", () => true)).toEqual([
+      expect.objectContaining({ id: "workflow-run-questions", optional: true }),
+    ]);
+  });
   it("identifies the canvas without treating the all-runs list as a canvas", () => {
     expect(pageKey("/workflows/wf-1")).toBe("workflow-detail");
     expect(pageKey("/workflows/runs")).toBe("/workflows/runs");
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-input-contract",
     ]);
   });
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -119,9 +127,7 @@ describe("pageKey", () => {
   it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
     expect(pageKey(ROUTES.WORKFLOW_RUNS("wf-1"))).toBe(WORKFLOW_RUNS_DETAIL);
     expect(pageKey(ROUTES.WORKFLOW_ALL_RUNS)).toBe(ROUTES.WORKFLOW_ALL_RUNS);
-    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(
-      ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"),
-    );
+    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(WORKFLOW_RUN_DETAIL);
     expect(stepsForPage(ROUTES.WORKFLOW_RUNS("wf-1"), () => true).map((s) => s.id)).toEqual([
       "workflow-stats",
       "workflow-run-history",

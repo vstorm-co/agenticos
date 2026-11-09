@@ -394,15 +394,19 @@ class TestALastHolderAsksTheTableWhatIsNotItsOwn:
         assert not await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(base))
 
     @pytest.mark.security
-    async def test_an_app_scoped_base_takes_the_untagged_chunks_only(
+    async def test_an_app_scoped_base_takes_only_operator_global_chunks(
         self, db: AsyncSession
     ) -> None:
         org, _ = await _org(db, "Alpha")
         takes = await _kb(db, "takes", None, scope=KBScope.APP.value)
-        await _chunks(db, "takes", {})
+        await _chunks(db, "takes", {"writer_kind": "operator"})
         assert not await rag_document_repo.table_holds_unfiled_outside(
             db, CollectionScope.of(takes)
         )
+
+        unknown = await _kb(db, "unknown", None, scope=KBScope.APP.value)
+        await _chunks(db, "unknown", {})
+        assert await rag_document_repo.table_holds_unfiled_outside(db, CollectionScope.of(unknown))
 
         kept = await _kb(db, "kept", None, scope=KBScope.APP.value)
         await _chunks(db, "kept", {"organization_id": str(org.id)})

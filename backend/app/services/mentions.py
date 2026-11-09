@@ -137,6 +137,7 @@ class MentionService:
             limit=30,
             hide_channels=True,
             reader=ctx,
+            for_model=True,
         )
         return [
             Mentionable(kind="conversation", id=str(row.id), name=row.title or "Conversation")

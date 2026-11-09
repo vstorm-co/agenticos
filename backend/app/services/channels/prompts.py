@@ -29,6 +29,7 @@ from app.agents.capabilities import all_capabilities
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.tool_identity import ToolIdentity
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION, ChannelPrompt
@@ -537,6 +538,10 @@ class ChannelPrompts:
             RecordedToolCall(
                 tool_call_id=part.tool_call_id,
                 tool_name=part.tool_name,
+                tool_id=state.tool_identities.get(part.tool_call_id, ToolIdentity()).tool_id,
+                presentation_kind=state.tool_identities.get(
+                    part.tool_call_id, ToolIdentity()
+                ).presentation_kind,
                 args=part.args_as_dict(raise_if_invalid=False),
             )
             for message in ModelMessagesTypeAdapter.validate_python(state.messages)

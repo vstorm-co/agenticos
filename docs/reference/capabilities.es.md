@@ -1,5 +1,5 @@
 ---
-source_sha: "673c6ed584bd"
+source_sha: "d813678bfffa"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2606,6 +2606,11 @@ La versión 14 de la especificación elimina las conexiones `virtual_tables` gua
 
 ## Workflows { #workflows }
 
+El descubrimiento con `list_workflows` se limita a 32 KiB de JSON codificado,
+incluidos los contratos de entrada. Las respuestas mayores devuelven un rechazo
+en lugar de una lista parcial. Elige menos workflows o contratos más pequeños
+para el vínculo, o consulta el endpoint HTTP del esquema fuera del contexto del agente.
+
 Permite al agente iniciar los [workflows](../workflows.md) publicados que nombra su
 binding, y leer cómo fueron. El panel del Builder lista los workflows de la
 organización, una fila por cada uno, y una fila marcada es uno que el agente puede
@@ -2986,8 +2991,31 @@ lo nuevo de su propio turno, así que el historial de un turno posterior no repr
 el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
 En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
 el texto del mensaje ni lo que añadieron los archivos enviados con él. La
-conversación sigue mostrando a la persona lo que escribió. La búsqueda en
-conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
+conversación sigue mostrando a la persona lo que escribió. El rechazo de un paso
+de agent en un workflow también marca el mensaje exacto del chat de origen. La
+búsqueda en conversaciones anteriores (`conversation_search`) omite los mensajes
+rechazados en coincidencias, fragmentos y lecturas de transcripciones. Estas
+herramientas no reciben el título de una conversación con un turno rechazado,
+incluso si el título ya estaba guardado.
+
+Los reintentos y los workflows llamados conservan este vínculo del rechazo con
+su origen. No heredan un destino de respuesta ni acceso al workspace del chat original.
+Si un turno recién rechazado ya estaba compactado, se descarta el resumen guardado
+que lo incluye para reconstruir el historial posterior con la nota de rechazo.
+Las menciones de conversaciones usan la misma lista filtrada para que sus etiquetas
+no repitan a un modelo el texto de un turno rechazado.
+
+Una compactación ya iniciada no puede devolver a la caché un turno rechazado
+después. La actualización reconstruye una vez los resúmenes guardados; los
+mensajes originales se conservan.
+
+Cada ejecución comprueba su historial antes de cada petición al modelo, también después de llamadas a herramientas. Los pasos de agente, modelo y decisión de un workflow también comprueban la fuente de chat compartida antes de empezar; los pasos en cola no pueden reutilizar una fuente rechazada o eliminada. Los resúmenes de voz y las nuevas sesiones realtime usan la misma comprobación de revisión.
+
+Los harnesses de código comprueban el mismo contexto antes de iniciarse y antes de cada prompt ACP, también después de una corrección de la tarea.
+
+Si se rechaza un turno anterior mientras un run espera aprobación o una respuesta,
+el run se detiene antes de volver a ejecutar herramientas o llamar a un modelo.
+Inicia un turno nuevo para continuar con el historial actual y filtrado.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la
@@ -3125,8 +3153,8 @@ persona no quiso responder, y sigue.
 
 La herramienta y su esquema vienen de `AskUser` de pydantic-ai-harness. Está activa
 por defecto en cada agent nuevo y en cada plantilla, y el autor puede desactivarla.
-Donde todavía nadie puede responder — una programación, un webhook, la API — el
-agent recibe que la persona no quiso responder.
+Un run independiente de agent sin canal de preguntas — desde una programación,
+un webhook o la API — recibe que la persona no quiso responder.
 
 En el chat de la consola, el run guarda sus preguntas y se pausa antes de mostrar
 la tarjeta — **Waiting for an answer** en el historial de runs. Cambiar de chat,
@@ -3139,6 +3167,10 @@ Solo la persona a quien se preguntó puede responder. Los clientes de la API
 pueden usar `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve
 a leer la tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+Dentro de un paso de agent de un workflow, la misma herramienta guarda la conversación y pausa el workflow con **Esperando al usuario**. Responde en la vista del run del workflow o en el chat de origen. La respuesta se guarda y el worker del workflow reanuda el mismo run del agent, conservando su presupuesto y los resultados anteriores de las herramientas. Los clientes de workflow leen `GET /workflow-runs/{run_id}/questions` y envían `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` con el objeto habitual `responses`. Cada entrada indica el `workflow_run_id` propietario; usa ese identificador al responder a una pregunta de un workflow llamado de forma síncrona.
+
+Las tarjetas de preguntas aparecen solo mientras conservas permiso para ejecutar el workflow propietario. Un permiso **use** sobre ese workflow también permite responder; otra persona con acceso de lectura no puede responder en tu nombre.
 
 ## Borradores { #drafts }
 

@@ -31,11 +31,10 @@ import { EmbeddingDialog } from "@/components/kb/embedding-dialog";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
-import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
+import { useKBDetail, usePollWhileIngesting, useUrlState } from "@/hooks";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
-import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface KBDetailPageProps {
@@ -102,11 +101,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     deleteSyncSource,
   } = useKBDetail(id);
 
-  // Presentation, never enforcement - the write routes resolve access per
-  // row on the server. A Viewer holds `collections:view` only; offering them
-  // upload and delete would be offering actions that can only refuse.
-  const { can } = usePermissions();
-  const mayEdit = can(Perm.collectionsEdit);
+  // The same per-resource decision as the write routes, including grants.
+  const mayEdit = kb?.can_edit === true;
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [creatingSource, setCreatingSource] = useState(false);

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
+import { ApiError } from "@/lib/api-error";
 import type { NodeInstance } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -11,7 +12,7 @@ import { RunButton } from "./run-button";
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const mutate = vi.fn();
-const start = { mutate, isPending: false };
+const start = { mutate, isPending: false, error: null as unknown, reset: vi.fn() };
 vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start }) }));
 
 const store = useWorkflowEditorStore;
@@ -37,6 +38,8 @@ function seed(config: Record<string, unknown> = {}, definitionId = "trigger.manu
 
 beforeEach(() => {
   mutate.mockReset();
+  start.error = null;
+  start.reset.mockReset();
   mutate.mockImplementation((_body, options) => options?.onSuccess?.({ id: "run-1" }));
 });
 afterEach(() => store.getState().teardown());
@@ -110,6 +113,49 @@ describe("RunButton", () => {
       { workflow_id: "wf", mode: "test", input: { email: "ada@example.com" } },
       expect.anything(),
     );
+  });
+
+  it("asks for a JSON object before starting a schema-constrained draft", async () => {
+    seed({
+      input_schema: {
+        type: "object",
+        required: ["contacts"],
+        properties: { contacts: { type: "array" } },
+      },
+    });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Expected input schema" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), {
+      target: { value: '{"contacts":[{"email":"ada@example.com"}]}' },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(mutate).toHaveBeenCalledWith(
+      { workflow_id: "wf", mode: "test", input: { contacts: [{ email: "ada@example.com" }] } },
+      expect.anything(),
+    );
+  });
+
+  it("keeps a refused draft run open with its input field paths", async () => {
+    seed({ input_schema: { type: "object" } });
+    mutate.mockImplementation(() => undefined);
+    const view = render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    start.error = new ApiError(422, "Input rejected", {
+      error: {
+        code: "WORKFLOW_RUN_INPUT_INVALID",
+        message: "Input rejected",
+        details: {
+          fields: [{ field: "input.items.0.sku", message: "Field required" }],
+        },
+      },
+    });
+    view.rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("input.items.0.sku: Field required");
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: '{"items":[]}' } });
+    expect(start.reset).toHaveBeenCalledOnce();
   });
 
   it("says why it cannot run: no steps, problems, or an edit still saving", () => {

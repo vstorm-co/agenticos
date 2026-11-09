@@ -24,6 +24,8 @@ MAX_TEXT = 1000
 class FormTriggerConfig(TriggerInputConfig):
     """The page a form shows, and the fields it asks for."""
 
+    input_schema: None = None
+
     title: str = Field(
         default="Form", min_length=1, max_length=MAX_TITLE, description="The page's heading"
     )

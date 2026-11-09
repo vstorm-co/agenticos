@@ -589,7 +589,11 @@
       "unread": "Nowa odpowiedź",
       "unreadHeading": "Nieprzeczytane",
       "unnamedProject": "Projekt",
-      "apiFilterLabel": "Ukryj rozmowy z API"
+      "apiFilterLabel": "Ukryj rozmowy z API",
+      "sharedHeading": "Udostępnione Tobie",
+      "sharedLoading": "Ładowanie udostępnionych rozmów…",
+      "sharedFailed": "Nie udało się wczytać udostępnionych rozmów.",
+      "retryShared": "Wczytaj udostępnione rozmowy ponownie"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -1530,7 +1534,23 @@
       "cancel": "Nie teraz",
       "agentUnavailable": "Nie udało się wczytać wybranego agenta. Spróbuj ponownie.",
       "failed": "Nie udało się ustawić dostępu na tym komputerze"
-    }
+    },
+    "fork": "Rozgałęź do nowej rozmowy",
+    "forkedToast": "Rozmowa rozgałęziona",
+    "failedForkConversation": "Nie udało się rozgałęzić rozmowy",
+    "forkedFrom": "Rozgałęzienie rozmowy <link>{title}</link>",
+    "untitledFork": "Rozmowa bez tytułu",
+    "leaveShared": "Usuń z moich czatów",
+    "leftShared": "Usunięto z twoich czatów",
+    "failedLeaveShared": "Nie udało się usunąć rozmowy",
+    "conversationViewOnly": "Udostępniona Tobie tylko do odczytu",
+    "accessChanged": "Zmieniono dostęp",
+    "failedToChangeAccess": "Nie udało się zmienić dostępu",
+    "accessLevelFor": "Poziom dostępu dla {name}",
+    "accessChecking": "Sprawdzanie dostępu do rozmowy…",
+    "accessFailed": "Nie udało się sprawdzić dostępu do tej rozmowy",
+    "accessRetry": "Spróbuj ponownie",
+    "forking": "Tworzenie odgałęzienia rozmowy…"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -3417,7 +3437,7 @@
       "avatarColourHint": "Pokazywany jako Twój awatar, dopóki nie wgrasz zdjęcia.",
       "prefArtifactVersionPublished": "Aplikacja zaktualizowana",
       "prefArtifactVersionPublishedTrigger": "Aplikacja, którą obserwujesz, dostaje nową wersję - opublikowaną ponownie przez agenta albo przywróconą przez człowieka.",
-      "prefResourceShared": "Udostępnione Twojej grupie",
+      "prefResourceShared": "Udostępnione Tobie lub Twojej grupie",
       "prefResourceSharedTrigger": "Coś - agent, skill, wiedza, aplikacja - zostaje udostępnione grupie, w której jesteś.",
       "prefBudgetWarning": "Budget działu na 80%",
       "prefBudgetWarningTrigger": "Dział, którym kierujesz, wykorzystał 80% miesięcznego budgetu. Administratorzy dostają informację o każdym dziale.",
@@ -3700,7 +3720,8 @@
         "queued": "W kolejce",
         "running": "W toku",
         "waiting_approval": "Czeka na zatwierdzenie",
-        "waiting_retry": "Ponawia"
+        "waiting_retry": "Ponawia",
+        "waiting_for_user": "Czeka na odpowiedź"
       },
       "nodeStatus": {
         "cancelled": "Anulowany",
@@ -4247,7 +4268,11 @@
       "replyMailboxUnavailable": "Wybrana skrzynka niedostępna",
       "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach.",
       "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)",
-      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane."
+      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane.",
+      "runQuestionsTitle": "Twój agent potrzebuje odpowiedzi, aby kontynuować",
+      "runQuestionsFailed": "Nie udało się wczytać pytań.",
+      "runQuestionsRetry": "Spróbuj ponownie",
+      "startRunSchema": "Oczekiwany schemat wejścia"
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -6873,6 +6898,14 @@
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
+      },
+      "workflow-run-questions": {
+        "title": "Odpowiedz agentowi",
+        "body": "Agent w tym workflow może poprosić o wyjaśnienie. Odpowiedz tutaj, aby wznowić zapisaną rozmowę i kontynuować workflow."
+      },
+      "workflow-input-contract": {
+        "title": "Określ oczekiwane dane wejściowe",
+        "body": "Wyzwalacze Ręcznie, API i Wywołany przez workflow obsługują proste pola lub kontrakt JSON Schema Draft 2020-12. Schemat obsługuje zagnieżdżone wartości i jest sprawdzany przed rozpoczęciem runu."
       }
     },
     "chooseLanguage": "Język",
@@ -10097,7 +10130,13 @@
         "boolean": "Tak lub nie",
         "date": "Data",
         "choice": "Wybór"
-      }
+      },
+      "contractFormat": "Kontrakt wejścia",
+      "simpleFields": "Proste pola",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Wybierz proste pola lub kontrakt JSON Schema. Oba zapisane formaty są zachowane, dopóki ten wyzwalacz pozostaje otwarty; tylko wybrany format jest zapisywany w workflow.",
+      "schemaHint": "Użyj JSON Schema Draft 2020-12 dla zagnieżdżonych obiektów, tablic i referencji. Dane są sprawdzane przed rozpoczęciem runu.",
+      "schemaInvalid": "Wpisz obiekt JSON. Ta zmiana nie została zapisana."
     },
     "pickerHostLabel": "Host sandboxa",
     "pickerHostDefault": "Domyślny host organizacji",
@@ -10291,7 +10330,7 @@
     "templateUnknown": "{placeholder} nie wskazuje niczego, co ten krok może czytać.",
     "templatePreview": "Podgląd:",
     "templateSuggestions": "Wartości z wcześniejszych kroków",
-    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi wejściowymi sprawdzanymi względem tych pól. Kroki po nim czytają je jako payload.",
+    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi sprawdzanymi względem tego kontraktu wejścia. Kroki po nim czytają dane jako payload.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Wybierz workflow",
     "pickerWorkflowNone": "Żaden workflow nie jest jeszcze opublikowany z wyzwalaczem Called by a workflow.",

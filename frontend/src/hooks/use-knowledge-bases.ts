@@ -31,6 +31,7 @@ import type {
   KBDocumentList,
   KBIngestion,
   KnowledgeBase,
+  KnowledgeBaseDetail,
   KnowledgeBaseList,
 } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -131,7 +132,7 @@ export function useKnowledgeBases() {
   const patchKB = useCallback(
     async (id: string, patch: Partial<Pick<KnowledgeBase, "name" | "description">>) => {
       const startedIn = listOrgId;
-      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
+      const updated = await apiClient.patch<KnowledgeBaseDetail>(`/kb/${id}`, patch);
       writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
       toast.success(t("updated"));
       return updated;
@@ -221,7 +222,7 @@ export function useKBDetail(id: string | null) {
   // page's error rather than something to hammer.
   const kbQuery = useQuery({
     queryKey: qk.kb.detail(id ?? "none"),
-    queryFn: () => apiClient.get<KnowledgeBase>(`/kb/${id}`),
+    queryFn: () => apiClient.get<KnowledgeBaseDetail>(`/kb/${id}`),
     enabled,
     retry: false,
   });
@@ -393,7 +394,7 @@ export function useKBDetail(id: string | null) {
       // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
       if (!id) throw new Error("No knowledge base is open");
       const startedIn = activeOrgId;
-      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, {
+      const updated = await apiClient.patch<KnowledgeBaseDetail>(`/kb/${id}`, {
         ingestion_config: config,
       });
       // The caller is handed the row either way - it asked for the save and the
@@ -424,7 +425,7 @@ export function useKBDetail(id: string | null) {
       // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
       if (!id) throw new Error("No knowledge base is open");
       const startedIn = activeOrgId;
-      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, input);
+      const updated = await apiClient.patch<KnowledgeBaseDetail>(`/kb/${id}`, input);
       if (stillSameTenant(startedIn)) {
         queryClient.setQueryData(qk.kb.detail(id), updated);
         toast.success(t("embeddingsSaved"));

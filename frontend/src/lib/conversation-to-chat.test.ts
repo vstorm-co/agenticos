@@ -497,3 +497,26 @@ it("preserves the parent run start instead of using the segment save time", () =
   });
   expect(converted.runStartedAt?.toISOString()).toBe("2026-11-05T18:11:13.000Z");
 });
+
+it("keeps renderer identity when rebuilding a saved or run-timeline turn", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      tool_calls: [
+        {
+          tool_call_id: "call",
+          tool_name: "compose",
+          tool_id: "write_draft",
+          presentation_kind: "draft",
+          args: {},
+          result: "Drafted Reply.",
+          status: "completed",
+        },
+      ],
+    }),
+  );
+  expect(message.toolCalls?.[0]).toMatchObject({
+    name: "compose",
+    tool_id: "write_draft",
+    presentation_kind: "draft",
+  });
+});

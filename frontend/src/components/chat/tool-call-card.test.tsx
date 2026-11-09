@@ -795,3 +795,23 @@ it("shows the task being worked on before the platform tool finishes", () => {
   expect(screen.getByText("Create task")).toBeVisible();
   expect(screen.getByText("Review supplier draft")).toBeVisible();
 });
+
+it("renders a renamed chart through its stable identity while showing the actual alias", () => {
+  card({
+    name: "plot_sales",
+    tool_id: "create_chart",
+    result: JSON.stringify({ kind: "chart", title: "Sales", series: [] }),
+  });
+  expect(screen.getByTestId("chart")).toHaveTextContent("Sales");
+  expect(row()).toHaveTextContent("Plot Sales");
+});
+
+it("keeps an MCP tool named create_chart generic even with a chart-shaped result", () => {
+  card({
+    name: "create_chart",
+    tool_id: null,
+    presentation_kind: "generic",
+    result: JSON.stringify({ kind: "chart", title: "External", series: [] }),
+  });
+  expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
+});

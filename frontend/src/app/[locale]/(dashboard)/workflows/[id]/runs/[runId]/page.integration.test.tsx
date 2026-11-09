@@ -187,3 +187,80 @@ describe("resolving a step that was already resolved", () => {
     expect(runsApi.getWorkflowRun).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("questions inside a workflow agent step", () => {
+  it("lets the asked person answer without granting workflow cancellation or the run role", async () => {
+    state.can = false;
+    seed({ status: "waiting_for_user", can_cancel: false }, "waiting");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [{ ...step("waiting"), waiting_reason: "question" }],
+      total: 1,
+    });
+    vi.mocked(runsApi.listWorkflowRunQuestions)
+      .mockResolvedValueOnce([
+        {
+          workflow_run_id: "r1",
+          node_run_id: "n1",
+          agent_run_id: "agent-run",
+          questions: [
+            {
+              tool_call_id: "clarify",
+              questions: [
+                { question: "Which project?", allow_custom: false, options: [{ label: "Pilot" }] },
+              ],
+            },
+          ],
+        },
+      ])
+      .mockResolvedValue([]);
+    vi.mocked(runsApi.answerWorkflowRunQuestions).mockResolvedValue(
+      run({ status: "running", can_cancel: false }),
+    );
+    await renderPage();
+    expect(await screen.findByText("Waiting for user")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Pilot/ }));
+    await waitFor(() =>
+      expect(runsApi.answerWorkflowRunQuestions).toHaveBeenCalledWith("r1", "n1", {
+        clarify: [{ answer: "", selected: ["Pilot"], skipped: false }],
+      }),
+    );
+    expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
+  });
+
+  it("shows a nested agent question while the outer step waits for its child workflow", async () => {
+    seed({ status: "running", can_cancel: false }, "waiting");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [{ ...step("waiting"), waiting_reason: "external_event" }],
+      total: 1,
+    });
+    vi.mocked(runsApi.listWorkflowRunQuestions).mockResolvedValue([
+      {
+        workflow_run_id: "child",
+        node_run_id: "child-step",
+        agent_run_id: "child-agent",
+        questions: [
+          {
+            tool_call_id: "clarify",
+            questions: [{ question: "Which nested project?", allow_custom: true }],
+          },
+        ],
+      },
+    ]);
+    await renderPage();
+    expect(await screen.findByText("Which nested project?")).toBeInTheDocument();
+    expect(runsApi.listWorkflowRunQuestions).toHaveBeenCalledWith("r1");
+  });
+
+  it("hides question controls from other viewers even when they may cancel the workflow", async () => {
+    seed({ status: "waiting_for_user", can_cancel: true }, "waiting");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [{ ...step("waiting"), waiting_reason: "question" }],
+      total: 1,
+    });
+    vi.mocked(runsApi.listWorkflowRunQuestions).mockResolvedValue([]);
+    await renderPage();
+    await waitFor(() => expect(runsApi.listWorkflowRunQuestions).toHaveBeenCalledWith("r1"));
+    expect(screen.queryByText("Your agent needs an answer to continue")).toBeNull();
+    expect(runsApi.answerWorkflowRunQuestions).not.toHaveBeenCalled();
+  });
+});

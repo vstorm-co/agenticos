@@ -355,7 +355,7 @@ class AgentSession:
             fut = self._ask_user_future
             if fut is None or fut.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             raw = data.get("answers")
             answers = raw if isinstance(raw, list) else []
@@ -384,7 +384,7 @@ class AgentSession:
                 # steer, so the client sends it as an ordinary message instead.
                 await self._emit("steer_unapplied", {"texts": [text]})
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             inbox.add(text)
             return
@@ -406,7 +406,7 @@ class AgentSession:
             waiting = self._connect_future
             if waiting is None or waiting.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             waiting.set_result(data.get("connected") is True)
             return
@@ -415,7 +415,7 @@ class AgentSession:
             waiting = self._computer_future
             if waiting is None or waiting.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             waiting.set_result(data.get("granted") is True)
             return
@@ -497,6 +497,33 @@ class AgentSession:
                 with contextlib.suppress(RuntimeError):
                     await self.websocket.close(
                         code=_REVOKED_CLOSE_CODE, reason=_REVOKED_CLOSE_REASON
+                    )
+                return False
+        return True
+
+    async def _reauthorize_write(self) -> bool:
+        """Do not resume a live prompt under a revoked conversation grant."""
+        if not await self._reauthorize():
+            return False
+        if self.current_conversation_id is None:
+            return True
+        async with get_db_context() as db:
+            try:
+                ctx = await self._chat_context(db)
+                await ConversationService(db).get_conversation(
+                    UUID(self.current_conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+            except NotFoundError, AuthorizationError:
+                await self._cancel_turn()
+                with contextlib.suppress(RuntimeError):
+                    await self.websocket.close(
+                        code=4003, reason="Conversation write access revoked"
                     )
                 return False
         return True
@@ -1560,7 +1587,11 @@ class AgentSession:
         async with get_db_context() as db:
             conversations = ConversationService(db)
             if turn.summarized_history is not None:
-                await conversations.keep_summary(conversation_id, turn.summarized_history)
+                await conversations.keep_summary(
+                    conversation_id,
+                    turn.summarized_history,
+                    expected_revision=turn.history_revision,
+                )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ApiError, fieldProblems, getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { listRunLogs } from "@/lib/workflows/logs-api";
 import {
@@ -33,8 +33,8 @@ import { toastDone } from "@/lib/toast";
 /** How often a live run is read again - its steps move on their own. */
 const LIVE_POLL_MS = 2000;
 
-/** A workflow's runs, and starting a new one. */
-export function useWorkflowRuns(workflowId: string) {
+/** A workflow's runs and admission; a visible input form owns field refusals. */
+export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
   const t = useTranslations("pages.workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -51,7 +51,17 @@ export function useWorkflowRuns(workflowId: string) {
       void queryClient.invalidateQueries({ queryKey: qk.workflows.runs(workflowId) });
       toastDone(t("runStarted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      const fields = fieldProblems(error);
+      const toastFields = inputErrorsInForm
+        ? fields.filter(({ field }) => field !== "input" && !field.startsWith("input."))
+        : fields;
+      if (toastFields.length > 0)
+        toast.error(
+          toastFields.map((problem) => `${problem.field}: ${problem.message}`).join("\n"),
+        );
+      else if (fields.length === 0) toast.error(getErrorMessage(error, tErrors));
+    },
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, start };
 }

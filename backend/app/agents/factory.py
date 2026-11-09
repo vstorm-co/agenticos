@@ -101,6 +101,7 @@ from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
 from app.agents.tool_errors import ToolErrors
+from app.agents.tool_identity import CaptureToolIdentity
 from app.agents.tool_recovery import ToolRecovery
 from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
@@ -500,6 +501,7 @@ def build_agent(
         CountedRepair(tally=repairs),
         ToolErrors(),
         ToolRecovery(),
+        CaptureToolIdentity.for_spec(spec),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.

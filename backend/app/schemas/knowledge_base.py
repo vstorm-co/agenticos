@@ -184,6 +184,12 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     )
 
 
+class KnowledgeBaseDetailRead(KnowledgeBaseRead):
+    """A single base, with the caller's effective write access."""
+
+    can_edit: bool = Field(description="Whether this caller may write to this knowledge base")
+
+
 class KnowledgeBaseList(BaseSchema):
     """Paginated list of Knowledge Bases."""
 

@@ -1325,6 +1325,7 @@ class TestADeletedBasesChunksOnAKeptTable:
                 _kb_document(collection, None, None, files[3]),
                 _kb_document(collection, None, other_org.id, files[4]),
             ]
+            documents[3].writer_kind = "operator"  # Explicit CLI origin, not a missing owner.
             for index, document in enumerate(documents):
                 document.status = DocumentStatus.DONE.value
                 document.vector_document_id = f"doc-{index}"
@@ -1466,6 +1467,7 @@ class TestADeletedBasesChunksOnAKeptTable:
             if unfiled:
                 old.knowledge_base_id = None
                 old.organization_id = None
+                old.writer_kind = "operator"
             s.add(old)
             await s.execute(
                 text(
@@ -1473,6 +1475,12 @@ class TestADeletedBasesChunksOnAKeptTable:
                 )
             )
             await _document_chunk(s, table, "old-0", "old-doc", None if unfiled else default.id)
+            if unfiled:
+                await s.execute(
+                    text(
+                        f"UPDATE {table} SET metadata = metadata || '{{\"writer_kind\":\"operator\"}}'::jsonb WHERE id = 'old-0'"  # noqa: S608 - generated collection identifier
+                    )
+                )
             await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
             await s.commit()
             default_id, old_id = default.id, old.id

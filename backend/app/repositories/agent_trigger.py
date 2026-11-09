@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import and_, false, func, or_, select, true
@@ -11,7 +11,8 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger, TriggerOverlap
 from app.db.models.resource_grant import Visibility
@@ -162,6 +163,53 @@ async def prompts_created_by(
         )
     )
     return list(result.scalars().all())
+
+
+class RoutinePrompt(NamedTuple):
+    prompt: str
+    spec: dict[str, object]
+
+
+async def routine_prompts_for_screening(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[RoutinePrompt]:
+    """Prompts with the immutable spec they would fire; unresolved targets are omitted.
+
+    A named environment must resolve, rather than falling back to a different
+    agent version. A routine whose latest fire was refused stays out even if
+    the current input screen would now accept its prompt. Once retention removes
+    the last run, a fire timestamp still distinguishes an unknown verdict from
+    a routine that has never fired; an unknown verdict is left out too.
+    """
+    target = func.coalesce(
+        AgentTrigger.pinned_version_id,
+        AgentEnvironment.version_id,
+        Agent.current_version_id,
+    )
+    rows = await db.execute(
+        select(AgentTrigger.prompt, AgentVersion.spec)
+        .join(
+            Agent, and_(Agent.id == AgentTrigger.agent_id, Agent.organization_id == organization_id)
+        )
+        .outerjoin(
+            AgentEnvironment,
+            and_(
+                AgentEnvironment.id == AgentTrigger.environment_id,
+                AgentEnvironment.agent_id == Agent.id,
+                AgentEnvironment.organization_id == organization_id,
+            ),
+        )
+        .join(AgentVersion, and_(AgentVersion.id == target, AgentVersion.agent_id == Agent.id))
+        .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+            or_(AgentTrigger.environment_id.is_(None), AgentEnvironment.id.is_not(None)),
+            or_(AgentRun.id.is_not(None), AgentTrigger.last_fired_at.is_(None)),
+            or_(AgentRun.id.is_(None), AgentRun.status != RunStatus.GUARDRAIL_BLOCKED.value),
+        )
+    )
+    return [RoutinePrompt(row.prompt, row.spec) for row in rows.all()]
 
 
 async def list_for_organization(

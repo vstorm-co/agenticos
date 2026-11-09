@@ -79,7 +79,7 @@ the level to share at. Each is the same grant the Share panel writes, so it
 needs the same right to edit.
 
 Members are told when something is shared with their group - in the inbox and,
-if they want it, by email; *Shared with your group* in notification settings
+if they want it, by email; *Shared with you or your group* in notification settings
 turns it off. Cards across the console say who each thing is for: *Everyone*,
 its departments by name, both when it is for everyone and belongs to a
 department, or *Private*. A reader sees only the items they could open anyway, so a

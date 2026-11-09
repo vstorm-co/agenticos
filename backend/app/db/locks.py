@@ -17,10 +17,12 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from enum import IntEnum, unique
 from uuid import UUID
 
-from sqlalchemy import Integer, cast, func, select
+from sqlalchemy import Integer, Text, cast, func, select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
@@ -35,6 +37,8 @@ class LockScope(IntEnum):
     #: How many organizations one account may own.
     CONVERSATION_TURN = 23
     CONVERSATION_TASKS = 24
+    #: Retained copied transcript bytes, serialized through the clone commit.
+    CONVERSATION_FORK_STORAGE_PER_ORG = 31
     CONNECTED_ACCOUNTS = 25
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
@@ -42,6 +46,8 @@ class LockScope(IntEnum):
     #: A collection name's claim-and-create against its vector-table drop (#1355),
     #: and a chunk write with no base through its commit (#2747).
     COLLECTION_TEARDOWN = 3
+    #: Runtime vector DDL, in its own transaction after a writer holds its target.
+    COLLECTION_DDL = 30
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so
     #: two nominations racing each found no sibling to clear and both set it.
@@ -266,3 +272,21 @@ async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:
         select(func.pg_try_advisory_xact_lock(scope.value, func.hashtext(name)))
     )
     return bool(result.scalar_one())
+
+
+@asynccontextmanager
+async def lock_wait_within(db: AsyncSession, *, wait_ms: int) -> AsyncGenerator[None]:
+    """Bound every lock wait in one mutation and preserve the caller's transaction.
+
+    `wait_ms` must be positive. Success retains locks until the outer commit and
+    restores the previous timeout; any failure rolls back this savepoint, including
+    its timeout setting and partial writes. This also prevents a lock-order conflict
+    with another writer from waiting indefinitely while holding rows it needs.
+    """
+    async with db.begin_nested():
+        previous = (
+            await db.execute(select(cast(func.current_setting("lock_timeout"), Text)))
+        ).scalar_one()
+        await db.execute(select(func.set_config("lock_timeout", f"{wait_ms}ms", True)))
+        yield
+        await db.execute(select(func.set_config("lock_timeout", previous, True)))

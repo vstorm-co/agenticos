@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "1276ed684962"
 ---
 
 # Governance { #governance }
@@ -588,6 +588,22 @@ domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
 
+Nocny przegląd staje się należny 20 godzin po własnej ostatniej próbie.
+Obserwacje i konserwacja pamięci nie przesuwają tego terminu. Obserwacje nadal
+wliczają się do limitu wydatków na proaktywność danej osoby.
+
+Udany przegląd zapisuje identyfikator osoby i skrót każdego przeczytanego
+promptu, bez kopiowania tekstu. Zakończenie wcześniej przeczytanego oczekiwania
+na zatwierdzenie lub odpowiedź nie powoduje więc kolejnego płatnego wywołania
+modelu. Odroczony prompt pozostaje nieprzeczytany, aż uwzględni go późniejszy
+przegląd; zmieniony tekst znów jest nowy. Nieudane wywołanie modelu nie oznacza
+promptów jako przeczytanych.
+
+Po aktualizacji stare runy tła bez przypisanej roli nie opóźniają kolejnego
+przeglądu. Istniejące wiadomości nie mają znacznika odczytu, więc kwalifikujące
+się ostatnie prompty mogą trafić do jednego przeglądu uzupełniającego, zgodnie
+ze zwykłymi przełącznikami i budżetami.
+
 Nocne zadanie czyta tylko prompt, który przeszedł wejściowy
 [guardrail](reference/capabilities.md#guardrails) agenta, do którego go wysłano,
 bo model proaktywności nie ma własnych guardraili:
@@ -606,6 +622,13 @@ bo model proaktywności nie ma własnych guardraili:
   odmowa wejściowego guardraila, która nie zostawiła odpowiedzi, pozostaje poza
   odczytem. Tura mówiona nie zapisuje modelu, więc jest pomijana, gdy nie ma już
   jej runu.
+
+Prompty rutyn przechodzą sprawdzenie według przypiętej wersji agenta, wersji
+nazwanego środowiska lub bieżącej wersji agenta, zgodnie z konfiguracją rutyny.
+Brak celu lub nieczytelna specyfikacja oznacza pominięcie rutyny. Pomijana jest
+też rutyna, której ostatnie uruchomienie zostało odrzucone. Rutyna uruchomiona
+wcześniej, której ostatni run usunęła retencja, również jest pomijana: nieznany
+wynik nie może wycofać odmowy.
 
 Prompt zredagowany przez guardrail przechodzi, a zadanie czyta go tak, jak jest
 zapisany, bez redakcji

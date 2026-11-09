@@ -625,7 +625,13 @@ class TestSharedThread:
         result: str | None = "Drew it as visual.",
     ):
         return SimpleNamespace(
-            tool_call_id=call_id, tool_name=name, args=args, status=status, result=result
+            tool_call_id=call_id,
+            tool_name=name,
+            tool_id=None,
+            presentation_kind=None,
+            args=args,
+            status=status,
+            result=result,
         )
 
     async def test_each_visual_is_sent_finished_with_its_pictures_inlined(self) -> None:
@@ -916,3 +922,20 @@ class TestThumbnailDrawnOnDemand:
         assert visuals.svg_aspect('<svg viewBox="0 0 200 100">') == 0.5
         assert visuals.svg_aspect("<svg>") is None
         assert visuals.svg_aspect('<svg viewBox="0 0 0 1">') is None
+
+
+@pytest.mark.security
+async def test_shared_renamed_drawings_and_revisions_ignore_external_name_collisions() -> None:
+    harness = TestSharedThread()
+    draw = harness._call("d", "sketch", {"kind": "svg", "content": "<svg><text>old</text></svg>"})
+    draw.tool_id = "draw"
+    revise = harness._call(
+        "r", "adjust", {"visual_id": "d", "edits": [{"old": "old", "new": "new"}]}
+    )
+    revise.tool_id = "revise_visual"
+    external = harness._call("m", "draw", {"kind": "svg", "content": SVG})
+    external.presentation_kind = "generic"
+    conversation, message = harness._thread(draw, revise, external)
+    shared = await visuals.shared_visuals(conversation)
+    assert [item["id"] for item in shared[message.id]] == ["d", "r"]
+    assert "new" in shared[message.id][1]["content"]

@@ -85,7 +85,12 @@ export function ChatRoomBar({
             <UserPlus className="h-3.5 w-3.5" aria-hidden />
             {t("share")}
           </Button>
-          <ShareDialog conversationId={conversationId} open={sharing} onOpenChange={setSharing} />
+          <ShareDialog
+            key={conversationId}
+            conversationId={conversationId}
+            open={sharing}
+            onOpenChange={setSharing}
+          />
         </>
       )}
     </div>

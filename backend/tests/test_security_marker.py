@@ -41,6 +41,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_an_answered_or_ended_question_wakes_its_owning_step": "'approval' names the wake module; an accepted question continuation, not an authorization refusal",
+    "tests/test_workflow_run_status.py::test_a_question_is_visible_beside_running_approval_and_retry_siblings": "'approval' names a waiting status; severity reporting, not an authorization refusal",
     "tests/integration/test_artifact_log_bindings.py::TestReading::test_the_lines_are_cut_to_the_pages_byte_budget": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_artifact_log_bindings.py::TestBesideATable::test_the_byte_budget_is_shared_fairly_between_a_table_and_a_log": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_workflow_approval_metrics_migration.py::test_an_existing_request_reads_unmeasured": "'approval' names the approval step's stored column the migration adds, not an authorization refusal",
@@ -87,6 +89,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_html_parse.py::test_a_matchs_markup_is_closed_where_its_node_budget_ends": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
     "tests/test_workflow_html_parse.py::test_a_string_over_the_budget_is_cut_inside_its_open_tags": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
     "tests/test_workflow_html_parse.py::test_a_string_that_exactly_fills_the_budget_ends_the_markup": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
+    "tests/test_workflow_input_schema.py::test_diagnostic_byte_budget_uses_utf8_and_reserves_its_marker": "'budget' names encoded diagnostic size and its truncation marker, not a spend cap or authorization refusal",
     "tests/test_workflow_mcp_call.py::TestIdempotencyKey::test_a_keyed_call_lists_the_tools_even_without_approval": "'approval' names a tool's approval flag in a listing, no gate is exercised",
     "tests/test_workflow_stats_window.py::test_an_approval_after_the_window_is_left_out_not_a_failure": "'approval' names the approval step whose outcomes are counted, a report and not a refusal",
     "tests/integration/test_artifact_data.py::TestTheDeadline::test_a_page_past_its_budget_answers_timeout_and_commits": "'budget' names a live page's read deadline, answered as a timeout, not a spend cap or a refusal",

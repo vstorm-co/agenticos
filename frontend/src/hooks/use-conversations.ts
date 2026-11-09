@@ -2,7 +2,7 @@
 
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
@@ -23,6 +23,13 @@ import {
   useWorkingStore,
 } from "@/stores";
 import type { Conversation, ConversationListResponse, ConversationMessagesResponse } from "@/types";
+
+/** Own and shared list windows hold the same row shape, unlike metadata and share grants. */
+function isConversationList(key: QueryKey): boolean {
+  return [qk.conversations.list(), qk.conversationShares.sharedLists()].some((prefix) =>
+    prefix.every((part, index) => key[index] === part),
+  );
+}
 
 /**
  * One chain of pending stars per reader, tenant and conversation, so two clicks
@@ -595,6 +602,40 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [invalidateLists, setError, t, tErrors],
   );
 
+  /**
+   * Fork one of the caller's conversations at an answer, and open the fork (#2762).
+   *
+   * The server copies the history up to and including `messageId` into a new
+   * conversation of the caller's own; the original is left as it was.
+   */
+  const forkConversation = useCallback(
+    async (conversationId: string, messageId: string): Promise<Conversation | null> => {
+      const startedAs = useAuthStore.getState().user?.id;
+      const startedIn = useOrgStore.getState().activeOrgId;
+      const startedAt = useConversationStore.getState().currentConversationId;
+      const sameReader = () =>
+        stillSameAccount(startedAs) && useOrgStore.getState().activeOrgId === startedIn;
+      try {
+        const fork = await apiClient.post<Conversation>(`/conversations/${conversationId}/fork`, {
+          message_id: messageId,
+        });
+        if (!sameReader()) return null;
+        await invalidateLists();
+        if (!sameReader()) return null;
+        if (useConversationStore.getState().currentConversationId === startedAt) {
+          await selectConversation(fork.id);
+        }
+        if (!sameReader()) return null;
+        toast.success(t("forkedToast"));
+        return fork;
+      } catch (err) {
+        if (sameReader()) toast.error(getErrorMessage(err, tErrors, t("failedForkConversation")));
+        return null;
+      }
+    },
+    [invalidateLists, selectConversation, t, tErrors],
+  );
+
   const unarchiveConversation = useCallback(
     async (id: string) => {
       try {
@@ -622,7 +663,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const patchFavourite = useCallback(
     (id: string, favourite: boolean) => {
       queryClient.setQueriesData<ConversationListResponse>(
-        { queryKey: qk.conversations.list() },
+        { predicate: (query) => isConversationList(query.queryKey) },
         (prev) =>
           prev === undefined
             ? prev
@@ -640,7 +681,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const patchUnread = useCallback(
     (id: string, unread: boolean) => {
       queryClient.setQueriesData<ConversationListResponse>(
-        { queryKey: qk.conversations.list() },
+        { predicate: (query) => isConversationList(query.queryKey) },
         (prev) =>
           prev === undefined
             ? prev
@@ -661,14 +702,13 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const account = useAuthStore.getState().user?.id;
       const organization = tenant;
       await queryClient.cancelQueries({
-        queryKey: qk.conversations.list(),
         // An initial fetch is also where the open chat learns its agent and run
         // state. Cancelling it leaves the observer with neither data nor a retry.
-        predicate: (query) => query.state.data !== undefined,
+        predicate: (query) => isConversationList(query.queryKey) && query.state.data !== undefined,
       });
       if (!stillSameAccount(account) || !stillSameTenant(organization)) return;
       const before = queryClient.getQueriesData<ConversationListResponse>({
-        queryKey: qk.conversations.list(),
+        predicate: (query) => isConversationList(query.queryKey),
       });
       patchUnread(id, false);
       try {
@@ -683,16 +723,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           return;
         invalidateSoon(queryClient, qk.projects.all());
         await queryClient.cancelQueries({
-          queryKey: qk.conversations.list(),
-          predicate: (query) => query.state.data !== undefined,
+          predicate: (query) =>
+            isConversationList(query.queryKey) && query.state.data !== undefined,
         });
         // Join any initial list still in flight before applying the committed
         // marker. Refetching with no cached data joins its existing promise.
         if (stillSameAccount(account) && stillSameTenant(organization)) {
           await queryClient.refetchQueries({
-            queryKey: qk.conversations.list(),
             type: "active",
-            predicate: (query) => query.state.data === undefined,
+            predicate: (query) =>
+              isConversationList(query.queryKey) && query.state.data === undefined,
           });
         }
         if (
@@ -781,9 +821,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       if (!sent || !newest || !stillHere()) return;
       // The band is an ordering the server applies, so the list is refetched to
       // move the row - the star itself is already right on screen.
-      await invalidateLists();
+      await Promise.all([
+        invalidateLists(),
+        invalidateSoon(queryClient, qk.conversationShares.sharedLists()),
+      ]);
     },
-    [patchFavourite, invalidateLists, setError, t, tErrors],
+    [patchFavourite, invalidateLists, queryClient, setError, t, tErrors],
   );
 
   const deleteConversation = useCallback(
@@ -895,6 +938,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     loadEarlierMessages,
     archiveConversation,
     unarchiveConversation,
+    forkConversation,
     setFavourite,
     markRead,
     deleteConversation,

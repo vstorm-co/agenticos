@@ -74,6 +74,7 @@ from app.agents.capabilities.coding_agent._task import (
     run_detached,
     task_files,
 )
+from app.agents.model_context import check_model_context
 from app.core.exceptions import AppException, BadRequestError
 from app.db.session import get_db_context
 from app.services.coding_task_changes import CodingTaskChangeService
@@ -277,6 +278,7 @@ def build_coding_toolset(
                 )
             if not task.strip():
                 return steer(ctx, "Describe the coding task first.")
+            await check_model_context()
             await assert_ambient_budget()
             try:
                 async with personal_executor.session(
@@ -360,6 +362,7 @@ def build_coding_toolset(
                 f"{label} needs a sandbox with a shell, and this agent has none. "
                 "Say so rather than trying again."
             )
+        await check_model_context()
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, configured)
         await narration.started(task)
@@ -412,6 +415,7 @@ def build_coding_toolset(
             root = workspace.subfolder(folder) if folder else await workspace.working_dir()
         except WorkspaceUnavailableError as outside:
             return steer(ctx, f"{outside}. Choose a folder inside it, or leave `folder` empty.")
+        await check_model_context()
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, chosen)
         await narration.started(task)
@@ -439,6 +443,7 @@ def build_coding_toolset(
             root=root if folder else None,
         )
         try:
+            await check_model_context()
             await pipe.open()
             try:
                 with (

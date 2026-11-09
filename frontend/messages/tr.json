@@ -758,7 +758,13 @@
         "boolean": "Evet veya hayır",
         "date": "Tarih",
         "choice": "Seçenek"
-      }
+      },
+      "contractFormat": "Giriş sözleşmesi",
+      "simpleFields": "Basit alanlar",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Basit alanları veya JSON Schema sözleşmesini seçin. Bu tetikleyici açıkken her kayıtlı biçim korunur; workflow’a yalnızca seçilen biçim kaydedilir.",
+      "schemaHint": "İç içe nesneler, diziler ve referanslar için JSON Schema Draft 2020-12 kullanın. Girdiler run başlamadan önce doğrulanır.",
+      "schemaInvalid": "Bir JSON nesnesi girin. Bu değişiklik kaydedilmedi."
     },
     "categoryHint": {
       "triggers": "run nasıl başlar?",
@@ -1356,7 +1362,7 @@
     "templateUnknown": "{placeholder}, bu adımın okuyabileceği bir alanı belirtmiyor.",
     "templatePreview": "Önizleme:",
     "templateSuggestions": "Önceki adımlardaki değerler",
-    "triggerHintCall": "Başka bir workflow’daki Run a workflow adımı bunu girdisiyle başlatır; girdi bu alanlara göre doğrulanır. Sonraki adımlar bunları payload olarak okur.",
+    "triggerHintCall": "Başka bir workflow’daki Run a workflow adımı bunu girdisiyle başlatır; girdi bu giriş sözleşmesine göre doğrulanır. Sonraki adımlar girdiyi payload olarak okur.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Bir workflow seçin",
     "pickerWorkflowNone": "Henüz Called by a workflow ile başlayan bir workflow yayımlanmadı.",
@@ -3452,7 +3458,7 @@
       "avatarColourHint": "Fotoğraf yükleyene kadar avatarınız olarak gösterilir.",
       "prefArtifactVersionPublished": "Uygulama güncellendi",
       "prefArtifactVersionPublishedTrigger": "Takip ettiğiniz uygulama yeni bir sürüm aldı; agentı yeniden yayımladı veya bir kullanıcı eski sürümü geri yükledi.",
-      "prefResourceShared": "Grubunuzla paylaşıldı",
+      "prefResourceShared": "Sizinle veya grubunuzla paylaşıldı",
       "prefResourceSharedTrigger": "Bir şey (agent, skill, bilgi veya uygulama) üyesi olduğunuz grupla paylaşıldı.",
       "prefBudgetWarning": "Bölüm budgetı %80 seviyesinde",
       "prefBudgetWarningTrigger": "Yönettiğiniz bir bölüm aylık budgetının %80’ini kullandı. Yöneticilere tüm bölümler için bildirim gönderilir.",
@@ -4234,7 +4240,8 @@
       "templateCategories": "Kategoriler",
       "templateCount": "{count, plural, one {# şablon} other {# şablon}}",
       "automationCategoryHint": "Tabloları otomatik hazırlanan, kullanıma hazır otomasyonlar.",
-      "exampleCategoryHint": "Kendi otomasyonunuzu öğrenmek ve oluşturmak için küçük akışlar."
+      "exampleCategoryHint": "Kendi otomasyonunuzu öğrenmek ve oluşturmak için küçük akışlar.",
+      "startRunSchema": "Beklenen giriş şeması"
     },
     "runs": {
       "aParkedRunIsStill": "Beklemeye alınmış run hâlâ beklemede. Hiçbir karar verilmedi ve hiçbir şeyin süresi dolmadı.",
@@ -8492,6 +8499,10 @@
       "chat-coding-accounts": {
         "title": "Kodlama hesapların",
         "body": "Sohbetten ayrılmadan Codex veya Claude Code bağla. Bunlar özel bulut hesaplarındır; yerel masaüstü araçları kendi oturumlarını kullanır."
+      },
+      "workflow-input-contract": {
+        "title": "Beklenen girdiyi tanımlayın",
+        "body": "Manuel, API veya Bir workflow tarafından çağrılan tetikleyicileri, basit alanları veya JSON Schema Draft 2020-12 sözleşmesini kullanabilir. Şema iç içe değerleri destekler ve run başlamadan önce doğrulanır."
       }
     }
   },
@@ -8918,7 +8929,11 @@
       "title": "Chat'ler",
       "unread": "Yeni yanıt",
       "unreadHeading": "Okunmamış",
-      "unnamedProject": "Bir project"
+      "unnamedProject": "Bir project",
+      "sharedHeading": "Sizinle paylaşılanlar",
+      "sharedLoading": "Paylaşılan konuşmalar yükleniyor…",
+      "sharedFailed": "Paylaşılan konuşmalar yüklenemedi.",
+      "retryShared": "Paylaşılan konuşmaları yeniden yükle"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",
@@ -9734,7 +9749,23 @@
       "cancel": "Şimdi değil",
       "agentUnavailable": "Seçilen ajan yüklenemedi. Tekrar deneyin.",
       "failed": "Bu bilgisayarda erişim ayarlanamadı"
-    }
+    },
+    "fork": "Yeni konuşmaya dallandır",
+    "forkedToast": "Konuşma dallandırıldı",
+    "failedForkConversation": "Konuşma dallandırılamadı",
+    "forkedFrom": "<link>{title}</link> konuşmasından dallandırıldı",
+    "untitledFork": "Başlıksız konuşma",
+    "leaveShared": "Sohbetlerimden kaldır",
+    "leftShared": "Sohbetlerinizden kaldırıldı",
+    "failedLeaveShared": "Konuşma kaldırılamadı",
+    "conversationViewOnly": "Sizinle salt okunur olarak paylaşıldı",
+    "accessChanged": "Erişim değiştirildi",
+    "failedToChangeAccess": "Erişim değiştirilemedi",
+    "accessLevelFor": "{name} için erişim düzeyi",
+    "accessChecking": "Sohbet erişimi kontrol ediliyor…",
+    "accessFailed": "Bu sohbete erişim doğrulanamadı",
+    "accessRetry": "Tekrar dene",
+    "forking": "Sohbet dallandırılıyor…"
   },
   "admin": {
     "actions": "Eylemler",
