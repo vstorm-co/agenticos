@@ -5949,6 +5949,7 @@
       "syncSources": "Sync-Quellen",
       "syncSourcesFailedDescription": "Die Anfrage nach den Sync-Quellen dieser Datenbank ist fehlgeschlagen, ob sie welche hat, ist also unbekannt.",
       "syncSourcesFailedTitle": "Die Sync-Quellen konnten nicht geladen werden",
+      "sourcePaused": "Diese Quelle ist pausiert. Aktivieren Sie sie, um zu synchronisieren.",
       "triggerSyncNow": "Sync jetzt auslösen",
       "triggerSyncNow2": "Sync jetzt auslösen",
       "typeSize": "Typ / Größe",

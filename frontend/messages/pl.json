@@ -2698,6 +2698,7 @@
       "syncSources": "Źródła synchronizacji",
       "syncSourcesFailedDescription": "Żądanie o źródła synchronizacji tej bazy nie powiodło się, więc nie wiadomo, czy jakieś ma.",
       "syncSourcesFailedTitle": "Nie udało się wczytać źródeł synchronizacji",
+      "sourcePaused": "To źródło jest wstrzymane. Aktywuj je, aby rozpocząć synchronizację.",
       "triggerSyncNow": "Synchronizuj teraz",
       "triggerSyncNow2": "Synchronizuj teraz",
       "typeSize": "Typ / rozmiar",

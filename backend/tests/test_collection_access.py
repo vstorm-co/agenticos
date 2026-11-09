@@ -16,6 +16,7 @@ here rather than only against Postgres.
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -30,6 +31,7 @@ from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import collection_teardown_repo, rag_document_repo
+from app.repositories.knowledge_base import choose_for_collection
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
 from app.services.collection_access import (
@@ -81,6 +83,7 @@ def _kb(
         ingestion_config={},
         embedding_model="text-embedding-3-large",
         embedding_dim=3072,
+        created_at=datetime.now(UTC),
     )
 
 
@@ -1138,6 +1141,55 @@ class TestPointingASyncSourceAtACollectionByName:
     ) -> None:
         with pytest.raises(NotFoundError):
             await service.source_target(_ctx(), "handbook")
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    async def test_a_tied_name_is_refused_without_choosing_a_write_target(
+        self, service: CollectionAccessService, rows: Rows, reverse: bool
+    ) -> None:
+        first = _kb("handbook")
+        second = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        second.created_at = first.created_at
+        rows.collections = [second, first] if reverse else [first, second]
+
+        with pytest.raises(BadRequestError, match="unique collection name"):
+            await service.source_target(_ctx(), "handbook")
+
+    async def test_a_foreign_base_with_the_same_timestamp_does_not_make_a_name_ambiguous(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        own = _kb("handbook")
+        foreign = _kb("handbook", organization_id=OTHER_ORG)
+        foreign.created_at = own.created_at
+        rows.collections = [foreign, own]
+
+        assert await service.source_target(_ctx(), "handbook") is own
+
+    @pytest.mark.parametrize("scope", [KBScope.APP, KBScope.PERSONAL])
+    async def test_an_app_fallback_only_considers_other_app_bases_for_ambiguity(
+        self, service: CollectionAccessService, rows: Rows, scope: KBScope
+    ) -> None:
+        app = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        other = _kb("handbook", scope=scope, organization_id=None)
+        other.created_at = app.created_at
+        rows.collections = [other, app]
+
+        if scope == KBScope.APP:
+            with pytest.raises(BadRequestError, match="unique collection name"):
+                await service.source_target(_ctx(app_admin=True), "handbook")
+        else:
+            assert await service.source_target(_ctx(app_admin=True), "handbook") is app
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_a_timestamp_tie_resolves_to_the_same_base_in_either_order(reverse: bool) -> None:
+    first = _kb("handbook")
+    first.id = uuid.UUID(int=1)
+    second = _kb("handbook")
+    second.id = uuid.UUID(int=2)
+    second.created_at = first.created_at
+    candidates = [second, first] if reverse else [first, second]
+
+    assert choose_for_collection(candidates, HOME_ORG) is first
 
 
 class TestAddingASyncSourceToAKnowledgeBase:

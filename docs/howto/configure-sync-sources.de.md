@@ -1,5 +1,5 @@
 ---
-source_sha: "82df64a0d99f"
+source_sha: "68bc85353023"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -728,9 +728,19 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 `is_active`, `collection_name`.
 
 Setzen Sie `is_active` auf `false`, um eine Quelle anzuhalten, ohne sie zu
-löschen.
+löschen. Eine pausierte Quelle kann weder nach Zeitplan noch über API oder CLI
+synchronisiert werden. Die Konsole deaktiviert die Sync-Schaltfläche. Ein Job
+in der Warteschlange prüft den Zustand vor dem Herunterladen erneut und endet
+mit einem Fehler, wenn die Quelle während der Wartezeit pausiert wurde. Eine
+bereits gestartete Synchronisierung wird nicht unterbrochen. Setzen Sie
+`is_active` auf `true`, um neue Synchronisierungen zu erlauben.
 
-Manuelle API-Aufrufe geben bei einer angehaltenen Quelle `400` zurück. Der Worker prüft den Zustand vor der Synchronisierung erneut. Ein bereits eingereihter Lauf oder CLI-Aufruf stoppt daher vor dem Herunterladen und Indexieren, wenn die Quelle angehalten ist. Aktivieren Sie sie vor einem neuen Versuch.
+Beim Auflösen eines Sammlungsnamens wird die älteste Basis in der Organisation
+der Quelle gewählt, ersatzweise eine Basis mit App-Geltungsbereich. Gleiche
+Erstellungszeiten werden nach Basis-ID geordnet. Die API verweigert die
+Zuordnung einer Quelle über den Sammlungsnamen, wenn mehrere passende Basen
+dieselbe älteste Erstellungszeit haben. Verwenden Sie eine Wissensbasis mit
+eindeutigem Sammlungsnamen, um diese Mehrdeutigkeit zu beseitigen.
 
 ## Sync-Vorgänge überwachen { #monitoring-sync-operations }
 

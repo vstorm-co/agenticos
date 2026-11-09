@@ -1,5 +1,5 @@
 ---
-source_sha: "82df64a0d99f"
+source_sha: "68bc85353023"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -718,9 +718,19 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 Campos modificables: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
-Pon `is_active` en `false` para pausar una fuente sin borrarla.
+Pon `is_active` en `false` para pausar una fuente sin borrarla. Una fuente
+pausada no se ejecuta por programación ni se puede activar mediante la API o la
+CLI. La consola desactiva su botón de sincronización. Un trabajo en cola vuelve
+a comprobar el estado antes de descargar archivos y termina con un error si la
+fuente se pausó mientras esperaba. La pausa no interrumpe una sincronización ya
+iniciada; pon `is_active` en `true` para permitir nuevas sincronizaciones.
 
-Los disparadores manuales de la API devuelven `400` si la fuente está pausada. El worker vuelve a comprobarlo antes de sincronizar: una ejecución en cola o un disparador de CLI se detiene antes de descargar o indexar datos si la fuente está pausada. Actívala antes de volver a intentarlo.
+Al resolver un nombre de colección, se elige la base más antigua de la
+organización de la fuente o, si no existe, una base de ámbito de aplicación.
+Si las fechas de creación coinciden, se ordenan por el identificador de la base.
+La API rechaza la asignación por nombre de colección cuando varias bases
+válidas comparten la fecha de creación más antigua. Usa una base de conocimiento
+con un nombre de colección único para eliminar esa ambigüedad.
 
 ## Supervisar las sincronizaciones { #monitoring-sync-operations }
 
