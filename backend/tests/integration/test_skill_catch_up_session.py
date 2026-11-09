@@ -407,6 +407,41 @@ class TestTheConflicts:
 
 
 class TestACatchUp:
+    async def test_a_limit_too_small_for_the_check_is_raised_at_its_quote(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx)
+        run.budget_usd = Decimal("0.01")
+        await db.flush()
+        service = SkillImprovementService(db)
+
+        short = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
+        lower = await service.estimate_continuation(
+            ctx, skill.id, run.id, SkillContinue(budget_usd=Decimal("0.005"))
+        )
+        raised = await service.estimate_continuation(
+            ctx, skill.id, run.id, SkillContinue(budget_usd=Decimal("1"))
+        )
+        await service.continue_run(
+            ctx,
+            skill.id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=raised.total_usd,
+                candidate_hash=raised.candidate_hash,
+                budget_usd=raised.budget_usd,
+            ),
+        )
+        await db.refresh(run)
+
+        assert (short.affordable, short.budget_usd) == (False, Decimal("0.01"))
+        assert (lower.affordable, lower.budget_usd) == (False, Decimal("0.01"))
+        assert (raised.affordable, raised.budget_usd) == (True, Decimal("1"))
+        assert (run.status, run.budget_usd) == ("running", Decimal("1"))
+
     async def test_it_checks_the_merge_and_main_alone_and_takes_the_merge_in(
         self, db, call_price, monkeypatch
     ):
