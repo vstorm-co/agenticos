@@ -864,11 +864,12 @@ async def enforce_conversation_share(
     counters retain a local floor if Redis is unavailable.
     """
     org = f"org:{organization_id}"
+    # A refused pair must not spend the allowance shared with other members.
     for scope, caller, attempts in (
-        ("organization", org, 100),
+        ("pair", f"{org}:actor:{actor_id}:recipient:{recipient_id}", 5),
         ("actor", f"{org}:actor:{actor_id}", 20),
         ("recipient", f"{org}:recipient:{recipient_id}", 20),
-        ("pair", f"{org}:actor:{actor_id}:recipient:{recipient_id}", 5),
+        ("organization", org, 100),
     ):
         decision = await consume_with_local_floor(
             surface=f"conversation_share_{scope}", caller=caller, limit=Limit(attempts=attempts)
