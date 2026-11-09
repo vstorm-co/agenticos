@@ -868,7 +868,7 @@ describe("CaseDetail", () => {
   });
 });
 
-it("puts failing scorers first, folds evidence, and warns once per case", () => {
+it("keeps scorers in the order the dataset configures them, folds evidence, and warns once per case", () => {
   const result = {
     scorer: "judge" as const,
     name: "Tone",
@@ -900,8 +900,9 @@ it("puts failing scorers first, folds evidence, and warns once per case", () => 
     />,
   );
   const summaries = document.querySelectorAll("details > summary");
-  expect(summaries[0]).toHaveTextContent("Accuracy");
-  expect(summaries[0]).toHaveTextContent("25%");
+  expect(summaries[0]).toHaveTextContent("Tone");
+  expect(summaries[1]).toHaveTextContent("Accuracy");
+  expect(summaries[1]).toHaveTextContent("25%");
   expect(document.querySelector("details")).not.toHaveAttribute("open");
   expect(screen.getAllByText(/Unverified: nothing quoted/)).toHaveLength(1);
 });
