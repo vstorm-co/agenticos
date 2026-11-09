@@ -171,6 +171,17 @@ it("sends a check whose questions all come from the evidence to add others", asy
   ).toHaveAttribute("href", "/datasets/d7");
 });
 
+it("sends a step refused at the press because its questions all come from the evidence to add others", async () => {
+  state.start.mockRejectedValueOnce(EVIDENCE_ONLY);
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+
+  await userEvent.click(await screen.findByRole("button", { name: /Next step/ }));
+
+  expect(
+    await screen.findByRole("link", { name: "Add questions from other conversations" }),
+  ).toHaveAttribute("href", "/datasets/d7");
+});
+
 it("says the session's own reason a step cannot be taken, without pricing it", () => {
   render(
     <NextStep

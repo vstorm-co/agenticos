@@ -67,7 +67,7 @@ export function NextStep({
   const [said, setSaid] = useState<{
     key: string;
     text: string;
-    dataset?: string | null;
+    dataset: string | null;
   } | null>(null);
   // Choosing or rewording a change changes what the check measures, and so its price.
   const candidate = currentAttempt(session)?.candidate_spec_hash;
@@ -113,7 +113,7 @@ export function NextStep({
     };
   }, [stop, readOnly, allowed, blockedBy, hold, asked, body, key, estimate, refusal]);
   if (!stop || readOnly || !allowed) return null;
-  const evidence = blockedBy || said?.key !== key ? null : (said.dataset ?? null);
+  const evidence = blockedBy || said?.key !== key ? null : said.dataset;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
     setSaid(null);
@@ -124,7 +124,11 @@ export function NextStep({
       onStarted();
     } catch (cause) {
       if (!(cause instanceof ApiError && cause.status === 409)) {
-        setSaid({ key, text: getErrorMessage(cause, tErrors) });
+        setSaid({
+          key,
+          text: getErrorMessage(cause, tErrors),
+          dataset: evidenceOnlyDataset(cause),
+        });
         return;
       }
       const line = cause.code === "LINE_MOVED";
