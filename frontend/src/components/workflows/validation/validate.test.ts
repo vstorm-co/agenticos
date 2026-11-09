@@ -845,6 +845,24 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(run(g)).toEqual([]);
   });
 
+  it("rule 6 — a nested loop's exit edge may leave the body it sits in", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("outer", "control.foreach"),
+        { ...node("inner", "control.foreach"), scope_id: "outer" },
+        { ...node("body", "test.consumer_noreq"), scope_id: "inner" },
+        echo("after"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "outer", "in"),
+        edge("e2", "inner", "done", "after", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).not.toContain("edge-crosses-scope");
+  });
+
   it("rule 6 — a binding crossing out of a scope body", () => {
     const g = graph({
       entry: "entry",
