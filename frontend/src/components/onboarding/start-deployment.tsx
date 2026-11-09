@@ -8,8 +8,9 @@ import {
   useDeploymentSettings,
   type DeploymentSettingsPatch,
 } from "@/hooks/use-deployment-settings";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import type { Organization } from "@/types";
+import { StartSkeleton } from "./start-skeleton";
 import { StartQuestion } from "./start-question";
 import {
   DeploymentAccess,
@@ -45,7 +46,7 @@ export function StartDeployment({
   }, [active, question, org.id]);
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
   const [failed, setFailed] = useState(false);
-  if (isLoading) return <LoadingState variant="skeleton-panel" />;
+  if (isLoading) return <StartSkeleton view="deployment" question={question} fullPage={false} />;
   if (error || !settings)
     return (
       <ErrorState

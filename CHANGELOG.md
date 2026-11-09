@@ -28,6 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Match onboarding loading states to workspace cards, profile forms, guided settings, budgets and the first-task canvas.
+
 - Simplify the onboarding budget step to presets and a slider, without a separate numeric input.
 
 - Show pending email invitations after sign-in, with explicit acceptance and organization welcome without needing the emailed link.

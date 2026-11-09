@@ -11,12 +11,13 @@ import { useBranding } from "@/components/branding/branding-provider";
 import { useOrganizations, useOrganizationList } from "@/hooks/use-organizations";
 import { useChanged } from "@/hooks/use-changed";
 import { useStart } from "@/hooks/use-start";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
 import { StartDeployment } from "./start-deployment";
 import { StartGuide } from "./start-guide";
 import { StartStageArtwork } from "./start-stage-artwork";
+import { StartSkeleton } from "./start-skeleton";
 import { StartWorkspace } from "./start-workspace";
 import { StartInviteTeam } from "./start-invite-team";
 import { StartOrganizationSettings } from "./start-organization-settings";
@@ -179,7 +180,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               <p className={styles.stageHint}>{t("workspaceHint")}</p>
               <StartGuide message={guide("workspaceGuide")} />
               {organizations.isPending ? (
-                <LoadingState variant="skeleton-panel" />
+                <StartSkeleton fullPage={false} />
               ) : (
                 <StartWorkspace
                   organizations={organizations.data ?? []}
@@ -322,7 +323,7 @@ function AdminFirstTask({ orgId }: { orgId: string }) {
       />
     );
   if (!state.data || state.data.organization_id !== orgId)
-    return <LoadingState variant="skeleton-cards" />;
+    return <StartSkeleton fullPage={false} view="tasks" />;
   return (
     <div className="space-y-6">
       <StartTasks data={state.data} />

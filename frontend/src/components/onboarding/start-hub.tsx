@@ -8,7 +8,7 @@ import styles from "./workbench.module.css";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/lib/locale-navigation";
 import { Button } from "@/components/ui";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { useStart } from "@/hooks/use-start";
 import { useOrganizations, useOrganizationList } from "@/hooks/use-organizations";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -21,6 +21,7 @@ import { Perm } from "@/types/permissions";
 import { StartAdministration } from "./start-administration";
 import { StartTasks } from "./start-tasks";
 import { StartMember } from "./start-member";
+import { StartSkeleton } from "./start-skeleton";
 import { StartFinish } from "./start-finish";
 
 export function StartHub() {
@@ -49,7 +50,7 @@ export function StartHub() {
       />
     );
   if (activeOrg && !activeOrg.is_personal && !permissions.isLoaded && !permissions.error)
-    return <LoadingState variant="skeleton-cards" />;
+    return <StartSkeleton view="welcome" steps={4} />;
   if (organizations.error)
     return (
       <ErrorState
@@ -67,10 +68,7 @@ export function StartHub() {
         </Link>
       </section>
     );
-  if (state.isLoading || state.waitingForScope)
-    return (
-      <LoadingState variant="skeleton-cards" rows={3} className="mx-auto max-w-5xl px-6 py-24" />
-    );
+  if (state.isLoading || state.waitingForScope) return <StartSkeleton view="welcome" steps={4} />;
   if (state.error || !state.data)
     return (
       <section className="mx-auto max-w-2xl space-y-4 p-6">

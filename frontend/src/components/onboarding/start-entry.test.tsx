@@ -9,6 +9,7 @@ const env = vi.hoisted(() => ({
   ready: false,
   dismissed: false,
   pending: false,
+  orgPending: false,
   noOrg: false,
   replace: vi.fn(),
 }));
@@ -34,7 +35,7 @@ vi.mock("@/hooks/use-start", () => ({
   }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({
-  useOrganizationList: () => ({ isPending: false, data: env.noOrg ? [] : [{}] }),
+  useOrganizationList: () => ({ isPending: env.orgPending, data: env.noOrg ? [] : [{}] }),
 }));
 vi.mock("./start-hub", () => ({ StartHub: () => <h1>Workspace setup</h1> }));
 beforeEach(() => {
@@ -46,6 +47,7 @@ beforeEach(() => {
     ready: false,
     dismissed: false,
     pending: false,
+    orgPending: false,
     noOrg: false,
   });
   env.replace.mockReset();
@@ -104,3 +106,24 @@ it("keeps an explicitly resumed walkthrough open", () => {
   render(<StartEntry />);
   expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
 });
+
+it("keeps a resumed step's layout while data loads without exposing form controls", () => {
+  env.pending = true;
+  env.resume = true;
+  render(<StartEntry />);
+  expect(screen.getByRole("status")).toHaveAttribute("data-onboarding-skeleton", "context");
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});
+
+it.each(["pending", "orgPending"] as const)(
+  "preserves the resumed layout on a direct link while %s",
+  (pending) => {
+    env.automatic = false;
+    env.resume = true;
+    env[pending] = true;
+    render(<StartEntry />);
+    expect(screen.getByRole("status")).toHaveAttribute("data-onboarding-skeleton", "context");
+    expect(screen.queryByRole("heading", { name: "Workspace setup" })).not.toBeInTheDocument();
+  },
+);

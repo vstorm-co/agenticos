@@ -17,6 +17,7 @@ import { ErrorState } from "@/components/states";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
+import { StartSkeleton } from "./start-skeleton";
 import { StartBudget } from "./start-budget";
 import { StartQuestion } from "./start-question";
 import styles from "./guided-start.module.css";
@@ -50,7 +51,8 @@ export function StartOrganizationSettings({
         cta={{ label: t("retry"), onClick: () => void refetch() }}
       />
     );
-  if (!isLoaded) return <p role="status">{t("checkingAccess")}</p>;
+  if (!isLoaded)
+    return <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />;
   if (showBudget) return <StartBudget org={org} onContinue={() => setBudgetDone(true)} />;
   return (
     <StartQuestion
