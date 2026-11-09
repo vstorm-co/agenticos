@@ -63,7 +63,7 @@ export function SkillAgents({
       key: "agent",
       header: t("agentsTable.agent"),
       cell: (usage) => (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 max-sm:max-w-36">
           <AgentAvatar
             agentId={usage.agent.id}
             slug={usage.agent.slug}
@@ -90,6 +90,8 @@ export function SkillAgents({
     {
       key: "version",
       header: t("agentsTable.version"),
+      // On a phone the agent's name truncates first, so the binding is not broken a word a line.
+      className: "max-sm:min-w-40",
       cell: (usage) => <BindingCell usage={usage} seesChecks={seesChecks} />,
     },
     {

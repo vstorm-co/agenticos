@@ -141,6 +141,11 @@ describe("SkillAgents", () => {
     expect(screen.getByText(/No agent uses fork “Marketplace” yet/)).toBeInTheDocument();
   });
 
+  it("gives the version room on a phone, where the agent's name truncates instead", () => {
+    mount(LIST([onMain("Support")]));
+    expect(screen.getByText("v12 · main").closest("td")).toHaveClass("max-sm:min-w-40");
+  });
+
   it("says nobody is in a view that holds no agent", () => {
     mount(LIST([]), null, "pinned");
     expect(screen.getByText("No agent here.")).toBeInTheDocument();
