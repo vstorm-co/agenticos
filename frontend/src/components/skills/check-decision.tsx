@@ -45,7 +45,9 @@ export function CheckDecision({
   const line = check.line.fork_id;
   return (
     <div className="space-y-3">
-      <p className="text-sm">{t(`verdict.${check.verdict}`)}</p>
+      <p className="text-sm">
+        {check.no_readers ? t("verdict.noReaders") : t(`verdict.${check.verdict}`)}
+      </p>
       {check.warnings.length > 0 && <p className="text-muted-foreground text-xs">{t("noisy")}</p>}
       {check.verdict === "blocked" && !pin && (
         <p className="text-muted-foreground text-xs">{t("forkLine")}</p>

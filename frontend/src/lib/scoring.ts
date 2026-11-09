@@ -97,14 +97,6 @@ export interface ScoreGroup {
   scores: CaseScore[];
 }
 
-/**
- * A page of scores cut where the eval run or the answering agent changes.
- *
- * The groups keep the server's order, newest first, so a group is a run of
- * neighbours; the same eval run split by another between them is shown twice
- * rather than reordered. Inside a group the scores read in the order they were
- * graded, which for an eval run is the order of the dataset's cases.
- */
 /** Whether a model graded the answer: a judge or a reference comparison reached a verdict. */
 export function judgedBy(score: CaseScore): boolean {
   return score.results.some(
@@ -114,6 +106,14 @@ export function judgedBy(score: CaseScore): boolean {
   );
 }
 
+/**
+ * A page of scores cut where the eval run or the answering agent changes.
+ *
+ * The groups keep the server's order, newest first, so a group is a run of
+ * neighbours; the same eval run split by another between them is shown twice
+ * rather than reordered. Inside a group the scores read in the order they were
+ * graded, which for an eval run is the order of the dataset's cases.
+ */
 export function groupScores(scores: CaseScore[]): ScoreGroup[] {
   const groups: ScoreGroup[] = [];
   for (const score of scores) {

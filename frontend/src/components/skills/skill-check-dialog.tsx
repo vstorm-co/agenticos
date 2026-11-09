@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { AddTestQuestions } from "@/components/skill-improvement/add-test-questions";
+import { SetUpGrading } from "@/components/skill-improvement/set-up-grading";
 import { CheckAgents } from "@/components/skill-improvement/check-agents";
 import { useSkillCheck } from "@/hooks/use-skill-check";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -32,6 +33,14 @@ function lineMoved(error: unknown): boolean {
     error.code === "CONCURRENT_CHANGE" &&
     error.details?.version !== undefined
   );
+}
+
+/** A checked text taken back to an editor, with the version and line it was written over. */
+export interface CheckedDraft {
+  description: string;
+  content: string;
+  baseVersionId: string;
+  forkId: string | null;
 }
 
 /** Every agent of the line, the hidden ones too, is one nobody can check. */
@@ -82,7 +91,7 @@ export function SkillCheckDialog({
   /** Called, in place of saying so here, when the line moved past the text's base. */
   onLineMoved?: () => void;
   /** Takes the checked text back to an editor; without it, improving further starts a session. */
-  onEdit?: (candidate: { description: string; content: string }) => void;
+  onEdit?: (draft: CheckedDraft) => void;
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
@@ -132,6 +141,9 @@ export function SkillCheckDialog({
   };
   const plan = check === null ? (estimate.data ?? null) : null;
   const unchecked = plan !== null && nobodyCheckable(plan);
+  const noReaders = plan !== null && plan.agents.length + plan.hidden === 0;
+  const unknownFor = (...reasons: string[]) =>
+    (plan?.agents ?? []).filter((row) => reasons.includes(row.unknown_reason ?? ""));
   const session = check?.session_id ?? decidedIn;
 
   return (
@@ -147,12 +159,14 @@ export function SkillCheckDialog({
         {plan !== null && <CheckPlan agents={plan.agents} hidden={plan.hidden} />}
         {check?.status === "running" && <CheckProgress agents={check.agents} />}
         {check !== null && <CheckAgents check={check} />}
+        {noReaders && <p className="text-sm">{t("noReaders")}</p>}
         {unchecked && (
           <div className="space-y-2">
             <p className="text-sm">{t("nobody")}</p>
-            {plan.agents.some((row) => row.unknown_reason === "no_questions") && (
-              <AddTestQuestions skillId={skillId} />
+            {unknownFor("no_questions", "all_evidence").length > 0 && (
+              <AddTestQuestions skillId={skillId} onCreated={() => price(body)} />
             )}
+            <SetUpGrading agents={unknownFor("unscorable")} />
           </div>
         )}
         {plan !== null && (
@@ -160,7 +174,7 @@ export function SkillCheckDialog({
             <p className="text-muted-foreground text-xs">
               {!plan.affordable
                 ? t("unaffordable")
-                : unchecked
+                : unchecked || noReaders
                   ? null
                   : t("price", {
                       expected: formatCostUsd(Number(plan.expected_usd)),
@@ -168,7 +182,7 @@ export function SkillCheckDialog({
                     })}
             </p>
             <Button
-              variant={unchecked ? "outline" : "default"}
+              variant={unchecked || noReaders ? "outline" : "default"}
               disabled={start.isPending || !plan.affordable}
               onClick={() =>
                 start.mutate(body, {
@@ -177,7 +191,7 @@ export function SkillCheckDialog({
                 })
               }
             >
-              {unchecked ? t("startUnchecked") : t("start")}
+              {unchecked || noReaders ? t("startUnchecked") : t("start")}
             </Button>
           </DialogFooter>
         )}
@@ -223,7 +237,11 @@ export function SkillCheckDialog({
             onEdit={
               onEdit &&
               (() => {
-                onEdit(check.candidate);
+                onEdit({
+                  ...check.candidate,
+                  baseVersionId: check.base_version.id,
+                  forkId: check.line.fork_id,
+                });
                 onOpenChange(false);
               })
             }

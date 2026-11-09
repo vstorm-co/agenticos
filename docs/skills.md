@@ -346,7 +346,9 @@ done with it, and **Details** opens one. A check an
 on agents links there instead.
 
 **Back to editing** takes the checked text back to the editor - the one it was
-written in, or a new one opened from Show or Details - so nothing typed is lost; a
+written in, or a new one opened from Show or Details on the check's own line - so
+nothing typed is lost, and saving it is refused once the line has a version newer
+than the one it was checked on; a
 proposal's check offers **Improve further** instead, which starts a session. On
 main a person may still:
 

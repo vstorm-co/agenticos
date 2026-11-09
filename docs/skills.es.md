@@ -1,5 +1,5 @@
 ---
-source_sha: "6eae343a6746"
+source_sha: "730f0a4e0804"
 ---
 
 # Skills { #skills }
@@ -374,8 +374,9 @@ la más nueva primero, con lo que halló cada una y lo que se hizo con ella, y
 lleva a ella.
 
 **Volver a editar** devuelve el texto comprobado al editor - aquel en el que se
-escribió, o uno nuevo abierto desde Mostrar o Detalles -, así que no se pierde nada
-de lo escrito; la comprobación de una propuesta ofrece en su lugar **Seguir
+escribió, o uno nuevo abierto desde Mostrar o Detalles en la línea de la propia
+comprobación -, así que no se pierde nada de lo escrito, y guardarlo se rechaza si la
+línea ya tiene una versión más nueva que la comprobada; la comprobación de una propuesta ofrece en su lugar **Seguir
 mejorando**, que inicia una sesión. En main una persona aún puede:
 
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como

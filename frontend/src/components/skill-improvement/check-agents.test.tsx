@@ -78,6 +78,31 @@ describe("CheckAgents", () => {
     expect(screen.getAllByText("Not checked: the check could not measure it.")).toHaveLength(2);
   });
 
+  it("offers what lets each unknown agent be checked, and says when its own were not asked", async () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Billing", "unknown", { unknown_reason: "unscorable" }),
+            checkAgent("Refunds", "unknown", { unknown_reason: "all_evidence", stages: [] }),
+            checkAgent("Support", "worse", { sample: "own_not_asked" }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Add questions to k1")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /^Set up grading on / })[0]).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/datasets\/.+\?tab=grading$/),
+    );
+    await openAll();
+    expect(screen.getByText(/the skill's questions already showed it worse/)).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/every question came from the conversations the change was learned/),
+    ).toHaveLength(2);
+  });
+
   it("says what each agent fixed and broke, with a link to the run", async () => {
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     await openAll();
@@ -360,6 +385,19 @@ describe("CheckAgents", () => {
         ),
       ).toBeVisible();
       expect(screen.queryByText("Add questions to k1")).toBeNull();
+    });
+
+    it("offers setting up grading only to someone who may edit the skill", () => {
+      render(
+        <ReadOnlyProvider value="viewOnly">
+          <CheckAgents
+            check={skillCheck({
+              agents: [checkAgent("Billing", "unknown", { unknown_reason: "unscorable" })],
+            })}
+          />
+        </ReadOnlyProvider>,
+      );
+      expect(screen.queryByRole("link", { name: /^Set up grading on / })).toBeNull();
     });
 
     it("says when nothing worse or unknown is left to look at", () => {

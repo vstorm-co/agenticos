@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +31,14 @@ vi.mock("@/hooks/use-skill-check", () => ({
     held.checkId = checkId;
     return held;
   },
-  useSkillTestSet: () => ({ testSet: null, isLoading: false, error: null, create: {} }),
+  useSkillTestSet: () => ({
+    testSet: null,
+    isLoading: false,
+    error: null,
+    create: {
+      mutate: (_body: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.(),
+    },
+  }),
 }));
 vi.mock("@/hooks/use-skill-versions", () => ({
   useSkillAgents: () => ({ agents: { items: [] }, error: null, retry: vi.fn(), retrying: false }),
@@ -320,6 +327,8 @@ describe("SkillCheckDialog", () => {
     expect(onEdit).toHaveBeenCalledWith({
       description: "Refunds",
       content: "Refund within 30 days.",
+      baseVersionId: "v-3",
+      forkId: null,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -350,5 +359,40 @@ describe("SkillCheckDialog", () => {
 
     expect(onApplied).toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says nobody reads the line before it starts, and that nobody was checked after", () => {
+    held.estimate = mutation({
+      data: finishedCheck({ agents: [], hidden: 0, expected_usd: "0", at_most_usd: "0" }),
+    });
+    open();
+
+    expect(screen.getByText(/No agent reads this line, so there is nobody to check/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Go on without a check" })).toBeEnabled();
+    expect(screen.queryByRole("list")).toBeNull();
+    cleanup();
+
+    held.check = finishedCheck({ agents: [], no_readers: true });
+    open();
+    expect(
+      screen.getByText("No agent reads this line, so there was nobody to check."),
+    ).toBeVisible();
+  });
+
+  it("prices the check again once test questions were written, and offers grading where it lacks", async () => {
+    const agent = (name: string, reason: "unscorable" | "all_evidence") =>
+      checkAgent({ name, state: "unknown", unknown_reason: reason });
+    held.estimate = mutation({
+      data: finishedCheck({ agents: [agent("A", "all_evidence"), agent("B", "unscorable")] }),
+    });
+    open();
+
+    expect(screen.getByRole("link", { name: "Set up grading on Skill set" })).toHaveAttribute(
+      "href",
+      "/datasets/d-1?tab=grading",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add test questions" }));
+
+    expect(held.estimate.mutate).toHaveBeenCalledTimes(2);
   });
 });

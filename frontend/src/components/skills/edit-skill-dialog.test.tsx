@@ -74,7 +74,10 @@ const RETURNS: SkillFork = {
   created_at: "2026-10-30T10:00:00Z",
 };
 
-function mount(fork: SkillFork | null = null, draft?: { description: string; content: string }) {
+function mount(
+  fork: SkillFork | null = null,
+  draft?: { description: string; content: string; baseVersionId: string },
+) {
   const onClose = vi.fn();
   const onDelete = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -395,9 +398,13 @@ describe("EditSkillDialog", () => {
     expect(description()).toHaveValue("When a customer returns an order.");
   });
 
-  it("opens on a text a check brought back, to edit it further over the newest version", async () => {
+  it("opens on a text a check brought back, saved over the version it was checked on", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "m13", number: 13 });
-    mount(null, { description: "Returns, as checked.", content: "Refund within 45 days." });
+    mount(null, {
+      description: "Returns, as checked.",
+      content: "Refund within 45 days.",
+      baseVersionId: "m11",
+    });
 
     expect(description()).toHaveValue("Returns, as checked.");
     await userEvent.type(description(), " Again.");
@@ -406,7 +413,7 @@ describe("EditSkillDialog", () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       "/skills/s1/versions",
       expect.objectContaining({
-        base_version_id: "m12",
+        base_version_id: "m11",
         description: "Returns, as checked. Again.",
         content: "Refund within 45 days.",
       }),

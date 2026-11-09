@@ -18,6 +18,7 @@ import {
   type ShownAgents,
 } from "@/components/skills/skill-lines";
 import { CheckRunning } from "@/components/skills/check-running";
+import type { CheckedDraft } from "@/components/skills/skill-check-dialog";
 import { SkillChecks } from "@/components/skills/skill-checks";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
@@ -55,7 +56,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<{ description: string; content: string } | null>(null);
+  const [draft, setDraft] = useState<CheckedDraft | null>(null);
   // The editor is heavy to draw, so the button says it is opening until it is.
   const [opening, startOpening] = useTransition();
   const [deleting, setDeleting] = useState(false);
@@ -86,8 +87,12 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const base = skill.latest_version_id;
   // Counted by the server, so agents the reader cannot see and every serving environment count.
   const followers = fork === null ? (mainVersions.versions[0]?.agents ?? 0) : fork.agents;
-  const editChecked = (candidate: { description: string; content: string }) => {
-    setDraft(candidate);
+  // A checked text is edited on the line it was checked on, whichever the page shows.
+  const editChecked = (checked: CheckedDraft) => {
+    setDraft(checked);
+    if (checked.forkId !== (fork?.id ?? null)) {
+      setShowParam(checked.forkId === null ? "main" : `fork:${checked.forkId}`);
+    }
     setEditing(true);
   };
   const checks = skill.can_edit === true && can(Perm.runsView);

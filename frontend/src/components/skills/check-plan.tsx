@@ -11,6 +11,10 @@ const REASONS: readonly UnknownReason[] = [
   "no_published_version",
   "inconclusive",
   "failed",
+  "unscorable",
+  "all_evidence",
+  "cancelled",
+  "own_not_asked",
 ];
 
 /**
@@ -22,24 +26,29 @@ export function CheckPlan({ agents, hidden }: { agents: SkillCheckAgent[]; hidde
   const t = useTranslations("skills.check");
   return (
     <div className="space-y-2">
-      <ul className="divide-border divide-y rounded-md border text-sm">
-        {agents.map((row) => (
-          <li key={`${row.agent.id}:${row.via_specialist ?? ""}`} className="space-y-0.5 px-3 py-2">
-            <p className="font-medium">{row.agent.name}</p>
-            <p className="text-muted-foreground text-xs">
-              {row.unknown_reason !== null
-                ? REASONS.includes(row.unknown_reason)
-                  ? t(`reason.${row.unknown_reason}`)
-                  : t("reason.other")
-                : row.sample === "skill_set_only"
-                  ? t("skillSetOnly")
-                  : t("asked", {
-                      count: row.stages.reduce((sum, stage) => sum + stage.cases, 0),
-                    })}
-            </p>
-          </li>
-        ))}
-      </ul>
+      {agents.length > 0 && (
+        <ul className="divide-border divide-y rounded-md border text-sm">
+          {agents.map((row) => (
+            <li
+              key={`${row.agent.id}:${row.via_specialist ?? ""}`}
+              className="space-y-0.5 px-3 py-2"
+            >
+              <p className="font-medium">{row.agent.name}</p>
+              <p className="text-muted-foreground text-xs">
+                {row.unknown_reason !== null
+                  ? REASONS.includes(row.unknown_reason)
+                    ? t(`reason.${row.unknown_reason}`)
+                    : t("reason.other")
+                  : row.sample === "skill_set_only"
+                    ? t("skillSetOnly")
+                    : t("asked", {
+                        count: row.stages.reduce((sum, stage) => sum + stage.cases, 0),
+                      })}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
       {hidden > 0 && (
         <p className="text-muted-foreground text-xs">{t("hidden", { count: hidden })}</p>
       )}

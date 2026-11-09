@@ -395,10 +395,26 @@ describe("ImprovementsWaitingWidget", () => {
       "href",
       "/skills/sk1?tab=history&check=c1",
     );
+    expect(within(rows[2]!).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "/skills/sk2?tab=history&show=fork:f1&check=c2",
+    );
     expect(within(rows[3]!).getByRole("link", { name: "Review" })).toHaveAttribute(
       "href",
       "/skills",
     );
+  });
+
+  it("says every read failed when each one the reader may make did", () => {
+    asked.skillsView = false;
+    asked.skillsEdit = false;
+    state.error = new Error("Unavailable");
+    skills.error = new Error("Unavailable");
+    checks.error = new Error("Unavailable");
+    widget();
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: /try again|retry/i })).toBeInTheDocument();
   });
 
   it("says which of the new reads failed, and keeps the rest listed", () => {

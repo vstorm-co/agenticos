@@ -1,5 +1,5 @@
 ---
-source_sha: "6eae343a6746"
+source_sha: "730f0a4e0804"
 ---
 
 # Skills { #skills }
@@ -390,8 +390,10 @@ Prüfung, die eine [Verbessern-Sitzung](#improving-a-skill) gestartet hat, wird 
 dieser Sitzung entschieden, und Check on agents verweist dorthin.
 
 **Zurück zum Bearbeiten** bringt den geprüften Text zurück in den Editor - den, in
-dem er geschrieben wurde, oder einen neuen, geöffnet aus Anzeigen oder Details -,
-sodass nichts Eingetippte verloren geht; die Prüfung eines Vorschlags bietet
+dem er geschrieben wurde, oder einen neuen, geöffnet aus Anzeigen oder Details auf
+der Linie der Prüfung selbst -, sodass nichts Eingetippte verloren geht, und das
+Speichern wird abgelehnt, sobald die Linie eine neuere Version hat als die geprüfte;
+die Prüfung eines Vorschlags bietet
 stattdessen **Weiter verbessern** an, das eine Sitzung startet. Auf main kann eine
 Person dennoch:
 

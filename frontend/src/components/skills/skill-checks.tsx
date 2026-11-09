@@ -9,7 +9,7 @@ import { useUrlOverlay } from "@/hooks/use-url-state";
 import { getErrorMessage } from "@/lib/api-error";
 import { formatDateTime } from "@/lib/utils";
 import type { CheckStatus, SkillCheck } from "@/types/skill-checks";
-import { SkillCheckDialog } from "./skill-check-dialog";
+import { SkillCheckDialog, type CheckedDraft } from "./skill-check-dialog";
 
 const TONE: Record<CheckStatus, "default" | "secondary" | "outline" | "destructive"> = {
   running: "outline",
@@ -33,7 +33,7 @@ export function SkillChecks({
 }: {
   skillId: string;
   forkId: string | null;
-  onEdit: (candidate: { description: string; content: string }) => void;
+  onEdit: (draft: CheckedDraft) => void;
 }) {
   const t = useTranslations("skills.page.checks");
   const tErrors = useTranslations("errors");
@@ -60,7 +60,11 @@ export function SkillChecks({
           resume={opened}
           forkId={forkId}
           onOpenChange={(open) => !open && overlay.close()}
-          onEdit={onEdit}
+          onEdit={(draft) => {
+            // Going back over the overlay's history entry would undo the line the editor opens on.
+            overlay.replace(null);
+            onEdit(draft);
+          }}
         />
       )}
     </ListCard>

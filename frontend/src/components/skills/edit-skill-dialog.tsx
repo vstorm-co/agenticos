@@ -55,8 +55,11 @@ export function EditSkillDialog({
   readers: string[];
   /** Whether the reader may check a change on the line's agents before it goes live. */
   canCheck: boolean;
-  /** A checked text to go on editing, written over the line's newest version. */
-  draft?: { description: string; content: string };
+  /**
+   * A checked text to go on editing, saved over the version it was checked on, so a
+   * version saved since is refused rather than written over.
+   */
+  draft?: { description: string; content: string; baseVersionId: string };
   onClose: () => void;
   onDelete: () => void;
 }) {
@@ -67,8 +70,10 @@ export function EditSkillDialog({
   const { save } = useSkill(skill.id);
   const { edit } = useSkillVersionWrites(skill.id);
   const queryClient = useQueryClient();
-  const [opened] = useState(() =>
-    fork === null ? skill.latest_version_id : (fork.latest?.id ?? fork.base.id),
+  const [opened] = useState(
+    () =>
+      draft?.baseVersionId ??
+      (fork === null ? skill.latest_version_id : (fork.latest?.id ?? fork.base.id)),
   );
   const [baseId, setBaseId] = useState(opened);
   const [next, setNext] = useState(() =>
@@ -174,7 +179,9 @@ export function EditSkillDialog({
         ) : (
           <SkillWorkbench
             key={`${skill.id}:${opened}`}
-            skill={draft ? { ...shown, ...draft } : shown}
+            skill={
+              draft ? { ...shown, description: draft.description, content: draft.content } : shown
+            }
             fork={fork !== null}
             canEdit={skill.can_edit === true}
             isSaving={edit.isPending || save.isPending}

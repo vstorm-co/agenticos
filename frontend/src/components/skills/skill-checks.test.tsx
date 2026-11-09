@@ -16,12 +16,13 @@ const held = vi.hoisted(() => ({
   opened: null as string | null,
   open: vi.fn(),
   close: vi.fn(),
+  replace: vi.fn(),
 }));
 vi.mock("@/hooks/use-skill-check", () => ({
   useSkillCheckHistory: () => held.history,
 }));
 vi.mock("@/hooks/use-url-state", () => ({
-  useUrlOverlay: () => [held.opened, { open: held.open, close: held.close, replace: vi.fn() }],
+  useUrlOverlay: () => [held.opened, { open: held.open, close: held.close, replace: held.replace }],
 }));
 vi.mock("./skill-check-dialog", () => ({
   SkillCheckDialog: ({
@@ -78,6 +79,7 @@ describe("SkillChecks", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("c-9");
     await userEvent.click(screen.getByRole("button", { name: "Edit it" }));
     expect(onEdit).toHaveBeenCalledWith({ description: "D", content: "C" });
+    expect(held.replace).toHaveBeenCalledWith(null);
     await userEvent.click(screen.getByRole("button", { name: "Close it" }));
     expect(held.close).toHaveBeenCalled();
   });

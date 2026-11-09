@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { useOpenSkillCheck } from "@/hooks/use-skill-check";
-import { SkillCheckDialog } from "./skill-check-dialog";
+import { SkillCheckDialog, type CheckedDraft } from "./skill-check-dialog";
 
 /**
  * A check of a change to the line shown that a person left running, or that finished
@@ -20,7 +20,7 @@ export function CheckRunning({
 }: {
   skillId: string;
   forkId: string | null;
-  onEdit: (candidate: { description: string; content: string }) => void;
+  onEdit: (draft: CheckedDraft) => void;
 }) {
   const t = useTranslations("skills.page.checkRunning");
   const check = useOpenSkillCheck(skillId, forkId);

@@ -17,6 +17,7 @@ import type {
   UnknownReason,
 } from "@/types/skill-checks";
 import { AddTestQuestions } from "./add-test-questions";
+import { SetUpGrading } from "./set-up-grading";
 import { bucketOf, CheckSummary, FixBreakBar, type Bucket } from "./check-summary";
 import { StageBreakdown } from "./stage-breakdown";
 
@@ -43,6 +44,10 @@ const REASONS: (UnknownReason | "other" | null)[] = [
   "no_published_version",
   "inconclusive",
   "failed",
+  "unscorable",
+  "all_evidence",
+  "own_not_asked",
+  "cancelled",
   "other",
   null,
 ];
@@ -204,9 +209,10 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
                       {reason !== null && (
                         <p className="text-muted-foreground text-xs">{t(`unknown.${reason}`)}</p>
                       )}
-                      {reason === "no_questions" && !readOnly && (
+                      {(reason === "no_questions" || reason === "all_evidence") && !readOnly && (
                         <AddTestQuestions skillId={check.skill_id} />
                       )}
+                      {reason === "unscorable" && !readOnly && <SetUpGrading agents={why} />}
                       <ul className="divide-border divide-y rounded-xl border">
                         {sortWithin(bucket, why).map(row)}
                       </ul>
@@ -317,6 +323,9 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
       )}
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>
+      )}
+      {row.sample === "own_not_asked" && (
+        <p className="text-muted-foreground text-xs">{t("ownNotAsked")}</p>
       )}
       {ran.length > 0 && (
         <ul className="space-y-1 rounded-md border px-3 py-2">

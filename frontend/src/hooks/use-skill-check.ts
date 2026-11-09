@@ -67,6 +67,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
   const refused = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.detail(skillId) }),
     ]);
   };
@@ -77,7 +78,11 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     }),
     start: useMutation({
       mutationFn: (body: SkillCheckStart) => startSkillCheck(skillId, body),
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      onSuccess: () =>
+        Promise.all([
+          queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+          queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
+        ]),
     }),
     apply: useMutation({
       mutationFn: (body: SkillCheckApply) => applySkillCheck(skillId, checkId as string, body),
@@ -128,6 +133,7 @@ export function useSkillChecksAwaiting({ enabled = true }: { enabled?: boolean }
     queryKey: qk.skillChecks.awaiting(),
     queryFn: listSkillChecksAwaiting,
     enabled,
+    ...ALWAYS_FRESH,
     refetchInterval: (current) =>
       current.state.data?.some((check) => check.status === "running") ? SKILL_CHECK_POLL_MS : false,
   });

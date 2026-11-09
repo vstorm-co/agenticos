@@ -92,7 +92,8 @@ describe("useSkillCheck", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["skill-checks", "s-1"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["skills", "s-1"] });
-    expect(invalidate).toHaveBeenCalledTimes(6);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["skill-checks", "awaiting"] });
+    expect(invalidate).toHaveBeenCalledTimes(9);
   });
 
   it("makes a fork of a check, then reads what it moved", async () => {

@@ -58,8 +58,12 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
   const editsSkills = can(Perm.skillsEdit);
   const proposals = useSkillProposalsAwaiting({ enabled: editsSkills });
   const reads = { agents, skills, checks, proposals, behind };
-  const isLoading = Object.values(reads).some((read) => read.isLoading);
-  const failed = (Object.keys(reads) as Source[]).filter((source) => reads[source].error);
+  // Only the reads made count: one the reader may not make neither fails nor succeeds.
+  const made = (Object.keys(reads) as Source[]).filter(
+    (source) => (source !== "proposals" || editsSkills) && (source !== "behind" || readsSkills),
+  );
+  const isLoading = made.some((source) => reads[source].isLoading);
+  const failed = made.filter((source) => reads[source].error);
   // A manual refetch ignores `enabled`, so the reads the reader may not make are left out.
   const refetch = () =>
     Promise.all([
@@ -103,7 +107,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
       href: ROUTES.SKILL_DETAIL(item.skill_id),
       action: {
         label: t("open"),
-        href: `${ROUTES.SKILL_DETAIL(item.skill_id)}?tab=history&check=${item.id}`,
+        href: `${ROUTES.SKILL_DETAIL(item.skill_id)}?tab=history${item.line.fork_id === null ? "" : `&show=fork:${item.line.fork_id}`}&check=${item.id}`,
         icon: "check" as const,
       },
       what: t(`what.check.${item.status}`, { count: item.agents }),
@@ -153,7 +157,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
     <WidgetFrame title={title} hint={hint} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
-      ) : failed.length === Object.keys(reads).length ? (
+      ) : failed.length === made.length ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : items.length === 0 ? (
         <WidgetEmptyBody
@@ -183,7 +187,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
           ))}
         </ul>
       )}
-      {!isLoading && failed.length > 0 && failed.length < Object.keys(reads).length && (
+      {!isLoading && failed.length > 0 && failed.length < made.length && (
         <div role="alert" className="text-muted-foreground flex items-center gap-2 text-xs">
           <span>
             {failed.map((source) => (

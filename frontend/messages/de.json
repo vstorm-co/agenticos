@@ -8636,13 +8636,18 @@
         "no_published_version": "Nicht geprüft: er hat keine veröffentlichte Version.",
         "inconclusive": "Nicht geprüft: nicht jede Antwort ließ sich bewerten.",
         "failed": "Nicht geprüft: sein Run ist fehlgeschlagen.",
-        "other": "Nicht geprüft: die Prüfung konnte ihn nicht messen."
+        "other": "Nicht geprüft: die Prüfung konnte ihn nicht messen.",
+        "unscorable": "Nicht geprüft: nichts kann seine Fragen bewerten. Richte die Bewertung in ihrem Dataset ein.",
+        "all_evidence": "Nicht geprüft: jede Frage stammt aus den Unterhaltungen, aus denen diese Änderung gelernt hat.",
+        "cancelled": "Nicht geprüft: die Prüfung wurde vor dem Ende angehalten.",
+        "own_not_asked": "Nicht geprüft: seine eigenen Fragen wurden nicht gestellt, nachdem die des Skills ihn schlechter zeigten."
       },
       "verdict": {
         "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
         "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
         "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
-        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
+        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen.",
+        "noReaders": "Kein Agent liest diese Linie, also gab es niemanden zu prüfen."
       },
       "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
       "cancel": "Prüfung anhalten",
@@ -8657,7 +8662,8 @@
         "description": "Die Änderung wird nicht übernommen, und über diese Prüfung lässt sich nicht mehr entscheiden. Was sie gefunden hat, bleibt in den Prüfungen des Skills."
       },
       "nobody": "Keiner dieser Agents lässt sich prüfen, die Prüfung würde also nichts messen. Füge Testfragen hinzu, damit sie es kann, oder mach ohne Prüfung weiter und bestätige, dass niemand geprüft wurde.",
-      "startUnchecked": "Ohne Prüfung weiter"
+      "startUnchecked": "Ohne Prüfung weiter",
+      "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort."
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen"
@@ -15354,7 +15360,11 @@
         "no_published_version": "Nicht geprüft: Er hat keine veröffentlichte Version.",
         "failed": "Nicht geprüft: Seine Prüfung ist fehlgeschlagen.",
         "inconclusive": "Nicht geprüft: Sein Run konnte nicht jede Antwort bewerten. Prüfen Sie erneut.",
-        "other": "Nicht geprüft: Die Prüfung konnte ihn nicht messen."
+        "other": "Nicht geprüft: Die Prüfung konnte ihn nicht messen.",
+        "unscorable": "Nicht geprüft: Nichts kann seine Fragen bewerten - keine Prüfung, kein erwarteter Tool-Aufruf und kein Bewerter, oder ein Bewerter bei ausgeschalteter KI-Unterstützung.",
+        "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
+        "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
+        "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
@@ -15388,12 +15398,14 @@
         "same": "Unverändert ({count})",
         "better": "Besser ({count})"
       },
-      "brokeOnSkill": "{broke} von {total} sind auf den eigenen Fragen des Skills schlechter geworden, die alle Agents teilen."
+      "brokeOnSkill": "{broke} von {total} sind auf den eigenen Fragen des Skills schlechter geworden, die alle Agents teilen.",
+      "ownNotAsked": "Seine eigenen Fragen wurden nicht gestellt: Die Fragen des Skills zeigten ihn bereits schlechter."
     },
     "testSet": {
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",
       "add": "Testfragen hinzufügen",
-      "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann."
+      "addHint": "Aus Antworten geschrieben, in denen Agents den Skill geladen haben, damit ein Agent ohne eigene Fragen beim nächsten Mal geprüft werden kann.",
+      "grading": "Bewertung in {name} einrichten"
     },
     "accept": {
       "title": "Annehmen",

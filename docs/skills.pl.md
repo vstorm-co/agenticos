@@ -1,5 +1,5 @@
 ---
-source_sha: "6eae343a6746"
+source_sha: "730f0a4e0804"
 ---
 
 # Skille { #skills }
@@ -362,8 +362,9 @@ sprawdzenia linii, od najnowszego, z tym, co każde znalazło i co z nim zrobion
 prowadzi do niej.
 
 **Wróć do edycji** zabiera sprawdzony tekst z powrotem do edytora - tego, w którym
-go napisano, albo nowego, otwartego z Pokaż lub Szczegóły - więc nic, co wpisano,
-nie przepada; sprawdzenie propozycji daje zamiast tego **Popraw dalej**, które
+go napisano, albo nowego, otwartego z Pokaż lub Szczegóły na linii samego
+sprawdzenia - więc nic, co wpisano, nie przepada, a zapis jest odrzucany, gdy linia
+ma już wersję nowszą niż ta, na której sprawdzano; sprawdzenie propozycji daje zamiast tego **Popraw dalej**, które
 zaczyna sesję. Na main osoba może nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
