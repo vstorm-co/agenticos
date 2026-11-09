@@ -33,6 +33,8 @@ import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
   CornerUpLeft,
+  GitBranch,
+  Loader2,
   Mic,
   MoreHorizontal,
   OctagonPause,
@@ -106,6 +108,9 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  /** Fork the conversation at a message, given its id; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
@@ -124,6 +129,8 @@ export const MessageItem = memo(function MessageItem({
   turnUsage,
   openLastStep = false,
   onRegenerate,
+  onFork,
+  forkingMessageId = null,
   pins,
   agents = [],
   request,
@@ -551,6 +558,29 @@ export const MessageItem = memo(function MessageItem({
                 className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
               >
                 <RefreshCw />
+              </button>
+            )}
+            {/* A fork copies the stored history up to this answer, so it needs the
+                saved row; the server refuses one a run is still writing. */}
+            {message.role === "assistant" && onFork && !message.isTemporaryId && (
+              <button
+                type="button"
+                onClick={() => onFork(message.id)}
+                title={t("fork")}
+                aria-label={t(forkingMessageId === message.id ? "forking" : "fork")}
+                disabled={forkingMessageId !== null}
+                aria-busy={forkingMessageId === message.id}
+                className={cn(
+                  TURN_ACTION,
+                  "focus-visible:opacity-100 disabled:cursor-wait sm:opacity-0 sm:group-hover:opacity-100",
+                  forkingMessageId === message.id && "sm:opacity-100",
+                )}
+              >
+                {forkingMessageId === message.id ? (
+                  <Loader2 className="animate-spin motion-reduce:animate-none" />
+                ) : (
+                  <GitBranch />
+                )}
               </button>
             )}
             {/* A rating is stored against the saved message; a turn that failed

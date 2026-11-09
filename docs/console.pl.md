@@ -1,5 +1,5 @@
 ---
-source_sha: "bab7134d4c72"
+source_sha: "c7783da0b195"
 ---
 
 # Konsola { #the-console }
@@ -421,6 +421,19 @@ Wątek, którego run wciąż pracuje, ma kręcący się wskaźnik i czas trwania
 z odpowiedzią, której nie widziałeś od ostatniego otwarcia, ma kropkę, a otwarcie
 go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta osobno.
 
+Rozmowy, które ktoś ci udostępnił, są w sekcji **Udostępnione Tobie**, pod
+ulubionymi. Zmiana nazwy, udostępnianie, archiwizacja i usuwanie należą do ich
+właściciela. W menu możesz dodać rozmowę do ulubionych lub ją stamtąd usunąć, albo wybrać **Usuń z moich czatów**, co kończy twój dostęp i
+zostawia rozmowę bez zmian dla pozostałych. Rozmowa udostępniona ci do odczytu
+nie ma pola wiadomości. Gdy ktoś udostępni ci rozmowę, dostajesz powiadomienie,
+które ją otwiera. Nieprzeczytane i ulubione rozmowy udostępnione trafiają do standardowych sekcji.
+
+W oknie **Udostępnij** przy każdej osobie, której udostępniono rozmowę, jest
+wybór **Podgląd** lub **Edytuj**: zmienia, co może zrobić, bez cofania i
+ponownego udostępniania. Link do udostępnienia pozostaje tylko do odczytu.
+
+Udostępnienia bezpośrednie mają limity na minutę: 100 prób na organizację, 20 na nadawcę, 20 na odbiorcę i pięć na parę nadawca–odbiorca w tej organizacji. Nowa rozmowa nie zeruje limitu. Odmowa zwraca `429` z czasem ponowienia i nie tworzy ani udostępnienia, ani powiadomienia. Lista udostępnień i faktyczny dostęp odświeżają się co 15 sekund przy aktywnej stronie.
+
 Trzy rzeczy w kompozytorze, które warto znać.
 
 **Twoje własne konta.** Agent powiązany z
@@ -797,6 +810,22 @@ która się ponownie połączyła, to nadal jeden wiersz, z czasem i kosztem
 wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minutes)**,
 w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
 okresie oraz trzech najczęstszych agentów.
+
+### Rozgałęzianie rozmowy { #forking }
+
+Aby spróbować innego podejścia albo zająć się pobocznym pytaniem tam, gdzie nie zaśmieci głównego wątku, wybierz **Rozgałęź do nowej rozmowy** pod jedną z odpowiedzi agenta. Dostajesz nową, własną rozmowę w tym samym projekcie, z całą historią aż do tej odpowiedzi włącznie. Następna wiadomość kontynuuje od tego miejsca z tą samą historią; oryginał się nie zmienia.
+
+Rozgałęzić rozmowę może tylko jej właściciel: osoba, której ją udostępniono do podglądu lub edycji, nie ma tej akcji. Rozgałęzienie kopiuje wiadomości i wywołania narzędzi, ale nie pliki załączników, pliki zapisane przez agenta w workspace, obrazy wygenerowane przez agentów, koszt ani rekordy runów. Agent nadal zna tekst załącznika, ale rozgałęzienie nie pokazuje jego karty; obraz wygenerowany przez agenta należy do oryginału i przestaje się wczytywać, gdy oryginał zostanie usunięty. Dopóki run w tej historii wciąż pisze albo czeka na zatwierdzenie lub odpowiedź na pytanie, rozmowy nie da się rozgałęzić.
+
+Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do oryginału. Tę linię widzisz tylko ty: jeśli udostępnisz rozgałęzienie, odbiorca zobaczy zwykłą rozmowę.
+
+Rozgałęzienie może obejmować najwyżej 2000 wiadomości, 10 000 wywołań narzędzi i 20 MiB kopiowanego tekstu oraz danych strukturalnych. Limit wynosi dziesięć żądań na minutę na członka i organizację. Aktualizowana rozmowa może chwilowo odmówić rozgałęzienia; spróbuj ponownie po zakończeniu aktualizacji. Historię przekraczającą limit trzeba skrócić przed skopiowaniem.
+
+Zachowane rozgałęzienia mają osobny limit 100 MiB na członka w organizacji i 1 GiB na całą organizację. Kopia rezerwuje rozmiar treści oraz 4 KiB na rozmowę i 1 KiB na wiadomość lub wywołanie narzędzia. PostgreSQL szereguje przyjmowanie kopii, więc równoległe żądania nie przekraczają limitu. Przydział zwalnia dopiero usunięcie samej kopii; usunięcie źródła lub archiwizacja go nie zwalnia. Rysunku z zapisanymi plikami obrazów nie można obecnie rozgałęzić. Wybierz wcześniejszą odpowiedź; żądanie jest odrzucane przed utworzeniem uszkodzonej kopii.
+
+Tekst i media zapisane poza bazą w kopiowanym podsumowaniu są odtwarzane w rozgałęzieniu, więc usunięcie oryginału nie usuwa tego kontekstu. Odtworzona treść wlicza się do limitu 20 MiB. Odtwarzanie obejmuje najwyżej 100 odwołań i trwa do dziesięciu sekund. Niedostępna treść lub przekroczenie limitu przerywa operację bez tworzenia częściowej kopii.
+
+Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej wiadomości, jeśli jest odpowiedzią agenta. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
 
 ### Tematy w tle { #background-topics }
 

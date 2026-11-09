@@ -37,6 +37,7 @@ class ContentGate(enum.Enum):
     ANNOUNCEMENT_AUDIENCE = "announcement_audience"
     ARTIFACTS_VIEW = "artifacts_view"
     WORKFLOWS_VIEW = "workflows_view"
+    SHARED_CONVERSATION = "shared_conversation"
 
 
 # Decision 1's "Content gated on" column, read by event type. A row with no
@@ -44,6 +45,7 @@ class ContentGate(enum.Enum):
 # beyond the tenant/membership check every row already gets from the read
 # paths' own organization scoping.
 CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
+    NotificationEventType.RESOURCE_SHARED: ContentGate.SHARED_CONVERSATION,
     NotificationEventType.APPROVAL_REQUESTED: ContentGate.DEGRADE,
     NotificationEventType.USAGE_REPORT: ContentGate.RUNS_VIEW,
     NotificationEventType.AGENT_USAGE_REPORT: ContentGate.RUNS_VIEW,

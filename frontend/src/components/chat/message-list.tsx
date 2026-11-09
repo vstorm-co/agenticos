@@ -16,6 +16,9 @@ interface MessageListProps {
   messages: ChatMessage[];
   delegations?: Delegation[];
   onRegenerate?: (messageId: string) => void;
+  /** Fork the conversation at this answer; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
 }
@@ -206,6 +209,8 @@ export function MessageList({
   messages: sourceMessages,
   delegations,
   onRegenerate,
+  onFork,
+  forkingMessageId = null,
   pins,
 }: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
@@ -269,6 +274,8 @@ export function MessageList({
             pins={pins}
             agents={agents}
             request={pins ? undefined : row.request}
+            onFork={onFork}
+            forkingMessageId={forkingMessageId}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? regenerateLast
