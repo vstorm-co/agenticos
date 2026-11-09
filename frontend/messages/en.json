@@ -15583,7 +15583,11 @@
       "updatePinned": "Update to v{version}",
       "catchUp": "Catch up the fork"
     },
-    "usedSkill": "Used skill {name}"
+    "usedSkill": "Used skill {name}",
+    "evidenceOnly": {
+      "body": "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+      "addQuestions": "Add questions from other conversations"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",

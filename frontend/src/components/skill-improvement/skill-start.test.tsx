@@ -160,6 +160,26 @@ describe("SkillStart", () => {
     expect(await screen.findByText("No agents")).toBeInTheDocument();
   });
 
+  it("sends a line whose test questions all come from the evidence to add others", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "Every case was taken from the conversations", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Every case was taken from the conversations",
+          details: { dataset_id: "d7", excluded: 3, reason: "all_cases_are_evidence" },
+        },
+      }),
+    );
+    mount();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Add questions from other conversations" }),
+    ).toHaveAttribute("href", "/datasets/d7");
+  });
+
   it("says what refused the start, and stays", async () => {
     vi.mocked(apiClient.post).mockImplementation(async (path: string) => {
       if (path.endsWith("/estimate")) return ESTIMATE;

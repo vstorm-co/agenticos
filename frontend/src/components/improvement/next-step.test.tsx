@@ -28,6 +28,17 @@ const QUOTE: ContinuationEstimate = {
 };
 const AT_UNDERSTAND: Improvement = { ...SESSION, status: "waiting", stage: "classifying" };
 const AT_CHANGES: Improvement = { ...SESSION, status: "waiting", stage: "filtering" };
+const EVIDENCE_ONLY = new ApiError(
+  400,
+  "Every case of 'Refunds' was taken from the conversations",
+  {
+    error: {
+      code: "BAD_REQUEST",
+      message: "Every case of 'Refunds' was taken from the conversations",
+      details: { dataset_id: "d7", excluded: 3, reason: "all_cases_are_evidence" },
+    },
+  },
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -146,6 +157,18 @@ it("says a step that cannot be measured is final for this session, rather than a
   expect(await screen.findByRole("alert")).toHaveTextContent(
     /can't be tested: 1 more question kept aside .* end the session, add questions, and start a new one\./,
   );
+});
+
+it("sends a check whose questions all come from the evidence to add others", async () => {
+  state.estimate.mockRejectedValue(EVIDENCE_ONLY);
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+  );
+  expect(
+    screen.getByRole("link", { name: "Add questions from other conversations" }),
+  ).toHaveAttribute("href", "/datasets/d7");
 });
 
 it("says the session's own reason a step cannot be taken, without pricing it", () => {

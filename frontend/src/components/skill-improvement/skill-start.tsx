@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
+import { EvidenceOnly, evidenceOnlyDataset } from "@/components/improvement/evidence-only";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button, Input, Label } from "@/components/ui";
 import { useSkillImprovements } from "@/hooks/use-skill-improvement";
@@ -39,6 +40,7 @@ export function SkillStart({
   const [quote, setQuote] = useState<SkillImprovementEstimate | null>(null);
   const [limit, setLimit] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [evidence, setEvidence] = useState<string | null>(null);
   const open = openImprovement(sessions);
   const { mutateAsync: price } = estimate;
 
@@ -50,7 +52,10 @@ export function SkillStart({
         setQuote(value);
         setLimit(limitText(sessionLimit(value), locale));
       })
-      .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
+      .catch((failure: unknown) => {
+        setEvidence(evidenceOnlyDataset(failure));
+        setRefusal(getErrorMessage(failure, tErrors));
+      });
   }, [isLoading, error, open, price, locale, tErrors]);
 
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
@@ -68,6 +73,7 @@ export function SkillStart({
       </p>
     );
   }
+  if (evidence !== null && quote === null) return <EvidenceOnly datasetId={evidence} />;
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 

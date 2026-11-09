@@ -2768,7 +2768,7 @@ async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
     case.source_conversation_id = evidence
     await db.flush()
 
-    with pytest.raises(BadRequestError, match="none can measure it"):
+    with pytest.raises(BadRequestError, match="none can measure it") as refused:
         await EvalRunService(db).estimate(
             ctx,
             agent.id,
@@ -2776,6 +2776,11 @@ async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
             candidate_spec=AgentSpec(name="Clerk", instructions="Proposed"),
             exclude_conversations=[evidence],
         )
+    assert refused.value.details == {
+        "dataset_id": dataset.id,
+        "excluded": 1,
+        "reason": "all_cases_are_evidence",
+    }
 
 
 async def _anonymise(db: AsyncSession, dataset: Dataset, count: int) -> list[DatasetCase]:

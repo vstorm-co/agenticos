@@ -15255,7 +15255,11 @@
       "updatePinned": "Auf v{version} aktualisieren",
       "catchUp": "Fork auf Main bringen"
     },
-    "usedSkill": "Hat Skill {name} genutzt"
+    "usedSkill": "Hat Skill {name} genutzt",
+    "evidenceOnly": {
+      "body": "Jede Frage dieses Datasets stammt aus den Gesprächen, aus denen diese Änderung gelernt hat, daher kann keine sie testen.",
+      "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

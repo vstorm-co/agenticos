@@ -15357,7 +15357,11 @@
       "updatePinned": "Zaktualizuj do v{version}",
       "catchUp": "Dogoń main w forku"
     },
-    "usedSkill": "Użył skilla {name}"
+    "usedSkill": "Użył skilla {name}",
+    "evidenceOnly": {
+      "body": "Każde pytanie tego datasetu pochodzi z rozmów, z których ta zmiana się uczyła, więc żadne nie może jej sprawdzić.",
+      "addQuestions": "Dodaj pytania z innych rozmów"
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",
