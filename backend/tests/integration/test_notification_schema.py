@@ -274,14 +274,13 @@ class TestRAGDocumentDefaultsTheIngestionAttemptToOne:
 
 class TestNotificationDeliveryConstraints:
     async def test_a_channel_outside_the_vocabulary_is_refused(self, db):
-        """Only `email` ships today - `in_app` never gets a delivery row, since the
-        `Notification` row itself is the in-app delivery."""
+        """Unknown transports never get a delivery row; in-app uses the notification itself."""
         recipient = await _user(db)
         notification = _notification(recipient)
         db.add(notification)
         await db.flush()
         db.add(
-            NotificationDelivery(id=uuid.uuid4(), notification_id=notification.id, channel="sms")
+            NotificationDelivery(id=uuid.uuid4(), notification_id=notification.id, channel="fax")
         )
         with pytest.raises(IntegrityError):
             await db.flush()
@@ -351,7 +350,7 @@ class TestNotificationPreferenceConstraints:
                 id=uuid.uuid4(),
                 user_id=user.id,
                 event_type=NotificationEventType.SECURITY_EVENT.value,
-                channel="sms",
+                channel="fax",
             )
         )
         with pytest.raises(IntegrityError):

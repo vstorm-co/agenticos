@@ -153,7 +153,10 @@ function SharedProjectFiles({ project }: { project: Project }) {
   const writable =
     project.can_use && !["queued", "running"].includes(project.workspace_move?.status ?? "");
   const toolbar = writable ? (
-    <span className="mr-auto flex flex-wrap items-center gap-1.5" data-tour="project-files-add">
+    <span
+      className="mr-auto flex flex-nowrap items-center gap-1.5 sm:flex-wrap"
+      data-tour="project-files-add"
+    >
       <Button size="sm" onClick={() => filesInput.current?.click()} disabled={upload.isPending}>
         <Upload className="h-4 w-4" />
         {t("uploadFiles")}
@@ -230,7 +233,7 @@ function SharedProjectFiles({ project }: { project: Project }) {
   const empty = files !== null && files.total === 0;
 
   const explorer = empty ? (
-    <div className="border-border flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
+    <div className="border-border flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-3 py-12 text-center sm:px-6">
       <span className="bg-muted text-foreground grid h-14 w-14 place-items-center rounded-xl">
         <Upload className="h-6 w-6" aria-hidden />
       </span>

@@ -48,6 +48,13 @@ PERSON_KEY = person_owner_key(PERSON)
 ROOM_KEY = room_owner_key("slack", "C1")
 
 
+@pytest.fixture(autouse=True)
+def _no_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests are about notes; the standing profile is read from the ledger and has
+    its own tests in `test_memory_claims_tools.py`."""
+    monkeypatch.setattr(memory_store.runtime, "profile_block", AsyncMock(return_value=""))
+
+
 def _deps(*, person: object = PERSON, room: str | None = None) -> AgentDeps:
     return AgentDeps(
         organization_id=ORG,
@@ -430,7 +437,7 @@ class TestTheCapability:
 
         assert capability.get_toolset() is capability.get_toolset()
 
-    def test_it_carries_the_five_note_tools_and_nothing_else(self):
+    def test_it_carries_the_five_note_tools_and_the_four_claim_tools(self):
         toolset = MemoryFiles().get_toolset()
 
         assert set(toolset.tools) == {
@@ -439,6 +446,10 @@ class TestTheCapability:
             "write_memory",
             "edit_memory",
             "delete_memory",
+            "remember",
+            "recall",
+            "correct_memory",
+            "share_memory",
         }
 
     async def test_the_instructions_are_a_per_request_callable(self):

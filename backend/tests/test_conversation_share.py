@@ -264,6 +264,7 @@ def _draft_call(call_id: str, args: object, result: str = "Drafted Reply to Mart
     call = MagicMock()
     call.tool_call_id = call_id
     call.tool_name = "write_draft"
+    call.presentation_kind = "draft"
     call.status = "completed"
     call.result = result
     call.args = args
@@ -309,6 +310,7 @@ def test_a_refused_draft_is_not_shared() -> None:
 def test_a_call_to_another_tool_is_not_shared_as_a_draft() -> None:
     call = _draft_call("c1", _card())
     call.tool_name = "draw"
+    call.presentation_kind = None
     conv, _ = _thread(call)
 
     assert shared_drafts(conv) == {}
@@ -543,8 +545,11 @@ async def test_the_owner_turns_a_view_share_into_an_edit_one(service: Conversati
         conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
         share_repo.get_by_id = AsyncMock(return_value=share)
         share_repo.set_permission = AsyncMock(return_value=share)
+        share_repo.lock_private_publication = AsyncMock(return_value=True)
 
-        await service.change_permission(conversation_id, share.id, owner, permission="edit")
+        await service.change_permission(
+            conversation_id, share.id, owner, permission="edit", organization_id=ORG
+        )
 
     assert share_repo.set_permission.await_args.kwargs == {"share": share, "permission": "edit"}
 
@@ -565,7 +570,7 @@ async def test_only_the_owner_changes_a_share(service: ConversationShareService)
 
         with pytest.raises(AuthorizationError):
             await service.change_permission(
-                conversation_id, share.id, uuid.uuid4(), permission="edit"
+                conversation_id, share.id, uuid.uuid4(), permission="edit", organization_id=ORG
             )
 
     share_repo.set_permission.assert_not_awaited()
@@ -587,7 +592,9 @@ async def test_a_share_that_is_not_this_conversations_is_missing(
         share_repo.set_permission = AsyncMock()
 
         with pytest.raises(NotFoundError):
-            await service.change_permission(conversation_id, uuid.uuid4(), owner, permission="edit")
+            await service.change_permission(
+                conversation_id, uuid.uuid4(), owner, permission="edit", organization_id=ORG
+            )
 
     share_repo.set_permission.assert_not_awaited()
 
@@ -606,6 +613,67 @@ async def test_a_share_link_stays_view_only(service: ConversationShareService):
         share_repo.set_permission = AsyncMock()
 
         with pytest.raises(BadRequestError):
-            await service.change_permission(conversation_id, share.id, owner, permission="edit")
+            await service.change_permission(
+                conversation_id, share.id, owner, permission="edit", organization_id=ORG
+            )
 
     share_repo.set_permission.assert_not_awaited()
+
+
+def test_a_renamed_draft_is_shared_using_its_stable_result_identity() -> None:
+    call = _draft_call("renamed", _card())
+    call.tool_name = "prepare_reply"
+    conversation, message = _thread(call)
+    drafts = shared_drafts(conversation)
+    assert drafts[message.id][0].title == "Reply to Marta"
+
+
+def test_untrusted_tool_output_cannot_spoof_a_shared_draft() -> None:
+    call = _draft_call(
+        "spoof", _card("private arguments"), result="Drafted fake. [agenticos:draft:v1]"
+    )
+    call.presentation_kind = None
+    conversation, _ = _thread(call)
+    assert shared_drafts(conversation) == {}
+
+
+@pytest.mark.anyio
+async def test_edit_access_uses_the_workspace_publication_fence(
+    service: ConversationShareService,
+) -> None:
+    owner, conversation_id = uuid.uuid4(), uuid.uuid4()
+    share = _share(conversation_id)
+    with (
+        patch(f"{MODULE}.conversation_repo") as conversations,
+        patch(f"{MODULE}.conversation_share_repo") as shares,
+    ):
+        conversations.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        shares.get_by_id = AsyncMock(return_value=share)
+        shares.lock_private_publication = AsyncMock(return_value=False)
+        shares.set_permission = AsyncMock()
+        with pytest.raises(NotFoundError):
+            await service.change_permission(
+                conversation_id, share.id, owner, permission="edit", organization_id=ORG
+            )
+        shares.set_permission.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_a_project_chat_does_not_gain_an_individual_edit_share(
+    service: ConversationShareService,
+) -> None:
+    owner, conversation_id = uuid.uuid4(), uuid.uuid4()
+    conversation = _conversation(owner)
+    conversation.project_id = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_repo") as conversations,
+        patch(f"{MODULE}.conversation_share_repo") as shares,
+    ):
+        conversations.get_conversation_by_id = AsyncMock(return_value=conversation)
+        shares.get_by_id = AsyncMock(return_value=_share(conversation_id))
+        shares.set_permission = AsyncMock()
+        with pytest.raises(BadRequestError):
+            await service.change_permission(
+                conversation_id, uuid.uuid4(), owner, permission="edit", organization_id=ORG
+            )
+        shares.set_permission.assert_not_awaited()

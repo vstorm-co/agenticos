@@ -1,5 +1,5 @@
 ---
-source_sha: "a380a5b5a5cd"
+source_sha: "b4d9ec998c26"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -52,7 +52,7 @@ superficie en `triggered_by`.
 
 Sus **campos de entrada** convierten la entrada en un contrato. Un campo tiene un
 nombre, un tipo - texto, lista de textos, número, número entero, sí o no, fecha u opción - y si es
-obligatorio. Sin campos, un run acepta cualquier objeto JSON. Con campos, **Start a
+obligatorio. Sin campos ni esquema, un run acepta cualquier objeto JSON. Con campos, **Start a
 run** pide cada uno por su nombre, un run cuya entrada omite uno, envía uno del tipo
 equivocado o uno no declarado se rechaza antes de empezar con
 `WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
@@ -72,11 +72,129 @@ está disponible en los triggers Manual, Form y Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### Contratos de entrada con JSON Schema { #json-schema-input-contracts }
+
+Para entradas anidadas, establece `config.input_schema` del trigger en un documento
+JSON Schema Draft 2020-12. **API request**, **Manual** y **Called by a workflow**
+aceptan esta alternativa a los `fields` simples. Usa un contrato cada vez: no se
+puede combinar un esquema con una lista `fields` no vacía. Los triggers públicos
+**Form** conservan su contrato de campos simples.
+
+El contrato admite objetos anidados, arrays de objetos, `enum`, `required`,
+longitudes de cadenas (`minLength` y `maxLength`), longitudes de arrays (`minItems`
+y `maxItems`) y `additionalProperties`. Reutiliza definiciones con `$defs` y
+referencias `$ref` locales. Las referencias deben resolverse dentro del mismo
+documento; las referencias externas se rechazan y nunca se descargan. Se permite
+un URI absoluto o relativo si resuelve un recurso ya incluido en el documento. No se
+requieren modelos Python definidos por el usuario ni un framework concreto para
+quien llama.
+
+La entrada del workflow siempre es un objeto JSON. Publicar rechaza un contrato
+cuando sus restricciones explícitas de raíz mediante `type`, `const`, `enum`,
+`$ref` locales estáticas o `allOf`/`anyOf`/`oneOf` demuestran que ningún objeto
+puede cumplirlo. Esta comprobación conservadora de compatibilidad no es una
+prueba general de que el esquema sea satisfacible: las restricciones con `not`,
+condiciones o `$dynamicRef` pueden quedar sin resolver y se comprueban contra
+la entrada real al admitir el run. Se siguen admitiendo subesquemas de valores
+primitivos y arrays dentro de las propiedades de objetos.
+
+Esta configuración del trigger acepta un cliente y una o más líneas de pedido:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publicar congela el esquema dentro de la versión del workflow. La entrada se
+comprueba contra el contrato de esa versión antes de admitir un run, también en
+llamadas por API, WebSocket, MCP y workflows secundarios; las pruebas usan el
+contrato del borrador. Una entrada inválida devuelve `WORKFLOW_RUN_INPUT_INVALID`
+con rutas de campos y mensajes. El esquema no convierte valores ni inserta valores
+predeterminados. Sin campos simples ni esquema, incluido un objeto de esquema
+vacío, se conserva la entrada existente como objeto JSON sin tipado.
+
+Los esquemas sin procesar tienen un límite de 256 KiB al publicar. Antes de
+admitir un run, la petición de validación serializada como JSON, con el esquema
+y la entrada, debe caber en 1 MiB. La validación se ejecuta en un proceso aislado
+con un plazo de dos segundos, incluido el arranque. Cada bucle de eventos de la
+API o de un worker admite como máximo dos validaciones simultáneas; si ambas
+plazas están ocupadas, la admisión se rechaza inmediatamente con `429`. Los
+contratos existentes de campos simples siguen validándose sin un proceso
+separado.
+
+Linux impone además un límite de espacio de direcciones de 256 MiB y un límite
+de CPU. El desarrollo nativo en macOS conserva los límites de CPU y tiempo,
+pero no el de espacio de direcciones porque Darwin no admite `RLIMIT_AS`.
+
+Un tiempo de espera agotado, memoria agotada en el validador o un límite de tamaño del protocolo de validación
+rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en
+`error.details.fields` y `validation_limit` como el `type` del problema en el
+formato existente. Un fallo al arrancar el validador, una terminación anormal
+(incluida la causada por un límite de recursos del sistema operativo) o una salida
+inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
+rechazos crea un run. Los diagnósticos se limitan a 50 entradas y 4 KiB de JSON UTF-8. Al alcanzar
+cualquiera de los límites, la última entrada resume el truncamiento. Los diagnósticos nunca citan los
+valores enviados.
+
+Los esquemas o expresiones regulares que superan los límites de anidamiento
+o repetición del validador se rechazan al publicar, en lugar de provocar un
+error del servidor.
+
+Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante la
+[API del esquema de entrada del workflow](../api.md#running-a-workflow) o el
+[descubrimiento MCP](../mcp.md#workflow-and-table-tools). Los contratos existentes de
+campos simples también se exponen como JSON Schema.
+
+El descubrimiento por HTTP expone únicamente la primera entrada **Called by a workflow**, con la entrada predeterminada primero, porque las llamadas a workflows secundarios no permiten seleccionar otra entrada. El descubrimiento del MCP de la plataforma expone solo las entradas Manual/API admitidas por su herramienta de ejecución.
+
+Las ramas `then`/`else` independientes y las excluidas por un valor booleano
+literal en `if` se comprueban para asegurar referencias seguras, pero no crean
+aristas de recursión durante la evaluación.
+
+Los contratos con `$dynamicRef` se limitan durante la comprobación de
+publicación a 2048 contextos del resolver y 64 recursos distintos en un ámbito
+dinámico. Superar cualquiera de los límites provoca un rechazo explícito de la
+configuración.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Lo inicia una persona - **Test draft** en el editor, o **Start a run** en su
 página de runs. Entrega al grafo lo mismo que **API request** y acepta los mismos
-campos de entrada, que el editor pide antes de empezar el run.
+campos de entrada o un contrato JSON Schema. El editor pide la entrada antes de empezar el run.
 
 ### trigger.chat { #trigger-chat }
 
@@ -121,8 +239,9 @@ lectura a la tabla.
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Lo inicia el paso `workflow.run` de otro workflow, con los
-campos que declara - los mismos que **Manual** - y nunca a mano ni por la API. La
-entrada de quien llama se comprueba contra ellos antes de que empiece la ejecución.
+contrato de entrada que declara - campos simples o JSON Schema, como **Manual** -
+y nunca a mano ni por la API. La entrada de quien llama se comprueba contra ese
+contrato antes de que empiece la ejecución.
 
 ### trigger.form { #trigger-form }
 
@@ -691,6 +810,10 @@ guardrails y el historial de runs del agent. El run se registra con la superfici
 Una llamada a una herramienta que requiere aprobación detiene el paso, y la
 decisión reanuda el mismo run del agent.
 
+La herramienta existente `ask_user_question` también pausa este paso. El workflow muestra `waiting_for_user`; la tarjeta de la pregunta está disponible en el chat de origen y la vista del run. Solo la persona a quien se preguntó puede responder. Las respuestas se guardan antes de poner en cola la continuación del workflow, que reanuda la llamada pendiente con el presupuesto actual del workflow. Recargar la página conserva la pregunta. Cancelar el workflow cierra sus runs de agentes en espera; las preguntas sin respuesta caducan tras `QUESTION_EXPIRY_HOURS` (24 por defecto).
+
+Esto se aplica al agent del propio paso cuando una persona con sesión iniciada está detrás del run. Los runs de origen público no tienen una persona a quien preguntar. Los delegados siguen necesitando una superficie de preguntas activa. Si el modelo agrupa una pregunta con una llamada que requiere aprobación, la aprobación tiene prioridad y la pregunta se trata como rechazada al reanudar.
+
 `inline` configura el agent en el paso en lugar de `agent`, y solo uno de los dos
 está fijado. La spec es del paso y se versiona con el grafo: el primer run crea un
 agent propiedad del workflow, fuera del catálogo y alcanzable mediante el acceso al
@@ -711,6 +834,7 @@ respuesta sin objeto donde se pidió uno, con `STRUCTURED_OUTPUT_MISMATCH`.
 |---|---|
 | Completed | Completed |
 | Esperando aprobación | Espera y luego reanuda el mismo run |
+| Esperando respuesta | Espera a la persona y reanuda la misma conversación |
 | Presupuesto superado | `AGENT_BUDGET_EXCEEDED` |
 | Bloqueado por un guardrail | `AGENT_GUARDRAIL_BLOCKED` |
 | En otro caso | `AGENT_RUN_FAILED` |
@@ -851,14 +975,20 @@ Cuando la llamada se corta, lo que sigue depende de si pudo llegar al servidor:
 
 ## notification.send { #notification-send }
 
-Notifica a miembros de la organización en la aplicación, por email o por ambos,
-a través del centro de notificaciones. Los destinatarios son miembros indicados
+Notifica a miembros mediante el centro de notificaciones: en la aplicación, por
+email, push, Slack, Telegram, Mattermost, Microsoft Teams, SMS o iMessage. Los destinatarios son miembros indicados
 por id. En el momento de ejecutarse, cada uno debe seguir siendo un miembro
 activo que puede ver el workflow, y los demás se descartan. Si no queda nadie, el
 paso falla con `NO_PERMITTED_RECIPIENTS`. Las preferencias de cada persona para
 **Workflow notifications** siguen aplicándose. El paso termina cuando la
 notificación queda escrita, y el email se entrega después. Un paso reintentado no
 escribe una segunda notificación.
+
+Los canales privados requieren una ruta de notificaciones configurada y aceptada
+por cada destinatario. Seleccionar un canal no concede consentimiento ni permite
+enviar a un chat indicado por el workflow. La entrega vuelve a comprobar acceso,
+preferencias y autorización de la ruta antes de enviar. La entrega ocurre después
+de finalizar el paso; finalizar no demuestra recepción.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
@@ -982,6 +1112,45 @@ de la ejecución responde `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Esperar respuesta por correo.** Selecciona el buzón Gmail u Outlook conectado de
+la organización, el `thread_id` del proveedor, el remitente exacto
+`expected_sender`, `not_before` y `deadline` con zona horaria, y opcionalmente el
+RFC `anchor_message_id` original. Outlook admite un buzón compartido que la cuenta
+pueda leer. Solo consulta metadatos cada 60–3600 segundos (300 por defecto) con el
+temporizador duradero del workflow, sin ocupar un worker ni un modelo mientras
+espera. Conserva la cuenta y su generación de consentimiento tras reinicios;
+nunca cambia automáticamente a una cuenta nueva.
+
+La salida `reply` gana cuando el remitente autenticado responde en ese hilo después
+de `not_before` y antes del plazo, inclusive. Los encabezados RFC opcionales solo
+restringen la coincidencia. No cuentan los mensajes enviados, borradores, respuestas
+automáticas ni recibos. Una última consulta correcta sin coincidencia verificada
+sale por `deadline`; `ignored_unverified` cuenta coincidencias sin autenticación.
+Significa **ninguna respuesta coincidente verificada**, no demuestra que nadie
+haya escrito. Un buzón ilegible, excesivo o revocado falla explícitamente y nunca
+sale por el plazo. El límite es de 500 mensajes y cinco páginas Graph. También
+considera respuestas recibidas antes de que el paso empezara a esperar.
+
+La pestaña Pasos muestra la expectativa. Quien inició el workflow o un editor puede
+pausarla o corregirla mientras espera; en pruebas, solo un editor. Una consulta en
+curso devuelve 409. La pausa conserva el plazo y no consulta el buzón. La revisión
+explícita de un consentimiento renovado solo acepta la misma cuenta. Un paso que
+requiere atención necesita además su decisión de reintento. Cancelar cierra el
+temporizador e impide pasos posteriores. Dura como máximo treinta días; el plazo
+general puede finalizar antes. Prepara seguimientos en `deadline` con los nodos
+habituales de notificación y aprobación; este nodo no envía correo.
+
+Si el plazo vence durante la pausa, el paso falla sin consultar el buzón ni afirmar
+que no llegó respuesta. Reanúdalo o corrígelo antes del plazo.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

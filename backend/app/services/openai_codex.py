@@ -255,6 +255,12 @@ class OpenAICodexService:
         )
         return flow.authorization_url()
 
+    async def finish_personal_sign_in(
+        self, ctx: AuthContext, callback_url: str
+    ) -> OpenAICodexSecret:
+        """Redeem a fresh owner-bound grant for storage under that person's vault scope."""
+        return await self._finish_sign_in(ctx, callback_url)
+
     async def _finish_sign_in(self, ctx: AuthContext, callback_url: str) -> OpenAICodexSecret:
         """Exchange the pasted code for a token pair.
 

@@ -26,7 +26,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
@@ -239,7 +239,7 @@ class TableViewOperations(Operations):
         self, ctx: AuthContext, table_id: UUID, data: TableViewCreate
     ) -> TableViewRead:
         """Save a view. Creating one is a table-edit action, not a per-view one."""
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         if await table_view_repo.get_by_name(
             self.db,
             organization_id=ctx.organization_id,
@@ -298,11 +298,15 @@ class TableViewOperations(Operations):
         refusal is a 404, the same as every other per-resource write in this
         package: whether a row may be changed is not disclosed to a caller it refuses.
         """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         view = await self._manageable_view(ctx, table_id, view_id)
         # `config` excluded from `writable`: its column is JSONB, not a scalar, so it needs
         # `model_dump(mode="json")` on the nested model to keep a `UUID` from reaching asyncpg
         # unserialized, and `writable` does not offer a per-field dump mode.
+        if data.visibility == "private" and table.default_view_id == view.id:
+            raise BadRequestError(
+                message="Choose another default view before making this view private"
+            )
         changes = writable(data, over=TableView, exclude={"config"})
         new_name = changes.get("name")
         if (

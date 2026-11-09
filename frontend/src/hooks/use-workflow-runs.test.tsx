@@ -10,7 +10,13 @@ import { ApiError } from "@/lib/api-error";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
-import { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+import {
+  useEditReplyExpectation,
+  useCausingRun,
+  useRunHistory,
+  useWorkflowRun,
+  useWorkflowRuns,
+} from "./use-workflow-runs";
 
 vi.mock("@/lib/workflows/runs-api", () => ({
   listWorkflowRuns: vi.fn(),
@@ -23,6 +29,7 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   listRunHistory: vi.fn(),
   retryWorkflowRun: vi.fn(),
   resolveWorkflowRunStep: vi.fn(),
+  editReplyExpectation: vi.fn(),
 }));
 vi.mock("@/lib/workflows/logs-api", () => ({ listRunLogs: vi.fn() }));
 /** The options a routine confirmation goes out with (`toastDone`). */
@@ -45,6 +52,65 @@ beforeEach(() => {
 });
 
 describe("useWorkflowRuns", () => {
+  it.each([false, true])(
+    "routes named admission errors to the visible input form: %s",
+    async (inForm) => {
+      vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(api.startWorkflowRun).mockRejectedValue(
+        new ApiError(422, "Input rejected", {
+          error: {
+            code: "WORKFLOW_RUN_INPUT_INVALID",
+            message: "Input rejected",
+            details: {
+              fields: [{ field: "input.items.0.sku", message: "Field required" }],
+            },
+          },
+        }),
+      );
+      const { result } = renderHook(() => useWorkflowRuns("wf", inForm), { wrapper });
+      await act(async () => {
+        await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+      });
+      if (inForm) expect(toast.error).not.toHaveBeenCalled();
+      else expect(toast.error).toHaveBeenCalledWith("input.items.0.sku: Field required");
+      await waitFor(() => expect(result.current.start.error).toBeInstanceOf(ApiError));
+    },
+  );
+
+  it("still toasts non-field failures while the input form is open", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useWorkflowRuns("wf", true), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("boom");
+  });
+
+  it("toasts orphaned graph fields while the input form owns only input refusals", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: {
+            fields: [
+              { field: "nodes.start.config.input_schema", message: "Invalid trigger schema" },
+              { field: "input.items", message: "Field required" },
+            ],
+          },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useWorkflowRuns("wf", true), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith(
+      "nodes.start.config.input_schema: Invalid trigger schema",
+    );
+  });
   it("lists a workflow's runs and starts one", async () => {
     vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [run("running")], total: 1 });
     vi.mocked(api.startWorkflowRun).mockResolvedValue(run("queued"));
@@ -328,4 +394,30 @@ it("refreshes final files even when the steps are newer than the terminal observ
   await waitFor(() => expect(result.current.files).toHaveLength(1));
   expect(api.listWorkflowRunNodes).toHaveBeenCalledTimes(1);
   expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2);
+});
+
+it("refreshes the paused step after an expectation change and after a refused change", async () => {
+  const { result } = renderHook(() => useEditReplyExpectation("run", "node"), { wrapper });
+  const body = {
+    paused: true,
+    review_mailbox: false,
+    thread_id: "thread",
+    expected_sender: "sender@example.com",
+    not_before: "2026-11-06T12:00:00Z",
+    deadline: "2026-11-07T12:00:00Z",
+    anchor_message_id: null,
+  };
+  vi.mocked(api.editReplyExpectation).mockResolvedValue({
+    ...body,
+    provider: "google",
+    connection_id: "account",
+    authorization_generation: "generation",
+  });
+  await act(() => result.current.mutateAsync(body));
+  expect(api.editReplyExpectation).toHaveBeenCalledWith("run", "node", body);
+  vi.mocked(api.editReplyExpectation).mockRejectedValue(new Error("Mailbox access changed"));
+  await act(async () => {
+    await result.current.mutateAsync(body).catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
 });

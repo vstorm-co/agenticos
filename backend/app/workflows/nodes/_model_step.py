@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai.settings import ThinkingEffort
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ModelSettingsSpec
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
@@ -31,6 +32,7 @@ from app.db.session import get_worker_db_context
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context
+from app.services.workflow_execution.agent_conversations import ChatSourceGuard
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.results import Failed, WorkflowError
 
@@ -155,6 +157,8 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
         )
     try:
         async with get_worker_db_context() as db:
+            source_guard = ChatSourceGuard(db, current.chat_source)
+            await source_guard.check()
             agent_id, version_id = await WorkflowAgentService(db).version_for(
                 current.auth,
                 workflow_id=current.workflow_id,
@@ -169,8 +173,15 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
                 surface=RunSurface.WORKFLOW,
                 version_id=version_id,
                 structured=answers,
+                on_run_open=source_guard.check,
+                check_model_request=source_guard.check_request,
+                on_segment=source_guard.keep_refusal,
                 run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
             )
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except AppException as exc:
         return Failed(error=workflow_error(exc))
     except Exception:

@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 /**
  * What a turn's calls leave under its answer rather than in its steps (#2301):
  * next steps as buttons, a card to switch on a capability the agent lacks, and a
@@ -22,7 +23,9 @@ export function drawnUnderTheAnswer(name: string): boolean {
 }
 
 function finished(calls: readonly ToolCall[] | undefined, name: string): ToolCall[] {
-  return (calls ?? []).filter((call) => call.name === name && call.status === "completed");
+  return (calls ?? []).filter(
+    (call) => toolLookupName(call) === name && call.status === "completed",
+  );
 }
 
 function jsonObject(value: unknown): Record<string, unknown> | null {
@@ -78,7 +81,7 @@ export interface MemoryChange {
 const SAVES = new Set(["write_memory", "edit_memory"]);
 
 /** What the turn noted down about the person, or forgot - each change once. */
-export type SetupKind = "agent" | "routine" | "connection";
+export type SetupKind = "agent" | "routine" | "watch" | "connection";
 
 export interface SetupProposal {
   key: string;
@@ -92,7 +95,7 @@ export interface SetupProposal {
   server: string | null;
 }
 
-const SETUP_KINDS: readonly string[] = ["agent", "routine", "connection"];
+const SETUP_KINDS: readonly string[] = ["agent", "routine", "watch", "connection"];
 
 /** What the turn's last `propose_setup` proposed, one card each. */
 export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupProposal[] {
@@ -122,10 +125,29 @@ export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupP
   });
 }
 
+/** A completed call can still be a refusal, so require the runtime's confirmation. */
+export function recordedMemoryStatement(call: ToolCall): string | null {
+  if (
+    call.status !== "completed" ||
+    !["remember", "correct_memory"].includes(toolLookupName(call)) ||
+    typeof call.result !== "string" ||
+    !/^(Recorded|Corrected) \(claim [0-9a-f-]{36}\)/i.test(call.result)
+  )
+    return null;
+  return typeof call.args.statement === "string" ? call.args.statement : null;
+}
+
 export function memoryChangesOf(calls: readonly ToolCall[] | undefined): MemoryChange[] {
   return (calls ?? []).flatMap((call) => {
-    const forgot = call.name === "delete_memory";
-    if (call.status !== "completed" || !(forgot || SAVES.has(call.name))) return [];
+    const statement = recordedMemoryStatement(call);
+    if (statement) return [{ callId: call.id, forgot: false, label: statement }];
+    const forgot = toolLookupName(call) === "delete_memory";
+    if (call.status !== "completed" || !(forgot || SAVES.has(toolLookupName(call)))) return [];
+    if (
+      typeof call.result !== "string" ||
+      !/^(Saved|Updated|Forgot) note ['"][\s\S]+['"]\.$/.test(call.result)
+    )
+      return [];
     const { name, description } = call.args;
     // The index the agent keeps for itself is not a note about anybody.
     if (name === "MEMORY.md") return [];
@@ -139,10 +161,10 @@ export function filesChangedOf(calls: readonly ToolCall[] | undefined): string[]
   const paths = new Set<string>();
   for (const call of calls ?? []) {
     if (call.status !== "completed") continue;
-    if (call.name === "write_file" || call.name === "edit_file") {
+    if (toolLookupName(call) === "write_file" || toolLookupName(call) === "edit_file") {
       const path = pathArg(call.args);
       if (path) paths.add(path);
-    } else if (call.name === "run_coding_agent") {
+    } else if (toolLookupName(call) === "run_coding_agent") {
       const files = jsonObject(call.result)?.files_changed;
       if (Array.isArray(files))
         for (const path of files) if (typeof path === "string" && path.trim()) paths.add(path);

@@ -92,7 +92,10 @@ async def test_the_owner_changes_a_share_and_gets_it_back(shares: AsyncMock) -> 
     assert response.status_code == 200
     assert response.json()["permission"] == "edit"
     assert shares.change_permission.await_args.args == (CONVERSATION_ID, share_id, CALLER.id)
-    assert shares.change_permission.await_args.kwargs == {"permission": "edit"}
+    assert shares.change_permission.await_args.kwargs == {
+        "permission": "edit",
+        "organization_id": ORGANIZATION.id,
+    }
 
 
 @pytest.mark.security
@@ -116,3 +119,33 @@ async def test_a_permission_the_api_does_not_know_is_refused(shares: AsyncMock) 
 
     assert response.status_code == 422
     shares.change_permission.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_share_permissions_cannot_be_changed_from_another_organization(
+    shares: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import conversation_repo, conversation_share_repo
+    from app.services.conversation_share import ConversationShareService
+
+    row = SimpleNamespace(user_id=CALLER.id, organization_id=uuid4())
+    share = SimpleNamespace(
+        id=uuid4(),
+        conversation_id=CONVERSATION_ID,
+        shared_by=CALLER.id,
+        shared_with=uuid4(),
+        share_token=None,
+        permission="edit",
+        created_at=datetime.now(UTC),
+    )
+    monkeypatch.setattr(conversation_repo, "get_conversation_by_id", AsyncMock(return_value=row))
+    monkeypatch.setattr(conversation_share_repo, "get_by_id", AsyncMock(return_value=share))
+    monkeypatch.setattr(conversation_share_repo, "set_permission", AsyncMock(return_value=share))
+    real = ConversationShareService(AsyncMock())
+    app.dependency_overrides[get_conversation_share_service] = lambda: real
+    async with _client() as client:
+        response = await client.patch(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/shares/{share.id}",
+            json={"permission": "edit"},
+        )
+    assert response.status_code == 404

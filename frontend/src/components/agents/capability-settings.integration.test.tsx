@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CapabilitySettings } from "./capability-settings";
@@ -11,6 +11,7 @@ import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
 import { providerMarkIn } from "@/test-utils/brand-marks";
+import en from "../../../messages/en.json";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -485,24 +486,24 @@ describe("SecretField · narrowing by what a key is for", () => {
     // "any key of this kind" and offered every API key in the vault (#1470).
     const UNCONDITIONAL = {
       ...WEATHER,
-      id: "memory_mem0",
+      id: "llamaparse_like",
       requires_secret: {
         kind: "api_key" as const,
-        description: "The mem0 API key",
+        description: "The LlamaParse API key",
         required_when: null,
-        purpose: "mem0",
+        purpose: "llamaparse",
       },
     };
     serve([
-      { ...API_KEY_SECRET, id: "sec-mem0", name: "mem0 key", purpose: "mem0" },
-      { ...API_KEY_SECRET, id: "sec-llama", name: "LlamaParse", purpose: "llamaparse" },
+      { ...API_KEY_SECRET, id: "sec-mem0", name: "Parse key", purpose: "llamaparse" },
+      { ...API_KEY_SECRET, id: "sec-tavily", name: "Tavily", purpose: "tavily" },
     ]);
-    mount(binding({ id: "memory_mem0" }), { definition: UNCONDITIONAL });
+    mount(binding({ id: "llamaparse_like" }), { definition: UNCONDITIONAL });
 
     await userEvent.click(await screen.findByLabelText("Secret"));
 
-    expect(screen.getByRole("option", { name: /mem0 key/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /Parse key/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
   });
 
   it("keeps offering the keys that never said what they were for", async () => {
@@ -724,7 +725,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
   const VAULT: Secret[] = [
     { ...API_KEY_SECRET, id: "sec-anthropic", name: "Anthropic", purpose: "anthropic" },
     { ...API_KEY_SECRET, id: "sec-openai", name: "OpenAI", purpose: "openai" },
-    { ...API_KEY_SECRET, id: "sec-llama", name: "LlamaParse", purpose: "llamaparse" },
+    { ...API_KEY_SECRET, id: "sec-tavily", name: "Tavily", purpose: "tavily" },
     { ...API_KEY_SECRET, id: "sec-mine", name: "Gateway", purpose: "custom" },
     { ...SIGN_IN, purpose: "openai_codex" },
   ];
@@ -740,7 +741,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
     expect(await screen.findByRole("option", { name: /Anthropic/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Gateway/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /OpenAI/ })).toBeNull();
-    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
     expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();
   });
 
@@ -754,7 +755,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
     expect(screen.getByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Gateway/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Anthropic/ })).toBeNull();
-    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
   });
 
   it("keeps the bound key offered after the harness changes", async () => {
@@ -863,7 +864,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
 
     await userEvent.click(await screen.findByLabelText("Key or sign-in"));
 
-    expect(await screen.findByRole("option", { name: /LlamaParse/ })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /Tavily/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
     // Publish refuses a ChatGPT sign-in for Claude Code, gateway or not.
     expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();
@@ -942,4 +943,117 @@ it("offers an optional Keenable key without making keyless search look invalid",
   await userEvent.click(screen.getByLabelText("Secret"));
   await userEvent.click(screen.getByRole("option", { name: /Keenable API key/ }));
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-1" }));
+});
+
+describe("Tool search settings", () => {
+  // The backend's schema drives these controls; its registry tests keep field
+  // copy synchronized with the catalog. No dedicated form may drop an option.
+  const TOOL_SEARCH: CapabilityCatalogEntry = {
+    ...WEATHER,
+    id: "tool_search",
+    name: "Tool search",
+    tools: [],
+    requires_secret: null,
+    config_schema: {
+      type: "object",
+      properties: {
+        defer_capabilities: { type: "boolean", default: false },
+        defer_mcp_servers: { type: "boolean", default: true },
+        exclude_capabilities: { type: "array", items: { type: "string" }, default: [] },
+        exclude_mcp_servers: { type: "array", items: { type: "string" }, default: [] },
+        exclude_tools: { type: "array", items: { type: "string" }, default: [] },
+      },
+    },
+  };
+  const copy = en.capabilityConfig.tool_search;
+
+  it("preserves MCP-only defaults without writing configuration on mount", () => {
+    const onChange = vi.fn();
+    mount(binding({ id: "tool_search" }), { definition: TOOL_SEARCH, onChange });
+
+    expect(screen.getByRole("switch", { name: copy.defer_capabilities.title })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: copy.defer_mcp_servers.title })).toBeChecked();
+    expect(screen.getByLabelText(copy.exclude_capabilities.title)).toHaveValue("");
+    expect(screen.getByLabelText(copy.exclude_mcp_servers.title)).toHaveValue("");
+    expect(screen.getByLabelText(copy.exclude_tools.title)).toHaveValue("");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("saves independent source switches and exclusions in the capability binding", async () => {
+    const saved = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState(binding({ id: "tool_search" }));
+      return (
+        <CapabilitySettings
+          catalog={[TOOL_SEARCH]}
+          selected={[value]}
+          onChange={(next) => {
+            saved(next);
+            setValue(next);
+          }}
+        />
+      );
+    }
+    render(<Editor />, { wrapper });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("switch", { name: copy.defer_capabilities.title }));
+    await user.click(screen.getByRole("switch", { name: copy.defer_mcp_servers.title }));
+    await user.type(screen.getByLabelText(copy.exclude_capabilities.title), "knowledge, visuals");
+    await user.type(
+      screen.getByLabelText(copy.exclude_mcp_servers.title),
+      "github_work, agenticos",
+    );
+    await user.type(
+      screen.getByLabelText(copy.exclude_tools.title),
+      "renamed_search, github_work_list",
+    );
+
+    expect(saved).toHaveBeenLastCalledWith(
+      binding({
+        id: "tool_search",
+        config: {
+          defer_capabilities: true,
+          defer_mcp_servers: false,
+          exclude_capabilities: ["knowledge", "visuals"],
+          exclude_mcp_servers: ["github_work", "agenticos"],
+          exclude_tools: ["renamed_search", "github_work_list"],
+        },
+      }),
+    );
+    await user.clear(screen.getByLabelText(copy.exclude_tools.title));
+    expect(saved).toHaveBeenLastCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ exclude_tools: undefined }) }),
+    );
+  });
+
+  it("shows stored exclusions and keeps every setting disabled in a read-only spec", () => {
+    const onChange = vi.fn();
+    mount(
+      binding({
+        id: "tool_search",
+        config: {
+          defer_capabilities: true,
+          defer_mcp_servers: false,
+          exclude_capabilities: ["knowledge"],
+          exclude_mcp_servers: ["github_work"],
+          exclude_tools: ["renamed_search", "github_work_list"],
+        },
+      }),
+      { definition: TOOL_SEARCH, onChange, disabled: true },
+    );
+
+    expect(screen.getByRole("switch", { name: copy.defer_capabilities.title })).toBeChecked();
+    expect(screen.getByRole("switch", { name: copy.defer_mcp_servers.title })).not.toBeChecked();
+    expect(screen.getByLabelText(copy.exclude_capabilities.title)).toHaveValue("knowledge");
+    expect(screen.getByLabelText(copy.exclude_mcp_servers.title)).toHaveValue("github_work");
+    expect(screen.getByLabelText(copy.exclude_tools.title)).toHaveValue(
+      "renamed_search, github_work_list",
+    );
+    for (const field of Object.values(copy)) {
+      if (field === copy.strategy || field === copy.max_results) continue;
+      expect(screen.getByLabelText(field.title)).toBeDisabled();
+    }
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

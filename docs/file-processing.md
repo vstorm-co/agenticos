@@ -445,6 +445,10 @@ flowchart TD
     background task with a session of their own - which is why an upload answers
     `202 {"status": "processing"}` rather than waiting.
 
+Concurrent first writes to the same collection wait for its table and indexes
+to be created in one transaction. If creation fails, that transaction rolls
+back and a waiting write can create the table.
+
 There are two addresses an upload can arrive at —
 `POST /rag/collections/{name}/ingest` and `POST /kb/{kb_id}/documents` — and both
 answer **202** with the same `RAGIngestResponse`, every field of it,
@@ -821,6 +825,22 @@ one of them is theirs.
 A name a caller does not supply is derived from the display name plus six random hex
 characters, and is claimed on the same path rather than trusted for being random.
 
+**Nor is a name holding content no base owns.** `rag-ingest` writes tracking rows and
+a `rag_<name>` table with no knowledge base and no organization. So `claim` refuses a
+name no base holds while it has unfiled rows describing chunks of any tenant but the
+caller's organization, or a vector table with such chunks. A member with
+`collections:edit` used to be able to create a base on an operator's collection and
+delete it, dropping the operator's chunks with it
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). A name a base holds
+is not checked: the caller may write every holder, and could delete or clear them all
+anyway. An app admin may adopt such a name; a failed row with no vector id describes
+no chunk and does not hold it. A `rag-ingest` killed mid-file leaves a `processing`
+row that holds the name until an app admin adopts it or runs `rag-drop <name>`.
+
+Content arriving *after* a base claims the name cannot be refused here, so the
+teardown spares it instead: the last holder's table stays while it holds an unfiled
+chunk the base does not take, as described under deleting a base below.
+
 **And a name mid-teardown is not free either.** Dropping a collection removes its
 knowledge-base rows in the request but drops the physical `rag_<name>` vector table
 only *after* the request commits, handed to a durable worker — so a rollback keeps
@@ -836,10 +856,10 @@ window cannot recreate the table the drop is about to destroy and lose its own c
 to it (#1364). The **worker** ingestion paths — a sync, a retry — check it too, at the
 `still_wanted` gate right before the vector write, so a sync into a cleared default
 (whose row the clear keeps) stops rather than repopulating a table being dropped
-(#1382). Both are best-effort reservation checks rather than lock-held serialisation:
-holding the teardown lock across a write would deadlock against an organization purge,
-which locks the `organizations` row first, so closing the last narrow window is left
-to #1382.
+(#1382). Both are best-effort reservation checks rather than lock-held serialisation.
+A write filed under a base relies on them and on its base and row locks, and closing
+the last narrow window is left to #1382. A chunk write with no base holds the teardown
+lock through its commit, as described under the last holder's teardown below.
 
 A reservation whose drop never ran — lost to a crash between the commit and the
 dispatch, or to a drop that fails for good — would block its name forever, since
@@ -867,6 +887,9 @@ base that holds the name, or drops a name no base holds (one `rag-ingest` filled
 its document rows. When several bases hold the name it refuses and lists their ids;
 `--knowledge-base <id>` names the one to clear, and the table stays for the others.
 A worker drops the table and removes the files after the command commits (#2560).
+
+The last holder's table goes whatever it holds: the operator asked for the drop, and
+owns the content a console delete would spare (#2747).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -984,15 +1007,71 @@ their tenant, and unfiled document rows stay listed under the bases of their ten
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 When no other base holds the name, both routes and `rag-drop` delete the same rows,
-with their files, and the cleanup job drops the table: the base's own rows and the
-unfiled rows of its tenant. That is its organization's for an organization's or a
-personal base, the ones with no organization (what `rag-ingest` writes) for an
-app-scoped base, and none for a personal base outside an organization.
+with their files: the base's own rows and the unfiled rows of its tenant. That is its
+organization's for an organization's or a personal base, the ones with no organization
+(what `rag-ingest` writes) for an app-scoped base, and none for a personal base
+outside an organization.
 
-Another tenant's unfiled rows under the name stay, with their files, because the
-caller has no authority over them. Their chunks go with the table, so they are marked
-as failed: that tenant's next base on the name lists them as failed, an uploaded
-document has to be uploaded again, and a sync indexes a synced document again.
+Both routes then keep the table if it holds an unfiled chunk the base does not take:
+an operator's `rag-ingest` or CLI sync into the held name, or another tenant's. A
+claim cannot refuse content that arrives after it, and the caller has no authority
+over it. Only the chunks the base takes are purged, and the other rows under the name
+stay as they are.
+
+Unless the base is a default, which stays on the name, the name is left as `rag-ingest`
+leaves it: no base holds it, `rag-drop <name>` removes it, and `claim` refuses it to
+everyone but an app admin and an organization whose chunks are all that remain
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+A chunk write with no base holds the name until it commits, so the table is asked only
+after any such write already running has finished. A write that reaches the name while
+it is reserved is refused, and the file has to be ingested again. The cleanup job drops
+only a reserved name, so a rerun of the job leaves a write made after its first drop.
+
+A large document can hold the name for several seconds. A create on the name
+(`POST /kb`, `POST /rag/collections/{name}`) waits for one second and then answers
+409 with a request to try again, because each waiting request occupies a database
+connection and enough of them refuse every other request. A delete waits for the
+write to finish.
+
+A personal base outside an organization takes no unfiled chunk, though a chunk its own
+rows name goes with it. A legacy chunk with no base, no organization and no tracking
+row has unknown ownership. It keeps the table but is **not readable through an
+app-scoped base**, even after an app admin claims the name ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+An app-scoped base takes global unfiled chunks and tracking rows only when their
+`writer_kind` is `operator`. New `rag-ingest` and CLI sync writes record that origin;
+platform ingestions record `document`, which survives deletion of a user or base.
+Migration `0300_unfiled_writer_provenance.py` treats old origin tags as untrusted,
+retains certain document ownership and quarantines everything ambiguous as
+`legacy_unknown`. Organization-scoped unfiled reads retain their tenant restriction.
+
+**Upgrade action:** audit a retained collection from the server shell. The command
+uses the database only and prints aggregate counts, never document content:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Only after inspecting the source and confirming that its unknown global unfiled data
+is an operator import intended for every organization, run:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+This requires an interactive confirmation (`--yes` supplies it for automation).
+The update is atomic and repeatable, and skips chunks or rows with known document
+ownership. Keep uncertain data quarantined; re-ingest it into its authorized base,
+or use the existing operator `rag-drop <name>` procedure when it should be removed.
+Claiming the name in the console never confirms its data's origin.
+
+Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
+tenant's unfiled rows under the name stay, with their files, because the caller has no
+authority over them. Nothing stands behind them once the table is gone, so they are
+marked as failed: that tenant's next base on the name lists them as failed, an
+uploaded document has to be uploaded again, and a sync indexes a synced document
+again.
 
 Before, `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
 still listed as indexed, and the collection drop deleted every row under the name,
@@ -1128,13 +1207,18 @@ caller who asked for no such thing. A `NULL` address matches no comparison, whic
 is the answer wanted rather than one to work around, and it is what every row
 written before the column has.
 
-Three things decide what a retirement may take, and each of them was got wrong
+Four things decide what a retirement may take, and each of them was got wrong
 first:
 
 - **By address, never by filename.** That is the collision
   [#990](https://github.com/vstorm-co/agenticos/issues/990) removed on the vector
   side reached from the other direction: `a/readme.md` and `b/readme.md` in one
   bucket share a basename, so a name match deletes the other file's row.
+- **In the new row's scope, never by collection name.** A name is not unique, so
+  two organizations, or two bases of one, can sync the same path into it. A row
+  filed under a base retires only the rows that base lists — its own and its
+  tenant's unfiled ones — and an unfiled row only the unfiled rows of its own
+  organization ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, not "has no vector id".** Those are different sets, and treating
   them as one is a race: a `PROCESSING` row belongs to an attempt still running,
   and two overlapping ingestions of one source would have the second delete the

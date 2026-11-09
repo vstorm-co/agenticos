@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
@@ -391,7 +393,7 @@ export function DashboardEditor({
   useEffect(() => {
     if (!poppedUid) return;
     const card = gridRef.current?.querySelector<HTMLElement>(`[data-widget-uid="${poppedUid}"]`);
-    card?.scrollIntoView({ behavior: "smooth", block: "center" });
+    card?.scrollIntoView({ behavior: glideOrJump(), block: "center" });
     const timer = window.setTimeout(() => setPoppedUid(null), 320);
     return () => window.clearTimeout(timer);
   }, [poppedUid, gridRef]);

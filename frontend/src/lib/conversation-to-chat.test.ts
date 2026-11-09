@@ -160,6 +160,7 @@ describe("conversationMessageToChatMessage", () => {
           {
             tool_call_id: "tc-1",
             tool_name: "write_draft",
+            presentation_kind: "draft",
             args: {
               title: "Reply",
               kind: "email",
@@ -449,6 +450,18 @@ it("keeps the persisted submission correlation for reconnect reconciliation", ()
   ).toBe("nonce");
 });
 
+it("restores a phone receipt card without copying a private report into the timeline", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      parts: [{ type: "phone_call", phone_call_id: "phone-intent" }],
+      content: "Telephone call requested.",
+    }),
+  );
+  expect(message.parts).toEqual([
+    { id: expect.any(String), type: "phone_call", phoneCallId: "phone-intent" },
+  ]);
+});
+
 it("restores the recorded turn workspace independently of current Work on", () => {
   const message = conversationMessageToChatMessage(
     raw({
@@ -458,4 +471,52 @@ it("restores the recorded turn workspace independently of current Work on", () =
     }),
   );
   expect(message.fileSource).toEqual({ kind: "local", id: "original-source" });
+});
+
+describe("a pause inside a delegated task", () => {
+  it.each([
+    ["awaiting_approval", "approval"],
+    ["awaiting_answer", "answer"],
+    ["running", undefined],
+    ["completed", undefined],
+  ])("retains %s at the run level", (status, expected) => {
+    expect(conversationMessageToChatMessage(raw({ run_status: status })).runWaitingFor).toBe(
+      expected,
+    );
+  });
+});
+
+it("preserves the parent run start instead of using the segment save time", () => {
+  const converted = conversationMessageToChatMessage({
+    id: "segment",
+    role: "assistant",
+    content: "",
+    conversation_id: "chat",
+    created_at: "2026-11-05T18:11:53Z",
+    run_started_at: "2026-11-05T18:11:13Z",
+  });
+  expect(converted.runStartedAt?.toISOString()).toBe("2026-11-05T18:11:13.000Z");
+});
+
+it("keeps renderer identity when rebuilding a saved or run-timeline turn", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      tool_calls: [
+        {
+          tool_call_id: "call",
+          tool_name: "compose",
+          tool_id: "write_draft",
+          presentation_kind: "draft",
+          args: {},
+          result: "Drafted Reply.",
+          status: "completed",
+        },
+      ],
+    }),
+  );
+  expect(message.toolCalls?.[0]).toMatchObject({
+    name: "compose",
+    tool_id: "write_draft",
+    presentation_kind: "draft",
+  });
 });

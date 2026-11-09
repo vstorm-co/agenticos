@@ -1,5 +1,5 @@
 ---
-source_sha: "102f4da698e8"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -39,7 +39,22 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 ### Szablony, eksport i import { #templates-exporting-and-importing }
 
-Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje tabelę i kompletnie skonfigurowany szkic. Domyślnie są prywatne; jawnie wybrani odbiorcy dotyczą workflow i jego tabeli. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+Szablony z tabelą to **Public API → table** i **Markdown notebook**. Serwer w jednej transakcji przygotowuje tabelę i kompletnie skonfigurowany szkic. Domyślnie są prywatne; jawnie wybrani odbiorcy dotyczą workflow i jego tabeli. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+
+**Oczekuj odpowiedzi** tworzy prywatny workflow uruchamiany ręcznie, ze skrzynką
+Gmail lub Outlook wybraną jawnie podczas tworzenia. Nie wymaga uprawnień do tabel,
+modelu ani poświadczeń do wysyłania, tylko istniejącej zgody na odczyt. Opublikuj
+szkic; formularz **Run** poprosi o identyfikator wątku u dostawcy, dokładnego nadawcę,
+czas początkowy i termin (ISO 8601 ze strefą czasową). Zweryfikowana odpowiedź kończy
+przez swoją gałąź. W przeciwnym razie udany końcowy odczyt zapisuje jedno przypomnienie
+dla twórcy o przeglądzie wątku i przygotowaniu follow-upu. Nic nie wysyła automatycznie.
+
+Dla Outlooka formularz tworzenia pozwala też wskazać skrzynkę współdzieloną dostępną dla połączonego konta.
+
+Domyślnie powiadamia w aplikacji. Węzeł **Notify members** pozwala wybrać pozostałe
+kanały, z zachowaniem preferencji odbiorcy i zgody na prywatny kanał.
+[Węzeł oczekiwania](reference/workflow-nodes.md#flow-await-reply) zachowuje reguły
+dopasowania, pauzy, korekty, anulowania i terminu.
 
 Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez przycisku rozszerzania. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
 
@@ -91,7 +106,9 @@ przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
 udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
 `WORKFLOW_IN_USE`.
 
-Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje tylko wynik workflow. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje wynik workflow oraz pytania agenta. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+
+Krok agenta może wywołać `ask_user_question`, aby wstrzymać się ze stanem **Oczekiwanie na użytkownika**. Odpowiedz na karcie pytania w czacie źródłowym lub na stronie runa. Odpowiedź kończy oczekujące wywołanie narzędzia, a worker workflow wznawia tę samą rozmowę agenta. Agent może zadać kolejne pytanie, zanim zwróci końcowy wynik. Niezależne gałęzie mogą działać dalej, gdy ten krok czeka.
 
 Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 
@@ -926,6 +943,15 @@ tego wyzwalacza.
 JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
 listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
 
+Dla zagnieżdżonych obiektów i tablic skonfiguruj opcjonalne `input_schema`
+JSON Schema Draft 2020-12 w **Manual**, **API request** lub **Called by a workflow**
+zamiast prostych pól. Schemat jest zapisywany z opublikowaną wersją, a każdy run
+musi spełniać kontrakt tej wersji przed startem. Wywołujący przez API i MCP mogą
+sprawdzić ten sam kontrakt przed wysłaniem wejścia. Zobacz
+[Kontrakty wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts),
+aby poznać konfigurację, referencje i błędy walidacji. Istniejące wejścia prostych
+pól i workflow bez kontraktu zachowują dotychczasowe działanie.
+
 ### Z czatu { #from-the-chat }
 
 Wybór tego, kto odpowiada na czacie, wymienia pod agentami opublikowane workflow,
@@ -1332,3 +1358,8 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   opublikowaną wersję, a run pokazuje swój graf krok po kroku tak, jak przebiegł.
 
 Nową automatyzację można przekazać przez `prepare_workflow_draft`: jedna akceptacja tworzy prywatną tabelę i kompletny graf w jednej transakcji. Błąd walidacji wycofuje oba zasoby. `check_workflow_draft` sprawdza graf i odwołania do zasobów bez uruchamiania kroków i bez akceptacji zapisu. Jawnie informuje, że integracje pozostają niezweryfikowane. Testy wykonujące akcje nadal wymagają zgody; test harmonogramu przyjmuje zwykłe dane i automatycznie dodaje czas zdarzenia oraz skonfigurowane wartości. Widok runa odróżnia test szkieletu od weryfikacji integracji.
+
+
+### Szkice follow-upów { #follow-up-drafts }
+
+W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szkic follow-upu po terminie**. Wybierz istniejący model i maksymalny koszt szkicu. Przy uruchomieniu workflow podaj kontekst do przygotowania treści. Agent działa tylko w gałęzi terminu po udanym sprawdzeniu skrzynki; zweryfikowana odpowiedź pomija szkic, a błąd skrzynki kończy sprawdzenie błędem. Agent nie ma narzędzi. Szkic zapisuje się w wyniku workflow, a powiadomienie prowadzi do niego. Przed wysyłką sprawdź aktualny wątek. Preset nie tworzy szkicu w Gmail/Outlook ani nie wysyła poczty.

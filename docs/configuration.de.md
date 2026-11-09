@@ -1,5 +1,5 @@
 ---
-source_sha: "81e337178b21"
+source_sha: "0f3dca8ab414"
 ---
 
 # Konfiguration { #configuration }
@@ -57,8 +57,8 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Was eine **fremde Person** auf eine Hosted Page hochladen darf. Eine Obergrenze über `CHAT_MAX_UPLOAD_SIZE_MB`, nie ein Weg daran vorbei |
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Was ein Aufruf der [ML-Dienste](ml-services.md) einreichen darf — ein Dokument zum Parsen, einen Scan zum Erkennen, eine Aufnahme zum Transkribieren. Eine eigene Einstellung, weil die Bytes innerhalb einer Anfrage geparst oder an eine Engine geschickt statt abgelegt werden, die Grenze also davon handelt, was ein einzelner synchroner Aufruf belegen darf. Sie liegt bei den 25 MB des Transkriptionsclients, der kleinsten Engine-Grenze hinter dieser Oberfläche |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
-| `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
+| `SMS_LINK_MAX_AGE_DAYS` | `90` | Wie lange eine Telefonnummer mit einem Konto verknüpft bleibt, bevor die Person sie erneut verknüpfen muss. Eine Nummer kann neu vergeben oder übernommen werden, deshalb läuft eine SMS-Verknüpfung ab; `0` behält Verknüpfungen für immer. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, mit denen sich ein Ordner des [virtuellen Terminals](reference/capabilities.md#mirage) verbinden darf, wenn sein Autor die Adresse eintippt: ein SSH-Server, der Host in einem Postgres- oder MongoDB-DSN, ein IMAP-Server. Die Adresse kommt aus dem Spec eines Agents oder einem Secret, das er nennt, und die Verbindung baut dieses Deployment auf. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung. Die Veröffentlichung prüft einen eingetippten Host, und jeder Run prüft die Hosts in Secrets. Leer lässt keine eingetippte Adresse zu. Dienste mit fester API, etwa Drive, GitHub und Notion, brauchen keinen Eintrag |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein Agent mit [Computer-Bedienung](reference/capabilities.md#computer-use) einen `computerd`-Desktop steuern darf. `daemon_url` steht im Spec des Agents, und ein Run sendet das Token des Daemons an die dort genannte Adresse, daher ist das dieselbe Allowlist wie `BROWSER_CDP_ALLOWED_HOSTS`: exakt und ohne Beachtung der Groß- und Kleinschreibung, ohne Globs. Geprüft beim Veröffentlichen und erneut, wann immer ein Run den Daemon öffnet, sodass das Entfernen eines Hosts auch bereits veröffentlichte Agents stoppt. Das Token ist keine Einstellung: Es gehört der Organisation und liegt in ihrem Vault, sodass jede Organisation einen erlaubten Host nennen kann und nur die hineinkommt, die das Token dieses Desktops hat. Leer verweigert das Daemon-Backend; ein Desktop in der Sandbox des Agents braucht keinen Eintrag |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
@@ -691,13 +691,17 @@ bevor man sich darauf verlässt: das
 Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
 protokolliert und der Run läuft weiter.
 
-Mit `ENVIRONMENT=production` wird kein Span auf die Konsole geschrieben. Der
-Konsolen-Exporter von Logfire schreibt eine Zeile pro SQL- und Redis-Aufruf, etwa
-vierzig pro Anfrage, in ein Container-Log, das niemand abfragen kann. In der
-Produktion existiert ein Span also nur dort, wohin das Token ihn schickt, und ohne
-Token hinterlässt eine langsame Anfrage gar keine Spur. `agenticos cmd doctor`
-meldet das in seiner Zeile `tracing`. Anderswo schreibt die Konsole weiter Spans
-für den, der den Server beobachtet.
+Anwendungslogs von API, Worker, Ingestionsprozessen und CLI gehen mit
+Zeitstempel, Level und Loggername an stderr. Sie funktionieren ohne Logfire-Token
+und sind über `docker compose logs -f` sichtbar. `LOG_LEVEL` ist standardmäßig
+`INFO`; mit `DEBUG`, `WARNING`, `ERROR` oder `CRITICAL` änderst du die Ausführlichkeit.
+Die Schwärzung personenbezogener Daten und Zugangsdaten umfasst auch Tracebacks.
+
+SQL-Abfragen werden erst mit `DB_ECHO=true` protokolliert. INFO/DEBUG-Meldungen
+des HTTP-Transports sind unterdrückt. Logfire-Spans erscheinen standardmäßig in
+keiner Umgebung auf der Konsole; aktiviere `LOGFIRE_CONSOLE=true` zum Debuggen.
+Der Trace-Export zu Logfire bleibt davon unabhängig. Ohne Token werden keine
+Spans exportiert; `agenticos cmd doctor` meldet das in seiner Zeile `tracing`.
 
 Gib jedem Deployment sein eigenes `LOGFIRE_ENVIRONMENT`, etwa `local` auf dem
 Laptop und `production` auf dem Server. Ein Projekt kann dann beide aufnehmen und
@@ -705,6 +709,8 @@ sie trotzdem auseinanderhalten.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Log-Level der Anwendung: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `LOGFIRE_CONSOLE` | `false` | Logfire-Spans zum Debuggen auf die Konsole schreiben |
 | `LOGFIRE_TOKEN` | (none) | Token für Pydantic Logfire. Erhältlich unter https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Name des Dienstes im Logfire-Dashboard |
 | `LOGFIRE_ENVIRONMENT` | `development` | Kennzeichnung der Umgebung |

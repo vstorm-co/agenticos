@@ -25,6 +25,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.suggestion import SuggestionKind
+from app.repositories.conversation import PersonRequest
 from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
 from app.services.proactive import _role_pack, _thinker, _welcome
@@ -233,6 +234,9 @@ class TestThinking:
         assert service.return_value.resolve.await_args.kwargs == {"profile_id": MODEL}
         assert create_run.await_args.kwargs["surface"] == RunSurface.PROACTIVE.value
         assert create_run.await_args.kwargs["user_id"] == USER
+        # Attributed to the platform role that did the work, not left as the starter's.
+        assert create_run.await_args.kwargs["system_role"] == "daily_briefing"
+        assert create_run.await_args.kwargs["agent_version_id"] is None
         finished = finish_run.await_args.kwargs
         assert finished["status"] == RunStatus.COMPLETED.value
         # The test model is not priced: recorded as zero and marked partial, not lost.
@@ -268,6 +272,22 @@ class TestThinking:
 
         assert isinstance(answer, NightlyReading)
         assert read == ["listed"]
+
+    async def test_the_run_can_be_dated_from_before_the_call(self):
+        """The nightly look reads first; its run says when it read, not when it asked."""
+        read_at = datetime.now(UTC) - timedelta(seconds=5)
+        get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
+        with get_slug, limits, version, profiles, create as create_run, finish:
+            await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+                started_at=read_at,
+            )
+
+        assert create_run.await_args.kwargs["started_at"] == read_at
 
     async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self, recorded_manifest):
         def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
@@ -461,11 +481,13 @@ def _user(**overrides):
     return SimpleNamespace(**values)
 
 
+def _request(content: str) -> PersonRequest:
+    return PersonRequest(MagicMock(content=content, created_at=datetime.now(UTC)), None)
+
+
 class TestTheNightlyLook:
     @staticmethod
-    def _patches(
-        *, user=None, member=True, agent=True, last=None, requests=(), reading=None, starters=None
-    ):
+    def _patches(*, user=None, member=True, agent=True, requests=(), reading=None, starters=None):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
         thinker.think = AsyncMock(return_value=reading)
@@ -484,16 +506,12 @@ class TestTheNightlyLook:
                     ),
                 ),
                 patch(
-                    f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
-                    new=AsyncMock(return_value=last),
-                ),
-                patch(
                     f"{NIGHTLY}.conversation_repo.person_requests_since",
                     new=AsyncMock(return_value=list(requests)),
                 ),
                 patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
                 patch(
-                    f"{NIGHTLY}.agent_trigger_repo.prompts_created_by",
+                    f"{NIGHTLY}.agent_trigger_repo.routine_prompts_for_screening",
                     new=AsyncMock(return_value=[]),
                 ),
                 patch(
@@ -509,6 +527,7 @@ class TestTheNightlyLook:
                     f"{NIGHTLY}.NotificationService",
                     return_value=MagicMock(suggestions_ready=AsyncMock()),
                 ),
+                patch(f"{NIGHTLY}.conversation_repo.mark_nightly_reads", new=AsyncMock()),
             ],
         }
 
@@ -525,7 +544,6 @@ class TestTheNightlyLook:
         names = [
             "get",
             "member",
-            "last",
             "requests",
             "notes",
             "routines",
@@ -534,11 +552,12 @@ class TestTheNightlyLook:
             "starters",
             "propose",
             "notify",
+            "mark_read",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
     async def test_a_quiet_week_with_first_messages_written_costs_nothing(self):
-        made, thinker, _ = await self._look(starters=["a"], last=datetime.now(UTC), requests=())
+        made, thinker, _ = await self._look(starters=["a"], requests=())
 
         assert made == 0
         thinker.think.assert_not_awaited()
@@ -565,9 +584,7 @@ class TestTheNightlyLook:
         assert made == 0
 
     async def test_a_model_that_could_not_answer_proposes_nothing(self):
-        made, _, mocks = await self._look(
-            reading=None, requests=[MagicMock(content="x", created_at=datetime.now(UTC))]
-        )
+        made, _, mocks = await self._look(reading=None, requests=[_request("x")])
 
         assert made == 0
         mocks["propose"].assert_not_awaited()
@@ -597,9 +614,7 @@ class TestTheNightlyLook:
             role_pack="sales",
             role_pack_title="Pakiet sprzedaży",
         )
-        made, _, mocks = await self._look(
-            reading=reading, requests=[MagicMock(content="Raport", created_at=datetime.now(UTC))]
-        )
+        made, _, mocks = await self._look(reading=reading, requests=[_request("Raport")])
 
         assert made == 4
         # Kept on the membership: they come from this organization's week (Codex on #2324).
@@ -651,7 +666,7 @@ class TestTheNightlyLook:
     async def test_a_person_is_due_once_most_of_a_day_has_passed(self, last, due):
         now = datetime.now(UTC)
         with patch(
-            f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
+            f"{NIGHTLY}.agent_run_repo.last_nightly_run_at",
             new=AsyncMock(return_value=None if last is None else now - last),
         ):
             assert await NightlyLook(MagicMock()).due(ORG, USER, now=now) is due
@@ -755,6 +770,9 @@ class TestTheSweep:
         keys = [call.kwargs["dedupe_key"] for call in enqueue.await_args_list]
         assert len(set(keys)) == 3 and all(str(ORG) in key for key in keys)
         assert all(call.kwargs["dedupe_active"] for call in enqueue.await_args_list)
+        for call in enqueue.await_args_list:
+            if call.args[1] is THINK_FOR_PERSON:
+                assert call.kwargs["concurrency_key"] == f"proactivity:{ORG}:{call.args[2].user_id}"
 
     async def test_a_role_pack_and_a_welcome_are_queued_not_done_in_the_request(self):
         enqueue = AsyncMock()
@@ -1135,6 +1153,98 @@ async def test_terminal_persistence_errors_surface_without_masking_a_provider_bu
         finished.await_args.kwargs["status"]
         == (RunStatus.FAILED if provider_fails else RunStatus.COMPLETED).value
     )
+
+
+def _role_profile(
+    *, enabled: bool = True, model: uuid.UUID | None = MODEL, budget: str | None = None
+) -> MagicMock:
+    return MagicMock(
+        enabled=enabled,
+        model_profile_id=model,
+        monthly_budget_usd=None if budget is None else Decimal(budget),
+    )
+
+
+class TestMemoryMaintenanceAllowance:
+    """The role answers to its own profile and budget, never to a person's limit."""
+
+    @pytest.mark.parametrize(
+        ("organization", "profile", "org_spent", "role_spent", "allowed"),
+        [
+            (None, _role_profile(), "0", "0", False),
+            (_organization(), None, "0", "0", False),
+            (_organization(), _role_profile(enabled=False), "0", "0", False),
+            (_organization(), _role_profile(model=None), "0", "0", False),
+            (_organization(cap="10"), _role_profile(), "10", "0", False),
+            (_organization(), _role_profile(budget="2"), "0", "2", False),
+            (_organization(cap="10"), _role_profile(budget="2"), "9", "1.99", True),
+            (_organization(), _role_profile(), "0", "500", True),
+        ],
+        ids=[
+            "no-organization",
+            "never-provisioned",
+            "switched-off",
+            "no-model-chosen",
+            "organization-cap-reached",
+            "role-budget-reached",
+            "inside-both",
+            "no-budget-of-its-own",
+        ],
+    )
+    async def test_it_runs_only_on_a_chosen_model_inside_both_limits(
+        self, organization, profile, org_spent, role_spent, allowed
+    ):
+        with (
+            patch(
+                f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(f"{THINKER}.system_agent_repo.get", new=AsyncMock(return_value=profile)),
+            patch(
+                f"{THINKER}.organization_monthly_spend",
+                new=AsyncMock(return_value=Decimal(org_spent)),
+            ),
+            patch(
+                f"{THINKER}.agent_run_repo.role_spend_since",
+                new=AsyncMock(return_value=Decimal(role_spent)),
+            ) as spent,
+            patch(f"{THINKER}.agent_run_repo.proactive_spend_since", new=AsyncMock()) as personal,
+        ):
+            allowance = await ProactiveThinker(MagicMock()).allowance(_ctx(), "maintenance")
+
+        assert allowance == (profile.model_profile_id if allowed else None)
+        assert not personal.await_count, "a person's proactivity limit is not this role's"
+        if profile is not None and profile.monthly_budget_usd is not None and organization:
+            assert spent.await_args.kwargs["role"] == "memory_maintenance"
+
+    async def test_its_runs_are_attributed_to_the_role(self):
+        get_slug, limits, version, profiles, create, finish = TestThinking._patches(TestModel())
+        source = _agent()
+        db = _session()
+        with (
+            get_slug as starter,
+            patch.object(
+                _thinker.agent_repo, "get", new=AsyncMock(return_value=source)
+            ) as originating,
+            limits,
+            version,
+            profiles,
+            create as create_run,
+            finish,
+            patch.object(_thinker.run_manifest_repo, "record", new=AsyncMock()),
+        ):
+            await ProactiveThinker(db).think(
+                _ctx(),
+                feature="maintenance",
+                source_agent_id=source.id,
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+            )
+
+        assert create_run.await_args.kwargs["system_role"] == "memory_maintenance"
+        assert create_run.await_args.kwargs["agent_id"] == source.id
+        starter.assert_not_awaited()
+        originating.assert_awaited_once_with(db, source.id, organization_id=ORG)
 
 
 def test_turkish_briefing_text_keeps_the_count_and_console_link() -> None:

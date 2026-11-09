@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "0a37f530c461"
 ---
 
 # Berechtigungen { #permissions }
@@ -101,7 +101,9 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+
+Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
 
 `api_keys:create` erlaubt einem Mitglied,
 [API-Schlüssel](api.md#organization-api-keys) für sich auszustellen;
@@ -142,6 +144,17 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
     den Endpunkt eines Profils mit Schlüssel zu verschieben, braucht
     `secrets:view` auf diesem Schlüssel
     ([Modelle](models.md#changing-a-profiles-key-or-endpoint)).
+
+    `connections:manage` listet auch die Sync-Integrationen der Organisation
+    auf: die Quellen jeder Base, mit ihrer Konfiguration, dem Vault-Secret, das
+    jede nutzt, und ihrem letzten Fehler, sowie die nicht zugeordneten Quellen.
+    `/org/integrations` und `GET /rag/sync/sources` liefern diese Liste, und das
+    Angebot des Knowledge-Base-Assistenten, eine davon wiederzuverwenden
+    (`GET /kb/{kb_id}/sync-sources/org-integrations`), liefert sie ohne die Base,
+    auf der es geöffnet ist. Eine Base zu lesen oder einen Grant auf sie zu halten,
+    öffnet diese Liste nicht. Ohne die
+    Berechtigung listet `GET /rag/sync/sources` nur die Quellen, die eine Base
+    speisen, die der Aufrufer liest, und der Assistent lässt das Angebot weg.
 
 **Ressourcen**-Berechtigungen tragen einen `Scope`, denn sie beantworten die
 zweite Frage, die eine Rolle nicht kann: nicht "darf diese Rolle Agents

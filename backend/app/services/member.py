@@ -10,14 +10,18 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
 from app.repositories import (
+    agent_trigger_repo,
     api_key_repo,
     group_repo,
+    mcp_connection_repo,
     member_repo,
     oauth_repo,
     organization_repo,
     resource_grant_repo,
     user_repo,
 )
+from app.repositories import coding_account as coding_account_repo
+from app.repositories import telephony as telephony_repo
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
@@ -39,6 +43,16 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
     await api_key_repo.revoke_for_member(
         db, organization_id=organization_id, user_id=user_id, at=at
     )
+    await coding_account_repo.delete_for_member(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    await mcp_connection_repo.delete_accounts_for_member(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    await agent_trigger_repo.revoke_member_authority(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    await telephony_repo.delete_member_contact(db, organization_id=organization_id, user_id=user_id)
     await member_repo.delete(db, membership)
     # The editor keeps what they could always do on the leaver's pages; only the owner's
     # standing consent to their republishes goes with the owner.

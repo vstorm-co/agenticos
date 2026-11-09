@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { History, X, Loader2, MessageSquare } from "lucide-react";
+import { History, X, Loader2 } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { toast } from "sonner";
 import { QuickAsk, type QuickAskTabState } from "./quick-ask";
 import { RestoreQuickAsk, useQuickAskHistory } from "./quick-ask-history";

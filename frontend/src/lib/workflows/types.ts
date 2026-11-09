@@ -16,6 +16,9 @@
  * their types from here. Nothing here renders; nothing here fetches.
  */
 
+import type { AskUserAnswer } from "@/types/chat";
+import type { ParkedQuestion } from "@/types/runs";
+
 /** A serialized UUID. An alias, so a signature reads as the contract does. */
 export type Uuid = string;
 
@@ -444,8 +447,16 @@ export interface WorkflowVersionList {
 }
 
 /** Create a workflow. Mirrors `WorkflowCreate`. */
+export interface ReplyMailboxSelection {
+  provider: "google" | "outlook";
+  connection_id: string;
+  mailbox?: string | null;
+}
+
 export interface WorkflowCreate {
-  template_id?: "publicApi" | "markdownNotes";
+  template_id?: "publicApi" | "markdownNotes" | "awaitReply";
+  reply_mailbox?: ReplyMailboxSelection;
+  reply_draft?: { model_profile_id: string; max_cost_usd: number };
   name: string;
   description?: string | null;
   visibility?: "org" | "private" | "team";
@@ -545,6 +556,7 @@ export type WorkflowRunStatus =
   | "queued"
   | "running"
   | "waiting_approval"
+  | "waiting_for_user"
   | "waiting_retry"
   | "needs_attention"
   | "budget_exceeded"
@@ -602,8 +614,27 @@ export interface WorkflowRunList {
   total: number;
 }
 
+export interface ReplyExpectationInput {
+  thread_id: string;
+  expected_sender: string;
+  not_before: string;
+  deadline: string;
+  anchor_message_id: string | null;
+}
+export interface ReplyExpectation extends ReplyExpectationInput {
+  provider: "google" | "outlook";
+  connection_id: string;
+  authorization_generation: string;
+  paused: boolean;
+}
+export interface ReplyExpectationEdit extends ReplyExpectationInput {
+  paused: boolean;
+  review_mailbox: boolean;
+}
+
 /** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
 export interface WorkflowNodeRunRead {
+  reply_expectation?: ReplyExpectation | null;
   id: Uuid;
   node_instance_id: Uuid;
   scope_path: { loop_node_id: Uuid; index: number }[];
@@ -621,6 +652,17 @@ export interface WorkflowNodeRunRead {
   started_at: string | null;
   ended_at: string | null;
 }
+
+/** Questions the reading caller may answer for one suspended agent step. */
+export interface WorkflowQuestionRead {
+  /** The actual run owning the question, including synchronous nested workflows. */
+  workflow_run_id: Uuid;
+  node_run_id: Uuid;
+  agent_run_id: Uuid;
+  questions: ParkedQuestion[];
+}
+
+export type WorkflowQuestionResponses = Record<string, AskUserAnswer[]>;
 
 export interface WorkflowNodeRunList {
   items: WorkflowNodeRunRead[];

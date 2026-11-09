@@ -407,7 +407,8 @@ class TestWritingTheTranscript:
             MagicMock(id=prompt_id),
             MagicMock(id=answer_id),
         ]
-        await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        saved_id = await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        assert saved_id == answer_id
         steps.assert_called_once_with(db, answer_id, run.organization_id)
 
     @pytest.fixture
@@ -641,6 +642,26 @@ class TestWritingTheTranscript:
         assert (written["tool_name"], written["args"]) == ("send_email", {"to": "ada@example.com"})
         assert conversations.complete_tool_call.await_args.kwargs["result"] == "sent"
 
+    @pytest.mark.parametrize("tool_name,expected", [("save_reply", "draft"), ("external", None)])
+    async def test_only_server_resolved_draft_tools_receive_presentation_provenance(
+        self, conversations, tool_name, expected
+    ):
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt=None,
+            answer="",
+            draft_tools={"save_reply"},
+            tool_calls=[
+                RecordedToolCall(
+                    tool_call_id="c1",
+                    tool_name=tool_name,
+                    args={},
+                    result="DRAFTED [agenticos:draft:v1]",
+                )
+            ],
+        )
+        assert conversations.create_tool_call.await_args.kwargs["presentation_kind"] == expected
+
     async def test_a_call_an_organization_server_served_is_stored_against_it(self, conversations):
         """What a server's call log reads (#2072): the connection, not a prefix
         that a member's own connection to the same service shares."""
@@ -702,6 +723,25 @@ class TestWritingTheTranscript:
             for call in conversations.create_tool_call.await_args_list
         }
         assert statuses == {"c1": "running", "c2": "awaiting_approval"}
+
+    async def test_a_renamed_question_is_recorded_waiting_for_an_answer(self, conversations):
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="choose a region",
+            answer="",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="ask-1", tool_name="clarify", args={}),
+                RecordedToolCall(tool_call_id="send-1", tool_name="send_email", args={}),
+            ],
+            parked={"send-1"},
+            question_tool_call_ids={"ask-1"},
+        )
+
+        statuses = {
+            call.kwargs["tool_call_id"]: call.kwargs["status"]
+            for call in conversations.create_tool_call.await_args_list
+        }
+        assert statuses == {"ask-1": "awaiting_answer", "send-1": "awaiting_approval"}
 
     async def test_a_call_that_merely_never_returned_is_not_marked_as_waiting(self, conversations):
         """A run that broke or was stopped mid-call also leaves a call with no

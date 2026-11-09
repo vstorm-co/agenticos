@@ -13,8 +13,8 @@ and a project for ongoing work with files. Never store credentials in a table.
 
 Use these tools through the AgenticOS platform MCP server (`account: platform`),
 with an allowlist for the operations the agent needs. Writes remain approval-gated
-and the requesting member's table access still applies. Keep legacy `virtual_tables`
-capability grants intact unless the person explicitly chooses to change access.
+and the requesting member's table access still applies. There is no separate Tables
+capability: use MCP tools. Stored app data bindings grant no agent tools.
 
 ## Reuse and design
 

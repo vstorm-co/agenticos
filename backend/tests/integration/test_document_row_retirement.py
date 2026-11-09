@@ -73,7 +73,11 @@ class TestWhatANewAttemptRetires:
         )
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 1
@@ -96,7 +100,11 @@ class TestWhatANewAttemptRetires:
         )
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 1
@@ -115,7 +123,11 @@ class TestWhatANewAttemptRetires:
         )
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 0
@@ -136,7 +148,11 @@ class TestWhatANewAttemptRetires:
         )
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 0
@@ -149,7 +165,11 @@ class TestWhatANewAttemptRetires:
         await _row(db, filename="readme.md", source_path=None, vector_document_id=None)
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 0
@@ -174,7 +194,11 @@ class TestWhatANewAttemptRetires:
         await db.flush()
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 0
@@ -195,7 +219,11 @@ class TestWhatANewAttemptRetires:
             )
 
         discarded = await rag_document_repo.discard_failed(
-            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+            db,
+            collection_name=COLLECTION,
+            source_path="s3://bucket/a/readme.md",
+            organization_id=None,
+            scope=None,
         )
 
         assert discarded == 3

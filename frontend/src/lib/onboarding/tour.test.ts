@@ -18,6 +18,7 @@ import {
   visibleTourSteps,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "./tour";
@@ -73,17 +74,25 @@ const ORG_STEPS = [
   "org-public-live-data",
   "org-voice",
   "org-assistant",
+  "org-system-agents",
   "org-members",
   "org-roles",
 ];
 
 describe("pageKey", () => {
+  it("offers an optional question stop on a workflow's single run", () => {
+    expect(pageKey("/workflows/wf/runs/run")).toBe(WORKFLOW_RUN_DETAIL);
+    expect(stepsForPage("/workflows/wf/runs/run", () => true)).toEqual([
+      expect.objectContaining({ id: "workflow-run-questions", optional: true }),
+    ]);
+  });
   it("identifies the canvas without treating the all-runs list as a canvas", () => {
     expect(pageKey("/workflows/wf-1")).toBe("workflow-detail");
     expect(pageKey("/workflows/runs")).toBe("/workflows/runs");
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-input-contract",
     ]);
   });
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -118,9 +127,7 @@ describe("pageKey", () => {
   it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
     expect(pageKey(ROUTES.WORKFLOW_RUNS("wf-1"))).toBe(WORKFLOW_RUNS_DETAIL);
     expect(pageKey(ROUTES.WORKFLOW_ALL_RUNS)).toBe(ROUTES.WORKFLOW_ALL_RUNS);
-    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(
-      ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"),
-    );
+    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(WORKFLOW_RUN_DETAIL);
     expect(stepsForPage(ROUTES.WORKFLOW_RUNS("wf-1"), () => true).map((s) => s.id)).toEqual([
       "workflow-stats",
       "workflow-run-history",
@@ -240,6 +247,7 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-local-skills",
+      "chat-coding-accounts",
       "chat-local-coding",
       "chat-coding-settings",
       "chat-background-tasks",
@@ -273,10 +281,15 @@ describe("stepsForPage", () => {
     // memory, sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
+      "phone-contact",
+      "phone-dial",
       "settings-tabs",
+      "personal-coding-accounts",
       "desktop-local-agents",
       "settings-appearance",
+      "memory-views",
       "my-memory",
+      "my-claims",
       "sign-in-to-site",
       "my-sign-ins",
       "settings-api-usage",
@@ -380,7 +393,7 @@ describe("stepsForPage", () => {
       "members",
     ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
-        `org-tab-${section}`,
+        `org-tab-${section === "voice" ? "profile" : section}`,
       );
     }
   });
@@ -396,6 +409,7 @@ describe("stepsForPage", () => {
       "org-governance",
       "org-proactivity",
       "org-proactivity-model",
+      "org-system-agents",
       "org-members",
       "org-roles",
     ]);
@@ -528,8 +542,13 @@ describe("the Routines page", () => {
     );
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
-    expect(refused).toEqual(["routines-list", "routines-watches"]);
-    expect(allowed).toEqual(["routines-list", "routines-watches", "routines-create"]);
+    expect(refused).toEqual(["routines-list", "routine-access"]);
+    expect(allowed).toEqual([
+      "routines-list",
+      "routine-access",
+      "routines-create",
+      "routine-advanced",
+    ]);
   });
 });
 

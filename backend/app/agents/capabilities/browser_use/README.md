@@ -78,8 +78,7 @@ the one tab in turns.
 
 `cdp_url` points at a browser service the operator runs, never a process in the
 API image. It is tenant-controlled - it lives in a spec - so it is checked against
-`BROWSER_CDP_ALLOWED_HOSTS` at publish, exactly as `MEM0_ALLOWED_HOSTS` bounds
-mem0. Chromium answers its DevTools endpoint only to a `Host` that is an address,
+`BROWSER_CDP_ALLOWED_HOSTS` at publish. Chromium answers its DevTools endpoint only to a `Host` that is an address,
 so a plain `http`/`ws` endpoint given by name is resolved once and reached by
 address (`pin_host`); TLS endpoints keep their name for the certificate.
 

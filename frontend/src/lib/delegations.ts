@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 /**
  * The frames of a delegation, folded into the panels a reader sees.
  *
@@ -22,7 +23,7 @@ import type {
   SubagentStartFrame,
   ToolCall,
 } from "@/types";
-import type { RunStatus } from "@/types/runs";
+import type { RunStatus, SettledDelegation } from "@/types/runs";
 
 /**
  * Which delegation a nested one belongs to, as its start frame names it.
@@ -220,34 +221,27 @@ const TERMINAL_DELEGATION_STATUS: Partial<Record<RunStatus, DelegationStatus>> =
   loop_stopped: "failed",
 };
 
-/**
- * Move panels waiting on a person to the outcome of the run that has now resumed.
- *
- * A sync delegate that parks on an approval leaves its panel `awaiting_approval`,
- * and in web chat the resume that follows the decision runs over HTTP
- * (`POST /runs/{id}/resume`), not over the socket this conversation streams. So no
- * `subagent_complete` reaches `applyDelegationFrame`, and without this the panel
- * reads "waiting for approval" forever - the resumed answer appears above a
- * delegation that never leaves the waiting state (agenticos#173). This supplies the
- * closing the socket did not: the resumed run's own status is the only per-delegation
- * outcome available over HTTP, so every panel still waiting takes it.
- *
- * A resume that parks *again* (`awaiting_approval`, or a run still `running`) is not
- * terminal and changes nothing: the delegate is waiting on a fresh decision, and
- * closing its panel would claim an outcome that has not happened. Cost, tokens and
- * the run id stay as they were - the frame that carries them never came, and
- * inventing them is worse than leaving them null.
- *
- * Returns the same array when nothing waits or the run has not settled, so a resume
- * with no delegation in it costs no render.
+/** Reconcile exact delegate outcomes before falling back to a terminal parent.
+ * A completed delegate stays completed when its parent parks on a new decision.
+ * Absent per-task outcomes preserve the older server's terminal-parent behavior.
  */
-export function resolveAwaitingOnResume(current: Delegation[], runStatus: RunStatus): Delegation[] {
-  const resolved = TERMINAL_DELEGATION_STATUS[runStatus];
-  if (resolved === undefined) return current;
-  if (!current.some((delegation) => delegation.status === "awaiting_approval")) return current;
-  return current.map((delegation) =>
-    delegation.status === "awaiting_approval" ? { ...delegation, status: resolved } : delegation,
-  );
+export function resolveAwaitingOnResume(
+  current: Delegation[],
+  runStatus: RunStatus,
+  outcomes: SettledDelegation[] = [],
+): Delegation[] {
+  const inherited = TERMINAL_DELEGATION_STATUS[runStatus];
+  const settled = new Map(outcomes.map((outcome) => [outcome.task_id, outcome.status]));
+  let changed = false;
+  const next = current.map((delegation) => {
+    if (delegation.status !== "awaiting_approval") return delegation;
+    const ownStatus = settled.get(delegation.taskId);
+    const resolved = ownStatus === undefined ? inherited : TERMINAL_DELEGATION_STATUS[ownStatus];
+    if (resolved === undefined) return delegation;
+    changed = true;
+    return { ...delegation, status: resolved };
+  });
+  return changed ? next : current;
 }
 
 /**
@@ -374,7 +368,7 @@ export function taskOutcome(call: ToolCall, calls: readonly ToolCall[]): TaskOut
   const taskId = started[1];
   const checks = calls.filter(
     (other) =>
-      other.name === "check_task" &&
+      toolLookupName(other) === "check_task" &&
       other.args.task_id === taskId &&
       typeof other.result === "string",
   );

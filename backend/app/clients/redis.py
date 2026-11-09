@@ -3,6 +3,9 @@
 Provides a class-based Redis client for connection management and operations.
 """
 
+import json
+from collections.abc import Sequence
+
 from redis import asyncio as aioredis
 
 from app.core.config import settings
@@ -18,6 +21,83 @@ _DELETE_IF_EQUAL = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
+
+_RESERVE_RANGE = """
+local last = math.max(tonumber(redis.call('get', KEYS[1]) or '0'), tonumber(ARGV[1]))
+redis.call('set', KEYS[1], last + tonumber(ARGV[2]), 'EX', ARGV[3])
+return last + 1
+"""
+
+_PRUNE_BOUNDED_VALUES = """
+local now = tonumber(redis.call('TIME')[1])
+local used = tonumber(redis.call('GET', KEYS[3]) or '0')
+for _, handle in ipairs(redis.call('ZRANGEBYSCORE', KEYS[2], '-inf', now)) do
+  used = used - tonumber(redis.call('HGET', KEYS[1], handle) or '0')
+  redis.call('HDEL', KEYS[1], handle)
+  redis.call('ZREM', KEYS[2], handle)
+  redis.call('DEL', ARGV[1] .. handle)
+end
+used = math.max(0, used)
+local function save()
+  if redis.call('HLEN', KEYS[1]) == 0 then
+    redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
+  else
+    redis.call('SET', KEYS[3], used, 'EX', ARGV[2])
+    redis.call('EXPIRE', KEYS[1], ARGV[2])
+    redis.call('EXPIRE', KEYS[2], ARGV[2])
+  end
+end
+"""
+
+_CACHE_BOUNDED_VALUES = (
+    _PRUNE_BOUNDED_VALUES
+    + """
+local amount = 0
+local added = 0
+for i = 5, #ARGV, 2 do
+  local previous = redis.call('HGET', KEYS[1], ARGV[i])
+  amount = amount + #ARGV[i + 1] - tonumber(previous or '0')
+  if not previous then added = added + 1 end
+end
+if used + amount > tonumber(ARGV[3]) or
+  redis.call('HLEN', KEYS[1]) + added > tonumber(ARGV[4]) then
+  save()
+  return 0
+end
+for i = 5, #ARGV, 2 do
+  redis.call('SET', ARGV[1] .. ARGV[i], ARGV[i + 1], 'EX', ARGV[2])
+  redis.call('HSET', KEYS[1], ARGV[i], #ARGV[i + 1])
+  redis.call('ZADD', KEYS[2], now + tonumber(ARGV[2]), ARGV[i])
+end
+used = used + amount
+save()
+return 1
+"""
+)
+
+_TAKE_BOUNDED_VALUE = (
+    _PRUNE_BOUNDED_VALUES
+    + """
+local value = redis.call('GETDEL', ARGV[1] .. ARGV[3])
+used = math.max(0, used - tonumber(redis.call('HGET', KEYS[1], ARGV[3]) or '0'))
+redis.call('HDEL', KEYS[1], ARGV[3])
+redis.call('ZREM', KEYS[2], ARGV[3])
+save()
+return value
+"""
+)
+
+_UPDATE_MAPPING = """
+local values = cjson.decode(redis.call('get', KEYS[1]) or '{}')
+for key, value in pairs(cjson.decode(ARGV[1])) do values[key] = value end
+for _, key in ipairs(cjson.decode(ARGV[2])) do values[key] = nil end
+if next(values) == nil then
+  redis.call('del', KEYS[1])
+else
+  redis.call('set', KEYS[1], cjson.encode(values), 'EX', ARGV[3])
+end
+return 1
+"""
 
 
 class RedisClient:
@@ -100,6 +180,62 @@ class RedisClient:
         if not self.client:
             raise RuntimeError("Redis client not connected")
         return bool(await self.client.expire(key, ttl))
+
+    async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
+        """Reserve consecutive numbers atomically, retaining failed-delivery gaps until expiry."""
+        result = await self.raw.eval(_RESERVE_RANGE, 1, key, minimum, count, ttl)
+        if not isinstance(result, int):
+            raise TypeError("Redis returned an invalid number reservation")
+        return result
+
+    async def cache_bounded_values(
+        self, key: str, *, values: dict[str, str], capacity: int, ttl: int, max_items: int
+    ) -> bool:
+        """Store a batch atomically; expired or consumed entries never retain capacity."""
+        if capacity <= 0 or ttl <= 0 or max_items <= 0:
+            raise ValueError("Bounded caches require positive capacity, TTL and item limit")
+        if not values:
+            return True
+        entries = [part for handle, value in values.items() for part in (handle, value)]
+        stored = await self.raw.eval(
+            _CACHE_BOUNDED_VALUES,
+            3,
+            f"{key}:sizes",
+            f"{key}:expires",
+            f"{key}:used",
+            f"{key}:file:",
+            ttl,
+            capacity,
+            max_items,
+            *entries,
+        )
+        return bool(stored)
+
+    async def take_bounded_value(self, key: str, handle: str, *, ttl: int) -> str | None:
+        """Consume and release an entry exactly once, including concurrent readers."""
+        if ttl <= 0:
+            raise ValueError("Bounded caches require a positive TTL")
+        value = await self.raw.eval(
+            _TAKE_BOUNDED_VALUE,
+            3,
+            f"{key}:sizes",
+            f"{key}:expires",
+            f"{key}:used",
+            f"{key}:file:",
+            ttl,
+            handle,
+        )
+        if value is not None and not isinstance(value, str):
+            raise TypeError("Redis returned invalid cached text")
+        return value
+
+    async def update_mapping(
+        self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int
+    ) -> None:
+        """Merge/remove JSON fields atomically without losing concurrent prompt changes."""
+        await self.raw.eval(
+            _UPDATE_MAPPING, 1, key, json.dumps(updates), json.dumps(list(remove)), ttl
+        )
 
     async def delete_if_equal(self, key: str, value: str) -> bool:
         """Delete a key only while it still holds `value` - a lease given back by its holder."""

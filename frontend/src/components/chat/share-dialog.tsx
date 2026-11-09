@@ -105,8 +105,15 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const tc = useTranslations("common");
   const t = useTranslations("chat");
   const tSharing = useTranslations("sharing");
-  const { shares, isLoading, shareConversation, fetchShares, revokeShare, changePermission } =
-    useConversationShares();
+  const {
+    shares,
+    isLoading,
+    error,
+    shareConversation,
+    fetchShares,
+    revokeShare,
+    changePermission,
+  } = useConversationShares();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const { members, error: membersError, fetchMembers } = useMembers(activeOrgId ?? "");
@@ -234,8 +241,8 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             Share panel has. */}
         <div className="space-y-5">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1 [&>button]:w-full [&>button]:justify-start">
+            <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <div className="col-span-2 min-w-0 sm:col-span-1 [&>button]:w-full [&>button]:justify-start">
                 <MemberPicker
                   members={candidates}
                   selected={picked === null ? [] : [picked]}
@@ -248,7 +255,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 />
               </div>
               <Select value={permission} onValueChange={(v) => setPermission(toPermission(v))}>
-                <SelectTrigger className="h-9 w-28 shrink-0" aria-label={t("accessLevel")}>
+                <SelectTrigger className="h-9 w-full sm:w-28" aria-label={t("accessLevel")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -289,10 +296,26 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             )}
           </div>
 
+          {error != null && (
+            <div role="alert" className="text-destructive space-y-1 text-sm">
+              <p>{error}</p>
+              <Button variant="ghost" size="sm" onClick={() => void fetchShares(conversationId)}>
+                {tc("retry")}
+              </Button>
+            </div>
+          )}
           <section className="space-y-2">
             <h3 className="text-sm font-medium">{tSharing("peopleWithAccess")}</h3>
             <ul className="divide-border divide-y rounded-xl border">
-              {people.length === 0 ? (
+              {isLoading && people.length === 0 ? (
+                <li
+                  role="status"
+                  className="text-muted-foreground flex items-center gap-2 px-3 py-2.5 text-sm"
+                >
+                  <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
+                  {tc("loading")}
+                </li>
+              ) : error != null && people.length === 0 ? null : people.length === 0 ? (
                 <li className="text-muted-foreground px-3 py-2.5 text-sm">
                   {tSharing("notSharedWithAnyone")}
                 </li>
@@ -305,11 +328,12 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                     <Select
                       value={share.permission}
                       onValueChange={(v) => void handleChange(share, toPermission(v))}
-                      disabled={changingId === share.id}
+                      disabled={changingId !== null || revokingId !== null}
                     >
                       <SelectTrigger
                         className="h-8 w-24 shrink-0"
                         aria-label={t("accessLevelFor", { name: displayName(person) })}
+                        aria-busy={changingId === share.id}
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -324,7 +348,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                     <IconButton
                       size="icon"
                       onClick={() => handleRevoke(share)}
-                      disabled={revokingId === share.id}
+                      disabled={changingId !== null || revokingId !== null}
                       className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                       aria-label={t("revokeAccess")}
                     >
@@ -338,7 +362,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
 
           <section className="space-y-2">
             <h3 className="text-sm font-medium">{tSharing("generalAccess")}</h3>
-            <div className="flex items-center gap-3 rounded-xl border px-3 py-2.5">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 sm:flex sm:items-center">
               <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
                 {link === null ? (
                   <Lock className="h-4 w-4" aria-hidden />
@@ -351,7 +375,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                   {link === null ? t("restricted") : t("anyoneWithLink")}
                 </p>
                 {/* A link is read-only whatever the level above says. */}
-                <p className="text-muted-foreground truncate text-xs">
+                <p className={cn("text-muted-foreground text-xs", link !== null && "truncate")}>
                   {link === null ? t("restrictedHint") : copied ? t("copied") : link}
                 </p>
               </div>
@@ -361,13 +385,13 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                   size="sm"
                   onClick={handleGenerateLink}
                   disabled={isLoading || isGeneratingLink}
-                  className="shrink-0"
+                  className="col-start-2 justify-self-start sm:shrink-0"
                 >
                   {isGeneratingLink && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
                   {t("generateShareLink")}
                 </Button>
               ) : (
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="col-start-2 flex items-center gap-1 sm:shrink-0">
                   <Button variant="outline" size="sm" onClick={handleCopyLink}>
                     <Copy className="h-3.5 w-3.5" aria-hidden />
                     {t("copyShareLink")}
@@ -376,7 +400,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                     <IconButton
                       size="icon"
                       onClick={() => handleRevoke(linkShare)}
-                      disabled={revokingId === linkShare.id}
+                      disabled={changingId !== null || revokingId !== null}
                       className="text-muted-foreground hover:text-destructive h-8 w-8"
                       aria-label={t("revokeAccess")}
                     >

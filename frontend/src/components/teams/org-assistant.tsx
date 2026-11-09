@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { SetupIndicator } from "@/components/settings/setup-indicator";
+import { architectSetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Button, FormField, Switch, Textarea } from "@/components/ui";
 import { useAssistant, useUpdateAssistant } from "@/hooks/use-assistant";
@@ -38,7 +40,11 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
 
   return (
     <div data-tour="org-assistant">
-      <SettingsSection title={t("title")} description={t("description")}>
+      <SettingsSection
+        status={<SetupIndicator hints={architectSetupHints(assistant)} />}
+        title={t("title")}
+        description={t("description")}
+      >
         <div className="space-y-5">
           <label className="flex items-start gap-3">
             <Switch

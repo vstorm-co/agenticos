@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
 
 from app.agents.ask_user import parked_status
 from app.agents.ephemeral_media import describe_binary
+from app.core.tool_identity import PresentationKind, ToolIdentity
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -73,6 +74,12 @@ class RecordedToolCall:
     tool_name: str
     args: dict[str, Any]
     result: str | None = None
+    tool_id: str | None = None
+    presentation_kind: PresentationKind | None = None
+
+    @property
+    def renderer_name(self) -> str | None:
+        return None if self.presentation_kind == "generic" else self.tool_id or self.tool_name
 
 
 def tool_failure_notice(part: ToolReturnPart) -> str:
@@ -150,7 +157,12 @@ def _result_text(part: ToolReturnPart) -> str:
     return tool_result_text(part.content)
 
 
-def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
+def tool_calls_in(
+    messages: Sequence[ModelMessage],
+    *,
+    identities: Mapping[str, ToolIdentity] | None = None,
+    definitions: Mapping[str, ToolIdentity] | None = None,
+) -> list[RecordedToolCall]:
     """Every tool call in these messages, each paired with what it returned.
 
     Pass `result.new_messages()`, never `all_messages()`. A resumed run is handed
@@ -175,10 +187,15 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     for message in messages:
         for part in message.parts:
             if isinstance(part, ToolCallPart):
+                identity = (identities or {}).get(
+                    part.tool_call_id, (definitions or {}).get(part.tool_name, ToolIdentity())
+                )
                 calls[part.tool_call_id] = RecordedToolCall(
                     tool_call_id=part.tool_call_id,
                     tool_name=part.tool_name,
                     args=part.args_as_dict(raise_if_invalid=False),
+                    tool_id=identity.tool_id,
+                    presentation_kind=identity.presentation_kind,
                 )
             elif isinstance(part, ToolReturnPart) and part.tool_call_id in calls:
                 results[part.tool_call_id] = _result_text(part)
@@ -188,6 +205,8 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
             tool_name=call.tool_name,
             args=call.args,
             result=results.get(call.tool_call_id),
+            tool_id=call.tool_id,
+            presentation_kind=call.presentation_kind,
         )
         for call in calls.values()
     ]
@@ -256,10 +275,12 @@ class TranscriptService:
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
+        question_tool_call_ids: Collection[str] = (),
         model_label: str | None = None,
         context_used_tokens: int | None = None,
         mcp_origins: Mapping[str, UUID] | None = None,
-    ) -> None:
+        draft_tools: Collection[str] = (),
+    ) -> UUID | None:
         """Write whatever this run produced, and never fail the run for it.
 
         `prompt` is `None` where there is nothing new to record: a resumed run
@@ -315,6 +336,9 @@ class TranscriptService:
         settles it with what the call returned, and an expiry settles it with
         the timeout notice (:meth:`ApprovalService._settle_expired_run`).
 
+        `question_tool_call_ids` names calls awaiting an answer instead of an
+        approval, including questions renamed by the agent's tool overrides.
+
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
         either to a failed write would be the worst possible trade, and the run
@@ -330,7 +354,7 @@ class TranscriptService:
         row rides on stays usable.
         """
         if run.conversation_id is None:
-            return
+            return None
         try:
             async with self.db.begin_nested():
                 if prompt or attachments:
@@ -359,15 +383,17 @@ class TranscriptService:
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:
-                    await self._answer(
+                    return await self._answer(
                         run.conversation_id,
                         run,
                         answer=answer,
                         tool_calls=tool_calls,
                         parked=parked,
+                        question_tool_call_ids=question_tool_call_ids,
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
                         mcp_origins=mcp_origins or {},
+                        draft_tools=draft_tools,
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -441,10 +467,12 @@ class TranscriptService:
         answer: str,
         tool_calls: Sequence[RecordedToolCall],
         parked: Collection[str],
+        question_tool_call_ids: Collection[str],
         model_label: str | None,
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
-    ) -> None:
+        draft_tools: Collection[str],
+    ) -> UUID:
         """The assistant turn and the calls it made, attributed to the version.
 
         `agent_version_id` comes off the run rather than the agent: an agent is
@@ -492,8 +520,17 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
-                status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
+                status=(
+                    parked_status(
+                        call.tool_name, awaiting_answer=call.tool_call_id in question_tool_call_ids
+                    )
+                    if call.tool_call_id in parked or call.tool_call_id in question_tool_call_ids
+                    else "running"
+                ),
                 mcp_connection_id=mcp_origins.get(call.tool_name),
+                tool_id=call.tool_id,
+                presentation_kind=call.presentation_kind
+                or ("draft" if call.tool_name in draft_tools else None),
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(
@@ -507,3 +544,5 @@ class TranscriptService:
             from app.services.follow_ups import queue_next_steps
 
             queue_next_steps(self.db, message.id, run.organization_id)
+
+        return message.id

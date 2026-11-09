@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import re
@@ -155,6 +156,7 @@ def _batch(value):
 def _connection(**overrides) -> McpConnection:
     defaults: dict = {
         "id": uuid4(),
+        "authorization_generation": uuid4(),
         "user_id": uuid4(),
         "organization_id": None,
         "created_by_user_id": None,
@@ -575,7 +577,9 @@ class TestApprovalMarks:
         platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
         assert platform.ungated == PLATFORM_UNGATED_TOOLS
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
-        assert _make_toolset(platform).ungated == frozenset({"agenticos_set_my_language"})
+        assert _make_toolset(platform).ungated == frozenset(
+            f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
+        )
 
 
 class TestToolOrigins:
@@ -2213,6 +2217,7 @@ class TestOAuthTokens:
         # The refresh token is only ever spent while holding the row lock.
         lock_mock.assert_awaited_once()
         # The refreshed token was persisted back (re-encrypted).
+        assert "authorization_generation" not in update_mock.call_args.kwargs["update_data"]
         stored = update_mock.call_args.kwargs["update_data"]["oauth_payload"]
         assert McpOAuthPayload.model_validate_json(
             _open_from(conn, stored)
@@ -2236,6 +2241,7 @@ class TestOAuthTokens:
             ),
             id=stale.id,
             user_id=stale.user_id,
+            authorization_generation=stale.authorization_generation,
         )
         refresh_mock = AsyncMock()
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh_mock)
@@ -2281,6 +2287,7 @@ class TestRefreshUnderLock:
 
     _id = uuid4()
     _user_id = uuid4()
+    _authorization_generation = uuid4()
 
     @classmethod
     def _expired(cls) -> McpConnection:
@@ -2289,6 +2296,7 @@ class TestRefreshUnderLock:
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0),
             id=cls._id,
             user_id=cls._user_id,
+            authorization_generation=cls._authorization_generation,
         )
 
     @staticmethod
@@ -2861,6 +2869,7 @@ class TestMcpConnectionService:
         assert update_data["name"] == "linear"
         assert "last_status" not in update_data
         assert "last_checked_at" not in update_data
+        assert "authorization_generation" not in update_data
 
     @pytest.mark.anyio
     async def test_clearing_the_allowlist_exposes_every_tool_again(self, service, repo):
@@ -2972,6 +2981,8 @@ class TestMcpConnectionService:
 
         update_data = repo.update.call_args.kwargs["update_data"]
         assert update_data["auth_token"] is None
+        assert update_data["authorization_generation"] != conn.authorization_generation
+        assert update_data["last_tools"] is None
         # Credentials changed → stale check result is reset.
         assert update_data["last_status"] is None
 
@@ -4031,6 +4042,8 @@ class TestMcpConnectionService:
         # The flow's own address decides which listed hosts the exchange may reach.
         assert exchange.call_args.kwargs["server_url"] == "https://moved/mcp"
         update_data = repo.update.call_args_list[0].kwargs["update_data"]
+        assert update_data["authorization_generation"] != pending.authorization_generation
+        assert update_data["last_tools"] is None
         assert update_data["oauth_state"] is None  # no longer pending
         assert update_data["oauth_pending_payload"] is None
         assert update_data["last_status"] == "ok"
@@ -4199,6 +4212,7 @@ class TestMcpConnectionService:
         )
 
         update_data = repo.update.call_args.kwargs["update_data"]
+        assert update_data["authorization_generation"] != conn.authorization_generation
         assert update_data["oauth_payload"] is None
         assert update_data["oauth_pending_payload"] is None
         assert update_data["oauth_state"] is None
@@ -5310,6 +5324,36 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
             scope=None,
             metadata=metadata,
         )
+
+    @pytest.mark.anyio
+    async def test_google_registration_explains_required_cloud_client_without_sending(
+        self, monkeypatch
+    ):
+        from dataclasses import replace
+
+        send = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "_send", send)
+        server = replace(
+            self._discovered(),
+            authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
+        )
+        with pytest.raises(mcp_oauth.OAuthError, match="Google Cloud") as error:
+            await mcp_oauth.register_client(server, "https://app.example.com/callback")
+        assert "Client ID" in str(error.value)
+        assert "redirect URL" in str(error.value)
+        send.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_registration_rejection_offers_recovery_without_vendor_body(self, monkeypatch):
+        async def refuse(client, request):
+            return httpx2.Response(400, text="client_secret=do-not-show", request=request)
+
+        monkeypatch.setattr(mcp_oauth, "_send", refuse)
+        with pytest.raises(mcp_oauth.OAuthError) as error:
+            await mcp_oauth.register_client(self._discovered(), "https://app.example.com/callback")
+        assert "More options" in str(error.value)
+        assert "redirect URL" in str(error.value)
+        assert "do-not-show" not in str(error.value)
 
     @pytest.mark.anyio
     async def test_an_unreachable_token_endpoint_is_named_by_its_class(self, monkeypatch, caplog):
@@ -6562,3 +6606,132 @@ async def test_platform_adapter_keeps_successful_answers_unchanged():
         await _platform_domain_result(MagicMock(), AsyncMock(return_value=result), "list", {})
         == result
     )
+
+
+@pytest.mark.anyio
+async def test_account_source_is_stamped_before_prefixing_and_name_fitting() -> None:
+    from pydantic_ai import RunContext, Tool
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.mcp import MCP_ORIGIN, McpSourceIdentity, tool_origin
+
+    def write() -> str:
+        return "written"
+
+    forged = {"connection_id": str(uuid4()), "tool_id": "a-different-action"}
+    inner = FunctionToolset([Tool(write, metadata={MCP_ORIGIN: forged})])
+    connection_id, generation = uuid4(), uuid4()
+    spec = McpServerSpec(
+        name="very-long-connection-name-" * 4,
+        url="https://service.example/mcp",
+        source_connection_id=connection_id,
+        authorization_generation=generation,
+        allowed_tools=["write"],
+    )
+    with patch("app.agents.mcp.MCPToolset", return_value=inner):
+        tools = await _make_toolset(spec).get_tools(
+            RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        )
+    assert len(tools) == 1
+    named, served = next(iter(tools.items()))
+    assert len(named) <= TOOL_NAME_LIMIT
+    origin = tool_origin(served.tool_def)
+    assert origin is not None and origin.tool_id == "write"
+    assert origin.connection_id == connection_id
+    assert origin.identity == McpSourceIdentity(
+        endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+        authorization_generation=generation,
+        tool_prefix=tool_prefix(spec.name),
+    )
+    assert tool_origin(ToolDefinition(name="write", metadata={MCP_ORIGIN: forged})) is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("change", ["missing", "generation", "endpoint"])
+async def test_resumed_shared_accounts_are_refused_before_resolving_credentials(
+    change: str,
+) -> None:
+    from app.agents.mcp import McpSourceIdentity
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    conn = _connection(scope="org", organization_id=uuid4(), user_id=None, purpose="mcp")
+    expected = McpSourceIdentity(
+        endpoint_hash=hashlib.sha256(conn.url.encode()).hexdigest(),
+        authorization_generation=conn.authorization_generation,
+        tool_prefix="original_alias",
+    )
+    allowed = {} if change == "missing" else {conn.id: expected}
+    if change == "generation":
+        conn.authorization_generation = uuid4()
+    elif change == "endpoint":
+        conn.url = "https://a-different-service.example/mcp"
+    with (
+        patch.object(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            new=AsyncMock(return_value={conn.id: conn}),
+        ),
+        patch.object(
+            mcp_connection_service, "resolve_auth_headers", new=AsyncMock()
+        ) as credentials,
+        pytest.raises(AuthorizationError, match="admitted MCP account changed"),
+    ):
+        await build_toolsets_for_agent(
+            MagicMock(),
+            organization_id=conn.organization_id,
+            refs=[OrgMcpServerRef(account="organization", connection_id=conn.id)],
+            organization_sources=allowed,
+        )
+    credentials.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+@pytest.mark.parametrize("policy", ["writes", "all"])
+async def test_persistent_platform_automation_requires_binding_approval(policy):
+    from pydantic_ai.toolsets.abstract import ToolsetTool
+
+    from app.agents.mcp import NEEDS_APPROVAL, PLATFORM_UNGATED_TOOLS, ApprovalMarked
+
+    inner = MagicMock()
+    names = ("create_routine", "update_routine", "create_watch", "update_watch")
+    inner.get_tools = AsyncMock(
+        return_value={
+            name: ToolsetTool(
+                toolset=inner,
+                tool_def=_mcp_tool(name, False),
+                max_retries=1,
+                args_validator=MagicMock(),
+            )
+            for name in names
+        }
+    )
+    tools = await ApprovalMarked(inner, policy=policy, ungated=PLATFORM_UNGATED_TOOLS).get_tools(
+        MagicMock()
+    )
+    assert all(tools[name].tool_def.metadata[NEEDS_APPROVAL] is True for name in names)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("in_process", [False, True])
+async def test_only_the_owned_in_process_transport_can_stamp_platform_tool_provenance(
+    in_process: bool,
+) -> None:
+    from pydantic_ai.toolsets.abstract import ToolsetTool
+
+    from app.agents.mcp import PLATFORM_TOOL, ApprovalMarked
+
+    inner = MagicMock()
+    definition = _mcp_tool("agenticos_create_project", True)
+    definition.metadata[PLATFORM_TOOL] = True
+    inner.get_tools = AsyncMock(
+        return_value={
+            definition.name: ToolsetTool(
+                toolset=inner, tool_def=definition, max_retries=1, args_validator=MagicMock()
+            )
+        }
+    )
+    tools = await ApprovalMarked(inner, in_process=in_process).get_tools(MagicMock())
+    assert tools[definition.name].tool_def.metadata[PLATFORM_TOOL] is in_process

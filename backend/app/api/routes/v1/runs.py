@@ -47,6 +47,7 @@ from app.schemas.agent_run import (
     CostSummary,
     RunTranscript,
     RunTranscriptMessage,
+    ToolConsentRead,
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
@@ -330,6 +331,9 @@ async def get_conversation_transcript(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    for_model: bool = Query(
+        False, description="Omit guardrail-refused turns and quoted reply excerpts"
+    ),
 ) -> Any:
     """One of the caller's own conversations, turn by turn (#2122).
 
@@ -347,6 +351,7 @@ async def get_conversation_transcript(
         organization_id=ctx.organization_id,
         user_id=ctx.subject_id,
         ctx=ctx,
+        for_model=for_model,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
@@ -499,6 +504,10 @@ async def answer_run(
     resume, and its answer comes back in the response. On a run asked in a chat the
     answer is also posted to that chat (`continues_in_chat`), unless the room no
     longer admits the asker or the chat has started over.
+
+    For a workflow agent step, answers are saved and its owning workflow step
+    is queued instead. The workflow worker resumes the same agent conversation
+    under its current budget; this request does not run the model.
     """
     continued = await parked.answer(ctx, run_id, data.responses)
     return await run_result(
@@ -601,7 +610,13 @@ async def decide_approval(
     for every person's decision on such a run, and a client must not resume the
     run itself then. A key's decision continues nothing.
     """
-    decided = await service.decide(ctx, approval_id, approved=data.approved, note=data.note)
+    decided = await service.decide(
+        ctx,
+        approval_id,
+        approved=data.approved,
+        note=data.note,
+        **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
+    )
     return ApprovalRead.model_validate(decided.approval).model_copy(
         update={"continues_in_chat": decided.continues_in_chat}
     )
@@ -721,3 +736,24 @@ async def export_spend(
     """
     result = await service.export_spend(ctx, since=from_date, until=to_date)
     return csv_response(result)
+
+
+@router.get(
+    "/approvals/consents",
+    response_model=list[ToolConsentRead],
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def tool_consents(service: ApprovalSvc, ctx: Auth) -> Any:
+    """The initiating person's remembered tool choices in this organization."""
+    return await service.list_consents(ctx)
+
+
+@router.delete(
+    "/approvals/{approval_id}/consent",
+    status_code=204,
+    response_model=None,
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def revoke_tool_consent(approval_id: UUID, service: ApprovalSvc, ctx: Auth) -> Any:
+    """Forget a remembered choice; the original approval and audit history remain."""
+    await service.revoke_consent(ctx, approval_id)

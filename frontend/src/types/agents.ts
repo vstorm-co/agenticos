@@ -376,6 +376,22 @@ export interface SystemPromptVariable {
   example: string;
 }
 
+export type StarterIcon =
+  | "message"
+  | "compass"
+  | "search"
+  | "calendar"
+  | "mail"
+  | "code"
+  | "chart"
+  | "file"
+  | "lightbulb"
+  | "check"
+  | "globe"
+  | "sparkles";
+export type StarterIcons = Record<string, StarterIcon>;
+export type StarterTitles = Record<string, string>;
+
 export interface AgentSpec {
   /**
    * Stamped by the server, never authored here.
@@ -395,6 +411,8 @@ export interface AgentSpec {
   variables?: PromptVariableSpec[];
   /** Up to four first messages an empty chat offers. Optional here, always on the wire. */
   starters?: string[];
+  starter_icons?: StarterIcons;
+  starter_titles?: StarterTitles;
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
   time_zone?: string;
   model_profile_id?: string | null;
@@ -403,6 +421,8 @@ export interface AgentSpec {
   collection_ids: string[];
   skill_ids: string[];
   context_ids: string[];
+  /** App data bindings, not a separate tool capability. */
+  table_bindings?: { table_id: string; operations: ("read" | "create" | "update" | "delete")[] }[];
   mcp_servers: McpServerRef[];
   /**
    * Delegates, each pinned to a published version.
@@ -537,8 +557,17 @@ export interface Agent {
    * null when it runs none there; the composer names it. Listing only.
    */
   local_coding_agent?: LocalCodingAgent | null;
+  /** A published local workspace requires a folder or whole-computer access. */
+  local_workspace?: boolean;
+  /**
+   * The coding agent the published version runs as a private cloud task on the
+   * person's own account, or null; the chat offers to connect that account. Listing only.
+   */
+  personal_coding_harness?: LocalCodingAgent["harness"] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
+  starter_icons?: StarterIcons;
+  starter_titles?: StarterTitles;
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is

@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use agenticos_shell_core::device::{backoff, AppFrame, Capabilities, Endpoints, EndpointsAnswer, ServerFrame};
+use agenticos_shell_core::routine_grants::{DeviceIdentity, StoredDeviceIdentity};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -55,6 +56,8 @@ pub struct DeviceStatus {
     pub linked: bool,
     /// The socket is open right now.
     pub connected: bool,
+    /// Public identity only; credentials remain in the OS keychain.
+    pub identity: Option<DeviceIdentity>,
 }
 
 #[derive(Deserialize)]
@@ -66,6 +69,14 @@ struct TokenPair {
 #[derive(Deserialize)]
 struct Me {
     email: String,
+}
+
+/// An expired/replaced session ends interactive authority; explicitly unlinking
+/// or changing servers also revokes the person's standing routine permission.
+#[derive(Clone, Copy)]
+enum AuthorityScope {
+    Session,
+    All,
 }
 
 /// Why a connection attempt ended.
@@ -88,14 +99,52 @@ fn stored_refresh(server: &Url) -> Option<String> {
     keychain(server).ok()?.get_password().ok()
 }
 
-fn store_refresh(server: &Url, token: &str) -> Result<(), String> {
+fn store_refresh(server: &Url, pair: &TokenPair) -> Result<(), String> {
+    let identity = StoredDeviceIdentity::new(
+        server.origin().ascii_serialization(),
+        &pair.access_token,
+        &pair.refresh_token,
+    )
+    .map_err(str::to_owned)?;
+    let stored =
+        serde_json::to_string(&identity).map_err(|_| "The device session identity could not be saved".to_owned())?;
     keychain(server)?
-        .set_password(token)
-        .map_err(|e| format!("The keychain refused the session: {e}"))
+        .set_password(&pair.refresh_token)
+        .map_err(|e| format!("The keychain refused the session: {e}"))?;
+    identity_keychain(server)?
+        .set_password(&stored)
+        .map_err(|_| "The keychain refused the device identity".to_owned())
+}
+
+fn identity_keychain(server: &Url) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(
+        KEYCHAIN_SERVICE,
+        &format!("device-identity:{}", server.origin().ascii_serialization()),
+    )
+    .map_err(|_| "The device identity keychain cannot be opened".to_owned())
+}
+
+pub(crate) fn identity(app: &AppHandle) -> Result<DeviceIdentity, String> {
+    let server = settings::current(app)
+        .server_url
+        .ok_or("Connect this app to a server first")?;
+    let refresh = stored_refresh(&server).ok_or("Link this computer before configuring a routine")?;
+    let stored = identity_keychain(&server)?
+        .get_password()
+        .map_err(|_| "Link this computer before configuring a routine".to_owned())?;
+    let session: StoredDeviceIdentity = serde_json::from_str(&stored)
+        .map_err(|_| "Reconnect this computer to review its routine permissions".to_owned())?;
+    if !session.matches(&refresh) || session.identity.origin != server.origin().ascii_serialization() {
+        return Err("The device connection changed; link this computer again".into());
+    }
+    Ok(session.identity)
 }
 
 fn forget(server: &Url) {
     if let Ok(entry) = keychain(server) {
+        let _ = entry.delete_credential();
+    }
+    if let Ok(entry) = identity_keychain(server) {
         let _ = entry.delete_credential();
     }
 }
@@ -146,7 +195,11 @@ fn status(app: &AppHandle) -> DeviceStatus {
         .connected
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    DeviceStatus { linked, connected }
+    DeviceStatus {
+        linked,
+        connected,
+        identity: identity(app).ok(),
+    }
 }
 
 fn set_connected(app: &AppHandle, value: bool) {
@@ -205,7 +258,7 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
         return Err("Not linked.".to_owned());
     }
     ensure_connection(&app, &server, &revision)?;
-    unlink(&app).await?;
+    unlink(&app, AuthorityScope::Session).await?;
     ensure_connection(&app, &server, &revision)?;
     let pair: TokenPair = client
         .post(endpoints.api_route("/api/v1/auth/pairing-codes/redeem"))
@@ -227,11 +280,15 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
             .and_then(reqwest::Response::error_for_status)
             .map_err(|e| e.to_string())?;
         ensure_connection(&app, &server, &revision)?;
-        store_refresh(&server, &pair.refresh_token)
+        let verified = DeviceIdentity::from_access_token(server.origin().ascii_serialization(), &pair.access_token)
+            .map_err(str::to_owned)?;
+        store_refresh(&server, &pair)?;
+        crate::routine_access::retain_shared(&app, Some(&verified))
     }
     .await;
     if let Err(error) = activated {
         revoke_session(&client, &endpoints, &pair.refresh_token).await;
+        forget(&server);
         return Err(error);
     }
     start(&app);
@@ -242,14 +299,16 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
 #[tauri::command]
 pub async fn device_unlink(app: AppHandle) -> Result<DeviceStatus, String> {
     let _transition = transition(&app).await;
-    unlink(&app).await
+    unlink(&app, AuthorityScope::All).await
 }
 
-async fn unlink(app: &AppHandle) -> Result<DeviceStatus, String> {
+async fn unlink(app: &AppHandle, authority: AuthorityScope) -> Result<DeviceStatus, String> {
     let server = settings::current(app).server_url;
     let token = server.as_ref().and_then(stored_refresh);
-    clear_authority(app).await?;
+    clear_authority_scope(app, authority).await?;
     if let Some(server) = server {
+        // Stop queued native calls from authenticating during the logout request.
+        forget(&server);
         if let Some(token) = token {
             match http() {
                 Ok(client) => match endpoints(&client, &server).await {
@@ -259,7 +318,6 @@ async fn unlink(app: &AppHandle) -> Result<DeviceStatus, String> {
                 Err(error) => eprintln!("Could not revoke the device session: {error}"),
             }
         }
-        forget(&server);
     }
     set_connected(app, false);
     Ok(status(app))
@@ -291,13 +349,36 @@ async fn revoke_session(client: &reqwest::Client, endpoints: &Endpoints, token: 
 }
 
 pub(crate) async fn clear_authority(app: &AppHandle) -> Result<(), String> {
+    clear_authority_scope(app, AuthorityScope::All).await
+}
+
+async fn clear_authority_scope(app: &AppHandle, authority: AuthorityScope) -> Result<(), String> {
     stop(app);
     crate::screen::stop(app);
     crate::computer_access::clear(app)?;
+    match authority {
+        AuthorityScope::All => crate::routine_access::clear(app)?,
+        AuthorityScope::Session => {
+            // No verified old identity means only dormant owner-bound grants may
+            // remain; the fresh pairing identity must match before activation.
+            let previous = identity(app).ok();
+            crate::routine_access::retain_shared(app, previous.as_ref())?;
+        }
+    }
     settings::update(app, settings::clear_local_authority)?;
     crate::local_browser::close_all(app).await;
+    crate::agent_session::close_all(app).await;
     set_connected(app, false);
     Ok(())
+}
+
+fn connection_is_current(app: &AppHandle, stopper: &Arc<Notify>) -> bool {
+    app.state::<Device>()
+        .stop
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .is_some_and(|current| Arc::ptr_eq(current, stopper))
 }
 
 fn stop(app: &AppHandle) {
@@ -329,18 +410,19 @@ pub fn start(app: &AppHandle) {
         let mut failures = 0;
         loop {
             let ended = tokio::select! {
-                _ = stopper.notified() => {
-                    crate::agent_session::close_all(&app).await;
-                    return;
-                }
+                _ = stopper.notified() => return,
                 ended = connection(&app, &server) => ended,
             };
+            let connection_guard = transition(&app).await;
+            if !connection_is_current(&app, &stopper) {
+                return;
+            }
             set_connected(&app, false);
             // Nothing is left to hear what a started agent writes.
             crate::agent_session::close_all(&app).await;
             match ended {
                 Ended::Revoked => {
-                    if let Err(error) = clear_authority(&app).await {
+                    if let Err(error) = clear_authority_scope(&app, AuthorityScope::Session).await {
                         eprintln!("Could not clear revoked device access: {error}");
                     }
                     forget(&server);
@@ -352,6 +434,7 @@ pub fn start(app: &AppHandle) {
                     failures += 1;
                 }
             }
+            drop(connection_guard);
             tokio::select! {
                 _ = stopper.notified() => return,
                 _ = tokio::time::sleep(backoff(failures)) => {}
@@ -377,7 +460,7 @@ async fn connection(app: &AppHandle, server: &Url) -> Ended {
         Ok(pair) => pair,
         Err(ended) => return ended,
     };
-    if let Err(e) = store_refresh(server, &pair.refresh_token) {
+    if let Err(e) = store_refresh(server, &pair) {
         return Ended::Failed(e);
     }
     let mut request = match endpoints.device_socket().as_str().into_client_request() {
@@ -490,6 +573,7 @@ fn capabilities() -> Capabilities {
     Capabilities {
         sandbox_modes: crate::local_work::modes(),
         screen: true,
+        routine_grants: true,
     }
 }
 
@@ -524,6 +608,9 @@ async fn run(
     args: Map<String, Value>,
     call_id: &str,
 ) -> Result<Map<String, Value>, (String, &'static str)> {
+    if op == "routine.check" {
+        return crate::routine_access::preflight(app, &args).map_err(|error| (error, "denied"));
+    }
     if op.starts_with("browser.") {
         return crate::local_browser::run(app, op, &args)
             .await

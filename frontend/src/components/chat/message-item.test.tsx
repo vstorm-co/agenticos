@@ -1,13 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
 import { draftsAsText, draftsOf } from "@/lib/drafts";
 import * as motion from "@/lib/motion";
-import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
+import { foldWork, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
+import { useWorkingStore } from "@/stores/working-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
@@ -39,6 +40,15 @@ vi.mock("./markdown-content", () => ({
   ),
 }));
 // The card is tested on its own; here it only needs to be identifiable.
+vi.mock("./tool-results/routine", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./tool-results/routine")>();
+  return {
+    ...actual,
+    RoutineResult: ({ routine }: { routine: { id: string } }) => (
+      <div data-testid="routine-result">{routine.id}</div>
+    ),
+  };
+});
 vi.mock("./tool-call-card", () => ({
   ToolCallCard: ({ toolCall, startOpen }: { toolCall: ToolCall; startOpen?: boolean }) => (
     <div data-testid={`tool-${toolCall.id}`} data-open={String(startOpen === true)}>
@@ -402,47 +412,12 @@ describe("a turn in the narrow chat beside a page (the Architect, the test panel
   });
 });
 
-describe("which runs refuse to fold", () => {
-  /** A tool part, which is what a run is made of. */
-  const step = (overrides: Partial<ToolCall> = {}): MessagePart => ({
-    id: `p-${overrides.id ?? "1"}`,
-    type: "tool",
-    toolCall: { id: "tc-1", name: "search_documents", args: {}, status: "completed", ...overrides },
-  });
-
-  it("folds ordinary work away", () => {
-    // The default, and the right one: three reads and a grep are work nobody asked
-    // to watch, and the rail shows the last of them.
-    expect(mustShowEveryStep([step(), step({ id: "2" })])).toBe(false);
-  });
-
-  it("shows every step when one of them failed", () => {
-    expect(mustShowEveryStep([step(), step({ id: "2", status: "error" })])).toBe(true);
-  });
-
-  it("shows every step when one is waiting to be approved", () => {
-    expect(mustShowEveryStep([step({ status: "awaiting_approval" })])).toBe(true);
-  });
-
-  it("shows every step when one of them is a chart", () => {
-    // A turn that drew three charts folded two of them into "2 earlier steps", so
-    // the same turn showed three pictures live and one after a reload. Three
-    // charts are three answers.
-    expect(mustShowEveryStep([step({ name: "create_chart" }), step({ id: "2" })])).toBe(true);
-  });
-
-  it("ignores a part carrying no call at all", () => {
-    // `runsOf` only puts a tool part in a run when it has a call, so this is the
-    // contract holding rather than a case the transcript produces.
-    expect(mustShowEveryStep([{ id: "p-1", type: "tool" }])).toBe(false);
-  });
-});
-
 describe("the ordered timeline", () => {
   describe("a turn with a draft", () => {
     const write: ToolCall = {
       id: "tc-d",
       name: "write_draft",
+      presentation_kind: "draft",
       status: "completed",
       result: "Drafted Reply.",
       args: {
@@ -570,15 +545,31 @@ describe("the ordered timeline", () => {
     expect(queryByText("Asked you")).not.toBeInTheDocument();
   });
 
-  it("opens the reasoning while it is the part being written, and closes it after", () => {
+  it("keeps live reasoning behind the activity disclosure", () => {
     // A thinking block left open on every past turn buries the answers.
     const parts: ChatMessage["parts"] = [{ id: "p-1", type: "thinking", content: "Checking." }];
     const { container, unmount } = item({ parts, isStreaming: true, content: "" });
-    expect(container.querySelector("details")).toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: /Working/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
     unmount();
 
     const closed = item({ parts, isStreaming: false });
+    expect(closed.container.querySelector("details")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Thought about it" }));
     expect(closed.container.querySelector("details")).not.toHaveAttribute("open");
+  });
+
+  it("keeps answered questions collapsed until the reader expands one", async () => {
+    const { container } = item({
+      parts: [{ id: "q", type: "ask_user", question: "Which team?", answer: "Engineering" }],
+    });
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Engineering")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Asked you"));
+    expect(screen.getByText("Engineering")).toBeVisible();
   });
 
   it("leaves the reasoning closed once something newer is streaming", () => {
@@ -689,10 +680,10 @@ describe("an app the turn published", () => {
     expect(card).toHaveAttribute("href", "/apps/app-1?version=v-2");
   });
 
-  it("waits for the turn to finish", () => {
+  it("shows an already published app while the parent continues", () => {
     item({ ...publishing, isStreaming: true });
 
-    expect(screen.queryByRole("link", { name: /Revenue dashboard/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /Revenue dashboard/ })).toBeVisible();
   });
 });
 
@@ -733,7 +724,7 @@ describe("citations", () => {
   });
 
   it("stacks a mark for each document an answer drew on, by its kind", () => {
-    // A file's kind for a knowledge base passage, the web's globe for a page:
+    // A file's kind for a knowledge base passage, the site's favicon for a page:
     // a reader scanning a thread sees where an answer came from without opening it.
     item({
       toolCalls: [
@@ -759,19 +750,16 @@ describe("citations", () => {
 
     // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelectorAll(".lucide-globe")).toHaveLength(1);
-    expect(footer.querySelectorAll("svg")).toHaveLength(3);
+    expect(footer.querySelector("img")).toHaveAttribute("src", "https://a.example/favicon.ico");
+    expect(footer.querySelectorAll("svg")).toHaveLength(2);
   });
 
-  it("opens into the list of documents, and a document onto its passages", async () => {
+  it("opens the source panel directly from the compact footer", async () => {
     item({ ...withSources });
 
     await userEvent.click(screen.getByRole("button", { name: /2 sources/ }));
-    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
-    await userEvent.click(screen.getByRole("button", { name: /policy\.md/ }));
-
     expect(useSourcesPanelStore.getState().isOpen).toBe(true);
-    expect(useSourcesPanelStore.getState().highlightedIndex).toBe(2);
+    expect(useSourcesPanelStore.getState().highlightedIndex).toBeNull();
   });
 
   it("opens on the citation that was clicked in the answer", async () => {
@@ -956,6 +944,15 @@ describe("what a person attached", () => {
     expect(screen.getByText("Plan: step one")).toBeInTheDocument();
     // Its own id is this tab's: nothing can be addressed to it yet.
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("keeps the quote on a file-only reply with no message text", () => {
+    item({
+      role: "user",
+      content: "",
+      replyTo: { messageId: "source", role: "assistant", excerpt: "Please attach the file." },
+    });
+    expect(screen.getByText("Please attach the file.")).toBeVisible();
   });
 
   it("draws a turn whose writer has left as a former member, never as You", () => {
@@ -1217,6 +1214,7 @@ describe("the step a reopened turn leaves open", () => {
       <MessageItem message={message({ parts: [toolPart("a"), toolPart("b")] })} openLastStep />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 2 steps" }));
     expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
     expect(screen.getByTestId("tool-tc-b")).toHaveAttribute("data-open", "true");
   });
@@ -1235,7 +1233,7 @@ describe("the step a reopened turn leaves open", () => {
     expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
   });
 
-  it("keeps every step in view while the turn is still running", () => {
+  it("shows every step on demand through a single live activity disclosure", () => {
     // Folding a run that is still being written hides the step that is happening.
     render(
       <MessageItem
@@ -1243,6 +1241,12 @@ describe("the step a reopened turn leaves open", () => {
       />,
     );
 
+    expect(screen.getByRole("button", { name: /Working/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByTestId("tool-tc-a")).not.toBeVisible();
+    fireEvent.click(screen.getByText("2 actions", { selector: "summary span" }));
     expect(screen.getByTestId("tool-tc-a")).toBeVisible();
     expect(screen.getByTestId("tool-tc-b")).toBeVisible();
   });
@@ -1389,23 +1393,58 @@ describe("the work before an answer", () => {
     expect(split?.shown).toHaveLength(1);
   });
 
-  it("folds nothing without an answer, or without work in front of it", () => {
-    expect(foldWork(runsOf([call("a")]))).toBeNull();
+  it("folds tool-only work and leaves plain answers alone", () => {
+    expect(foldWork(runsOf([call("a")]))).toMatchObject({ steps: 1, shown: [] });
     expect(foldWork(runsOf([text("ans", "Hello.")]))).toBeNull();
     expect(foldWork(runsOf([text("n", "First."), text("ans", "Second.")]))).toBeNull();
   });
 
-  it("keeps on the page what a person has to see", () => {
-    // A failure, a long passage that is an answer of its own, a question the agent
-    // asked and what the person added mid-run all stay where they were.
+  it("keeps long progress, questions and errors in history before the final answer", () => {
+    // All progress stays chronological inside the one completed history.
     const long = text("long", "x".repeat(401));
     const asked: MessagePart = { id: "p-q", type: "ask_user", question: "Which?", answer: "A" };
     const steer: MessagePart = { id: "p-s", type: "steer", content: "Also B." };
     const split = foldWork(
       runsOf([call("a"), long, asked, steer, call("bad", "error"), text("ans", "Done.")]),
     );
-    expect(split?.steps).toBe(1);
-    expect(split?.shown).toHaveLength(5);
+    expect(split?.steps).toBe(2);
+    expect(split?.shown).toHaveLength(1);
+    expect(split?.folded).toHaveLength(5);
+  });
+
+  it("keeps routine and failed calls in the same live history", () => {
+    const split = foldWork(
+      runsOf([call("a"), thought, call("b"), call("bad", "error")]),
+      false,
+      true,
+    );
+    expect(split?.steps).toBe(3);
+    expect(split?.shown).toHaveLength(0);
+    expect(split?.folded).toHaveLength(3);
+  });
+
+  it("does not show Working above a question that is waiting for an answer", () => {
+    item({ parts: [call("question", "awaiting_answer", "ask_user_question")], isStreaming: true });
+    expect(screen.queryByText(/Working/)).toBeNull();
+    expect(screen.getByTestId("tool-tc-question")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Waiting for an answer/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("does not settle a turn while a delegate still needs approval", () => {
+    item({
+      parts: [text("progress", "Waiting for the specialist."), call("delegate")],
+      isStreaming: false,
+      runWaitingFor: "approval",
+    });
+    expect(screen.getByRole("button", { name: /Waiting for approval/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText("Waiting for the specialist.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Worked/ })).toBeNull();
   });
 
   it("times a reloaded turn by its run, under its last segment only", () => {
@@ -1418,48 +1457,132 @@ describe("the work before an answer", () => {
     expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBeInTheDocument();
   });
 
+  it("uses the shared run clock instead of a resumed segment timestamp", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-06T00:03:00Z"));
+    useWorkingStore.getState().start("clock-chat", "2026-11-06T00:00:00Z");
+    try {
+      item({
+        conversationId: "clock-chat",
+        timestamp: new Date("2026-11-06T00:02:50Z"),
+        runStartedAt: new Date("2026-11-06T00:02:50Z"),
+        parts: [call("a", "running")],
+        isStreaming: true,
+      });
+      act(() => vi.advanceTimersByTime(1000));
+      expect(screen.getByRole("button", { name: /Working for 3m 1s/ })).toBeInTheDocument();
+    } finally {
+      useWorkingStore.getState().reset();
+      vi.useRealTimers();
+    }
+  });
+
   it("says the turn is working while it streams, and only once there is work", () => {
     const { unmount } = item({ parts: [call("a", "running")], isStreaming: true });
-    expect(screen.getByRole("status")).toHaveTextContent("Working");
+    expect(screen.getByRole("button", { name: /Working/ })).toBeInTheDocument();
     unmount();
 
     item({ parts: [text("ans", "Thir")], isStreaming: true });
     expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
 
-  it("collapses routine live work on small screens and keeps the answer and approvals outside", async () => {
-    const parts = [
-      thought,
-      call("read"),
-      text("answer", "Here is the result."),
-      call("approve", "awaiting_approval"),
-    ];
-    const view = item({ parts, isStreaming: true });
-    const detail = screen.getByTestId("tool-tc-read").closest("[data-work-detail]");
-    expect(detail).toHaveClass("hidden", "md:block");
-    expect(screen.getByText("Here is the result.").closest("[data-work-detail]")).toBeNull();
-    expect(screen.getByTestId("tool-tc-approve").closest("[data-work-detail]")).toBeNull();
-    const toggle = screen.getByRole("button", { name: /Working/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(toggle);
-    expect(detail).not.toHaveClass("hidden");
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    view.rerender(
-      <MessageItem
-        message={message({
-          parts: [...parts, { ...thought, id: "new-thought" }],
-          isStreaming: true,
-        })}
-      />,
-    );
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await userEvent.click(toggle);
-    expect(detail).toHaveClass("hidden", "md:block");
+  it("keeps failures and pending tools in the same chronological live timeline", async () => {
+    item({
+      parts: [
+        thought,
+        call("read"),
+        text("n", "Checking permissions."),
+        call("bad", "error"),
+        call("approve", "awaiting_approval"),
+      ],
+      isStreaming: true,
+    });
+    expect(screen.getByText("Checking permissions.")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-read")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-bad")).not.toBeVisible();
+    await userEvent.click(screen.getByText("2 actions", { selector: "summary span" }));
+    expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-approve")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /Waiting for approval/ })).toHaveLength(1);
   });
 
-  it("keeps live failures out of the mobile progress fold", () => {
-    item({ parts: [thought, call("bad", "error")], isStreaming: true });
-    expect(screen.getByTestId("tool-tc-bad").closest("[data-work-detail]")).toBeNull();
+  it("folds the whole interrupted sequence rather than promoting narration to a final answer", async () => {
+    item({
+      parts: [
+        call("before"),
+        text("n", "The board already exists."),
+        thought,
+        call("after"),
+        call("last"),
+      ],
+    });
+    expect(screen.queryByText("The board already exists.")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Worked/ });
+    await userEvent.click(toggle);
+    expect(screen.getByText("The board already exists.")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-before")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-after")).not.toBeVisible();
+    await userEvent.click(screen.getByText("2 actions", { selector: "summary span" }));
+    expect(screen.getByTestId("tool-tc-after")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-last")).toBeVisible();
+  });
+
+  it("keeps progress messages beside their tools live, then folds everything except the final answer", async () => {
+    const parts = [
+      text("first", "I will check Poland first."),
+      call("poland"),
+      text("second", "Now I will compare Norway and Australia."),
+      call("norway"),
+      call("australia"),
+      text("final", "Here is the final comparison."),
+    ];
+    const view = item({ parts, isStreaming: true });
+    const first = screen.getByText("I will check Poland first.");
+    const firstTool = screen.getByTestId("tool-tc-poland");
+    const second = screen.getByText("Now I will compare Norway and Australia.");
+    const secondTool = screen.getByTestId("tool-tc-norway");
+    expect(
+      first.compareDocumentPosition(firstTool) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      firstTool.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      second.compareDocumentPosition(secondTool) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Working/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    view.rerender(<MessageItem message={message({ parts, isStreaming: false })} />);
+    expect(screen.getByText("Here is the final comparison.")).toBeVisible();
+    expect(screen.queryByText("I will check Poland first.")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Worked/ });
+    expect(screen.getAllByRole("button", { name: /Worked/ })).toHaveLength(1);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByText("I will check Poland first.")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-poland")).toBeVisible();
+    expect(screen.getByText("Here is the final comparison.").closest('[role="region"]')).toBeNull();
+  });
+
+  it("does not interpret headings in reasoning as process steps", async () => {
+    item({
+      parts: [
+        {
+          id: "reason",
+          type: "thinking",
+          content: "**Investigating project details**\nRead the instructions.",
+        },
+        call("read"),
+        text("final", "Ready."),
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Worked/ }));
+    expect(screen.getByText("Thought about it")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-read")).toBeVisible();
+    expect(screen.queryByText("Investigating project details")).toBeNull();
   });
 
   it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {
@@ -1504,6 +1627,36 @@ it("keeps a settled message out of a sibling's streaming rerender", async () => 
   reduced.mockRestore();
 });
 
+describe("a routine created in the conversation", () => {
+  const routineId = "00000000-0000-4000-8000-000000000001";
+  const agentId = "00000000-0000-4000-8000-000000000002";
+  const toolCall: ToolCall = {
+    id: "routine-call",
+    name: "agenticos_create_routine",
+    args: {},
+    status: "completed",
+    result: JSON.stringify({ id: routineId, agent_id: agentId, trigger_type: "schedule" }),
+  };
+
+  it("shows a management card to a signed-in person after the response finishes", () => {
+    useAuthStore.setState({
+      user: {
+        id: "u-1",
+        email: "ada@example.com",
+        is_active: true,
+        created_at: "2026-11-02T00:00:00Z",
+      },
+    });
+    render(<MessageItem message={message({ toolCalls: [toolCall] })} />);
+    expect(screen.getByTestId("routine-result")).toHaveTextContent(routineId);
+  });
+
+  it("does not fetch or expose routine controls on a public conversation", () => {
+    render(<MessageItem message={message({ toolCalls: [toolCall] })} />);
+    expect(screen.queryByTestId("routine-result")).not.toBeInTheDocument();
+  });
+});
+
 describe("phone message actions", () => {
   it.each(["user", "assistant"] as const)(
     "offers an explicit toggle for a %s message",
@@ -1546,4 +1699,31 @@ describe("phone message actions", () => {
     item({ isStreaming: true });
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
   });
+});
+
+vi.mock("@/components/watches/watches-card", () => ({
+  WatchesCard: ({ watchId }: { watchId: string }) => <div>Manage watch {watchId}</div>,
+}));
+it("keeps a successful watch write visible as an authorized management reference", () => {
+  useAuthStore.setState({
+    user: {
+      id: "user",
+      email: "user@example.com",
+      is_active: true,
+      created_at: "2026-11-01T00:00:00Z",
+    },
+  });
+  const id = "11111111-1111-4111-8111-111111111111";
+  item({
+    toolCalls: [
+      {
+        id: "watch",
+        name: "agenticos_create_watch",
+        args: {},
+        status: "completed",
+        result: JSON.stringify({ id, connection_id: "22222222-2222-4222-8222-222222222222" }),
+      },
+    ],
+  });
+  expect(screen.getByText(`Manage watch ${id}`)).toBeInTheDocument();
 });

@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
@@ -466,7 +468,7 @@ function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
           aria-hidden
         />
         <span className="text-foreground font-medium">
-          {toolDisplayName(toolCall.name, tTools)}
+          {toolDisplayName(toolLookupName(toolCall) || toolCall.name, tTools)}
         </span>
         <span className="text-muted-foreground truncate font-mono">{toolCall.name}</span>
         <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1.5">

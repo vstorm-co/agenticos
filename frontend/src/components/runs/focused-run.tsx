@@ -9,11 +9,11 @@ import {
   ArrowRight,
   CornerLeftUp,
   ExternalLink,
-  MessageSquare,
   Play,
   Wrench,
   X,
 } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";

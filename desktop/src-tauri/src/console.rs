@@ -55,11 +55,16 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-pin-agent",
             "allow-unpin-agent",
             "allow-oauth-verifier",
+            "allow-open-consent",
             "allow-device-status",
             "allow-device-link",
             "allow-device-unlink",
             "allow-local-allow-computer",
             "allow-local-revoke-computer",
+            "allow-routine-choose-folder",
+            "allow-routine-allow",
+            "allow-routine-grants",
+            "allow-routine-revoke",
             "allow-local-grants",
             "allow-local-pick-folder",
             "allow-local-revoke",
@@ -455,6 +460,13 @@ mod tests {
                     assert!(!permission.contains(refused), "{window} is granted {permission}");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn only_the_main_console_may_open_a_consent_page() {
+        for (window, permissions) in GRANTS {
+            assert_eq!(permissions.contains(&"allow-open-consent"), *window == WINDOW);
         }
     }
 

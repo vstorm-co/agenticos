@@ -24,6 +24,8 @@ export interface Notification {
   created_at: string;
   /** The agent the row is about, for its face; absent for a row about none. */
   agent?: NotificationAgent | null;
+  /** The shared outcome this row is one delivery of, when it is something to act on (#2575). */
+  outcome_id?: string | null;
 }
 
 export interface NotificationAgent {

@@ -42,6 +42,209 @@ def server(api: MagicMock) -> FastMCP:
 
 
 CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
+    ("list_watches", {}, ("GET", "/me/watches", {})),
+    (
+        "create_watch",
+        {
+            "agent_id": str(AGENT),
+            "connection_id": str(KB),
+            "title": "Reviews",
+            "instructions": "Waiting on me",
+            "every_minutes": 60,
+        },
+        (
+            "POST",
+            "/me/watches",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "connection_id": str(KB),
+                    "title": "Reviews",
+                    "instructions": "Waiting on me",
+                    "interval_minutes": 60,
+                    "urgent": False,
+                    "ends_at": None,
+                    "environment_id": None,
+                    "pinned_version_id": None,
+                }
+            },
+        ),
+    ),
+    (
+        "create_watch",
+        {
+            "agent_id": str(AGENT),
+            "connection_id": str(KB),
+            "title": "Reviews",
+            "instructions": "Waiting on me",
+            "every_minutes": 60,
+            "urgent": True,
+            "ends_at": "2026-12-01T08:00:00Z",
+            "environment_id": str(RUN),
+        },
+        (
+            "POST",
+            "/me/watches",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "connection_id": str(KB),
+                    "title": "Reviews",
+                    "instructions": "Waiting on me",
+                    "interval_minutes": 60,
+                    "urgent": True,
+                    "ends_at": "2026-12-01T08:00:00Z",
+                    "environment_id": str(RUN),
+                    "pinned_version_id": None,
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {
+            "watch_id": str(RUN),
+            "active": False,
+            "urgent": False,
+            "clear_end": True,
+            "clear_pin": True,
+        },
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {
+                "json": {
+                    "is_active": False,
+                    "urgent": False,
+                    "ends_at": None,
+                    "pinned_version_id": None,
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {
+            "watch_id": str(RUN),
+            "agent_id": str(AGENT),
+            "pinned_version_id": str(KB),
+            "review_sources": True,
+            "title": "New title",
+            "instructions": "Different purpose",
+            "every_minutes": 180,
+            "ends_at": "2026-12-01T08:00:00Z",
+        },
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "pinned_version_id": str(KB),
+                    "environment_id": None,
+                    "review_sources": True,
+                    "title": "New title",
+                    "instructions": "Different purpose",
+                    "interval_minutes": 180,
+                    "ends_at": "2026-12-01T08:00:00Z",
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "environment_id": str(KB)},
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {"json": {"environment_id": str(KB), "pinned_version_id": None}},
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "clear_environment": True},
+        ("PATCH", f"/me/watches/{RUN}", {"json": {"environment_id": None}}),
+    ),
+    (
+        "create_watch",
+        {
+            "agent_id": str(AGENT),
+            "connection_id": str(KB),
+            "title": "Reviews",
+            "instructions": "Waiting on me",
+            "every_minutes": 60,
+            "report_mode": "every_check",
+            "notification_channels": [],
+        },
+        (
+            "POST",
+            "/me/watches",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "connection_id": str(KB),
+                    "title": "Reviews",
+                    "instructions": "Waiting on me",
+                    "interval_minutes": 60,
+                    "urgent": False,
+                    "ends_at": None,
+                    "environment_id": None,
+                    "pinned_version_id": None,
+                    "report_mode": "every_check",
+                    "notification_channels": [],
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "notification_channels": ["push"], "report_mode": "changes"},
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {"json": {"notification_channels": ["push"], "report_mode": "changes"}},
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "inherit_notifications": True},
+        ("PATCH", f"/me/watches/{RUN}", {"json": {"notification_channels": None}}),
+    ),
+    (
+        "create_routine",
+        {
+            "agent_id": str(AGENT),
+            "prompt": "Report",
+            "every_minutes": 60,
+            "notification_channels": [],
+        },
+        (
+            "POST",
+            f"/agents/{AGENT}/triggers",
+            {
+                "json": {
+                    "prompt": "Report",
+                    "runs_as_creator": True,
+                    "interval_seconds": 3600,
+                    "notification_channels": [],
+                }
+            },
+        ),
+    ),
+    (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "notification_channels": ["email"]},
+        (
+            "PATCH",
+            f"/agents/{AGENT}/triggers/{RUN}",
+            {"json": {"notification_channels": ["email"]}},
+        ),
+    ),
+    (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "inherit_notifications": True},
+        ("PATCH", f"/agents/{AGENT}/triggers/{RUN}", {"json": {"notification_channels": None}}),
+    ),
     ("whoami", {}, ("GET", "/me/permissions", {})),
     ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
     (
@@ -404,7 +607,50 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0}},
+            {"params": {"limit": 100, "skip": 0, "for_model": True}},
+        ),
+    ),
+    (
+        "test_my_connection",
+        {"connection_id": "00000000-0000-0000-0000-000000000002"},
+        ("POST", "/me/mcp-connections/00000000-0000-0000-0000-000000000002/test", {}),
+    ),
+    (
+        "list_conversations",
+        {"search": "Geopolityka", "limit": 5},
+        (
+            "GET",
+            "/conversations",
+            {"params": {"limit": 5, "search": "Geopolityka", "for_model": True}},
+        ),
+    ),
+    (
+        "create_conversation",
+        {"title": "GitHub daily"},
+        ("POST", "/conversations", {"json": {"title": "GitHub daily"}}),
+    ),
+    (
+        "update_proactivity_settings",
+        {
+            "watch_min_minutes": 20,
+            "briefing_hour": 10,
+            "monthly_limit_usd": "30",
+            "briefing_enabled": True,
+            "briefing_days": [1, 3],
+        },
+        (
+            "PATCH",
+            f"/orgs/{ORG}",
+            {
+                "json": {
+                    "proactive_watch_min_minutes": 20,
+                    "proactive_enabled": True,
+                    "proactive_days": [1, 3],
+                    "proactive_hour": 10,
+                    "proactive_timing": "fixed",
+                    "proactive_limit_usd": "30",
+                }
+            },
         ),
     ),
     # Only what the person said: a field left out stays as the account has it.
@@ -486,17 +732,157 @@ CALLS.extend(
 )
 
 
+CALLS.extend(
+    [
+        (
+            "create_routine",
+            {
+                "agent_id": str(AGENT),
+                "prompt": "Watch deployments",
+                "every_minutes": 10,
+                "ends_at": "2026-11-03T09:00:00+01:00",
+                "monthly_budget_usd": "3.50",
+                "delivery_conversation_id": str(RUN),
+            },
+            (
+                "POST",
+                f"/agents/{AGENT}/triggers",
+                {
+                    "json": {
+                        "prompt": "Watch deployments",
+                        "runs_as_creator": True,
+                        "interval_seconds": 600,
+                        "ends_at": "2026-11-03T09:00:00+01:00",
+                        "monthly_budget_usd": "3.50",
+                        "delivery_conversation_id": str(RUN),
+                        "answer_to": "conversation",
+                    }
+                },
+            ),
+        ),
+        (
+            "update_routine",
+            {
+                "agent_id": str(AGENT),
+                "routine_id": str(RUN),
+                "clear_end": True,
+                "clear_budget": True,
+                "answer_to": "primary",
+            },
+            (
+                "PATCH",
+                f"/agents/{AGENT}/triggers/{RUN}",
+                {"json": {"ends_at": None, "monthly_budget_usd": None, "answer_to": "primary"}},
+            ),
+        ),
+    ]
+)
+
+
+CALLS.extend(
+    [
+        ("get_skill", {"skill_id": str(KB)}, ("GET", f"/skills/{KB}", {})),
+        (
+            "update_skill",
+            {"skill_id": str(KB), "changes": {"content": "Revised"}},
+            ("PATCH", f"/skills/{KB}", {"json": {"content": "Revised"}}),
+        ),
+        (
+            "add_skill_resource",
+            {"skill_id": str(KB), "resource": {"name": "example.md", "content": "Example"}},
+            (
+                "POST",
+                f"/skills/{KB}/resources",
+                {"json": {"name": "example.md", "content": "Example", "description": None}},
+            ),
+        ),
+        (
+            "list_context_files",
+            {"q": "glossary"},
+            ("GET", "/context", {"params": {"q": "glossary", "skip": 0, "limit": 50}}),
+        ),
+        ("get_context_file", {"context_id": str(KB)}, ("GET", f"/context/{KB}", {})),
+        (
+            "create_context_file",
+            {"context": {"name": "glossary", "visibility": "private", "mode": "link"}},
+            (
+                "POST",
+                "/context",
+                {
+                    "json": {
+                        "name": "glossary",
+                        "description": None,
+                        "content": "",
+                        "format": "md",
+                        "mode": "link",
+                        "visibility": "private",
+                        "group_ids": [],
+                        "user_ids": [],
+                    }
+                },
+            ),
+        ),
+        (
+            "update_context_file",
+            {"context_id": str(KB), "changes": {"content": "Updated"}},
+            ("PATCH", f"/context/{KB}", {"json": {"content": "Updated"}}),
+        ),
+    ]
+)
+
+
 @pytest.mark.parametrize(("tool", "arguments", "call"), CALLS)
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
-    if tool == "list_projects":
+    if tool in ("list_projects", "list_conversations"):
         api.request.return_value = {"items": [], "total": 0}
     await server.call_tool(tool, arguments)
 
     method, path, kwargs = call
     assert api.request.await_args.args == (method, path)
     assert api.request.await_args.kwargs == kwargs
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"ends_at": "2027-01-01T12:00:00+00:00", "clear_end": True},
+        {"monthly_budget_usd": "5.00", "clear_budget": True},
+        {"pinned_version_id": str(KB), "follow_latest": True},
+    ],
+)
+async def test_routine_update_refuses_conflicting_limits(
+    server: FastMCP, api: MagicMock, arguments: dict[str, object]
+) -> None:
+    with pytest.raises(ToolError, match="not both"):
+        await server.call_tool(
+            "update_routine", {"agent_id": str(AGENT), "routine_id": str(RUN), **arguments}
+        )
+    api.request.assert_not_awaited()
+
+
+async def test_routine_update_sets_delivery_and_limits(server: FastMCP, api: MagicMock) -> None:
+    await server.call_tool(
+        "update_routine",
+        {
+            "agent_id": str(AGENT),
+            "routine_id": str(RUN),
+            "ends_at": "2027-01-01T12:00:00+00:00",
+            "monthly_budget_usd": "5.00",
+            "delivery_conversation_id": str(KB),
+        },
+    )
+    api.request.assert_awaited_once_with(
+        "PATCH",
+        f"/agents/{AGENT}/triggers/{RUN}",
+        json={
+            "ends_at": "2027-01-01T12:00:00+00:00",
+            "monthly_budget_usd": "5.00",
+            "delivery_conversation_id": str(KB),
+            "answer_to": "conversation",
+        },
+    )
 
 
 @pytest.mark.parametrize(
@@ -599,12 +985,14 @@ class TestEditingADraft:
             {
                 "agent_id": str(AGENT),
                 "instructions": "New",
+                "name": "Renamed Bot",
                 "description": "Answers refunds",
                 "add_capabilities": ["knowledge", "clock", "knowledge"],
                 "remove_capabilities": ["ask_user"],
                 "model_profile_id": str(KB),
                 "skill_ids": [str(skill)],
                 "collection_ids": [str(KB)],
+                "context_ids": [str(KB)],
                 "starters": ["How do refunds work?"],
             },
         )
@@ -613,7 +1001,7 @@ class TestEditingADraft:
         assert read.args == ("GET", f"/agents/{AGENT}")
         assert write.args == ("PUT", f"/agents/{AGENT}/draft")
         assert write.kwargs["json"]["spec"] == {
-            "name": "Bot",
+            "name": "Renamed Bot",
             "instructions": "New",
             "description": "Answers refunds",
             "model_profile_id": str(KB),
@@ -621,6 +1009,7 @@ class TestEditingADraft:
             "capabilities": [{"id": "clock", "config": {"timezone": "UTC"}}, {"id": "knowledge"}],
             "skill_ids": [str(skill)],
             "collection_ids": [str(KB)],
+            "context_ids": [str(KB)],
             "starters": ["How do refunds work?"],
         }
 
@@ -663,13 +1052,14 @@ class TestRemovingARoutine:
 
 
 class TestWhatNeverWaitsForApproval:
-    def test_only_the_askers_own_language_is_ungated(self) -> None:
-        """Switching the console's language changes the asker's own account on
-        their word (#2301); every other write - publishing and creating a skill
-        above all - is held."""
+    @pytest.mark.security
+    def test_only_console_language_bypasses_write_approval(self) -> None:
+        """Persistent automation requires the configured write confirmation."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
         assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        for name in ("create_routine", "update_routine", "create_watch", "update_watch"):
+            assert tools[name].writes and not tools[name].ungated
         assert tools["set_my_language"].writes
 
     @pytest.mark.security
@@ -685,30 +1075,28 @@ class TestWhatNeverWaitsForApproval:
         assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
+        assert tools["test_my_connection"].writes and not tools["test_my_connection"].ungated
 
-    def test_reading_a_whole_past_conversation_waits_like_a_write(self) -> None:
-        """Codex on #2324: `list_runs` names the conversations and this returns
-        them, so a page that injected both calls could carry one off."""
-        tools = {tool.name: tool for tool in platform_tool_catalog()}
+    @pytest.mark.security
+    async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
+        from pydantic_ai.tools import ToolDefinition
 
-        assert {name for name, tool in tools.items() if tool.held} == {
-            "read_conversation",
-            "get_project",
-        }
-        assert not tools["read_conversation"].writes
-        assert not tools["get_project"].writes
-        assert not tools["get_run"].held
-
-    async def test_a_held_read_is_announced_as_no_read_only_tool(self) -> None:
-        """The read-only hint is what the `writes` policy reads to let a call through."""
+        from app.agents.mcp import needs_approval
         from app.services.platform_mcp import build_platform_mcp
 
         server, _ = build_platform_mcp(MagicMock())
         listed = {tool.name: tool for tool in await server.list_tools()}
-
-        assert listed["read_conversation"].annotations.readOnlyHint is False
-        assert listed["get_project"].annotations.read_only_hint is False
-        assert listed["get_run"].annotations.readOnlyHint is True
+        for declared in platform_tool_catalog():
+            tool = listed[declared.name]
+            assert tool.annotations.read_only_hint is (not declared.writes)
+            definition = ToolDefinition(
+                name=tool.name,
+                metadata={"annotations": tool.annotations.model_dump(by_alias=True)},
+            )
+            assert needs_approval(definition, "writes") is declared.writes
+            assert needs_approval(definition, "all") is True
+        for name in ("get_project", "read_conversation", "get_run"):
+            assert listed[name].annotations.read_only_hint is True
 
     def test_the_agent_layer_names_the_same_set(self) -> None:
         from app.agents.mcp import PLATFORM_UNGATED_TOOLS
@@ -1164,6 +1552,63 @@ async def test_unexpected_platform_failures_stay_masked():
     assert "confidential" not in str(result.content)
 
 
+@pytest.mark.parametrize("follow_latest", [False, True])
+async def test_routine_update_selects_version_policy(
+    server: FastMCP, api: MagicMock, follow_latest: bool
+) -> None:
+    arguments = {"follow_latest": True} if follow_latest else {"pinned_version_id": str(KB)}
+    await server.call_tool(
+        "update_routine",
+        {
+            "agent_id": str(AGENT),
+            "routine_id": str(RUN),
+            **arguments,
+        },
+    )
+    assert api.request.await_args.kwargs["json"] == {
+        "pinned_version_id": None if follow_latest else str(KB),
+        "environment_id": None,
+    }
+
+
+async def test_routine_creation_can_pin_a_published_version(
+    server: FastMCP, api: MagicMock
+) -> None:
+    await server.call_tool(
+        "create_routine",
+        {
+            "agent_id": str(AGENT),
+            "prompt": "Report",
+            "every_minutes": 60,
+            "pinned_version_id": str(KB),
+        },
+    )
+    assert api.request.await_args.kwargs["json"]["pinned_version_id"] == str(KB)
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [
+        {"clear_pin": True, "pinned_version_id": KB},
+        {"clear_end": True, "ends_at": "2026-12-01T08:00:00Z"},
+    ],
+)
+async def test_a_watch_limit_cannot_be_cleared_and_set_in_the_same_tool_request(api, conflict):
+    tool = {tool.name: tool for tool in platform_tools(api)}["update_watch"]
+    with pytest.raises(ValueError, match="set and cleared"):
+        await tool.function(watch_id=RUN, **conflict)
+    api.request.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_delete_watch_uses_the_same_identity_and_requires_approval(api):
+    tool = {tool.name: tool for tool in platform_tools(api)}["delete_watch"]
+    assert await tool.function(watch_id=RUN) == {"deleted": str(RUN)}
+    api.request.assert_awaited_once_with("DELETE", f"/me/watches/{RUN}")
+    definition = {tool.name: tool for tool in platform_tool_catalog()}["delete_watch"]
+    assert definition.writes and not definition.ungated
+
+
 async def test_turkish_console_switch_uses_the_askers_own_account(
     server: FastMCP, api: MagicMock
 ) -> None:
@@ -1179,3 +1624,112 @@ async def test_an_unsupported_console_language_is_refused_before_any_api_call(
     with pytest.raises(MCPValidationError):
         await server.call_tool("set_my_language", {"locale": "xx"})
     api.request.assert_not_called()
+
+
+async def test_mcp_can_find_and_settle_the_callers_working_case(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["list_inbox_cases"](conversation_id=RUN)
+    api.request.assert_awaited_with(
+        "GET", "/outcomes", params={"include_source": "true", "conversation_id": str(RUN)}
+    )
+    await tools["settle_inbox_case"](outcome_id=RUN, action="resolve")
+    api.request.assert_awaited_with(
+        "POST", f"/outcomes/{RUN}/settle", json={"action": "resolve", "via": "chat"}
+    )
+
+
+async def test_mcp_routine_result_policy_is_preserved_on_create_and_update(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["create_routine"](
+        agent_id=AGENT, prompt="Check mail and draft replies", every_minutes=60, result_mode="inbox"
+    )
+    assert api.request.await_args.kwargs["json"]["result_mode"] == "inbox"
+    await tools["update_routine"](agent_id=AGENT, routine_id=RUN, result_mode="report")
+    assert api.request.await_args.kwargs["json"] == {"result_mode": "report"}
+
+
+async def test_answering_a_draft_question_uses_the_owned_run_answer_endpoint(
+    server: FastMCP, api: MagicMock
+) -> None:
+    await server.call_tool(
+        "answer_agent_questions",
+        {
+            "run_id": str(RUN),
+            "answers": {
+                "responses": {
+                    "question-call": [{"selected": ["Ray"], "answer": "", "skipped": False}]
+                }
+            },
+        },
+    )
+    assert api.request.await_args.args == ("POST", f"/runs/{RUN}/answers")
+    assert api.request.await_args.kwargs["json"] == {
+        "responses": {"question-call": [{"selected": ["Ray"], "answer": "", "skipped": False}]}
+    }
+
+
+async def test_task_receipts_and_unfiltered_context_use_the_current_api(server, api):
+    await server.call_tool("get_task", {"task_id": str(RUN)})
+    assert api.request.await_args.args == ("GET", f"/tasks/{RUN}")
+    await server.call_tool("list_context_files", {})
+    assert api.request.await_args.kwargs == {"params": {"limit": 50, "skip": 0}}
+    await server.call_tool(
+        "create_routine", {"agent_id": str(AGENT), "prompt": "Check", "answer_to": "primary"}
+    )
+    assert api.request.await_args.kwargs["json"]["answer_to"] == "primary"
+
+
+@pytest.mark.security
+async def test_routine_notification_override_and_inheritance_are_mutually_exclusive(server, api):
+    with pytest.raises(ToolError, match="not both"):
+        await server.call_tool(
+            "update_routine",
+            {
+                "agent_id": str(AGENT),
+                "routine_id": str(RUN),
+                "inherit_notifications": True,
+                "notification_channels": [],
+            },
+        )
+    api.request.assert_not_awaited()
+
+
+async def test_proactivity_settings_need_something_to_change(server: FastMCP, api: MagicMock):
+    with pytest.raises(Exception, match="at least one setting"):
+        await server.call_tool("update_proactivity_settings", {})
+    api.request.assert_not_called()
+
+
+async def test_proactivity_settings_need_an_organization(api: MagicMock):
+    api.request.return_value = {}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    with pytest.raises(ValueError, match="names no organization"):
+        await tools["update_proactivity_settings"](watches_enabled=True)
+
+
+async def test_a_conversation_listing_carries_only_ids_titles_and_dates(api: MagicMock):
+    api.request.return_value = {
+        "total": 1,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u", "x": 1}],
+    }
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["list_conversations"]() == {
+        "total": 1,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u"}],
+    }
+
+
+async def test_a_connection_check_names_its_tools(api: MagicMock):
+    api.request.return_value = {"ok": True, "error": None, "tools": [{"name": "search"}]}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["test_my_connection"](connection_id=uuid.uuid4()) == {
+        "ok": True,
+        "error": None,
+        "tools": ["search"],
+    }
+
+
+def test_proactivity_tool_explains_both_required_scopes(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "update_proactivity_settings")
+    assert tool.function.__doc__ is not None
+    assert "`org:settings` and `budgets:manage`" in tool.function.__doc__

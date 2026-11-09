@@ -11,9 +11,9 @@ twenty-first pushes the conversation out of the window. Skills invert that:
 
 ```mermaid
 flowchart LR
-    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
+    A["available skills<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_capability - the body"]
+    B -->|yes| C["read_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -85,6 +85,8 @@ loads.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 
+Long text resources are paged to keep reference manuals out of every model request: the default page is 8,000 characters, with a maximum of 20,000. Pass `args` with `offset` and `limit` to `read_skill_resource`; its reply gives the next offset. Read only the relevant ranges and reuse material already loaded.
+
 ## How an agent reads one
 
 Through the [`skills` capability](reference/capabilities.md#skills). Each skill
@@ -93,17 +95,15 @@ name and description and opened on demand:
 
 | How | What it does |
 |---|---|
-| The capability catalog | Names and one-line descriptions of everything bound to this agent |
-| `load_capability` | The full body of one skill, pulled into the conversation |
+| Available skills | Names and one-line descriptions of everything bound to this agent |
+| `read_skill` | The full body of one skill, pulled into the conversation |
 | `read_skill_resource` | One file beside a skill |
 
-`load_capability` is the agent framework's own tool, not one this platform
-publishes, so it is not something a spec grants or renames — but it **can** be
-gated, because it is the call that opens a skill: `tool_approval` on it is how an
-agent asks a person before a skill reaches the model, and a spec that gated the
-old `load_skill` is migrated onto it rather than left ungated. What the capability
-contributes as a tool of its own is `read_skill_resource`, and only when at least
-one of the bound skills ships a file to read.
+`read_skill` presents the framework's native deferred loader in skill-specific
+terms. Approval policies retain the stable key `load_capability`, so existing
+published specs and pending approvals keep working. The old `load_skill` approval
+key still migrates to it. There is no separate listing tool. `read_skill_resource`
+reads supporting files only after the skill has been opened.
 
 A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else.
@@ -197,32 +197,46 @@ turn or prevent its status and spend from being recorded.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**The bundled ones are already there.** The repository ships four: three worked
-examples — `refund-policy`, `code-review` and `incident-report` — and
-`artifact-pages`, which teaches an agent to build a page for the
-[Apps](artifacts.md#the-library-set) capability. Every organization starts
-with them. Creating an organization copies the whole shipped library in as
-ordinary skills, owned by the organization's owner and visible to the
-organization.
+**The bundled library arrives automatically.** New organizations receive the
+whole library, including platform-building procedures, durable work, research,
+visual design, Apps and presentation skills. The Skills page marks these copies
+`built-in`. They are ordinary organization-owned skills, not remote registry links.
 
-The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those four are not chosen — they arrive once, at
-creation.
+The `built-in` badge also identifies installed copies from the shipped skill gallery, including skills attached by the starter agents. It describes their shipped origin, not whether the organization installed them automatically. Gallery installation remains opt-in and existing customizations remain editable.
 
-**And they are yours from then on.** A seeded skill is an ordinary row: edit it or delete it. Nothing puts a deleted one back.
+Existing installations receive new built-ins when their shipped agents refresh
+on opening the console; creating an agent from the default starter also performs
+this synchronization. No manual seed command is required. Untouched copies are
+updated with their resources; edited or untracked differing copies stay unchanged.
+Installation receipts preserve deliberate deletion, so automatic refresh does not
+restore retired skills. The explicit seed command can restore them when requested.
+The skills listing itself remains read-only.
 
-That is a change. The listing used to top itself up — copying in any bundled name
-the organization did not have, every time anyone opened the page — so a deleted
-built-in returned on the next visit and disabling was the only way to retire one.
-It also meant a page that wrote rows while it read. The gallery is where a skill
-is chosen, and the seed command below is how a deployment pushes a new bundled
-one out on purpose.
+AgenticOS, Architect and new default agents bind the platform skills by default:
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
 
-!!! info "An organization created before a new bundled skill does not get it by itself"
+The optional `platform-tables`, `platform-context`, `platform-skills` and gallery API guides remain available in the library, but are no longer default bindings. Ordinary MCP reads and edits do not require loading a skill. Current tool descriptions own operation names, parameters and permissions; skills add design judgment and verification methods. Detailed visual recipes are resources loaded only when needed.
 
-    Run `seed-skills` for that organization, or install the skill from the
-    gallery. Both are deliberate, which is the point: nothing arrives on a page
-    load.
+They also bind the App, visual and presentation procedures, including storyline
+and review. Skills load progressively: names and descriptions first, bodies and
+resources only when relevant. Skills teach methods; they do not grant tools,
+accounts or a local compiler. Architect also ships with Apps and Charts tools.
+
+Default-agent refresh preserves customized fields independently, including prompt,
+tools and skill bindings. Changing only a model does not prevent the remaining
+untouched defaults from updating. New defaults apply to newly created agents;
+existing user-authored agents are not rewritten.
+
+Platform MCP can discover/create/edit Context files, bind their `context_ids` to
+an agent draft, and read/edit skills or add text resources. Context supports
+`inject` for standing prompt material and `link` for on-demand reading. Editing a
+bound file takes effect on the next run; changing a draft binding still requires
+publication. Resource writes keep normal permissions and approval gates.
+
+The document-production skill includes LaTeX starter sources and a build/render
+procedure. HTML Apps and browser decks remain distinct from compiled PDF or
+editable PPTX files. The agent must verify the actual compiler, generator and
+renderer available, and report a missing build or visual check honestly.
 
 The seed command does the same from a terminal, for scripted setups:
 
@@ -262,7 +276,7 @@ is an ordinary skill the organization owns and edits, exactly like a bundled one
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
-    The bundled four live in `app/core/catalog/skills/` and are copied into
+    The bundled library lives in `app/core/catalog/skills/` and are copied into
     **every** organization automatically. The gallery lives in
     `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
     the same parser, from a second directory, and never seeded.
@@ -378,4 +392,4 @@ after publish is skipped with a warning rather than failing the run.
 - Binding a skill **lends** it, so the publisher must be able to see it — and
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
-  unlike the bundled three, which arrive on their own.
+  unlike the bundled library, which arrive on their own.

@@ -132,7 +132,7 @@ this fixture exists to catch.
 - **A material or dimension is invented for FW-104.** The skill's "Never"
   section is being ignored; repeat the instruction in the agent's own
   instructions field, not only in the skill.
-- **The agent calls `load_capability` with the wrong id and the turn ends in
+- **The agent calls `read_skill` with the wrong id and the turn ends in
   an error.** This happened during verification on 0.0.508, when the gallery
   entry was installed as `Product description writer`: the model twice wrote
   the hyphenated id instead, and the turn ended in `UnexpectedModelBehavior`

@@ -1,5 +1,5 @@
 ---
-source_sha: "9d46f3e89ce9"
+source_sha: "087a50c95d4c"
 title: "Dokumente mit Ihrer Terminologie übersetzen"
 description: "Binden Sie ein Glossar mit zehn Begriffen an einen Agent und prüfen Sie, dass jeder Begriff angewendet wird, nicht zu übersetzende Begriffe und Zahlen erhalten bleiben und eine Mehrdeutigkeit markiert statt still aufgelöst wird."
 ---
@@ -108,7 +108,7 @@ Lesen Sie den polnischen Text Begriff für Begriff gegen das Glossar. Verlassen 
 
 !!! example "Festgehalten auf v0.0.504, 25. September 2026"
 
-    Modell: Claude Sonnet 4.6 über OpenRouter. Der Agent rief `load_capability` für `fenwick-glossary` auf und übersetzte dann das ganze Dokument in einer Antwort. Alle fünf Glossarbegriffe wurden korrekt übersetzt, und alle fünf nicht zu übersetzenden Begriffe, einschließlich `workspace`, `API key` und `sandbox` in polnischen Sätzen, blieben auf Englisch. `EUR 50,000` und `03/04/2026` wurden unverändert übernommen. Kosten: 0,017 USD.
+    Modell: Claude Sonnet 4.6 über OpenRouter. Der Agent rief `read_skill` für `fenwick-glossary` auf und übersetzte dann das ganze Dokument in einer Antwort. Alle fünf Glossarbegriffe wurden korrekt übersetzt, und alle fünf nicht zu übersetzenden Begriffe, einschließlich `workspace`, `API key` und `sandbox` in polnischen Sätzen, blieben auf Englisch. `EUR 50,000` und `03/04/2026` wurden unverändert übernommen. Kosten: 0,017 USD.
 
     Nach der Übersetzung fügte der Agent einen markierten Hinweis hinzu: In der Lesart Tag zuerst ist 03/04/2026 der 3. April 2026 (in der Übersetzung verwendet), in der Lesart Monat zuerst der 4. März 2026. Er empfahl zu bestätigen, welches gemeint war. Ohne angehängte Datei lud er das Glossar und fragte dann nach dem Dokument, statt nichts zu übersetzen.
 

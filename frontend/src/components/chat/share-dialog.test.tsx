@@ -11,6 +11,8 @@ const revokeShare = vi.fn();
 const changePermission = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
 const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
+const sharesError = vi.fn<() => string | null>(() => null);
+const sharesLoading = vi.fn<() => boolean>(() => false);
 const membersError = vi.fn<() => string | null>(() => null);
 const fetchMembers = vi.fn();
 
@@ -18,7 +20,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks", () => ({
   useConversationShares: () => ({
     shares: listedShares(),
-    isLoading: false,
+    isLoading: sharesLoading(),
+    error: sharesError(),
     shareConversation,
     fetchShares,
     revokeShare,
@@ -72,6 +75,8 @@ beforeEach(() => {
   listedMembers.mockReturnValue(MEMBERS);
   listedShares.mockReturnValue([]);
   membersError.mockReturnValue(null);
+  sharesError.mockReturnValue(null);
+  sharesLoading.mockReturnValue(false);
   shareConversation.mockResolvedValue({ id: "s-1" });
   revokeShare.mockResolvedValue(undefined);
   changePermission.mockResolvedValue({});
@@ -513,4 +518,19 @@ describe("who it is shared with", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Not yours to revoke");
   });
+});
+
+it("distinguishes a failing shares read from nobody having access and offers retry", async () => {
+  sharesError.mockReturnValue("Could not read access");
+  renderDialog();
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not read access");
+  expect(screen.queryByText("Not shared with anyone yet")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(fetchShares).toHaveBeenCalledWith("c1");
+});
+
+it("shows loading rather than an empty access list while shares are being read", () => {
+  sharesLoading.mockReturnValue(true);
+  renderDialog();
+  expect(screen.getByRole("status")).toHaveTextContent("Loading");
 });

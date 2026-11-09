@@ -45,8 +45,10 @@ from app.db.models.conversation import Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.system_agent_profile import DAILY_BRIEFING
 from app.db.models.user import User
 from app.db.models.voice_call import VoiceCall
+from app.repositories.conversation import mark_run_messages_refused
 
 
 async def create_run(
@@ -72,9 +74,21 @@ async def create_run(
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
+    system_role: str | None = None,
+    trigger_id: UUID | None = None,
+    routine_origin_id: UUID | None = None,
+    routine_kind: str = "trigger",
+    routine_policy: dict[str, object] | None = None,
+    routine_activation_at: datetime | None = None,
 ) -> AgentRun:
     run = AgentRun(
+        trigger_id=trigger_id,
+        routine_origin_id=routine_origin_id or trigger_id,
+        routine_kind=routine_kind,
+        routine_policy=routine_policy,
+        routine_activation_at=routine_activation_at,
         key_scopes=key_scopes,
+        system_role=system_role,
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
@@ -157,9 +171,7 @@ async def finish_run(
     await db.flush()
     # The rows already written; see `Message.guardrail_refused` for why on the row.
     if status == RunStatus.GUARDRAIL_BLOCKED.value:
-        await db.execute(
-            sql_update(Message).where(Message.run_id == run.id).values(guardrail_refused=True)
-        )
+        await mark_run_messages_refused(db, run_id=run.id)
     await db.refresh(run)
     return run
 
@@ -375,6 +387,17 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     run.ended_at = None
     # The next park starts unannounced.
     run.chat_notice_sent_at = None
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def keep_paused_state(
+    db: AsyncSession, *, run: AgentRun, paused_state: dict[str, Any]
+) -> AgentRun:
+    """Persist accepted question results while the run remains parked."""
+    run.paused_state = paused_state
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -698,21 +721,84 @@ async def proactive_spend_since(
             AgentRun.organization_id == organization_id,
             AgentRun.user_id == user_id,
             AgentRun.surface == RunSurface.PROACTIVE.value,
+            _in_proactivity_limit(),
             AgentRun.started_at >= since,
         )
     )
     return Decimal(result.scalar_one())
 
 
-async def last_proactive_run_at(
+def _in_proactivity_limit() -> Any:
+    """Background runs that count toward a person's proactivity limit.
+
+    A platform role such as memory maintenance has a budget of its own and is not
+    something the person's limit should be spent on, so only unattributed runs and
+    the daily briefing count here.
+    """
+    return or_(AgentRun.system_role.is_(None), AgentRun.system_role == "daily_briefing")
+
+
+async def role_spend_since(
+    db: AsyncSession, *, organization_id: UUID, role: str, since: datetime
+) -> Decimal:
+    """What one system role spent in this organization since `since`."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.system_role == role,
+            AgentRun.started_at >= since,
+        )
+    )
+    return Decimal(result.scalar_one())
+
+
+async def spend_by_trigger_since(
+    db: AsyncSession, *, trigger_ids: Sequence[UUID], since: datetime
+) -> dict[UUID, Decimal]:
+    """What the runs each of these triggers started have cost since `since`.
+
+    A trigger with no run in the window is absent rather than zero, so a caller asking
+    about many reads one grouped row per spender and defaults the rest itself.
+    """
+    if not trigger_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.trigger_id, func.coalesce(func.sum(AgentRun.cost_usd), 0))
+        .where(AgentRun.trigger_id.in_(list(trigger_ids)), AgentRun.started_at >= since)
+        .group_by(AgentRun.trigger_id)
+    )
+    return {
+        trigger_id: Decimal(total) for trigger_id, total in result.all() if trigger_id is not None
+    }
+
+
+async def recent_role_runs(
+    db: AsyncSession, *, organization_id: UUID, role: str, limit: int
+) -> list[AgentRun]:
+    """A system role's latest executions, newest first - its history in settings."""
+    result = await db.execute(
+        select(AgentRun)
+        .where(AgentRun.organization_id == organization_id, AgentRun.system_role == role)
+        .order_by(AgentRun.started_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def last_nightly_run_at(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID
 ) -> datetime | None:
-    """When the platform last thought about this person here - their last background run."""
+    """The last nightly look attempt, excluding watches and unclassified legacy runs.
+
+    Legacy NULL roles cannot distinguish a watch from a look. They still count
+    toward spending, but cannot postpone a person's next nightly look.
+    """
     result = await db.execute(
         select(func.max(AgentRun.started_at)).where(
             AgentRun.organization_id == organization_id,
             AgentRun.user_id == user_id,
             AgentRun.surface == RunSurface.PROACTIVE.value,
+            AgentRun.system_role == DAILY_BRIEFING,
         )
     )
     return result.scalar_one_or_none()
@@ -2243,6 +2329,10 @@ async def list_unanswered_runs(
         .where(
             AgentRun.status == RunStatus.AWAITING_ANSWER.value,
             AgentRun.ended_at < older_than,
+            or_(
+                AgentRun.paused_state["question_results"].is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
         )
         .order_by(AgentRun.ended_at.asc())
         .limit(limit)
@@ -2484,3 +2574,104 @@ async def record_attachment_lookup(db: AsyncSession, run: AgentRun) -> None:
     run.earlier_attachments_checked = True
     db.add(run)
     await db.flush()
+
+
+async def latest_terminal_for_trigger(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    trigger_id: UUID,
+) -> UUID | None:
+    """Use the latest admitted root run, independent of callback or rescue order."""
+    return await db.scalar(
+        select(AgentRun.id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.parent_run_id.is_(None),
+            or_(
+                AgentRun.trigger_id == trigger_id,
+                and_(AgentRun.routine_kind == "trigger", AgentRun.routine_origin_id == trigger_id),
+            ),
+            AgentRun.status.in_(
+                [
+                    RunStatus.COMPLETED.value,
+                    RunStatus.FAILED.value,
+                    RunStatus.LOOP_STOPPED.value,
+                    RunStatus.BUDGET_EXCEEDED.value,
+                    RunStatus.GUARDRAIL_BLOCKED.value,
+                ]
+            ),
+        )
+        .order_by(
+            func.coalesce(AgentRun.routine_activation_at, AgentRun.started_at, AgentRun.ended_at)
+            .desc()
+            .nulls_last(),
+            AgentRun.ended_at.desc().nulls_last(),
+            AgentRun.id.desc(),
+        )
+        .limit(1)
+    )
+
+
+async def remembered_tool_approval(
+    db: AsyncSession,
+    *,
+    run: AgentRun,
+    user_id: UUID,
+    tool_name: str,
+    account: str | None,
+) -> ToolApproval | None:
+    """A click for this person, version, tool and account, within its chosen scope."""
+    from app.db.models.organization import OrganizationMember
+
+    return await db.scalar(
+        select(ToolApproval)
+        .join(AgentRun, ToolApproval.run_id == AgentRun.id)
+        .join(
+            OrganizationMember,
+            and_(
+                OrganizationMember.organization_id == ToolApproval.organization_id,
+                OrganizationMember.user_id == user_id,
+            ),
+        )
+        .where(
+            ToolApproval.organization_id == run.organization_id,
+            ToolApproval.agent_id == run.agent_id,
+            ToolApproval.tool_id == tool_name,
+            ToolApproval.account.is_not_distinct_from(account),
+            ToolApproval.subagent_name.is_(None),
+            ToolApproval.status == ApprovalStatus.APPROVED.value,
+            ToolApproval.decided_via == ApprovalDecidedVia.CLICK.value,
+            ToolApproval.decided_by_user_id == user_id,
+            ToolApproval.decided_at >= OrganizationMember.joined_at,
+            AgentRun.agent_version_id == run.agent_version_id,
+            AgentRun.test_spec.is_(None),
+            AgentRun.surface == RunSurface.WEB.value,
+            or_(
+                ToolApproval.remember_scope == "agent",
+                and_(
+                    ToolApproval.remember_scope == "conversation",
+                    AgentRun.conversation_id == run.conversation_id,
+                    AgentRun.conversation_id.is_not(None),
+                ),
+            ),
+        )
+        .order_by(ToolApproval.decided_at.desc())
+        .limit(1)
+    )
+
+
+async def list_tool_consents(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[tuple[ToolApproval, str]]:
+    rows = await db.execute(
+        select(ToolApproval, Agent.name)
+        .join(Agent, Agent.id == ToolApproval.agent_id)
+        .where(
+            ToolApproval.organization_id == organization_id,
+            ToolApproval.decided_by_user_id == user_id,
+            ToolApproval.remember_scope.is_not(None),
+        )
+        .order_by(ToolApproval.decided_at.desc())
+    )
+    return [(row[0], row[1]) for row in rows]

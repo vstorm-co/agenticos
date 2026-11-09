@@ -2,11 +2,15 @@
 
 import logging
 import secrets
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.drafts._spec import DRAFTED, WRITE_DRAFT, parse_draft_card
+from app.agents.capabilities.drafts._spec import (
+    DRAFTED,
+    parse_draft_card,
+)
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -70,9 +74,9 @@ def shared_drafts(conversation: Conversation) -> dict[UUID, list[SharedDraft]]:
         (message.id, call)
         for message in conversation.messages or []
         for call in _in_turn_order(message)
-        if call.tool_name == WRITE_DRAFT
-        and call.status == "completed"
+        if call.status == "completed"
         and (call.result or "").startswith(DRAFTED)
+        and call.presentation_kind == "draft"
     ]
     shared: dict[UUID, list[SharedDraft]] = {}
     budget = SHARED_MAX_DRAFT_CHARS
@@ -141,6 +145,10 @@ class ConversationShareService:
                 details={"conversation_id": str(conversation_id)},
             )
 
+        if permission == "edit" and not await conversation_share_repo.lock_private_publication(
+            self.db, conversation_id, conv.organization_id
+        ):
+            raise NotFoundError(message="Conversation not found")
         share_token = None
 
         if generate_link:
@@ -220,7 +228,13 @@ class ConversationShareService:
         )
 
     async def change_permission(
-        self, conversation_id: UUID, share_id: UUID, user_id: UUID, *, permission: str
+        self,
+        conversation_id: UUID,
+        share_id: UUID,
+        user_id: UUID,
+        *,
+        permission: Literal["view", "edit"],
+        organization_id: UUID,
     ) -> ConversationShare:
         """Change what a share with a person allows. Owner only.
 
@@ -235,7 +249,12 @@ class ConversationShareService:
         """
         conv = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         share = await conversation_share_repo.get_by_id(self.db, share_id)
-        if conv is None or share is None or share.conversation_id != conversation_id:
+        if (
+            conv is None
+            or conv.organization_id != organization_id
+            or share is None
+            or share.conversation_id != conversation_id
+        ):
             raise NotFoundError(
                 message="Share not found",
                 details={"conversation_id": conversation_id, "share_id": share_id},
@@ -245,6 +264,17 @@ class ConversationShareService:
         if share.share_token is not None:
             raise BadRequestError(
                 message="A share link is view-only", details={"share_id": share_id}
+            )
+        if conv.project_id is not None:
+            raise BadRequestError(
+                message="A project's chat is shared through its project - share the project",
+                details={"conversation_id": conversation_id},
+            )
+        if permission == "edit" and not await conversation_share_repo.lock_private_publication(
+            self.db, conversation_id, organization_id
+        ):
+            raise NotFoundError(
+                message="Conversation not found", details={"conversation_id": conversation_id}
             )
         return await conversation_share_repo.set_permission(
             self.db, share=share, permission=permission

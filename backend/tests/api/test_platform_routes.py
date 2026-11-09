@@ -137,6 +137,7 @@ _SERVICE_DEPS = (
     deps.get_skill_service,
     deps.get_context_service,
     deps.get_virtual_table_service,
+    deps.get_durable_task_service,
     deps.get_memory_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
@@ -247,6 +248,8 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
+    Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
     Call(
         "POST",
@@ -494,6 +497,10 @@ CALLS: tuple[Call, ...] = (
     # caller's scope and grants against the row - `readable_kb`/`writable_kb`.
     Call("GET", "/kb", Perm.COLLECTIONS_VIEW),
     Call("POST", "/kb", Perm.COLLECTIONS_EDIT, body={"name": "Docs", "scope": "org"}),
+    # The exception under /kb/{kb_id}: the organization's integrations - every
+    # base's, not this one's - which `/org/integrations` gates the same way, so
+    # no grant on the base in the path could widen it (#2745).
+    Call("GET", "/kb/{kb_id}/sync-sources/org-integrations", Perm.CONNECTIONS_MANAGE),
     # Org-level sync integrations hold encrypted credentials, so the whole
     # surface is `connections:manage` - the permission, not a role-name list,
     # which is what this router used to check.
@@ -1001,6 +1008,7 @@ RESOURCE_AWARE_SERVICES = (
     # A table is a shared resource like a context file: who may read or write it
     # (and every record in it) is its grants' answer, resolved inside the service.
     deps.get_virtual_table_service,
+    deps.get_durable_task_service,
     # The same service on the session a CSV export streams from.
     deps.get_streaming_virtual_table_service,
     # A workflow is a shared resource shaped the same way: who may read, edit the
@@ -1294,6 +1302,8 @@ class TestReadingWhatARunIsParkedOn:
                 "capability_tool_id": None,
                 "context": None,
                 "account": None,
+                "can_remember": False,
+                "subagent_name": None,
             },
             {
                 "id": str(shared_id),
@@ -1304,6 +1314,8 @@ class TestReadingWhatARunIsParkedOn:
                 "capability_tool_id": "update_record",
                 "context": {"table": "Support"},
                 "account": None,
+                "can_remember": False,
+                "subagent_name": None,
             },
         ]
 
@@ -1820,6 +1832,16 @@ V1 = settings.API_V1_STR
 # in the diff of this list is a route a reviewer will look at.
 UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        # Twilio fetches staged MMS bytes with an expiring, media-bound token.
+        ("GET", f"{V1}/sms/media/{{media_id}}"),
+        # A BlueBubbles bridge supplies its configured bearer credential, not a user session.
+        ("POST", f"{V1}/imessage/{{bot_id}}/webhook"),
+        # Twilio callbacks verify the provider signature and call/endpoint binding.
+        ("POST", f"{V1}/phone/inbound/{{endpoint_id}}"),
+        ("POST", f"{V1}/phone/inbound-status/{{endpoint_id}}"),
+        ("POST", f"{V1}/phone/status/{{call_id}}"),
+        # Media streams additionally require the call's signed nonce and receipt.
+        ("WEBSOCKET", f"{V1}/phone/media/{{call_id}}"),
         # Custom brand icons. The consumer is a CSS mask URL in the browser,
         # which cannot attach a bearer token; what they reveal - which marks
         # this deployment ships - is what any signed-in page renders anyway.
@@ -1959,6 +1981,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # would simply mean the integration never worked.
         ("POST", f"{V1}/slack/{{bot_id}}/events"),
         ("POST", f"{V1}/telegram/{{bot_id}}/webhook"),
+        # SMS and e-mail are the same arrangement: Twilio signs its request with the
+        # account's auth token, and a mail relay signs its own with the bot's secret;
+        # each handler verifies that against the bot named in the path (#2082).
+        ("POST", f"{V1}/sms/{{bot_id}}/webhook"),
+        ("POST", f"{V1}/email/{{bot_id}}/inbound"),
         # Mattermost is the same arrangement with a weaker primitive: it does
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.

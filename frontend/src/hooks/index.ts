@@ -13,6 +13,7 @@ export {
 export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
+export { useCodingChanges } from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
@@ -37,6 +38,7 @@ export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connecti
 export { useUsableMcpConnections } from "./use-usable-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
+export { useMyClaims } from "./use-my-claims";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export { useRetention } from "./use-retention";
 export {
@@ -94,7 +96,7 @@ export { useBrandingNotice } from "./use-branding-notice";
 export { useTables, useTable, useAllTables } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
-export { useTableViews } from "./use-table-views";
+export { useTableViews, useTableDefaultView } from "./use-table-views";
 export { useRecordMutation, isRevisionConflict } from "./use-record-mutation";
 export {
   useLocalSandboxService,
@@ -159,6 +161,7 @@ export {
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+export { useWorkflowChatRun, useWorkflowRunQuestions } from "./use-workflow-questions";
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
 export { useWorkflowLogs } from "./use-workflow-logs";
@@ -184,4 +187,15 @@ export { useVoiceSession, type VoiceSession, type VoiceTarget } from "./use-voic
 export { useReleaseUpdate } from "./use-release-update";
 
 export { useCurrentRelease } from "./use-current-release";
+
+export { useRoutineActions } from "./use-routine-actions";
+
+export { useNotificationRoutes } from "./use-notification-routes";
+
+export { useRoutineLocalWork } from "./use-routine-local-work";
+
 export { useWikiGraph } from "./use-wiki-graph";
+
+export { useDurableTasks } from "./use-durable-tasks";
+
+export { useCodingAccounts } from "./use-coding-accounts";

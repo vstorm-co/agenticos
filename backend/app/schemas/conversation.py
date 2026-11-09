@@ -89,13 +89,17 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention"] = (
-        Field(description="What this entry is.")
-    )
+    type: Literal[
+        "text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention", "phone_call"
+    ] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
     )
+    phone_call_id: UUID | None = Field(
+        default=None, description="The owned telephone receipt for a phone_call entry."
+    )
+
     file_source: MessageFileSource | None = Field(
         default=None,
         description="The turn's file origin, recorded with its timeline so later workspace changes cannot retarget its links.",
@@ -173,6 +177,8 @@ class ToolCallComplete(BaseSchema):
 
 
 class ToolCallRead(ToolCallBase):
+    tool_id: str | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     """Schema for reading a tool call (API response)."""
 
     id: UUID
@@ -427,6 +433,9 @@ class MessageRead(MessageBase, TimestampSchema):
             "half-written answer that reads exactly like a complete one."
         ),
     )
+    run_started_at: datetime | None = Field(
+        default=None, description="The parent run start shared by transcript and sidebar timers"
+    )
     run_duration_ms: int | None = Field(
         default=None,
         description=(
@@ -560,6 +569,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "they last had it open. Set on a listing; `POST /conversations/{id}/read` "
             "clears it."
         ),
+    )
+    running_run_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Active top-level runs, so completing one does not hide another.",
     )
     running_since: datetime | None = Field(
         default=None,

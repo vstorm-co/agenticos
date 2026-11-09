@@ -112,11 +112,11 @@ PAGES_GUIDE = "artifact-pages"
 """The bundled skill that holds the page templates and every kit component.
 
 A skill reaches a run as a deferred capability whose id is the skill's name, so
-this is also the id `load_capability` takes."""
+this is also the id `read_skill` takes."""
 
 _LOAD_THE_GUIDE = (
     f"Before publishing a new page, load the `{PAGES_GUIDE}` guide with "
-    f"`load_capability` (id `{PAGES_GUIDE}`), rebuild the page from its template and "
+    f"`read_skill` (id `{PAGES_GUIDE}`), rebuild the page from its template and "
     "components, then publish again under the same name."
 )
 
@@ -162,6 +162,8 @@ draws a binding as a finished table with its loading, empty and unavailable stat
 record text with `textContent`, never `innerHTML`.
 - When `{PAGES_GUIDE}` is listed as a capability to load, load it before your first page: \
 it has the templates and every component.
+- Decks: load presentation-decks, deck-storyline and deck-review when available. Preview and repair.
+- For LaTeX/PPTX load document-production: pages do not compile/export native files. Verify outputs.
 """
 """What a page must look like, in the system prompt of every Artifacts agent.
 

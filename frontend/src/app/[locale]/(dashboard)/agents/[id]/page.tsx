@@ -1,5 +1,7 @@
 "use client";
 
+import { MoreOptions } from "@/components/ui/more-options";
+
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -16,17 +18,19 @@ import {
   FlaskConical,
   History,
   ImagePlus,
-  MessageSquare,
   MoreHorizontal,
   Network,
   Plug,
   Trash2,
   Upload,
-  Workflow,
   Radio,
   UserPlus,
   X,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -41,6 +45,7 @@ import {
 } from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { entryForConnection } from "@/lib/mcp-servers";
+import { openPrimaryConversation } from "@/lib/primary-conversation-api";
 import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-state";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
@@ -89,6 +94,7 @@ import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
+import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
@@ -153,13 +159,14 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  enableMcpToolSearch,
   withContextFiles,
   withSkills,
   withVisuals,
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
@@ -230,6 +237,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     agent,
     isLoading,
     fetchedAt,
+    error: agentError,
+    refetch: refetchAgent,
     saveDraft,
     validate,
     publish,
@@ -301,6 +310,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { servers: mcpCatalog, isLoading: catalogLoading, error: catalogError } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
+  const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -783,7 +793,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  if (isLoading || !spec || !agent) return <BuilderSkeleton />;
+  if (isLoading) return <BuilderSkeleton />;
+  if (agentError || !agent) {
+    const unavailable =
+      agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403);
+    return (
+      <ErrorState
+        title={tAgents(unavailable ? "unavailableTitle" : "loadFailedTitle")}
+        description={
+          unavailable ? tAgents("unavailableDescription") : getErrorMessage(agentError, tErrors)
+        }
+        cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+      />
+    );
+  }
+  if (!spec) return <BuilderSkeleton />;
 
   const isPublished = agent.status === "published";
 
@@ -867,6 +891,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
     selectAgentForChat(id);
     resetConversation();
     router.push(ROUTES.CHAT);
+  }
+
+  /**
+   * Continue the one private conversation this person has with this agent.
+   *
+   * Unlike "Open in chat" it does not start a thread: it opens the stable one the
+   * server keeps per person and agent, creating it the first time. A failure is
+   * reported, because landing in an empty new chat would read as the history
+   * being gone.
+   */
+  async function continueConversation() {
+    try {
+      const conversationId = await openPrimaryConversation(id);
+      selectAgentForChat(id);
+      openConversation(conversationId);
+      router.push(ROUTES.CHAT);
+    } catch (failure) {
+      toast.error(getErrorMessage(failure, tErrors));
+    }
   }
 
   async function handleAvatar(event: React.ChangeEvent<HTMLInputElement>) {
@@ -985,6 +1028,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
               >
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={continueConversation}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <History className="h-4 w-4" />
+                {t("continueConversation")}
               </Button>
               {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
               <PinAgentButton
@@ -1449,12 +1501,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            <StartersPanel
-              starters={spec.starters ?? []}
-              disabled={!canEdit}
-              onChange={(starters) => update({ starters })}
-            />
-
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
             <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
@@ -1487,11 +1533,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
                   )}
                 </div>
-                <ModelSettingsForm
-                  value={spec.model_settings}
-                  onChange={(model_settings) => update({ model_settings })}
-                  disabled={!canEdit}
-                />
+                <MoreOptions label={t("modelSettings")}>
+                  <ModelSettingsForm
+                    value={spec.model_settings}
+                    onChange={(model_settings) => update({ model_settings })}
+                    disabled={!canEdit}
+                  />
+                </MoreOptions>
                 <ThinkingSetting
                   definition={capabilities.find((entry) => entry.id === THINKING_ID)}
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
@@ -1528,6 +1576,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 ),
               }}
               disabled={!canEdit}
+            />
+
+            <StartersPanel
+              starters={spec.starters ?? []}
+              icons={spec.starter_icons ?? {}}
+              titles={spec.starter_titles ?? {}}
+              disabled={!canEdit}
+              onChange={(starters, starter_icons, starter_titles) =>
+                update({ starters, starter_icons, starter_titles })
+              }
             />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
@@ -1699,7 +1757,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   connections={mcpConnections}
                   personalConnections={myMcpConnections}
                   onEnableToolSearch={() =>
-                    update({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+                    update({ capabilities: enableMcpToolSearch(spec.capabilities) })
                   }
                   disabled={!canEdit}
                 />

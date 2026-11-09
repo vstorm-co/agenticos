@@ -1,5 +1,5 @@
 ---
-source_sha: "b91e3f9da2ed"
+source_sha: "cc88ed3eb4e4"
 ---
 
 # API HTTP { #the-http-api }
@@ -21,6 +21,11 @@ Trzy drogi wejścia, dla trzech różnych wywołujących.
 | **Klucz API organizacji** | `Authorization: Bearer aos_…` | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
 | **JWT** | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem |
 | **Ciasteczko sesji** | ustawiane przez konsolę | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu |
+
+Klucze organizacji wysyłaj przez `Authorization: Bearer aos_…`. `X-API-Key` służy osobnemu
+poświadczeniu usług wdrożenia; klucz `aos_…` w tym nagłówku nie uwierzytelnia żądania organizacji.
+Trasy sejfu, np. `GET /api/v1/secrets`, oraz trasa wiadomości konsoli wymagają zalogowanej sesji.
+Klient API czyta rozmowę przez `GET /api/v1/conversations/{id}/transcript`.
 
 ### Klucze API organizacji { #organization-api-keys }
 
@@ -55,6 +60,24 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
+
+**Pracę, która działa jako ty, ustawiasz też kluczem, który sam wydałeś.** Klucz,
+który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworzyć i
+zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
+twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
+cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
+podlega jej przejrzanym źródłom i budżetowi. Nie może tego zrobić credential
+uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
+ciebie podszywa.
+
+Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
+klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i
+`PATCH /api/v1/conversations/{id}` otwierają i zmieniają nazwę czatu
+(`agents:run`) - na przykład wątku tematycznego, do którego pisze routine.
+`POST /api/v1/me/mcp-connections/{id}/test` sprawdza twoje połączenie i odświeża
+jego narzędzia (`agents:run`).
 
 Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`
@@ -173,6 +196,17 @@ jako blok JSON.
 Buildera: run testowy, dla klucza, którego wystawca może edytować agenta,
 odrzucany z podaniem powodu, gdy draft by się nie opublikował, i nigdy z
 `Prefer: respond-async`.
+
+Uruchomienia synchroniczne, także testy draftów, zwracają `status: awaiting_answer` i `questions`,
+gdy agent pyta użytkownika. Odpowiedz przez `POST /api/v1/runs/{run_id}/answers`, podając
+`{"responses":{"<tool_call_id>":[{"selected":["Wybór"]}]}}`; `answer` przyjmuje własny tekst, a
+`skipped: true` oznacza świadome pominięcie. Brak odpowiedzi nie jest automatyczną odmową.
+Platformowy MCP udostępnia ten przepływ przez `test_agent_draft` i `answer_agent_questions`.
+
+Historia rozmowy zachowuje odpowiedzi z kart pytań i udane załadowania odroczonych capabilities.
+Aktualnie przypięte skille wczytują bieżące instrukcje w następnej turze; odpięte skille nie
+odzyskują dostępu. Historyczne wyniki tabel nie zastępują aktualnych danych. Pole `starters` agenta
+opisuje wersję opublikowaną, a startery draftu są w `draft_spec.starters`.
 
 Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
 `PATCH` i `DELETE` pod `/api/v1/agents/{agent_id}/triggers`, a także
@@ -310,6 +344,31 @@ To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
 węzły działają w tle. `input` to to, co przekazuje dalej wyzwalacz [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). Tutaj uruchamia się tylko wersja, która startuje od tego wyzwalacza albo bez żadnego: każda inna odpowiada `409
 WORKFLOW_TRIGGER_MISMATCH`, bo uruchamia ją webhook, harmonogram, wiadomość na czacie albo rekord tabeli. `"mode": "test"` uruchamia zamiast tego bieżący draft, od dowolnego wyzwalacza, i
 wymaga `workflows:edit`.
+
+Przed wywołaniem odczytaj `GET /api/v1/workflows/{id}/input-schema` z
+`workflows:view`. Odpowiedź zawiera opublikowane `version_id` i listę `entries` z
+`entry_node_id`, `trigger` i efektywnym `input_schema` dla każdego wejścia Manual,
+API, Called by a workflow lub Form. Przekaż `version_id`, aby sprawdzić konkretną
+opublikowaną wersję. Kontrakty JSON Schema są zwracane bez zmian; proste pola są
+przedstawiane jako JSON Schema, a nietypowane wejścia zwracają `{"type": "object"}`.
+Użyj kontraktu wybranego wejścia i przekaż jego `entry_node_id` przy uruchamianiu.
+
+Dotychczasowe proste pola `integer` wymagają dodatkowo tokenów całkowitych JSON:
+`1` jest przyjmowane, a `1.0` i `1e0` są odrzucane. Odkrywanie oznacza te pola
+przez `x-agenticos-strict-integer: true`, także wewnątrz opcjonalnych pól
+dopuszczających null. Zwykły JSON Schema nie potrafi wymusić tej różnicy zapisu,
+więc sama walidacja schematu nie wystarcza dla tych pól; rozstrzyga walidacja
+serwera. Surowe kontrakty JSON Schema stosują standardową semantykę integer.
+
+Opcjonalny [kontrakt wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+jest sprawdzany przed przyjęciem runu. Niezgodność zwraca
+`422 WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami w `error.details.fields`;
+run nie powstaje. Każdy wpis ma `field` i `message`; zagnieżdżone ścieżki żądania
+zawierają indeksy tablic, na przykład `input.items.0.sku`. Dla dotychczasowych
+wywołujących `error.details.problems` zachowuje też `field`, `message` i `type`
+ze ścieżkami względem obiektu wejścia. Kontrakt pochodzi z bieżącej opublikowanej
+wersji albo ze szkicu dla `"mode": "test"`. Obowiązuje tak samo przez WebSocket
+i MCP oraz gdy wywołuje inny workflow.
 
 `deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
@@ -857,3 +916,6 @@ tylko do przodu.
   odpytywania, więc długi run nie trzyma otwartego połączenia.
 - **Publiczne API jest w `/api/v1/public/openapi.json`** i w ramach v1 zmienia
   się tylko addytywnie, z 90 dniami deprecjacji; SDK jeszcze nie ma.
+
+
+Skille, których załadowanie wymaga akceptacji, wymagają jej ponownie w każdej turze; historia nie omija tej bramki.

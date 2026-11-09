@@ -12,6 +12,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConflictError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
@@ -595,21 +596,19 @@ class OrganizationService:
             if "proactive_model_profile_id" in named
             else org.proactive_model_profile_id
         )
-        if profile_id is not None and ("proactive_model_profile_id" in named or enabled or watches):
+        if profile_id is not None and ("proactive_model_profile_id" in named or enabled):
             profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
             if profile is None:
                 raise refused_field(
                     "proactive_model_profile_id", "That model is not one of this organization's"
                 )
             outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
-            if not outputs.chat and (
-                enabled or watches or profile_id != org.proactive_model_profile_id
-            ):
+            if not outputs.chat and (enabled or profile_id != org.proactive_model_profile_id):
                 raise refused_field(
                     "proactive_model_profile_id",
                     not_chat_refusal(profile.label, profile.model, outputs),
                 )
-        if (enabled or watches) and profile_id is None:
+        if enabled and profile_id is None:
             raise refused_field(
                 "proactive_model_profile_id",
                 "Choose the model the proactive work runs on before turning it on",
@@ -808,6 +807,11 @@ class OrganizationService:
                 held.add(collection)
 
         await organization_repo.get_by_id_for_update(self.db, org.id)
+        from app.repositories import telephony as phone_repo
+
+        # The org row lock fences new call intents through their foreign key.
+        if await phone_repo.organization_has_unfinished_calls(self.db, org.id):
+            raise ConflictError(message="End all telephone calls before deleting this organization")
         collections: list[str] = []
         storage_paths: list[str] = []
         deleted_bases: list[BasePurge] = []
@@ -834,8 +838,8 @@ class OrganizationService:
         # A store is wired only on the teardown path, and it is the signal to clean up
         # the vector tables. A collection another organization still references is left
         # alone - the name is not tenant-unique (#913). The rest are dropped by the
-        # deferred cleanup, which re-reads the reference check under the teardown lock
-        # (#1355), and every one of them is reserved, so a claim in the
+        # deferred cleanup, under the teardown lock (#1355) and only while reserved,
+        # and every one of them is reserved here, so a claim in the
         # commit-to-drop window is refused rather than adopting the still-populated
         # table (#1362). Both readings below therefore happen under the name's lock:
         # the ones the snapshot saw are already held, and one created since is taken

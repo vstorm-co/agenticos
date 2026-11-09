@@ -1,5 +1,5 @@
 ---
-source_sha: "3cc67268b6c7"
+source_sha: "2e61dcf2fc07"
 title: "Einen Vertrag gegen Ihre Checkliste prüfen"
 description: "Binden Sie einen Erstprüfungs-Skill an einen Agent, hängen Sie einen kurzen synthetischen Dienstleistungsvertrag an und prüfen Sie, dass er beide platzierten Probleme und die fehlende Klausel findet, ohne Rechtsberatung zu geben."
 ---
@@ -136,7 +136,7 @@ Chat beide gründlich.
     Der Run wurde auf 0.0.508 festgehalten, als die Gallery diesen Skill als
     „Document review first pass" installierte und die Instruktionen ihn so
     nannten. Der erste Versuch scheiterte, bevor irgendetwas entstand: Das
-    Modell rief `load_capability` mit der id `document-review-first-pass`
+    Modell rief `read_skill` mit der id `document-review-first-pass`
     auf, die damals nicht existierte — die id eines gebundenen Skills ist
     sein exakter gespeicherter Name —, versuchte es erneut mit einer zweiten
     falschen Vermutung, und der Run endete mit „the agent could not finish
@@ -149,7 +149,7 @@ Chat beide gründlich.
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
 - **Der Run scheitert mit „could not finish this turn," bevor irgendeine
-  Ausgabe entsteht.** Ein Aufruf von `load_capability` nannte eine Skill-id,
+  Ausgabe entsteht.** Ein Aufruf von `read_skill` nannte eine Skill-id,
   die nicht existiert. Auf 0.0.509 und später deutet das auf einen früher
   installierten Skill, der noch seinen Gallery-Titel als Namen trägt:
   Installieren Sie ihn erneut aus der Gallery, die ihn unter dem Namen mit

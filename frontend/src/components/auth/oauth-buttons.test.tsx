@@ -103,11 +103,23 @@ describe("the OAuth buttons", () => {
     expect(window.sessionStorage.getItem("oauthReturnTo")).toBeNull();
   });
 
-  it("renders nothing when no provider is configured", () => {
-    const { container } = renderWith([]);
+  it.each(["signin", "signup"] as const)(
+    "keeps Google visible but disabled without credentials on %s",
+    async (variant) => {
+      window.sessionStorage.setItem("oauthReturnTo", "/agents/existing");
+      renderWith([], { variant, returnTo: "/agents/new" });
 
-    expect(container).toBeEmptyDOMElement();
-  });
+      const button = screen.getByRole("button", {
+        name: variant === "signin" ? "continueWithGoogle" : "signUpWithGoogle",
+      });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription("googleNotConfigured");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      await userEvent.click(button);
+      expect(window.sessionStorage.getItem("oauthReturnTo")).toBe("/agents/existing");
+    },
+  );
 
   it("offers Google outside a provider, which is the default a deployment ships with", () => {
     render(<OAuthBlock label="or" />);
@@ -146,13 +158,13 @@ describe("the OAuth buttons", () => {
     // for want of a logo is worse than one drawing a key.
     renderWith(["oidc"]);
 
-    expect(document.querySelectorAll("svg")).toHaveLength(1);
+    expect(screen.getByRole("link").querySelectorAll("svg")).toHaveLength(1);
   });
 
   it("draws the mark a deployment on Entra ID picked", () => {
     renderWith(["oidc"], {}, { oidcIcon: "microsoft" });
 
-    const svg = document.querySelector("svg");
+    const svg = screen.getByRole("link").querySelector("svg");
     expect(svg).toHaveAttribute("viewBox", AUTH_GLYPHS.microsoft.viewBox);
   });
 
@@ -209,10 +221,12 @@ describe("the OAuth buttons", () => {
     expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
   });
 
-  it("draws nothing at all when LDAP is the only provider and there is no form for it", () => {
-    const { container } = renderWith(["ldap"], { variant: "signup" });
+  it("keeps disabled Google without offering LDAP registration", () => {
+    renderWith(["ldap"], { variant: "signup" });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("button", { name: "signUpWithGoogle" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /continueWithProvider/ })).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("ships exactly the three identity-provider marks", () => {

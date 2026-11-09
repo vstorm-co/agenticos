@@ -16,6 +16,7 @@ import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -26,7 +27,6 @@ from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
     ReinjectSystemPrompt,
-    ToolSearch,
 )
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
@@ -37,6 +37,7 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
+from app.agents.capabilities import CapabilityBinding
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._overrides import ToolOverrides
@@ -63,6 +64,7 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import (
     ANSWER_TOOLS_RESOURCE,
     GuardrailsConfig,
@@ -76,25 +78,29 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
-from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
+from app.agents.capabilities.skills._loader import SkillLoader
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
     SystemReminders,
 )
+from app.agents.capabilities.tool_search import ConfiguredToolSearch
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
+from app.agents.routine_actions import RoutineToolCheck
 from app.agents.run_reviewer import RunReviewer
 from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
+from app.agents.tool_identity import CaptureToolIdentity
 from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
     AnswerUnknownTools,
@@ -103,6 +109,7 @@ from app.agents.voice import (
     voice_configured,
     voice_instructions,
 )
+from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -117,7 +124,6 @@ _AUDIENCE_AWARE = frozenset(
         ARTIFACTS_CAPABILITY_ID,
         BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
-        MEMORY_MEM0_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
     }
 )
@@ -235,6 +241,7 @@ def build_agent(
     group_limits: Sequence[SpendLimit] = (),
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
+    routine_action_check: RoutineToolCheck | None = None,
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
@@ -322,11 +329,14 @@ def build_agent(
             the organization no longer has, or an approval the gate could not
             enforce because the model provider executes the tool.
     """
+    routine_policy = None
+    if routine_action_check is not None:
+        if agent_id is None:
+            raise BadRequestError(message="A routine action policy requires an agent identity")
+        routine_policy = partial(routine_action_check, agent_id, spec)
     refuse_ungateable_approvals(spec)
-    # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
-    # module level, which loops back through the factory to this module.
-    from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
     from app.agents.capabilities.workflows import WORKFLOW_IDS_RESOURCE, workflow_ids_of
+    from app.agents.table_bindings import TABLE_GRANTS_RESOURCE
 
     bindings = spec.bindings()
     if voice is not None:
@@ -372,7 +382,9 @@ def build_agent(
             # delete the bytes is the conversation, not a setting.
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
-            TABLE_GRANTS_RESOURCE: table_grants_of(spec),
+            TABLE_GRANTS_RESOURCE: {
+                grant.table_id: frozenset(grant.operations) for grant in spec.table_bindings
+            },
             WORKFLOW_IDS_RESOURCE: frozenset(workflow_ids_of(spec)),
             # Where the agent's web readers may go: a drawing fetches an image by
             # address only from a host one of them would itself reach.
@@ -396,6 +408,10 @@ def build_agent(
             ),
         )
     )
+    if any(binding.enabled and binding.capability_id == "skills" for binding in bindings) and (
+        resources or {}
+    ).get("skills"):
+        configured.append(SkillLoader())
     if voice is not None:
         configured = voice_configured(configured)
 
@@ -417,6 +433,7 @@ def build_agent(
     )
 
     deps = AgentDeps(
+        draft_tool_names=draft_tool_names(spec),
         organization_id=organization_id,
         agent_id=agent_id,
         run_id=run_id,
@@ -468,15 +485,19 @@ def build_agent(
     # Made before the capabilities, because a run reviewer, code mode and
     # `CacheWatch` write onto it.
     recorder = RunRecorder()
-    asking = (
-        frozenset({CONNECT_ACCOUNT})
-        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-        else frozenset()
+    asking = frozenset(
+        name
+        for name, kind in (
+            (CONNECT_ACCOUNT, ConnectOnUse),
+            (REQUEST_COMPUTER_ACCESS, RequestComputerOnUse),
+        )
+        if any(isinstance(extra, kind) for extra in extra_capabilities)
     )
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
         CountedRepair(tally=repairs),
+        CaptureToolIdentity.for_spec(spec),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -487,6 +508,7 @@ def build_agent(
         Steering(),
         budget,
         ApprovalGate(
+            routine_policy=routine_policy,
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
             describers=approval_describers(spec),
@@ -527,7 +549,7 @@ def build_agent(
                 ),
                 CodeCalls(recorder=recorder),
             ]
-            if spec.code_mode.enabled and not gate_every_tool
+            if spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
             else []
         ),
         # Every agent: a moved cache prefix costs the most on exactly the long,
@@ -582,7 +604,7 @@ def build_agent(
         toolsets=(
             (extra_toolsets or [])
             if voice is not None
-            else _defer_for_tool_search(configured, extra_toolsets or [])
+            else _defer_for_tool_search(configured, extra_toolsets or [], bindings=bindings)
         ),
     )
 
@@ -658,30 +680,30 @@ def _input_screen(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
 def _defer_for_tool_search(
     configured: list[AbstractCapability[Any]],
     extra_toolsets: list[AbstractToolset[Any]],
+    *,
+    bindings: list[CapabilityBinding],
 ) -> list[AbstractToolset[Any]]:
-    """Hide the MCP toolsets behind tool search when the agent enabled it.
+    """Pair configured function-tool and MCP deferral with the agent's search.
 
-    The two are paired here or not at all. `ToolSearch` is inert with nothing
-    deferred, and a deferred tool with no `ToolSearch` to find it is a tool the
-    model can never call - so deferring a toolset without the capability, or
-    binding the capability without deferring anything, is each half of a broken
-    agent. Binding `tool_search` is what asks for both.
-
-    MCP is the target the capability exists for. An agent may bind an arbitrary
-    number of servers, and every tool's schema is context the model pays for on
-    every request until it searches for one instead; `extra_toolsets` is exactly
-    those servers. The registry's own tools stay visible - they are few, chosen
-    per agent, and cheap to carry.
-
-    Deferring changes what the model *sees*, never a tool's identity: a
-    discovered MCP tool arrives under its real prefixed name, so the approval
-    gate still pairs on it and a binding's rename still reaches it. `ToolSearch`
-    also sits outermost, so it reads the names a rename already applied rather
-    than the ones underneath.
+    Select registered tools by their binding's effective names: a composed
+    capability's tools may carry anonymous child ids generated per run.
+    Surface-added tools stay visible; realtime bypasses this pairing altogether.
     """
-    if not any(isinstance(capability, ToolSearch) for capability in configured):
-        return extra_toolsets
-    return [toolset.defer_loading() for toolset in extra_toolsets]
+    for capability in configured:
+        if isinstance(capability, ConfiguredToolSearch):
+            configured_ids = {item.id for item in configured}
+            capability.capability_tool_names = frozenset(
+                tool.name
+                for binding in bindings
+                if binding.enabled
+                and binding.capability_id in configured_ids
+                and binding.capability_id not in capability.exclude_capabilities
+                for tool in capability_def(binding.capability_id).effective_tools(
+                    binding.tool_overrides
+                )
+            )
+            return [capability.defer_toolset(toolset) for toolset in extra_toolsets]
+    return extra_toolsets
 
 
 def _as_decimal(value: float) -> Decimal:

@@ -20,7 +20,7 @@ interface ForkedFromProps {
 export function ForkedFrom({ origin, onOpen }: ForkedFromProps) {
   const t = useTranslations("chat");
   return (
-    <div className="text-muted-foreground mx-auto mb-4 flex w-fit items-center gap-1.5 text-xs">
+    <div className="text-muted-foreground mx-auto mb-4 flex max-w-full flex-wrap items-center justify-center gap-1.5 text-xs">
       <GitBranch className="h-3 w-3" aria-hidden />
       {t.rich("forkedFrom", {
         title: origin.title || t("untitledFork"),
@@ -28,7 +28,7 @@ export function ForkedFrom({ origin, onOpen }: ForkedFromProps) {
           <button
             type="button"
             onClick={() => onOpen(origin.conversation_id)}
-            className="hover:text-foreground underline underline-offset-2"
+            className="hover:text-foreground max-w-64 truncate underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             {chunks}
           </button>

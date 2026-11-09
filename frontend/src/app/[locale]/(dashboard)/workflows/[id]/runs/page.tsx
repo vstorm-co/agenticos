@@ -6,14 +6,29 @@ import { Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Button, MoreOptions } from "@/components/ui";
+import { ErrorState } from "@/components/states/error-state";
+import { LoadingState } from "@/components/states/loading-state";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  MoreOptions,
+} from "@/components/ui";
 import { RunHistory } from "@/components/workflows/runs/run-history";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { WorkflowStats } from "@/components/workflows/runs/workflow-stats";
 import { usePermissions, useWorkflow, useWorkflowRuns, useWorkflowVersion } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { getErrorMessage } from "@/lib/api-error";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import {
   declaredFields,
+  declaredInputSchema,
   sampleRunInput,
   startsByHand,
   entryNodes,
@@ -36,18 +51,20 @@ interface PageProps {
 export default function WorkflowRunsPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
   const router = useRouter();
   const ts = useTranslations("pages.workflows.stats");
   const { workflow } = useWorkflow(id);
-  const { start } = useWorkflowRuns(id);
-  const { can } = usePermissions();
   const [startOpen, setStartOpen] = useState(false);
+  const { can } = usePermissions();
   // The live version's graph, only once the dialog is open: its trigger's fields
   // are what a real run is asked for.
-  const { version: live } = useWorkflowVersion(
-    id,
-    startOpen ? (workflow?.current_version_id ?? null) : null,
-  );
+  const {
+    version: live,
+    error: liveError,
+    refetch: refetchLive,
+  } = useWorkflowVersion(id, startOpen ? (workflow?.current_version_id ?? null) : null);
   const canTest = can(Perm.workflowsEdit) && workflow?.status !== "archived";
   // Only a version that starts by hand is started from here: every other
   // trigger has its own surface, and the server refuses this door for it.
@@ -57,6 +74,28 @@ export default function WorkflowRunsPage({ params }: PageProps) {
     (workflow.live_triggers?.length
       ? workflow.live_triggers.some((trigger) => startsByHand(trigger))
       : startsByHand(workflow.live_trigger));
+  const awaitingContract = canRunLive && (live === undefined || Boolean(liveError));
+  const contractBlocksStart = awaitingContract && !canTest;
+  const { start } = useWorkflowRuns(id, startOpen && !contractBlocksStart);
+  const contractNotice = awaitingContract ? (
+    liveError ? (
+      <ErrorState
+        title={t("modeReal")}
+        description={getErrorMessage(liveError, errors)}
+        cta={{
+          label: common("retry"),
+          onClick: () => {
+            void refetchLive();
+          },
+        }}
+      />
+    ) : (
+      <div className="space-y-2">
+        <p className="text-muted-foreground text-sm">{t("modeReal")}</p>
+        <LoadingState variant="skeleton-panel" />
+      </div>
+    )
+  ) : null;
 
   const choices = (graph: WorkflowGraph | null | undefined, byHand = false) =>
     graph === null || graph === undefined
@@ -69,6 +108,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
               id: node.id,
               name: node.label ?? node.definition_id,
               fields: declaredFields(branch),
+              inputSchema: declaredInputSchema(branch),
               sample: sampleRunInput(branch),
             };
           });
@@ -97,18 +137,39 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           <WorkflowStats workflowId={id} />
         </MoreOptions>
       </div>
-      {startOpen && (
+      {startOpen && contractBlocksStart && (
+        <Dialog open onOpenChange={setStartOpen}>
+          <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+            <DialogHeader>
+              <DialogTitle>{t("startRunTitle")}</DialogTitle>
+              <DialogDescription>{t("startRunDescription")}</DialogDescription>
+            </DialogHeader>
+            {contractNotice}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStartOpen(false)}>
+                {t("cancel")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {startOpen && !contractBlocksStart && (
         <StartRunDialog
           open
           onOpenChange={setStartOpen}
-          canRunLive={canRunLive}
+          canRunLive={canRunLive && !awaitingContract}
           canTest={canTest}
+          liveNotice={contractNotice}
           busy={start.isPending}
+          error={start.error}
+          onInputChange={start.reset}
           sampleInput={sampleRunInput(workflow?.draft_graph ?? null)}
           entries={choices(workflow?.draft_graph)}
           liveEntries={choices(live?.graph, true)}
           testFields={declaredFields(workflow?.draft_graph)}
           liveFields={declaredFields(live?.graph)}
+          testInputSchema={declaredInputSchema(workflow?.draft_graph)}
+          liveInputSchema={declaredInputSchema(live?.graph)}
           onStart={({ mode, input, entry_node_id }) =>
             start.mutate(
               { workflow_id: id, mode, input, ...(entry_node_id ? { entry_node_id } : {}) },

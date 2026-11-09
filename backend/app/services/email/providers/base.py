@@ -5,6 +5,12 @@ from typing import Protocol
 from pydantic import BaseModel
 
 
+class EmailAttachment(BaseModel):
+    filename: str
+    content: bytes
+    mime_type: str = "application/octet-stream"
+
+
 class EmailMessage(BaseModel):
     to: list[str]
     cc: list[str] = []
@@ -17,6 +23,10 @@ class EmailMessage(BaseModel):
     reply_to: str | None = None
     tags: list[str] = []
     metadata: dict = {}
+    headers: dict[str, str] = {}
+    """Extra headers, set on the message as given: `Message-ID`, `In-Reply-To`,
+    `References` - what lets a mail client file a reply under the thread it answers (#2082)."""
+    attachments: list[EmailAttachment] = []
 
 
 class SendResult(BaseModel):

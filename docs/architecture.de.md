@@ -1,5 +1,5 @@
 ---
-source_sha: "f5d1507c01d1"
+source_sha: "171618534c74"
 ---
 
 # Architektur { #architecture }
@@ -1047,3 +1047,6 @@ durchgearbeitetes Beispiel.
   übergeben, nie mit `spawn`.
 - Eine dünne Domäne ist ein Modul; eine dicke ist ein Subpackage mit einer Fassade,
   und nichts außerhalb importiert deren Sub-Module.
+
+
+Telefonaktionen benötigen ebenfalls eine dauerhafte Grenze: `telephony.runtime.dial`, Eingangsannahme, Weiterleitung und Auflegen bestätigen ihre Absicht vor dem Provideraufruf. Unklare Annahme bleibt für signierte Callbacks und Bereinigung gespeichert, ohne automatische Neuwahl. Die Medienannahme bestätigt ihren einmaligen Anspruch vor der Modellsitzung.

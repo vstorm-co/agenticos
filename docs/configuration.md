@@ -52,8 +52,8 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | What one call to the [ML services](ml-services.md) may submit — a document to parse, a scan to recognise, a recording to transcribe. Its own setting because the bytes are parsed or sent to an engine inside one request rather than written down, so the ceiling is about what a single synchronous call may occupy. It sits at the transcription client's own 25 MB, the smallest engine ceiling behind that surface |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | How many documents one worker parses at once for the [ML services](ml-services.md). A rate limit counts starts and cannot see what is still running, so without this a minute's allowance of OCR calls is that many recognitions in flight. Over it a caller is refused with a `Retry-After` rather than queued |
-| `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the same shape `MEM0_ALLOWED_HOSTS` exists for, and the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
+| `SMS_LINK_MAX_AGE_DAYS` | `90` | How long a phone number stays linked to an account before the person has to link it again. A number can be reassigned or taken over, so an SMS link lapses; `0` keeps links for ever. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a [virtual terminal](reference/capabilities.md#mirage) folder may connect to when its author types the address: an SSH server, the host in a Postgres or MongoDB DSN, an IMAP server. The address comes from an agent spec or a secret it names, and the connection is made from this deployment. Matching is exact and case-folded. Publishing checks a typed host, and each run checks the hosts inside secrets. Empty allows no typed address. Services with a fixed API, such as Drive, GitHub and Notion, need no entry |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a [computer-use](reference/capabilities.md#computer-use) agent may drive a `computerd` desktop at. `daemon_url` is in the agent spec and a run sends the daemon's token to whatever it names, so this is the same allowlist as `BROWSER_CDP_ALLOWED_HOSTS`: exact and case-folded, with no globs. Checked at publish and again whenever a run opens the daemon, so removing a host stops agents already published. The token is not a setting: it is the organization's, in its vault, so every organization can name an allowed host and only the one holding that desktop's token gets in. Empty refuses the daemon backend; a desktop in the agent's sandbox needs no entry |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | The browser a person signs in to a site with from **Settings → Sign-ins**, where no agent names one - the compose `browser` service is `http://browser:9222`. Its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The site has to be a public address, and only the person who opened it may watch it. Empty hides the option |
@@ -647,12 +647,17 @@ the model — inherits the mode. One limit
 before relying on it: attaching that instrumentation is best-effort, and a
 failure is logged while the run continues.
 
-With `ENVIRONMENT=production` no span is printed to the console. Logfire's console
-exporter writes one line per SQL and Redis call, about forty per request, into a
-container log nobody can query. So in production a span exists only where the
-token sends it, and with no token a slow request leaves no trace at all.
-`agenticos cmd doctor` reports that as its `tracing` line. Elsewhere the console
-keeps printing spans for whoever is watching the server.
+Application logs from the API, worker, ingestion children and CLI go to stderr
+with a timestamp, level and logger name. They work without a Logfire token and
+are visible through `docker compose logs -f`. `LOG_LEVEL` defaults to `INFO`;
+set it to `DEBUG`, `WARNING`, `ERROR` or `CRITICAL` to adjust verbosity. Existing
+PII and credential redaction also covers exception tracebacks.
+
+SQL query logging stays off unless `DB_ECHO=true`. HTTP transport INFO/DEBUG
+messages are suppressed. Logfire spans are also off on the console by default
+in every environment; set `LOGFIRE_CONSOLE=true` to print them while debugging.
+This does not change trace export to Logfire. Without a token, spans are not
+exported; `agenticos cmd doctor` reports that in its `tracing` line.
 
 Give each deployment its own `LOGFIRE_ENVIRONMENT`, such as `local` on a laptop
 and `production` on the server. One project can then hold both and still keep
@@ -660,6 +665,8 @@ them apart.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Application log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `LOGFIRE_CONSOLE` | `false` | Print Logfire spans to the console for debugging |
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Service name in Logfire dashboard |
 | `LOGFIRE_ENVIRONMENT` | `development` | Environment tag |

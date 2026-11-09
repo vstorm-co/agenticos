@@ -472,3 +472,32 @@ class TestOpeningOne:
         turns, _ = await search_repo.turns(db, conversation_id=thread.id, skip=0, limit=10)
 
         assert [turn.speaker_name for turn in turns] == ["Anna Kowalska", None]
+
+
+@pytest.mark.security
+async def test_refused_text_cannot_rank_quote_or_title_a_model_search(db):
+    organization = await _org(db)
+    owner = await _user(db)
+    thread = await _thread(db, organization, owner, title="forbidden payload")
+    refused = await _say(db, thread, "forbidden payload pricing pricing pricing")
+    refused.guardrail_refused = True
+    await _say(db, thread, "pricing approved at forty")
+    await db.flush()
+
+    assert await _search(db, organization, owner, "forbidden") == []
+    found = await _search(db, organization, owner, "pricing")
+    assert len(found) == 1
+    assert found[0].hits == 1
+    assert found[0].title is None
+    assert "forbidden" not in found[0].snippet
+    turns, total = await search_repo.turns(db, conversation_id=thread.id, skip=0, limit=10)
+    assert total == 1
+    assert [turn.content for turn in turns] == ["pricing approved at forty"]
+
+    opened = await search_repo.readable_conversation(
+        db,
+        conversation_id=thread.id,
+        organization_id=organization.id,
+        readable=search_repo.readable_by(owner.id, ()),
+    )
+    assert opened is not None and opened.title is None

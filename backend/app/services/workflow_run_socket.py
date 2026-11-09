@@ -44,7 +44,7 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import member_repo
 from app.schemas.workflow_run import WorkflowRunRead
 from app.services import rate_limit
-from app.services.workflow_execution import WorkflowExecutionService, events
+from app.services.workflow_execution import WorkflowExecutionService, delivery, events
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 
 logger = logging.getLogger(__name__)
@@ -152,10 +152,18 @@ class WorkflowRunSocket:
                     message="Conversation not found",
                     details={"conversation_id": str(frame.conversation_id)},
                 )
-            await conversation_repo.create_message(
+            message = await conversation_repo.create_message(
                 db, conversation_id=conversation.id, role="user", content=frame.message
             )
-            return await runs.start(
+            from app.services.change_feed import announce_conversation
+
+            announce_conversation(
+                db,
+                organization_id=ctx.organization_id,
+                conversation_id=conversation.id,
+                actor_user_id=ctx.user_id,
+            )
+            run = await runs.start(
                 ctx,
                 frame.workflow_id,
                 triggered_by=WorkflowRunTrigger.CHAT,
@@ -165,7 +173,15 @@ class WorkflowRunSocket:
                     "user_id": str(ctx.user_id),
                 },
                 reply_conversation_id=conversation.id,
+                source_message_id=message.id,
             )
+            await delivery.deliver_started(
+                db,
+                run=run,
+                conversation_id=conversation.id,
+                organization_id=ctx.organization_id,
+            )
+            return run
 
     async def _follow(self, run_id: UUID, after: str | None) -> None:
         """Send the run, then every event after `after`, until the run has ended."""

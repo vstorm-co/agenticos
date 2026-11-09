@@ -59,6 +59,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthenticationError, BadRequestError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
+from app.db.models.agent_run import RunStatus
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -73,6 +74,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
+from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
@@ -90,6 +92,7 @@ from app.services.workflow_execution import (
     dispatch_queue,
     events,
     failure,
+    questions,
     quick_log,
 )
 from app.services.workflow_execution.exceptions import (
@@ -193,6 +196,15 @@ _REPORTS: dict[str, Callable[[dict[str, Any]], None]] = {
 }
 
 ScopePath = list[dict[str, Any]]
+
+
+def _chat_source(run: WorkflowRun) -> context.ChatSource | None:
+    """Refusal provenance, never an input binding or a reply destination."""
+    if not run.has_chat_source and (
+        run.source_conversation_id is None or run.source_message_id is None
+    ):
+        return None
+    return context.ChatSource(run.source_conversation_id, run.source_message_id)
 
 
 def _loop_of(scope_path: ScopePath) -> UUID | None:
@@ -1020,6 +1032,7 @@ async def begin_attempt(
         retry_guarantee=guarantee,
         started_at=now,
         reserved_usd=reserved,
+        agent_run_id=node_run.waiting_agent_run_id,
     )
     await workflow_run_repo.update_node_run(
         db,
@@ -1060,6 +1073,7 @@ async def begin_attempt(
         # admitted by code older than the column.
         public_origin=run.public_origin or run.triggered_by in PUBLIC_TRIGGERS,
         source_conversation_id=run.reply_conversation_id,
+        chat_source=_chat_source(run),
         test_chat_key=_test_chat_key(run, call.graph),
         nested=bool(node_run.scope_path),
         impersonated=run.impersonated,
@@ -1340,7 +1354,10 @@ async def _close_late_node(
                 is_pinned=stands_in == "pinned",
             )
         return
-    if isinstance(result, Waiting) and result.reason == WaitingReason.APPROVAL.value:
+    if isinstance(result, Waiting) and result.reason in (
+        WaitingReason.APPROVAL.value,
+        WaitingReason.QUESTION.value,
+    ):
         await cleanup.withdraw_late_wait(
             db, run=run, node_run=node_run, waiting_agent_run_id=outcome.waiting_agent_run_id
         )
@@ -1385,9 +1402,10 @@ async def resolve_orphaned_attempt(
     """Resolve one `in_flight` attempt nobody ever settled.
 
     The central rule this implements: **an interrupted attempt is never
-    assumed either outcome.** `attempt` itself always settles `uncertain` -
-    its real result genuinely is unknown - and what happens *next* is the
-    only place `retry_guarantee` matters: `idempotent` means a duplicate call
+    assumed either outcome.** A linked child that durably parked during this
+    attempt proves its wait and can be collected without replay. Otherwise the
+    attempt settles `uncertain`, and what happens next is the only place
+    `retry_guarantee` matters: `idempotent` means a duplicate call
     is provably harmless, so a fresh attempt is queued automatically;
     anything else (`at_least_once` with no dedup this dispatcher can see, or
     `none`) is never retried automatically and the node lands in
@@ -1406,6 +1424,69 @@ async def resolve_orphaned_attempt(
     A cost already booked onto the attempt by a late settle is kept.
     """
     now = datetime.now(UTC)
+    late_agent_run_id: UUID | None = None
+    agent_run_id = attempt.agent_run_id or node_run.waiting_agent_run_id
+    if agent_run_id is not None:
+        child = await agent_run_repo.claim_parked_run(
+            db, agent_run_id, organization_id=run.organization_id
+        )
+        if child is not None:
+            booked = await workflow_run_repo.booked_agent_segments(
+                db, node_run_id=node_run.id, agent_run_id=child.id
+            )
+            missing = max(Decimal(0), child.cost_usd - booked)
+            cost = HandlerOutcome(
+                result=Uncertain(detail="Collecting the interrupted agent's known spend"),
+                cost=missing,
+                cost_is_partial=child.cost_is_partial,
+            )
+            # A cancelled workflow may have cleared the node's waiting link.
+            # Its attempt still owns the bill, including a child that ended.
+            run = await _book_cost(
+                db,
+                run=run,
+                outcome=cost,
+            )
+            await _book_attempt_cost(db, attempt=attempt, outcome=cost)
+        if (
+            child is not None
+            and not WorkflowRunStatus(run.status).is_terminal
+            and node_run.status != NodeRunStatus.CANCELLED.value
+            and child.status in (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
+            and child.ended_at is not None
+            and child.ended_at >= attempt.started_at
+        ):
+            # An inherited checkpoint predating this attempt cannot prove this
+            # continuation parked again. A slow builder may still be live.
+            reason = "question" if child.status == RunStatus.AWAITING_ANSWER.value else "approval"
+            waiting = Waiting(reason=reason, resume_token=str(node_run.id))
+            await workflow_run_repo.settle_attempt(
+                db,
+                attempt=attempt,
+                status=NodeAttemptStatus.COMPLETED.value,
+                result=waiting.model_dump(mode="json"),
+                cost=attempt.cost,
+                cost_is_partial=attempt.cost_is_partial or child.cost_is_partial,
+                ended_at=now,
+            )
+            if outbox is not None and outbox.status == DispatchOutboxStatus.CLAIMED.value:
+                await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+            await _settle_waiting(
+                db,
+                run=run,
+                node_run=node_run,
+                attempt=attempt,
+                result=waiting,
+                waiting_agent_run_id=child.id,
+                now=now,
+            )
+            await refresh_run_status(db, run=run)
+            return
+        if child is not None and child.status in (
+            RunStatus.AWAITING_APPROVAL.value,
+            RunStatus.AWAITING_ANSWER.value,
+        ):
+            late_agent_run_id = child.id
     await workflow_run_repo.settle_attempt(
         db,
         attempt=attempt,
@@ -1435,9 +1516,21 @@ async def resolve_orphaned_attempt(
         # there is nothing left to retry or escalate - no fresh outbox row, no
         # `needs_attention` - matching `settle`'s own terminal short-circuit.
         await _close_node_of_ended_run(db, run=run, node_run=node_run, now=now)
+        if late_agent_run_id is not None:
+            await cleanup.withdraw_late_wait(
+                db, run=run, node_run=node_run, waiting_agent_run_id=late_agent_run_id
+            )
         return
     await _resolve_orphan_of_live_run(db, run=run, node_run=node_run, attempt=attempt, now=now)
     await refresh_run_status(db, run=run)
+    if late_agent_run_id is not None:
+        await cleanup.withdraw_late_wait(
+            db,
+            run=run,
+            node_run=node_run,
+            waiting_agent_run_id=late_agent_run_id,
+            reason="Stopped: its workflow step was interrupted",
+        )
 
 
 async def _resolve_orphan_of_live_run(
@@ -1642,6 +1735,23 @@ async def _settle_loaded(
     attempt: NodeAttempt,
 ) -> list[tuple[UUID, UUID]]:
     now = datetime.now(UTC)
+    if attempt.agent_run_id is not None and attempt.status == NodeAttemptStatus.IN_FLIGHT.value:
+        child = await agent_run_repo.get_run(
+            db, attempt.agent_run_id, organization_id=run.organization_id
+        )
+        if child is not None and child.status != RunStatus.RUNNING.value:
+            booked = await workflow_run_repo.booked_agent_segments(
+                db, node_run_id=node_run.id, agent_run_id=child.id
+            )
+            # The runner records spend before raising. A handler's failure can
+            # omit its cost report; the child's durable bill still owns it.
+            # Settled/stale attempts cannot absorb a later continuation's bill.
+            cumulative = max(Decimal(0), child.cost_usd - booked + attempt.cost)
+            outcome = replace(
+                outcome,
+                cost=max(outcome.cost, cumulative),
+                cost_is_partial=outcome.cost_is_partial or child.cost_is_partial,
+            )
     # An outcome describes this handler invocation's cumulative spend. A duplicate
     # delivery adds nothing; a late result can refine what was known of the same try.
     cost_outcome = replace(outcome, cost=max(Decimal(0), outcome.cost - attempt.cost))
@@ -2134,6 +2244,14 @@ async def _settle_waiting(
     now: datetime,
 ) -> None:
     called: WorkflowRun | None = None
+    if result.reason == WaitingReason.QUESTION.value and waiting_agent_run_id is None:
+        await _escalate(
+            db,
+            run=run,
+            node_run=node_run,
+            detail="Node declared a question wait with no agent run to resume it",
+        )
+        return
     if result.reason == WaitingReason.EXTERNAL_EVENT.value:
         # The one external event a workflow run delivers is the end of a run a
         # `workflow.run` step called (`delivery.wake_caller`). A step waiting on
@@ -2211,6 +2329,13 @@ async def _settle_waiting(
         )
         return
     await refresh_run_status(db, run=run)
+    if result.reason == WaitingReason.QUESTION.value and waiting_agent_run_id is not None:
+        child = await agent_run_repo.get_run(
+            db, waiting_agent_run_id, organization_id=run.organization_id
+        )
+        if child is not None and questions.ready(child):
+            # An answer or expiry may have committed before this wait was visible.
+            await dispatch_queue.queue_dispatch(db, run=run, node_run_id=node_run.id)
     if result.reason == WaitingReason.RETRY_BACKOFF.value:
         # The wake is the outbox row itself, due once the backoff has passed -
         # the same capped schedule a retryable failure gets, stepped by the

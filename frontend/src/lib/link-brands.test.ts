@@ -1,4 +1,8 @@
-import { Plug, Workflow, TimerReset } from "lucide-react";
+import { Plug } from "lucide-react";
+import {
+  WorkflowIcon as Workflow,
+  RoutineIcon as TimerReset,
+} from "@/components/icons/product-icons";
 import { describe, expect, it } from "vitest";
 
 import { brandForUrl, consolePageIcon, hostOf, isAppLink, offsiteUrl } from "./link-brands";

@@ -16,3 +16,11 @@ it("uses the full-bleed content layout without compensating margins", () => {
   expect(page).toHaveClass("flex", "min-h-0", "flex-1");
   expect(page).not.toHaveClass("-mt-(--page-inset-top)", "-mx-3", "sm:-mx-6");
 });
+
+it("reserves the phone toolbar space for both initial content and sent-turn scrolling", () => {
+  const { container } = render(<ChatPage />);
+  expect(container.firstElementChild?.lastElementChild).toHaveClass(
+    "max-md:[&_[data-chat-scroller]]:scroll-pt-20",
+    "max-md:[&_[data-transcript]]:pt-20",
+  );
+});

@@ -10,7 +10,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import insert, select, text, update
+from sqlalchemy.exc import DBAPIError, InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -271,3 +272,232 @@ class TestOwnedTitles:
         )
 
         assert titles == {mine.id: "Pricing"}
+
+
+@pytest.mark.parametrize("limit", ["messages", "tool_calls", "bytes"])
+async def test_an_oversized_fork_is_refused_before_any_copy_is_inserted(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, limit: str
+) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext
+    from app.services import conversation as service_module
+
+    source = await _source(db)
+    assert source.user_id is not None
+    assert source.organization_id is not None
+    await _turn(db, source, "user", "A long question with preserved context")
+    answer = await _turn(db, source, "assistant", "An answer with context")
+    for index in range(2):
+        db.add(
+            ToolCall(
+                message_id=answer.id,
+                tool_call_id=f"call-{index}",
+                tool_name="search",
+                args={"query": "context"},
+                result="result",
+                status="completed",
+                started_at=datetime.now(UTC),
+            )
+        )
+    await db.flush()
+    constant = {
+        "messages": "MAX_FORK_MESSAGES",
+        "tool_calls": "MAX_FORK_TOOL_CALLS",
+        "bytes": "MAX_FORK_BYTES",
+    }[limit]
+    monkeypatch.setattr(service_module, constant, 1, raising=False)
+    ctx = AuthContext(user_id=source.user_id, organization_id=source.organization_id, role="owner")
+    with pytest.raises(BadRequestError, match="too large to fork"):
+        await ConversationService(db).fork(
+            source.id,
+            message_id=answer.id,
+            organization_id=source.organization_id,
+            user_id=source.user_id,
+            ctx=ctx,
+        )
+    assert list((await db.scalars(select(Conversation.id))).all()) == [source.id]
+
+
+async def test_copied_tools_keep_their_stable_identity_and_presentation(db: AsyncSession) -> None:
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "A prepared reply")
+    db.add(
+        ToolCall(
+            message_id=answer.id,
+            tool_call_id="reply-1",
+            tool_name="prepare_reply",
+            tool_id="draft",
+            presentation_kind="draft",
+            args={"subject": "A quote"},
+            result="Prepared",
+            status="completed",
+            started_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+    fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+    copied = (
+        await db.scalars(select(ToolCall).join(Message).where(Message.conversation_id == fork.id))
+    ).one()
+    assert copied.tool_id == "draft"
+    assert copied.presentation_kind == "draft"
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["content", "thinking", "attachment_context", "parts", "tool_args", "tool_result", "summary"],
+)
+async def test_the_byte_quota_covers_every_copied_payload(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext
+    from app.services import conversation as service_module
+
+    source = await _source(db)
+    assert source.user_id is not None and source.organization_id is not None
+    payload = "ż" * 100
+    columns = {field: payload} if field in {"thinking", "attachment_context"} else {}
+    if field == "parts":
+        columns = {"parts": [{"type": "text", "text": payload}]}
+    answer = await _turn(
+        db, source, "assistant", payload if field == "content" else "OK", **columns
+    )
+    if field in {"tool_args", "tool_result"}:
+        db.add(
+            ToolCall(
+                message_id=answer.id,
+                tool_call_id="big",
+                tool_name="search",
+                args={"query": payload} if field == "tool_args" else {},
+                result=payload if field == "tool_result" else "OK",
+                status="completed",
+                started_at=datetime.now(UTC),
+            )
+        )
+    if field == "summary":
+        source.summary_messages = [
+            {"kind": "request", "parts": [{"part_kind": "user-prompt", "content": payload}]}
+        ]
+        source.summary_ordinal = answer.ordinal
+    await db.flush()
+    monkeypatch.setattr(service_module, "MAX_FORK_BYTES", 64)
+    with pytest.raises(BadRequestError, match="too large to fork"):
+        await ConversationService(db).fork(
+            source.id,
+            message_id=answer.id,
+            organization_id=source.organization_id,
+            user_id=source.user_id,
+            ctx=AuthContext(
+                user_id=source.user_id, organization_id=source.organization_id, role="owner"
+            ),
+        )
+    assert len((await db.scalars(select(Conversation.id))).all()) == 1
+    assert await db.scalar(text("SHOW lock_timeout")) == "0"
+
+
+@pytest.mark.parametrize("target", ["message", "tool_call", "new_message", "new_call", "summary"])
+async def test_copy_locks_fence_concurrent_payload_changes(db: AsyncSession, target: str) -> None:
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "The original answer")
+    call = ToolCall(
+        message_id=answer.id,
+        tool_call_id="original",
+        tool_name="search",
+        args={},
+        result="The original result",
+        status="completed",
+        started_at=datetime.now(UTC),
+    )
+    db.add(call)
+    await db.commit()
+    counts = await conversation_repo.lock_fork_history(
+        db, source=source, through=answer, message_limit=10, tool_call_limit=10
+    )
+    assert counts == conversation_repo.ForkRowCounts(1, 1)
+    if target == "message":
+        statement = update(Message).where(Message.id == answer.id).values(content="Changed")
+    elif target == "tool_call":
+        statement = update(ToolCall).where(ToolCall.id == call.id).values(result="Changed")
+    elif target == "new_message":
+        statement = insert(Message).values(
+            conversation_id=source.id, role="assistant", content="Late"
+        )
+    elif target == "new_call":
+        statement = insert(ToolCall).values(
+            message_id=answer.id,
+            tool_call_id="late",
+            tool_name="search",
+            args={},
+            result="Late",
+            status="completed",
+            started_at=datetime.now(UTC),
+        )
+    else:
+        statement = (
+            update(Conversation).where(Conversation.id == source.id).values(summary_messages=[])
+        )
+    assert db.bind is not None
+    async with AsyncSession(bind=db.bind, expire_on_commit=False) as other:
+        await other.execute(text("SET LOCAL lock_timeout = '100ms'"))
+        with pytest.raises(DBAPIError) as failed:
+            await other.execute(statement)
+        assert getattr(failed.value.orig, "sqlstate", None) == "55P03"
+        await other.rollback()
+        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        await db.commit()
+        await other.execute(statement)
+        await other.commit()
+    assert (
+        await db.scalar(select(Message.content).where(Message.conversation_id == fork.id))
+        == "The original answer"
+    )
+
+
+async def test_busy_history_is_a_retryable_conflict_without_partial_copies(
+    db: AsyncSession,
+) -> None:
+    from app.core.exceptions import ConcurrentChangeError
+    from app.core.permissions import AuthContext
+
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "An answer")
+    assert source.user_id is not None and source.organization_id is not None and db.bind is not None
+    source_id, answer_id, owner_id, org_id = (
+        source.id,
+        answer.id,
+        source.user_id,
+        source.organization_id,
+    )
+    await db.commit()
+    ctx = AuthContext(user_id=owner_id, organization_id=org_id, role="owner")
+    async with AsyncSession(bind=db.bind) as other:
+        await other.execute(
+            update(Message).where(Message.id == answer_id).values(content="Being written")
+        )
+        with pytest.raises(ConcurrentChangeError):
+            await ConversationService(db).fork(
+                source_id, message_id=answer_id, organization_id=org_id, user_id=owner_id, ctx=ctx
+            )
+        assert len((await db.scalars(select(Conversation.id))).all()) == 1
+        assert await db.scalar(text("SHOW lock_timeout")) == "0"
+        await other.rollback()
+    fork = await ConversationService(db).fork(
+        source_id, message_id=answer_id, organization_id=org_id, user_id=owner_id, ctx=ctx
+    )
+    assert fork.forked_from_conversation_id == source_id
+    assert len((await db.scalars(select(Conversation.id))).all()) == 2
+
+
+async def test_the_fork_point_does_not_materialize_transcript_payloads(db: AsyncSession) -> None:
+    source = await _source(db)
+    answer = await _turn(
+        db, source, "assistant", "A large answer", parts=[{"type": "text", "text": "large"}]
+    )
+    answer_id = answer.id
+    db.expunge_all()
+    point = await conversation_repo.get_fork_point(db, answer_id)
+    assert point is not None and point.id == answer_id
+    for field in ("content", "thinking", "parts", "tool_calls"):
+        with pytest.raises(InvalidRequestError):
+            getattr(point, field)

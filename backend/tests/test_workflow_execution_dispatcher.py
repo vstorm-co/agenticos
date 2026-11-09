@@ -10,6 +10,7 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, create_autospec, patch
 
@@ -1429,6 +1430,7 @@ class TestSettleCompleted:
 
 
 class TestSettleBooksCost:
+    @pytest.mark.parametrize("linked_child", ["unlinked", "missing", "running"])
     @pytest.mark.parametrize(
         "result,attempt_status",
         [
@@ -1441,7 +1443,7 @@ class TestSettleBooksCost:
         ],
     )
     async def test_the_reported_cost_lands_on_the_attempt_and_the_run_whatever_the_outcome(
-        self, repo, event_log, test_node, result, attempt_status
+        self, repo, event_log, test_node, result, attempt_status, linked_child
     ):
         """A spend that only lands on success is a budget with a hole in it:
         a failed or uncertain attempt books what it reported too, partial
@@ -1458,6 +1460,7 @@ class TestSettleBooksCost:
             workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
         )
         attempt = _attempt(node_run_id=node_run.id, retry_guarantee=RetryGuarantee.NONE.value)
+        attempt.agent_run_id = None if linked_child == "unlinked" else uuid.uuid4()
         begun = _begun(
             node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
         )
@@ -1474,13 +1477,22 @@ class TestSettleBooksCost:
             node_run, update_data
         )
 
-        await dispatcher.settle(
-            object(),
-            begun=begun,
-            outcome=dispatcher.HandlerOutcome(
-                result=result, cost=Decimal("0.25"), cost_is_partial=True
+        with patch.object(
+            dispatcher.agent_run_repo,
+            "get_run",
+            AsyncMock(
+                return_value=SimpleNamespace(status="running")
+                if linked_child == "running"
+                else None
             ),
-        )
+        ):
+            await dispatcher.settle(
+                object(),
+                begun=begun,
+                outcome=dispatcher.HandlerOutcome(
+                    result=result, cost=Decimal("0.25"), cost_is_partial=True
+                ),
+            )
 
         assert attempt.status == attempt_status.value
         assert (attempt.cost, attempt.cost_is_partial) == (Decimal("0.25"), True)
@@ -2540,6 +2552,82 @@ class TestAdvance:
 
 
 class TestResolveOrphanedAttempt:
+    async def test_a_removed_child_leaves_an_interrupted_step_for_review_without_inventing_spend(
+        self, repo, event_log
+    ):
+        run = _run()
+        node_run = _node_run(
+            workflow_run_id=run.id,
+            node_instance_id=uuid.uuid4(),
+            status=NodeRunStatus.RUNNING.value,
+        )
+        attempt = _attempt(
+            node_run_id=node_run.id,
+            agent_run_id=uuid.uuid4(),
+            retry_guarantee=RetryGuarantee.NONE.value,
+        )
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
+        with patch.object(
+            dispatcher.agent_run_repo, "claim_parked_run", AsyncMock(return_value=None)
+        ):
+            await dispatcher.resolve_orphaned_attempt(
+                object(), run=run, node_run=node_run, attempt=attempt, outbox=None
+            )
+        assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
+        assert node_run.status == NodeRunStatus.NEEDS_ATTENTION.value
+        assert run.spent_cost == Decimal(0)
+        repo.create_outbox.assert_not_awaited()
+
+    async def test_a_known_question_pause_is_restored_even_if_its_old_dispatch_row_is_gone(
+        self, repo, event_log
+    ):
+        run = _run()
+        node_run = _node_run(
+            workflow_run_id=run.id,
+            node_instance_id=uuid.uuid4(),
+            status=NodeRunStatus.RUNNING.value,
+        )
+        attempt = _attempt(
+            node_run_id=node_run.id,
+            agent_run_id=uuid.uuid4(),
+            retry_guarantee=RetryGuarantee.NONE.value,
+        )
+        child = SimpleNamespace(
+            id=attempt.agent_run_id,
+            status="awaiting_answer",
+            paused_state={"question_results": {}},
+            cost_usd=Decimal(0),
+            cost_is_partial=False,
+            ended_at=attempt.started_at + timedelta(seconds=1),
+        )
+        repo.booked_agent_segments.return_value = Decimal(0)
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
+        with (
+            patch.object(
+                dispatcher.agent_run_repo, "claim_parked_run", AsyncMock(return_value=child)
+            ),
+            patch.object(dispatcher.agent_run_repo, "get_run", AsyncMock(return_value=child)),
+        ):
+            await dispatcher.resolve_orphaned_attempt(
+                object(), run=run, node_run=node_run, attempt=attempt, outbox=None
+            )
+        assert attempt.status == NodeAttemptStatus.COMPLETED.value
+        assert node_run.waiting_reason == WaitingReason.QUESTION.value
+        assert node_run.waiting_agent_run_id == child.id
+        assert run.status == WorkflowRunStatus.WAITING_FOR_USER.value
+        repo.mark_outbox_done.assert_not_awaited()
+        repo.create_outbox.assert_not_awaited()
+
     async def test_an_idempotent_orphan_is_marked_uncertain_and_gets_a_fresh_outbox_row(
         self, repo, event_log
     ):

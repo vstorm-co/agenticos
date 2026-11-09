@@ -29,8 +29,9 @@ from uuid import UUID
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.tools import DeferredToolResults
+from pydantic_ai.workspaces import Workspace
 
-from app.agents.spec import DelegationMode
+from app.agents.spec import DelegationMode, SubagentRef
 from app.db.vector_tables import VectorScope
 
 if TYPE_CHECKING:
@@ -48,13 +49,14 @@ falls back to an in-memory backend.
 
 DelegationStatus = Literal["completed", "failed", "cancelled"]
 
-DelegateWorkspace = Literal["parent", "own", "none"]
+DelegateWorkspace = Literal["parent", "own", "none"] | Workspace
 """Which workspace a delegation runs in.
 
 `parent` - the delegating run's own, because `sandbox` is in its
 `share_with_delegates`: a researcher writes `/workspace/notes.md` and a writer
 reads it. `own` - a fresh in-memory one, for a delegate that binds `sandbox`
-itself without being shared the parent's. `none` - no workspace, for a delegate
+itself without being shared the parent's. A concrete `Workspace` pins the root
+run's approved computer across cloud-only intermediate delegates. `none` - no workspace, for a delegate
 that binds no `sandbox` at all.
 
 Decided here rather than left to the delegation library, which hands every
@@ -89,6 +91,8 @@ class ResolvedSubagent:
     preferred_mode: DelegationMode | None = None
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
+    authorize: Callable[[], Awaitable[None]] | None = None
+    """A live access check for discovered delegates, never inherited by explicit pins."""
     workspace: DelegateWorkspace = "none"
     """Which workspace this delegation runs in; see `DelegateWorkspace`."""
     collection_names: tuple[str, ...] = ()
@@ -506,6 +510,11 @@ class DelegationStash:
     enclosing `task` call when the run ends, and seeds each level's fresh registry
     from the same key on the resume.
     """
+
+    mirage_authorities: dict[str, str] = field(default_factory=dict)
+    restoring_mirage: bool = False
+    discovered: dict[str, list[SubagentRef]] = field(default_factory=dict)
+    """Interactive delegate catalogs pinned by ancestor path, retained across approval parks."""
 
     parked: list[ParkedDelegation] = field(default_factory=list)
     """Filled during the run, read once when it ends. Appended to under the GIL

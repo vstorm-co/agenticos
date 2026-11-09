@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { announceChange } from "@/lib/live-updates";
+import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
 import { apiClient } from "@/lib/api-client";
@@ -11,6 +13,7 @@ import {
   useAgentSelectionStore,
   useAuthStore,
   useChatStore,
+  useWorkingStore,
   useComposerIntentStore,
   useConversationStore,
   useOrgStore,
@@ -152,12 +155,21 @@ const readiness = vi.hoisted(() => ({
 }));
 
 const { socket } = vi.hoisted(() => ({
-  socket: { onMessage: null as ((event: MessageEvent) => void) | null, send: vi.fn() },
+  socket: {
+    onMessage: null as ((event: MessageEvent) => void) | null,
+    send: vi.fn(),
+    isConnected: true,
+  },
 }));
 vi.mock("@/hooks/use-websocket", () => ({
   useWebSocket: (options: { onMessage?: (event: MessageEvent) => void }) => {
     socket.onMessage = options.onMessage ?? null;
-    return { isConnected: true, connect: vi.fn(), disconnect: vi.fn(), sendMessage: socket.send };
+    return {
+      isConnected: socket.isConnected,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      sendMessage: socket.send,
+    };
   },
 }));
 
@@ -168,11 +180,11 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
-function mount() {
+function mount(requestedConversationId?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer />
+      <ChatContainer requestedConversationId={requestedConversationId} />
     </QueryClientProvider>,
   );
 }
@@ -226,6 +238,7 @@ const SETTLE = { timeout: 5000 };
 beforeAll(() => configure({ asyncUtilTimeout: SETTLE.timeout }));
 
 beforeEach(() => {
+  socket.isConnected = true;
   vi.clearAllMocks();
   // jsdom keeps the address between the tests of a file, and the container opens
   // whatever `?id=` names: a test that created a conversation left `?id=c-new`,
@@ -283,6 +296,61 @@ beforeEach(() => {
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
   voiceCall.call = initialCall;
+});
+
+describe("the chat container - answering a durable question", () => {
+  it("keeps the question disabled offline and resumes on the connected socket", async () => {
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-1", args: {} });
+    receive("user_question_required", {
+      run_id: "r-1",
+      questions: [
+        {
+          tool_call_id: "ask-1",
+          questions: [
+            { question: "How formal?", options: [{ label: "Casual" }], allow_custom: true },
+          ],
+        },
+      ],
+    });
+    receive("complete", {});
+    act(() => {
+      socket.isConnected = false;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    const answer = screen.getByRole("button", { name: /Casual/ });
+    expect(answer).toBeDisabled();
+    act(() => {
+      socket.isConnected = true;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Casual/ }));
+    const submitted = socket.send.mock.calls
+      .map(([frame]) => frame)
+      .find((frame) => frame.type === "answer_run");
+    expect(submitted).toMatchObject({
+      run_id: "r-1",
+      responses: { "ask-1": [{ answer: "", selected: ["Casual"], skipped: false }] },
+    });
+    await act(async () =>
+      receive("run_answer_result", {
+        request_id: submitted.request_id,
+        result: {
+          run_id: "r-1",
+          status: "completed",
+          output: "Your answer was received.",
+          cost_usd: "0",
+          input_tokens: 1,
+          output_tokens: 1,
+          cost_is_partial: false,
+        },
+      }),
+    );
+    expect(screen.queryByText("How formal?")).not.toBeInTheDocument();
+    expect(await screen.findByText("Your answer was received.")).toBeInTheDocument();
+  });
 });
 
 describe("the chat container - Stop without a restored decision card", () => {
@@ -393,7 +461,7 @@ describe("the chat container - following the transcript", () => {
         timestamp: new Date(),
       }),
     );
-    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const dock = screen.getByRole("textbox").closest("[data-chat-dock]") as HTMLElement;
     const scroller = dock.previousElementSibling as HTMLElement;
     expect(scroller).toHaveClass("overflow-y-auto");
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
@@ -495,15 +563,18 @@ describe("the chat container - delegation panels across a conversation switch", 
     // The delegate's own name and cost, not the chrome around them: every page here
     // renders its empty state when a query fails, so an assertion on a heading is an
     // assertion on nothing.
-    expect(await screen.findByText("Quarterly report researcher")).toBeInTheDocument();
-    expect(screen.getByText("$0.0042")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /Quarterly report researcher/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Quarterly report researcher/ }));
+    expect(screen.getByText(/\$0\.0042/)).toBeInTheDocument();
 
     act(() => {
       useConversationStore.getState().setCurrentConversationId("c-b");
     });
 
     expect(screen.queryByText("Quarterly report researcher")).not.toBeInTheDocument();
-    expect(screen.queryByText("$0.0042")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.0042/)).not.toBeInTheDocument();
   });
 
   it("keeps the panels of the turn that is still streaming when it names its conversation", async () => {
@@ -525,9 +596,11 @@ describe("the chat container - delegation panels across a conversation switch", 
 
     receive("conversation_created", { conversation_id: "c-new" });
 
-    expect(await screen.findByText("Quarterly report researcher")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /Quarterly report researcher/ }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Quarterly report researcher/ }));
-    expect(screen.getByText("read the three filings and list what changed")).toBeInTheDocument();
+    expect(screen.getAllByText("read the three filings and list what changed")).toHaveLength(2);
   });
 });
 
@@ -956,7 +1029,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // was detached by the time it was asserted on (230 ms, well inside the
     // timeout), so what is checked is the message on screen, not one node.
     await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
-    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const dock = screen.getByRole("textbox").closest("[data-chat-dock]") as HTMLElement;
     const scroller = dock.previousElementSibling as HTMLElement;
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
     const follow = observers.find(
@@ -1134,6 +1207,26 @@ describe("the chat container - an answer still being written after its person le
     });
   });
 
+  it("uses the persisted run start for a resumed stream and its sidebar clock", async () => {
+    useConversationStore.getState().setCurrentConversationId(LEFT);
+    const started = running!;
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "clock-question",
+        conversation_id: LEFT,
+        role: "user",
+        content: "Check the project",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    mount();
+    await screen.findByText(/still answering when you left/);
+    receive("turn_attached", { conversation_id: LEFT });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "get_project", args: {}, tool_call_id: "read-1" });
+    await waitFor(() => expect(useWorkingStore.getState().since[LEFT]).toBe(started));
+  });
+
   it("says the agent is still answering, and fetches the answer when its run ends", async () => {
     // The thread as a reload finds it: the question, and nothing after it.
     useConversationStore.getState().setCurrentConversationId(LEFT);
@@ -1159,6 +1252,11 @@ describe("the chat container - an answer still being written after its person le
         ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=101`,
       );
     const before = reads().length;
+    const question = screen.getByText("Write me a rollout plan");
+    const observedLengths: number[] = [];
+    const unsubscribe = useChatStore.subscribe((state) =>
+      observedLengths.push(state.messages.length),
+    );
 
     // The run ends: the next read of the list no longer says it is at work.
     running = null;
@@ -1166,7 +1264,13 @@ describe("the chat container - an answer still being written after its person le
       await client.invalidateQueries();
     });
 
-    await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
+    try {
+      await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
+      expect(observedLengths).not.toContain(0);
+      expect(screen.getByText("Write me a rollout plan")).toBe(question);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("says nothing of an answer left behind while this tab holds the call that is the run", async () => {
@@ -1459,7 +1563,7 @@ describe("the chat container - late transcript reconciliation", () => {
     expect(useChatStore.getState().messages.at(-1)?.content).toContain(
       "Could not persist this answer",
     );
-    expect(screen.getByText(/Could not persist this answer/)).toBeVisible();
+    expect(await screen.findByText(/Could not persist this answer/)).toBeVisible();
   });
 });
 
@@ -1492,6 +1596,56 @@ it("loads earlier messages from the transcript control without losing the curren
   expect(await screen.findByText("Earlier page")).toBeVisible();
   expect(screen.getByText("Current page")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument();
+});
+
+describe("routine answers arriving in the open source conversation", () => {
+  it("rereads a matching private delivery in place and deduplicates repeated announcements", async () => {
+    const original = {
+      id: "before-routine",
+      run_id: "worker-run",
+      role: "assistant",
+      content: "Already here",
+      conversation_id: "source-chat",
+      created_at: "2026-11-02T10:00:00Z",
+    };
+    useConversationStore.getState().setCurrentConversationId("source-chat");
+    useConversationStore.getState().setCurrentMessages([original] as never);
+    let deliveredText = "Approved routine result";
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path.startsWith("/conversations/source-chat/messages")
+        ? Promise.resolve({
+            items: [original, { ...original, id: "routine-result", content: deliveredText }],
+            total: 2,
+            cost: null,
+          })
+        : fallback(path),
+    );
+    mount();
+    await screen.findByText("Already here");
+    const delivered: ChangeEvent = {
+      organization_id: "org-1",
+      resource: "conversation",
+      id: "source-chat",
+      action: "updated",
+      surface: "run",
+      actor_user_id: "u-1",
+      actor_name: null,
+      origin_tab: null,
+    };
+    await act(async () => announceChange({ ...delivered, id: "another-chat" }));
+    expect(screen.queryByText("Approved routine result")).not.toBeInTheDocument();
+    await act(async () => announceChange({ ...delivered, organization_id: "other-org" }));
+    expect(screen.queryByText("Approved routine result")).not.toBeInTheDocument();
+    await act(async () => announceChange(delivered));
+    expect(await screen.findByText("Approved routine result")).toBeVisible();
+    await act(async () => announceChange(delivered));
+    await waitFor(() => expect(screen.getAllByText("Approved routine result")).toHaveLength(1));
+    deliveredText = "Worker continuation reached another approval";
+    await act(async () => announceChange({ ...delivered, resource: "run", id: "worker-run" }));
+    expect(await screen.findByText(deliveredText)).toBeVisible();
+    expect(useConversationStore.getState().currentConversationId).toBe("source-chat");
+  });
 });
 
 it("keeps the draft focused when tapping dock buttons while leaving keyboard focus available", async () => {
@@ -1572,6 +1726,8 @@ describe("the chat container - forking a conversation (#2762)", () => {
     );
 
     await userEvent.click(fork);
+    expect(fork).toBeDisabled();
+    expect(fork).toHaveAttribute("aria-busy", "true");
     await userEvent.click(fork);
     finish({ id: "c-fork", title: "Pricing" });
 
@@ -1625,6 +1781,7 @@ describe("the chat container - a conversation shared with the reader", () => {
       await screen.findByText("Shared with you as read-only", undefined, SETTLE),
     ).toBeVisible();
     expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /regenerate/i })).toBeNull();
   });
 
   it("keeps the message box for somebody it was shared with to edit", async () => {
@@ -1652,21 +1809,124 @@ describe("the chat container - a conversation shared with the reader", () => {
     openShared(new Promise<never>(() => {}));
     mount();
 
-    expect(await screen.findByRole("textbox", undefined, SETTLE)).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(
+      await screen.findByText("Checking conversation access…", undefined, SETTLE),
+    ).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
     // Not archived, and not said to be: it is only not known yet.
     expect(screen.queryByText("This conversation is archived")).toBeNull();
   });
 
-  it("restricts nothing when the reader's access cannot be read", async () => {
+  it("keeps access failures visible and offers a retry without enabling writes", async () => {
     openShared(Promise.reject(new Error("offline")) as Promise<never>);
     mount();
 
+    expect(
+      await screen.findByText("Could not verify access to this conversation", undefined, SETTLE),
+    ).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    const previous = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-theirs/metadata"
+        ? Promise.resolve({ id: "c-theirs", share_permission: "edit", is_archived: false })
+        : previous(url),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(
       () => expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-disabled", "true"),
       SETTLE,
     );
+    expect(screen.queryByText("Could not verify access to this conversation")).toBeNull();
   });
+
+  it("offers fork controls and lineage for an owned chat beyond the sidebar page", async () => {
+    openShared({
+      user_id: SIGNED_IN.id,
+      share_permission: null,
+      is_archived: false,
+      forked_from: { conversation_id: "c-source", message_id: "m-source", title: "Earlier plan" },
+    });
+    mount();
+
+    expect(
+      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+  });
+});
+
+it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
+  const originalGet = get.getMockImplementation();
+  get.mockImplementation((url: string, ...args: unknown[]) =>
+    url.startsWith("/outcomes?")
+      ? Promise.resolve({
+          items: [
+            {
+              id: "notice",
+              kind: "approval_requested",
+              summary: "Review the pending operation",
+              status: "open",
+              context_url: "/runs?tab=approvals",
+              source_conversation_id: "c-notice",
+            },
+          ],
+        })
+      : originalGet?.(url, ...args),
+  );
+  useConversationStore.getState().setCurrentConversationId("c-notice");
+  mount();
+  const notice = await screen.findByText("Review the pending operation");
+  const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
+  expect(dock).toContainElement(notice);
+  expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
+});
+
+describe("opening a saved chat", () => {
+  it("never shows welcome prompts while the requested transcript is unresolved", () => {
+    useConversationStore.setState({ currentConversationId: null, currentMessages: [] });
+    useChatStore.getState().clearMessages();
+    const view = mount("c-link");
+    expect(view.container.querySelector(".chat-empty-state")).toBeNull();
+    expect(screen.getByRole("textbox")).toHaveAttribute("contenteditable", "false");
+    act(() => {
+      useConversationStore.setState({ currentConversationId: "c-link" });
+      useChatStore.getState().addMessage({
+        id: "saved",
+        role: "user",
+        content: "Saved question",
+        timestamp: new Date(),
+      });
+    });
+    expect(screen.getByText("Saved question")).toBeInTheDocument();
+    expect(view.container.querySelector(".chat-empty-state")).toBeNull();
+  });
+});
+
+it("resolves an access request against the requesting agent even after the picker changes", async () => {
+  const base = get.getMockImplementation()!;
+  get.mockImplementation((url: string) =>
+    url === "/agents"
+      ? Promise.resolve({
+          items: [
+            {
+              id: "asking-agent",
+              slug: "asking-agent",
+              name: "Asking agent",
+              status: "published",
+              local_workspace: true,
+            },
+            { id: "other-agent", slug: "other-agent", name: "Other agent", status: "published" },
+          ],
+          total: 2,
+        })
+      : base(url),
+  );
+  useAgentSelectionStore.setState({ selectedAgentId: "other-agent" });
+  mount();
+  await waitFor(() => expect(get).toHaveBeenCalledWith("/agents", expect.anything()));
+  receive("computer_access", { reason: "Read files", agent_id: "asking-agent" });
+  await waitFor(() =>
+    expect(socket.send).toHaveBeenCalledWith({ type: "computer_access_response", granted: false }),
+  );
 });

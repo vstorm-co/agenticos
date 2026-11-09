@@ -49,6 +49,7 @@ from app.repositories import (
     credential_repo,
     organization_repo,
     organization_secret_repo,
+    system_agent_repo,
 )
 from app.schemas.model_profile import ModelProfileUpdate
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
@@ -590,6 +591,9 @@ class ModelProfileService:
         # it is switched off here, in the same transaction, rather than left
         # saying it is on (Codex on #2324).
         await organization_repo.stop_proactivity_on(
+            self.db, organization_id=ctx.organization_id, model_profile_id=profile_id
+        )
+        await system_agent_repo.disable_for_model(
             self.db, organization_id=ctx.organization_id, model_profile_id=profile_id
         )
         await credential_repo.delete_profile(

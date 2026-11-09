@@ -11,10 +11,18 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    JsonValue,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
 from app.schemas.resource_grant import AudienceChoice
 from app.schemas.virtual_table import TableCreate, TableRead
 from app.schemas.workflow_exposure import WorkflowExposureRead
@@ -183,11 +191,13 @@ WorkflowTag = Annotated[
 
 
 class WorkflowCreate(AudienceChoice):
-    """Create a named draft and audience, optionally provisioning a template table."""
+    """Create a named draft and audience, optionally preparing a selected template."""
 
     name: str = Field(min_length=1, max_length=128)
     tags: list[WorkflowTag] = Field(default_factory=list, max_length=MAX_TAGS)
-    template_id: Literal["publicApi", "markdownNotes"] | None = None
+    template_id: Literal["publicApi", "markdownNotes", "awaitReply"] | None = None
+    reply_mailbox: ReplyMailboxSelection | None = None
+    reply_draft: ReplyDraftSelection | None = None
     description: str | None = Field(default=None, max_length=2000)
     visibility: Visibility = Field(
         default=Visibility.ORG,
@@ -197,6 +207,14 @@ class WorkflowCreate(AudienceChoice):
             "draft cannot run either way, so this decides who sees it, not what it does."
         ),
     )
+
+    @model_validator(mode="after")
+    def reply_template_has_a_mailbox(self) -> WorkflowCreate:
+        if (self.template_id == "awaitReply") != (self.reply_mailbox is not None):
+            raise ValueError("Select a mailbox for the Await reply template only")
+        if self.reply_draft is not None and self.template_id != "awaitReply":
+            raise ValueError("Draft preparation belongs to the Await reply template")
+        return self
 
 
 class WorkflowUpdate(BaseSchema):
@@ -299,6 +317,32 @@ class WorkflowVersionDetail(WorkflowVersionRead):
 class WorkflowVersionList(BaseSchema):
     items: list[WorkflowVersionRead]
     next_before: int | None = None
+
+
+class WorkflowEntryInputSchema(BaseSchema):
+    """The input contract of one trigger in a published version."""
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    entry_node_id: UUID
+    trigger: str
+    input_schema: dict[str, JsonValue]
+
+
+class WorkflowInputSchema(BaseSchema):
+    """Version-pinned input discovery, in default-entry order.
+
+    Each entry declares a JSON object using Draft 2020-12. Simple input fields
+    are represented with a `x-agenticos-strict-integer` marker where legacy
+    integer fields additionally require integer tokens; an untyped entry accepts any
+    object. Only triggers that accept caller-defined input are included.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    workflow_id: UUID
+    version_id: UUID
+    entries: list[WorkflowEntryInputSchema]
 
 
 class NodeCatalogPort(BaseSchema):

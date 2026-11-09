@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import (
     ActiveOrg,
     Auth,
+    CodingTaskChangeSvc,
     ConversationShareSvc,
     ConversationSvc,
     ConversationTaskSvc,
@@ -15,14 +16,17 @@ from app.api.deps import (
     ProjectSvc,
     VisualSvc,
     WorkspaceSvc,
+    key_needs,
     limit_fork,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
+from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationForkCreate,
@@ -71,6 +75,17 @@ async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx:
     return await service.stop(ctx, task_id)
 
 
+@router.get("/coding-changes/{change_id}", response_model=CodingTaskChangeRead)
+async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth) -> Any:
+    """What one coding-agent task changed: its files, then each file's part of the patch.
+
+    `change_id` is the `changes_id` a `run_coding_agent` result names. Readable by
+    whoever may read the conversation the task ran in - the transcript's own
+    check - and missing (404) for anybody else, in this organization or another.
+    """
+    return await service.get(ctx, change_id)
+
+
 @router.get("/shared-with-me", response_model=ConversationList)
 async def list_shared_with_me(
     share_service: ConversationShareSvc,
@@ -95,7 +110,11 @@ async def get_shared_conversation(
     return await share_service.get_by_token(token)
 
 
-@router.get("", response_model=ConversationList)
+@router.get(
+    "",
+    response_model=ConversationList,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
 async def list_conversations(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -103,6 +122,9 @@ async def list_conversations(
     auth: Auth,
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum conversations to return"),
+    for_model: bool = Query(
+        False, description="Omit conversations containing guardrail-refused turns"
+    ),
     search: str | None = Query(default=None, description="Search by title"),
     agent_id: UUID | None = Query(default=None, description="Only threads this agent answered in"),
     include_archived: bool = Query(False, description="Include archived conversations"),
@@ -149,11 +171,17 @@ async def list_conversations(
         hide_channels=hide_channels,
         project_id=project_id,
         reader=auth,
+        for_model=for_model,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
 
-@router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def create_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -232,7 +260,9 @@ async def fork_conversation(
 
     Only the conversation's owner may fork it; anybody else gets 404. `400`
     when a run in the copied history is still running or parked on an
-    approval or a question. `forked_from` on the response names the source, and is only ever
+    approval or a question, or the prefix exceeds 2,000 messages, 10,000 tool
+    calls or 20 MiB. `409` means the history is busy and can be retried.
+    `forked_from` on the response names the source, and is only ever
     set for the person who owns both. `429` past ten forks a minute per member
     and organization.
     """
@@ -316,7 +346,11 @@ async def get_visual_image(
     return visual_image_response(data, media_type)
 
 
-@router.patch("/{conversation_id}", response_model=ConversationRead)
+@router.patch(
+    "/{conversation_id}",
+    response_model=ConversationRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def update_conversation(
     conversation_id: UUID,
     data: ConversationUpdate,
@@ -347,6 +381,7 @@ async def delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
     # The rows would cascade away with the conversation, but a container-backed
     # workspace lives outside this database and would sit on the host until its
@@ -593,14 +628,20 @@ async def change_share_permission(
     data: ConversationShareUpdate,
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ) -> Any:
     """Change what a share with a person lets them do: `view` or `edit`.
 
     The conversation's owner only (`403` otherwise). `400` for a share link,
-    which stays view-only; `404` when the share is not this conversation's.
+    which stays view-only; `404` when the share is not this conversation's
+    or the conversation belongs to another organization.
     """
     return await share_service.change_permission(
-        conversation_id, share_id, current_user.id, permission=data.permission
+        conversation_id,
+        share_id,
+        current_user.id,
+        permission=data.permission,
+        organization_id=active_org.id,
     )
 
 

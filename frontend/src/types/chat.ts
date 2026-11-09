@@ -25,6 +25,8 @@ export interface ChatMessageFile {
  */
 export interface QueuedMessage {
   id: string;
+  /** A continuation keeps its requesting agent; undefined follows the current picker. */
+  agentId?: string | null;
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
@@ -57,6 +59,8 @@ export type TurnFileSource =
   | { readonly kind: "conversation"; readonly id: string };
 
 export interface ChatMessage {
+  /** A synthetic HTTP resume segment, replaced by its persisted run transcript. */
+  isLocalContinuation?: boolean;
   /** Submission correlation, retained when the persistence frame was lost. */
   clientMessageId?: string;
   /** A saved bubble still addressed by its local id while deltas arrive. */
@@ -67,6 +71,9 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Run-level pause, including gated delegate tools absent from this message. */
+  runWaitingFor?: "approval" | "answer";
+  runStartedAt?: Date;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */
@@ -157,6 +164,8 @@ export interface ChatMessage {
 }
 
 export interface ToolCall {
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   id: string;
   name: string;
   args: Record<string, unknown>;
@@ -185,7 +194,8 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run";
+export type MessagePartType =
+  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -217,6 +227,7 @@ export interface MessagePart {
   askedBy?: string;
   /** The run, for a "workflow_run" part. */
   workflowRun?: WorkflowRunPart;
+  phoneCallId?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -283,9 +294,12 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "user_question_required"
+  | "run_answer_result"
   | "steer_applied"
   | "steer_unapplied"
   | "connect_account"
+  | "computer_access"
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
@@ -481,6 +495,8 @@ export interface WSEvent {
    handler. Deleting four wrong ones is not that refactor. */
 
 export interface ActionRequest {
+  can_remember?: boolean;
+  subagent_name?: string | null;
   /** The `approvals` row. What a decision is recorded against. */
   id: string;
   /** The model's own id for the call, so the card drawn for it can be resolved. */
@@ -532,6 +548,7 @@ export interface PendingApproval {
 export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
+  remember_scope?: "conversation" | "agent";
   type: DecisionType;
   editedAction?: {
     id: string;
@@ -844,6 +861,19 @@ export interface PersonalServiceGap {
  * up front; answered with `connect_account_response`. Never "nobody to speak
  * as" - a run with nobody signed in cannot wait for anybody.
  */
+/**
+ * A run paused on `computer_access`: an agent that works on this computer needs
+ * its files, and waits while the person chooses a folder or the whole computer.
+ * Answered with `computer_access_response`.
+ */
+export interface ComputerAccessRequest {
+  reason: string;
+  /** A local coding delegate also needs full computer access. */
+  coding?: boolean;
+  /** The requesting turn's agent, including when the picker changes while it runs. */
+  agent_id?: string | null;
+}
+
 export interface ConnectionRequest {
   catalog_key: string;
   name: string;

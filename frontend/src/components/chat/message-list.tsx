@@ -6,16 +6,19 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
+import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
-import type { ChatMessage, TurnUsage } from "@/types";
+import type { ChatMessage, TurnUsage, Delegation } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
   messages: ChatMessage[];
+  delegations?: Delegation[];
   onRegenerate?: (messageId: string) => void;
   /** Fork the conversation at this answer; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
 }
@@ -84,6 +87,69 @@ export function endsTurn(messages: ChatMessage[], index: number): boolean {
   return !continuesTurn(messages, index + 1);
 }
 
+/** One chronological timeline per adjacent run, without rewriting stored messages.
+ * Progress text stays beside its tools, and the last segment supplies the answer.
+ */
+export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
+  const result: ChatMessage[] = [];
+  for (const message of messages) {
+    const previous = result.at(-1);
+    const sameRun =
+      previous?.runId && message.runId
+        ? previous.runId === message.runId
+        : previous?.groupId && message.groupId && previous.groupId === message.groupId;
+    if (
+      !previous ||
+      previous.role !== "assistant" ||
+      message.role !== "assistant" ||
+      !sameRun ||
+      previous.files?.length ||
+      previous.fileIds?.length ||
+      previous.replyTo ||
+      previous.agentId !== message.agentId
+    ) {
+      result.push(message);
+      continue;
+    }
+    const calls = new Map(
+      [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])].map((call) => [call.id, call]),
+    );
+    const parts = new Map(
+      [
+        ...(previous.parts ??
+          buildAssistantParts(
+            previous.toolCalls ?? [],
+            previous.content,
+            previous.id,
+            previous.thinking,
+          )),
+        ...(message.parts ??
+          buildAssistantParts(
+            message.toolCalls ?? [],
+            message.content,
+            message.id,
+            message.thinking,
+          )),
+      ].map((part) => [part.id, part]),
+    );
+    result[result.length - 1] = {
+      ...message,
+      renderKey: previous.renderKey ?? previous.id,
+      timestamp: previous.timestamp,
+      fileSource: message.fileSource ?? previous.fileSource,
+      runStartedAt: previous.runStartedAt ?? message.runStartedAt,
+      runDurationMs: message.runDurationMs ?? previous.runDurationMs,
+      toolCalls: [...calls.values()],
+      parts: [...parts.values()].map((part) =>
+        part.toolCall ? { ...part, toolCall: calls.get(part.toolCall.id) ?? part.toolCall } : part,
+      ),
+      thinking: [previous.thinking, message.thinking].filter(Boolean).join("\n\n") || undefined,
+      usage: message.usage ?? previous.usage,
+    };
+  }
+  return result;
+}
+
 interface MessageLayout {
   message: ChatMessage;
   groupPosition?: "first" | "middle" | "last" | "single";
@@ -139,7 +205,15 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
   });
 }
 
-export function MessageList({ messages, onRegenerate, onFork, pins }: MessageListProps) {
+export function MessageList({
+  messages: sourceMessages,
+  delegations,
+  onRegenerate,
+  onFork,
+  forkingMessageId = null,
+  pins,
+}: MessageListProps) {
+  const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
   // turns. The query is the one the agent picker already made, so this costs a
@@ -190,6 +264,7 @@ export function MessageList({ messages, onRegenerate, onFork, pins }: MessageLis
           )}
           <MessageItem
             message={message}
+            delegations={index === lastAssistantIndex ? delegations : undefined}
             agent={message.agentId ? byId.get(message.agentId) : undefined}
             groupPosition={row.groupPosition}
             continuesTurn={row.continuesTurn}
@@ -200,6 +275,7 @@ export function MessageList({ messages, onRegenerate, onFork, pins }: MessageLis
             agents={agents}
             request={pins ? undefined : row.request}
             onFork={onFork}
+            forkingMessageId={forkingMessageId}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? regenerateLast

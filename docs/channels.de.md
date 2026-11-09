@@ -1,5 +1,5 @@
 ---
-source_sha: "59cdf11dca18"
+source_sha: "939263497b24"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -275,6 +275,13 @@ sequenceDiagram
 Das ist das ganze eingehende Vokabular, dazu `context` (was die Seite über den
 Besucher sagt) und `file_ids` (was er angehängt hat, auf einer Seite, die Dateien
 annimmt).
+
+Jeder `message`-Frame zählt zu einem Limit pro Verbindung, auch wenn er leer
+oder fehlerhaft ist. Gültige Nachrichten verbrauchen zusätzlich das bestehende
+Besucherlimit; fehlerhafte Eingaben können das gemeinsame Kontingent anderer
+anonymer Besucher nicht erschöpfen. Ein Frame darf höchstens drei Datei-IDs
+enthalten; längere Listen werden vor dem Parsen abgelehnt. Ungültige IDs in einer
+begrenzten Liste werden verworfen und einmal ohne ihre Werte protokolliert.
 
 **Es enthält bewusst nicht die drei Felder, die der Frame des Dashboards
 trägt:** den Agent, das Modellprofil und die Umgebung.
@@ -1122,6 +1129,117 @@ Ein Agent, der nicht angeboten wird — aus, unveröffentlicht, archiviert oder 
 anderen Organisation —, antwortet mit `404`, Karte wie Endpunkt.
 
 ---
+
+## SMS { #sms }
+
+Eine SMS an eine Twilio-Nummer erreicht einen Agent wie eine Direktnachricht auf jeder anderen
+Plattform: über denselben Router, die verknüpfte Identität, die Zugriffsrichtlinie und die
+Budgets (#2082). Neu ist nur der Transport.
+
+**Den Bot hinzufügen** unter Channels → SMS (Twilio). Sein Token ist die Twilio-Account-SID, der
+Auth-Token und die Absendernummer, durch Doppelpunkte verbunden:
+`ACxxxxxxxx:auth_token:+15551234567`. Ein SMS-Bot arbeitet nur per Webhook; fügen Sie nach dem
+Speichern die angezeigte Webhook-URL in die Einstellung für eingehende Nachrichten der Nummer in
+der Twilio-Konsole ein. Die Adresse, die Twilio signiert, wird aus `PUBLIC_BASE_URL` gebaut; diese Einstellung muss also die Adresse sein, die Twilio tatsächlich aufruft: Hinter einem Proxy, der sie umschreibt, wird jede SMS abgelehnt.
+
+**Wer schreibt.** Eine Anfrage wird nur mit gültiger Twilio-Signatur angenommen - HMAC-SHA1 der
+Adresse, die Twilio aufgerufen hat, und ihrer Felder, unter dem Auth-Token - alles andere ist ein
+403, bevor ein Wort davon gelesen wird. Eine gültige Signatur beweist, dass die Anfrage von Twilio
+kam. Sie beweist nicht, wer der Absender ist: Die Nummer ist eine Behauptung, eine Person handelt
+also erst mit ihren eigenen Rechten, wenn sie die Nummer wie jede andere Kanal-Identität mit ihrem
+Konto verknüpft hat. Die Verknüpfung läuft nach `SMS_LINK_MAX_AGE_DAYS` ab (standardmäßig 90, `0` behält sie für immer), weil eine Nummer neu vergeben oder übernommen werden kann; die Person verknüpft erneut.
+
+**Was zurückkommt.** Der Webhook antwortet sofort, und der Agent antwortet über die Twilio-API,
+sobald er eine Antwort hat. Eine Antwort ist reiner Text - Markdown-Zeichen werden entfernt, ein
+Link wird ausgeschrieben - und bei etwa 1.500 Zeichen mit dem Hinweis gekürzt, dass der Rest in
+AgenticOS steht; eine Frage kostet so einige Segmente, nicht ein Dutzend. SMS kann nicht streamen,
+keine Nachricht bearbeiten und keine Schaltfläche drücken, eine Freigabe oder Frage kommt deshalb
+als nummerierte Zeilen an und wird per SMS mit der Nummer beantwortet. Eine einzelne Zahl, die eine
+Auswahl einer an diese Nummer gesendeten Frage benennt, ist die Antwort. Gleichzeitig wartende Fragen teilen nie Nummern - die zweite zählt dort weiter, wo die erste endete, auf 1 und 2 folgen also 3 und 4 - und die Entscheidung über eine lässt die andere offen. Eine Frage bleibt einen Tag offen, eine Mehrfachauswahl nimmt also mehrere Zahlen an; jeder andere Text ist eine gewöhnliche Nachricht.
+
+Eingehende MMS-Dateien, auch ohne Text, nutzen nach Identitäts- und
+Zugriffsprüfung die gemeinsame Verarbeitung von Kanalanhängen. Höchstens zehn
+Dateien werden gelesen; ihre Medien-URLs müssen das Twilio-Konto des Bots und
+die eingehende Nachricht benennen. Authentifizierte Downloads lehnen
+Weiterleitungen ab, enden bei `CHAT_MAX_UPLOAD_SIZE_MB` und haben ein Gesamtlimit
+von 30 Sekunden. Der gemeinsame Upload prüft Typ und Inhalt und speichert
+akzeptierte Dateien in der Unterhaltung. Eine Zahl mit Datei ist eine Nachricht,
+keine nummerierte Freigabe.
+
+Ausgehende Antworten können ausdrücklich gewählte Workspace-Dateien und Diagramme
+als MMS senden, auch ohne Text. Das normale Kanaldatei-Tool bestimmt weiterhin
+Datei und Ziel. Der Adapter lehnt nicht unterstützte Typen, leere Dateien, mehr
+als zehn Anhänge und insgesamt über 5 MB Text und Medien ab. JPEG/PNG/GIF können
+dieses Gesamtlimit nutzen; andere akzeptierte Typen einschließlich PDF und CSV
+sind auf 500 KB begrenzt. Netzbetreiber- und Länderunterstützung gelten weiterhin;
+eine Ablehnung des Anbieters bleibt ein Fehler.
+
+MMS braucht eine öffentlich erreichbare HTTPS-`PUBLIC_BASE_URL` und gemeinsames
+Redis. Nur ausdrücklich an den Adapter übergebene Kopien werden bereitgestellt,
+jeweils mit einem zufälligen Abrufnachweis für 15 Minuten. Twilio verwendet ihn
+für GET und HEAD; der authentifizierte Dateispeicher wird nicht geöffnet. Twilios
+Warteschlange ist auf zehn Minuten begrenzt, kürzer als die Lebensdauer der Kopie.
+Links werden weder im Chat gespeichert noch dem Modell übergeben. Die API-Annahme
+bedeutet Übermittlung an den Anbieter, nicht Zustellung durch den Netzbetreiber.
+Siehe [Twilios Formate und Limits](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
+
+## E-Mail { #email }
+
+Eine Mail an eine Adresse erreicht einen Agenten wie eine Direktnachricht auf jeder anderen Plattform:
+über denselben Router, dieselbe verknüpfte Identität, Zugriffsrichtlinie und Budgets (#2082). Neu ist
+nur der Transport.
+
+**Bot hinzufügen** unter Kanäle → E-Mail. Sein Token ist die Adresse, von der der Bot antwortet, zum
+Beispiel `agent@mail.example.com`; Antworten gehen über den eigenen E-Mail-Anbieter der Installation
+hinaus, daher muss `EMAIL_PROVIDER` einer sein, der wirklich versendet - ein Bot auf dem Anbieter `log`
+verweigert die Antwort, statt sie vorzutäuschen. Ein E-Mail-Bot arbeitet nur per Webhook und braucht ein
+Geheimnis: Erzeugen Sie eines und kopieren Sie es ins Relay.
+
+**Das Relay.** Mail wird nicht abgefragt. Was sie empfängt - ein Cloudflare Email Worker, eine
+Inbound-Route von Postmark oder Mailgun, ein Skript auf einem Mailserver - sendet pro Nachricht ein
+JSON-Dokument per POST an die nach dem Speichern beim Bot angezeigte URL:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+und signiert es mit zwei Headern: `X-AgenticOS-Timestamp` (Unix-Sekunden) und `X-AgenticOS-Signature`,
+also `sha256=` plus der hexadezimale HMAC-SHA256 von `timestamp.body` unter dem Geheimnis. Eine Anfrage
+ohne gültige Signatur oder mit mehr als fünf Minuten Abweichung ist ein 403, bevor ein Wort davon
+gelesen wird, und ein Bot ohne Geheimnis weist alles ab. Der Body ist auf 25 MB begrenzt, bis zu zehn
+Anhänge werden gelesen, und eine bereits gesehene Nachrichten-ID wird ignoriert, sodass ein erneuter
+Versuch des Relays den Agenten nur einmal startet.
+
+Eingehende Anhänge teilen ein Cache-Limit von 64 MiB kodierter Daten und 1.024 Dateien pro Bot. Jede Zustellung wird atomar gespeichert; bei Erschöpfung folgt 429 mit Retry-After, bevor Dateien oder Verlauf gespeichert werden. Lesen oder Verwerfen gibt die Kapazität sofort frei. Ungelesene Dateien verfallen nach 15 Minuten; die nächste Cache-Operation gewinnt ihre Kapazität zurück. Verarbeitungsfehler entfernen ebenfalls ungenutzte Anhänge. Antworten und Rückfragen bleiben im Verlauf ihrer eigenen Eingangsnachricht, auch wenn inzwischen eine weitere eintrifft.
+
+Der Webhook speichert einen Job `process-email-delivery`, bevor er 200 zurückgibt. Der Job behält den validierten Nachrichteninhalt einschließlich Anhängen; ein API-Neustart oder abgelaufener Cache verliert dadurch keine angenommene Arbeit. Die Message-ID-Deduplizierung wird mit dem Job bestätigt; nach einem Rollback kann die Anfrage wiederholt werden. Worker prüfen Bot und Organisation erneut, serialisieren Zustellungen an denselben Gesprächspartner und zeigen fehlgeschlagene Versuche unter Admin → Background jobs. Beendete Job-Payloads unterliegen `BACKGROUND_JOB_RETENTION_DAYS`; Deployment-Administratoren können sie einsehen.
+
+SMS- und iMessage-Webhooks speichern einen Job `process-channel-delivery`, bevor eine gültige Nachricht bestätigt wird. Payload und Message-ID-Beleg gehören zu einer Datenbanktransaktion; ein Rollback erlaubt Wiederholung und API-Neustarts erhalten angenommene Arbeit. Worker prüfen Organisation, Plattform und Aktivität des Bots erneut und ordnen Zahlenantworten aktuellen Rückfragen zu; abgelaufene SMS-Identitäten können alte Anfragen nicht genehmigen. Zustellungspayloads unterliegen der Aufbewahrung für Hintergrundjobs und sind für Deployment-Administratoren sichtbar.
+
+**Wer schreibt.** Die Signatur beweist, dass das Relay die Anfrage gesendet hat, nicht wer die Mail
+geschrieben hat: Eine Adresse ist eine Behauptung. Eine Person handelt erst dann mit ihren eigenen
+Berechtigungen, wenn sie diese Adresse wie jede andere Kanalidentität mit ihrem Konto verknüpft hat.
+Jede Nachricht muss `sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}` enthalten,
+als Bestätigung eines DMARC-Erfolgs mit Domain-Abgleich für genau diese Adresse im From-Header.
+Das Relay muss das Ergebnis vom vertrauenswürdigen empfangenden Mailserver beziehen, niemals aus
+vom Absender gelieferten Authentifizierungsheadern. Fehlende, fehlgeschlagene oder abweichende
+Bestätigungen werden vor Kontozuordnung, Anhangspeicherung und Freigabeverarbeitung ignoriert.
+Bestehende Relays müssen dieses Feld vor dem Upgrade ergänzen; eine HMAC-Signatur allein reicht
+nicht mehr zur Annahme einer Nachricht.
+
+**Was zurückkommt.** Der Webhook antwortet sofort, und der Agent antwortet per Mail auf die letzte
+Nachricht des Absenders: `Re:` und derselbe Betreff, mit gesetzten `In-Reply-To` und `References`, damit
+ein Mailprogramm sie in den Verlauf einsortiert, und mit angehängten Dateien, die der Agent erzeugt hat.
+Unter einer Antwort zitierter Verlauf wird abgeschnitten, bevor der Agent ihn liest. Eine Freigabe oder
+Frage kommt als nummerierte Zeilen und wird beantwortet, indem man nur mit der Nummer antwortet; die
+Nummern verhalten sich wie bei SMS, und eine Frage bleibt einen Tag offen.
+
+Eingehende `references` müssen eine Liste von Zeichenketten ohne CR oder LF sein; aufbewahrte Einträge dürfen höchstens 998 Zeichen enthalten. Nachrichten mit ungültigen Referenzen werden vor der Verarbeitung ignoriert. Mehrzeilige Betreffzeilen werden vor dem Erstellen der Antwortheader zu einer Zeile zusammengeführt.
+
 
 ## Slack { #slack }
 
@@ -3098,3 +3216,45 @@ Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nac
 Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Der Bindungs-Prompt speichert nur eigene Ergänzungen. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
 
 Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wieder her und erhält eigene Ergänzungen, auch bei nach dem Upgrade angelegten Bindungen. Andere Oberflächen bleiben unverändert.
+
+## Benachrichtigungen über verknüpfte Kanäle { #linked-notifications }
+
+Unter **Einstellungen → Benachrichtigungen** ein privates Ziel pro Plattform
+und Organisation wählen: Slack, Telegram, Mattermost, Teams, Discord, SMS und iMessage verwenden
+den bestehenden verknüpften Bot. E-Mail und Push behalten ihre Einrichtung.
+Ereigniseinstellungen und Routine-Auswahl werden beim Versand zusammen mit
+Ressourcenrechten und aktuellem Fallstatus geprüft. Die Kontoverknüpfung allein
+aktiviert keinen Versand.
+
+Slack erhält Klartextblöcke mit einem Link zum bestehenden Fall. Der Link nutzt
+die normale Konsolenautorisierung. Bestätigen oder Lösen des Falls stoppt wartende
+externe Hinweise über alle Kanäle. Der Versandstatus bezeichnet Plattformannahme;
+der Fall behält seinen eigenen Bestätigungsstatus.
+
+Ein bestätigter [Slack-HTTP-429](https://docs.slack.dev/apis/web-api/rate-limits/)
+erlaubt begrenzte Wiederholung nach `Retry-After`. Der Client deaktiviert
+[SDK-Wiederholungen](https://docs.slack.dev/tools/python-slack-sdk/web/), damit
+Timeouts und unbekannte Ergebnisse sichtbare Fehler bleiben statt doppelte
+Sendungen auszulösen. Die [Benachrichtigungsrichtlinie](governance.md) beschreibt
+Widerruf, eingeschränkte Genehmigungshinweise und Migrationen.
+
+## iMessage über einen Firmen-Mac { #imessage }
+
+Ein Firmen-Mac mit Nachrichten und [BlueBubbles](https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks) stellt den Transport bereit. Er muss angemeldet und erreichbar bleiben. Gewähren Sie BlueBubbles die benötigten macOS-Berechtigungen und aktivieren Sie die REST API. Registrieren Sie unter **Kanäle** einen **iMessage**-Bot mit der HTTP-Adresse der Bridge und ihrem Serverpasswort als Bot-Token. Das Passwort liegt verschlüsselt im Organisationstresor; die Adresse darf keine Zugangsdaten, Abfrageparameter oder Fragmente enthalten.
+
+Binden Sie den veröffentlichten Agenten, öffnen Sie die Kanalbearbeitung und wählen Sie nach dem Speichern **iMessage-Webhook registrieren**. Ein Wechsel von Adresse oder Passwort widerruft das bisherige Callback-Geheimnis; registrieren Sie den Webhook erneut. AgenticOS registriert ausschließlich `new-message` unter `/api/v1/imessage/{bot_id}/webhook`. Ein separat erzeugtes Callback-Geheimnis authentifiziert den Aufruf per HTTP Basic. Verwenden Sie HTTPS über nicht vertrauenswürdige Netze. Für private AgenticOS-Adressen muss der BlueBubbles-Administrator API-Webhooks zu lokalen Adressen ausdrücklich erlauben. Das Entfernen betrifft nur Callbacks dieses Bots auf dieser Bereitstellung.
+
+Text und Dateien verwenden BlueBubbles' AppleScript-Transport. Optionale Tapback-Bestätigungen benötigen die Private API. Verknüpfte private Absender erhalten eine eigene Kanalunterhaltung. Die Verknüpfung gewährt dem Bot oder der Bridge keinen Zugriff auf frühere private Konsolenverläufe; Gruppen behalten eigene Unterhaltungen und benötigen die übliche Agentenerwähnung. Genehmigungen verwenden vorhandene nummerierte Fragen: Antworten Sie mit der angezeigten Zahl. Eigene Echos, Tapbacks und Systemereignisse starten keinen neuen Durchlauf. Anhänge werden nur anhand ihrer GUID von der konfigurierten Bridge abgerufen und unterliegen dem Uploadlimit.
+
+Wählen Sie die verknüpfte private Unterhaltung unter **Einstellungen → Benachrichtigungen**. Gruppen sind keine privaten Benachrichtigungsziele. Die Annahme durch die Bridge bestätigt die Übergabe, nicht Apples Zustellung oder die Bestätigung des Empfängers. Eine unerreichbare Bridge erzeugt einen sichtbaren Fehler; ungewisse Übertragungen werden nicht automatisch wiederholt.
+
+[Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) ist ein eigener Geschäftsdienst. Die [Einrichtung beim Anbieter](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) benötigt ein Messages-for-Business-Konto und einen Messaging-Anbieter; dieser Mac-Adapter richtet diese Integration nicht ein.
+
+
+SMS-Webhookformulare haben vor der Signaturprüfung ein Limit von 64 KiB und zehn Sekunden Lesezeit. Nummerierte SMS- und iMessage-Antworten beanspruchen die Providernachrichten-ID vor der Verarbeitung, damit eine doppelte Zustellung eine Auswahl nicht zweimal umschaltet.
+
+
+Eingehende E-Mails werden vor der Signaturprüfung als begrenzter Stream mit höchstens 25 MiB gelesen, auch ohne verlässlichen Content-Length.
+
+
+Vor der dauerhaften E-Mail-Annahme gelten je Organisation höchstens 4.096 aufbewahrte Zustellaufträge und 256 MiB Nachrichtentext, einschließlich abgeschlossener und fehlgeschlagener Zustellungen. Die Annahme ist workerübergreifend serialisiert; doppelte Message-IDs bleiben idempotent. Bei voller Quote folgt HTTP 429, bevor weiterer Inhalt gespeichert wird. Aufbewahrungsbereinigung oder Löschen gespeicherter Aufträge gibt Kapazität frei.

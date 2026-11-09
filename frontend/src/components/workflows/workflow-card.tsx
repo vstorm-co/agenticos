@@ -12,8 +12,8 @@ import {
   MoreHorizontal,
   Trash2,
   Users,
-  Workflow,
 } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
@@ -26,7 +26,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui";
-import { Beam } from "@/components/ui/beam";
 import { ROUTES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
 import type { WorkflowRead } from "@/lib/workflows/types";
@@ -68,7 +67,6 @@ export function WorkflowCard({
   const tc = useTranslations("common");
   const tt = useTranslations("time");
   const locale = useLocale();
-  const [hovered, setHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const archived = workflow.status === "archived";
   const live = workflow.current_version_id !== null;
@@ -79,16 +77,10 @@ export function WorkflowCard({
   const showsTrigger = workflow.trigger_active !== null && !archived;
 
   return (
-    <Beam
-      size="md"
-      borderRadius={12}
-      active={hovered}
-      onHoverChange={setHovered}
-      className="h-full rounded-xl"
-    >
+    <div className="h-full rounded-xl">
       <div
         className={cn(
-          "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
+          "border-foreground/8 bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
           "hover:border-foreground/25",
           archived && "opacity-70",
           busy && "pointer-events-none opacity-50",
@@ -172,7 +164,7 @@ export function WorkflowCard({
             </div>
           </div>
         </div>
-        <div className="relative mt-auto flex items-center justify-between gap-x-2 gap-y-1 border-t pt-3">
+        <div className="relative mt-auto flex items-center justify-between gap-x-2 gap-y-1 pt-3">
           <span className="text-muted-foreground pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             {workflow.last_run !== null ? (
               <>
@@ -255,7 +247,7 @@ export function WorkflowCard({
           )
         }
       />
-    </Beam>
+    </div>
   );
 }
 

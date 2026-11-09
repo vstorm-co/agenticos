@@ -5,7 +5,8 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { ExternalLink, ImageOff, PanelsTopLeft } from "lucide-react";
+import { ExternalLink, ImageOff } from "lucide-react";
+import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { BrandIcon } from "@/components/icons/brand-icon";

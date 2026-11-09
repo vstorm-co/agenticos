@@ -17,7 +17,6 @@ import {
   Plus,
   X,
   Clipboard,
-  Files,
   Loader2,
   Mic,
   Quote,
@@ -27,6 +26,7 @@ import {
   Pin,
   PinOff,
 } from "lucide-react";
+import { DocumentIcon as Files } from "@/components/icons/product-icons";
 
 import { toast } from "sonner";
 import { QuickAskVoice } from "./quick-ask-voice";
@@ -201,6 +201,8 @@ export function QuickAsk({
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
+    pendingComputerAccess,
+    sendComputerAccessResponse,
     queuedMessages,
     cancelQueued,
     retryQueued,
@@ -209,6 +211,11 @@ export function QuickAsk({
     conversationId,
     onConversationCreated: setConversationId,
   });
+  // Native folder consent belongs to the main console. Release this turn
+  // instead of leaving Quick Ask waiting on a dialog it cannot present.
+  useEffect(() => {
+    if (pendingComputerAccess) sendComputerAccessResponse(false);
+  }, [pendingComputerAccess, sendComputerAccessResponse]);
   const asked = messages.some((message) => message.role === "user");
   const signedOut = !isLoading && !isAuthenticated;
   useEffect(() => {

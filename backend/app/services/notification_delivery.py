@@ -17,7 +17,7 @@ directly against a real database.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.permissions import ROLE_PERMS, AuthContext, Perm
 from app.db.models.notification import (
+    CHAT_NOTIFICATION_CHANNELS,
     NOTIFICATION_OUTER_RETENTION_DAYS,
     NOTIFICATION_READ_RETENTION_DAYS,
     Notification,
@@ -36,12 +37,16 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.user import User
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
+from app.repositories import outcome as outcome_repo
 from app.repositories import user as user_repo
+from app.services.channels.notification_send import NotificationRateLimited
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.notification_routes import NotificationRouteService
 from app.services.push import PushService
+from app.services.routine_notifications import allowed_channels as routine_channels
 from app.services.web_push import PushMessage
 
 logger = logging.getLogger(__name__)
@@ -130,6 +135,7 @@ class NotificationDeliveryService:
             delivery.claimed_at = now
             delivery.claimed_until = now + CLAIM_LEASE
             delivery.attempts += 1
+            delivery.retry_safe = False
         await self.db.flush()
         return claimed
 
@@ -154,13 +160,25 @@ class NotificationDeliveryService:
         opening its own transaction to act on it.
         """
         delivery = await notification_repo.get_delivery(self.db, delivery_id)
-        if delivery is None or delivery.claimed_at != claimed_at:
+        if (
+            delivery is None
+            or delivery.claimed_at != claimed_at
+            or delivery.status != DeliveryStatus.PENDING.value
+        ):
             return "lost_claim"
 
         notification = await notification_repo.get_notification(self.db, delivery.notification_id)
         if notification is None:
             await self._fail(delivery, claimed_at, "notification missing")
             return "failed"
+
+        if notification.outcome_id is not None and await outcome_repo.is_settled(
+            self.db, outcome_id=notification.outcome_id
+        ):
+            # Seen or settled somewhere else while this waited its turn: the push or the
+            # mail would only say what the person already knows.
+            await self._skip(delivery, claimed_at)
+            return "skipped"
 
         event_type = NotificationEventType(notification.event_type)
         recipient = await user_repo.get_by_id(self.db, notification.recipient_user_id)
@@ -169,12 +187,25 @@ class NotificationDeliveryService:
             return "skipped"
 
         push = delivery.channel == NotificationChannel.PUSH.value
+        chat = NotificationChannel(delivery.channel) in CHAT_NOTIFICATION_CHANNELS
         if not is_mandatory(event_type):
-            enabled = await (
-                self._center.push_channel_enabled(recipient.id, event_type)
-                if push
-                else self._center.email_channel_enabled(recipient.id, event_type)
+            allowed = await routine_channels(
+                self.db,
+                organization_id=notification.organization_id,
+                recipient_user_id=recipient.id,
+                context=notification.render_context,
             )
+            if allowed is not None and NotificationChannel(delivery.channel) not in allowed:
+                await self._skip(delivery, claimed_at)
+                return "skipped"
+            if chat:
+                enabled = await self._center.chat_channel_enabled(
+                    recipient.id, event_type, NotificationChannel(delivery.channel)
+                )
+            elif push:
+                enabled = await self._center.push_channel_enabled(recipient.id, event_type)
+            else:
+                enabled = await self._center.email_channel_enabled(recipient.id, event_type)
             if not enabled:
                 await self._skip(delivery, claimed_at)
                 return "skipped"
@@ -206,6 +237,50 @@ class NotificationDeliveryService:
 
         if push:
             return await self._push(delivery, claimed_at, notification)
+        if chat:
+            try:
+                async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+                    outcome = await NotificationRouteService(self.db).deliver(
+                        delivery,
+                        notification,
+                        summary=gate.summary_override or notification.summary,
+                        context_url=None if gate.strip_context_url else notification.context_url,
+                    )
+            except NotificationRateLimited as exc:
+                if delivery.attempts >= MAX_ATTEMPTS:
+                    await self._fail(delivery, claimed_at, exc.message)
+                else:
+                    await notification_repo.settle_delivery(
+                        self.db,
+                        delivery_id=delivery.id,
+                        claimed_at=claimed_at,
+                        status=DeliveryStatus.PENDING.value,
+                        last_error=exc.message,
+                        retry_safe=True,
+                        retry_at=datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds),
+                    )
+                logger.info(
+                    "notification_chat_rate_limited",
+                    extra={"delivery_id": str(delivery.id), "attempt": delivery.attempts},
+                )
+                return "failed"
+            except Exception as exc:
+                logger.exception(
+                    "notification_chat_failed", extra={"delivery_id": str(delivery.id)}
+                )
+                await self._fail(
+                    delivery, claimed_at, _safe_send_failure(exc, provider="chat transport")
+                )
+                return "failed"
+            await notification_repo.settle_delivery(
+                self.db,
+                delivery_id=delivery.id,
+                claimed_at=claimed_at,
+                status=DeliveryStatus.SENT.value
+                if outcome == "sent"
+                else DeliveryStatus.SKIPPED.value,
+            )
+            return outcome
 
         email_key, context = self._render(notification, recipient=recipient, role=role)
         # Resolved now, not frozen at write time with the rest of
@@ -360,7 +435,12 @@ class NotificationDeliveryService:
             # used to build directly; the sweep is what still means it.
             context.pop("approvals_url", None)
             return EmailKey.APPROVAL_PENDING, context
-        fixed = _FIXED_EMAIL_KEY.get(event_type)
+        # A skipped monthly activation has no failed run or per-run spend to render.
+        routine_budget_pause = event_type is NotificationEventType.BUDGET_EXCEEDED and (
+            context.get("routine_budget_paused") is True
+            or context.get("routine_budget_result") is True
+        )
+        fixed = None if routine_budget_pause else _FIXED_EMAIL_KEY.get(event_type)
         if fixed is not None:
             return fixed, context
         return EmailKey.NOTIFICATION, {
@@ -380,14 +460,13 @@ class NotificationDeliveryService:
     async def _fail(
         self, delivery: NotificationDelivery, claimed_at: datetime, last_error: str
     ) -> None:
-        # `pending` is the only retryable state (Decision 3): a failure with
-        # attempts remaining goes back to `pending` for the next tick to
-        # claim; only one with none remaining settles `failed`. `attempts` was
-        # already incremented at claim time, so this reads the same value the
-        # claim bound itself against.
+        # Email/push retain their bounded retries. A chat's unknown outcome is
+        # terminal: only confirmed non-acceptance above may authorize another
+        # claim. Attempts were spent at claim time, before any provider I/O.
         status = (
             DeliveryStatus.FAILED.value
             if delivery.attempts >= MAX_ATTEMPTS
+            or NotificationChannel(delivery.channel) in CHAT_NOTIFICATION_CHANNELS
             else DeliveryStatus.PENDING.value
         )
         await notification_repo.settle_delivery(

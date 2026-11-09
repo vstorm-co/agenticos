@@ -61,7 +61,6 @@ export const IMAGE_GENERATION_ID = "image_generation";
 /** The virtual terminal, whose folders each pick a service and an account (#2191). */
 export const MIRAGE_ID = "mirage";
 /** Reads and writes Virtual Tables - its grants are drawn by a panel of their own. */
-export const VIRTUAL_TABLES_ID = "virtual_tables";
 export const WORKFLOWS_ID = "workflows";
 export const TEXT_TO_SPEECH_ID = "text_to_speech";
 export const VIDEO_GENERATION_ID = "video_generation";
@@ -126,11 +125,7 @@ export const SANDBOX_ID = "sandbox";
  * conversations. A schedule or an event reaches them only when it acts as the
  * person who made it, and conversation search never (#2027).
  */
-export const PERSONAL_CAPABILITIES: readonly string[] = [
-  "memory_files",
-  "memory_mem0",
-  "conversation_search",
-];
+export const PERSONAL_CAPABILITIES: readonly string[] = ["memory_files", "conversation_search"];
 
 /**
  * The memory-files capability, whose panel carries one action as well as settings.
@@ -142,13 +137,6 @@ export const PERSONAL_CAPABILITIES: readonly string[] = [
  * the notes.
  */
 export const MEMORY_FILES_ID = "memory_files";
-
-/**
- * The mem0 capability, named here only so the clear action can say what it does
- * not reach: those memories live in mem0's own service, addressed per person,
- * with no way to empty one agent's namespace wholesale.
- */
-export const MEMORY_MEM0_ID = "memory_mem0";
 
 /**
  * The bindings with one capability switched on or off.
@@ -178,6 +166,15 @@ export function withCapability(
       enabled: true,
     },
   ];
+}
+
+/** Enable MCP deferral while preserving existing Tool search settings and exclusions. */
+export function enableMcpToolSearch(bindings: CapabilityBindingSpec[]): CapabilityBindingSpec[] {
+  return withCapability(bindings, "tool_search", true).map((binding) =>
+    binding.id === "tool_search"
+      ? { ...binding, enabled: true, config: { ...binding.config, defer_mcp_servers: true } }
+      : binding,
+  );
 }
 
 /**

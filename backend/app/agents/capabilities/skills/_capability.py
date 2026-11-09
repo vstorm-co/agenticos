@@ -4,15 +4,16 @@ The agent sees only names and one-line descriptions until it decides one is
 relevant, then loads the body. Twenty skills therefore cost almost nothing in
 context, and the twenty-first does not push the conversation out.
 
-That disclosure is the model's own, not a tool this platform writes. Each skill
-is a *deferred capability*: its name and description sit in the capability
-catalog, and `load_capability` - pydantic-ai's built-in - brings the instructions
-in. So the two tools this capability used to publish for that, `list_skills` and
-`load_skill`, are gone, and `read_skill_resource` is the one that remains.
+Each skill remains a native deferred capability. The platform adapter presents
+its catalog as available skills and opens its instructions with `read_skill`.
+`read_skill_resource` reads supporting files separately. There is no listing tool.
 """
 
-from typing import Any
+from collections.abc import Callable
+from typing import Annotated, Any
 
+from pydantic import BaseModel, Field, ValidationError
+from pydantic_ai import ModelRetry
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_skills import Skill as ToolkitSkill
@@ -24,7 +25,7 @@ from app.db.models.skill import Skill
 
 # What this capability publishes as a tool. The catalog and the skill bodies are
 # not here because they are not tools: the model reads the first in its own
-# capability list and opens the second with `load_capability`.
+# capability list and opens the second with `read_skill`.
 #
 # `run_skill_script` is absent by construction, not merely unused: without a
 # sandbox it is remote code execution wearing a helpful name. A skill's scripts
@@ -36,19 +37,53 @@ SAFE_SKILL_TOOLS = ("read_skill_resource",)
 
 def to_toolkit_skill(skill: Skill) -> ToolkitSkill:
     """Convert a stored skill into what the capability consumes."""
-    return ToolkitSkill(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        resources=[
-            ToolkitResource(
-                name=resource.name,
-                description=resource.description,
-                content=resource.content,
+    converted = ToolkitSkill(name=skill.name, description=skill.description, content=skill.content)
+    for resource in skill.resources:
+        content = _resource_content(resource.content)
+        if isinstance(content, str):
+            converted.resources.append(
+                ToolkitResource(
+                    name=resource.name, description=resource.description, content=content
+                )
             )
-            for resource in skill.resources
-        ],
-    )
+        else:
+            converted.resource(
+                content, name=resource.name, description=resource.description, takes_ctx=False
+            )
+    return converted
+
+
+RESOURCE_PAGE_CHARS = 8000
+
+
+class _ResourcePage(BaseModel):
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=20000)
+
+
+def _resource_content(text: str) -> str | Callable[[int, int], str]:
+    if len(text) <= RESOURCE_PAGE_CHARS:
+        return text
+
+    def read(
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=20000)] = RESOURCE_PAGE_CHARS,
+    ) -> str:
+        """Read a bounded character range; offset and limit are character counts."""
+        try:
+            page = _ResourcePage(offset=offset, limit=limit)
+        except ValidationError:
+            raise ModelRetry(
+                "Use a nonnegative character offset and a limit from 1 to 20000."
+            ) from None
+        offset, limit = page.offset, page.limit
+        if offset >= len(text):
+            return f"End of resource ({len(text)} characters)."
+        end = min(offset + limit, len(text))
+        next_page = f'Next: args={{"offset":{end}}}.' if end < len(text) else "End of resource."
+        return f"Characters {offset}-{end} of {len(text)}. {next_page}\n\n{text[offset:end]}"
+
+    return read
 
 
 SKILL_TEXTS: dict[str, ToolText] = {
@@ -59,8 +94,10 @@ SKILL_TEXTS: dict[str, ToolText] = {
             "templates, schemas, reference documents. Read one when the skill's "
             "instructions point at it by name, which is where the names come "
             "from - a loaded skill lists its files under 'Bundled files', and "
-            "a skill you have not opened with `load_capability` has none you "
-            "can reach."
+            "a skill you have not opened with `read_skill` has none you "
+            "can reach. Long resources are paged: pass args with offset and limit "
+            "(character counts, default limit 8000, maximum 20000). Read only the "
+            "range needed for this task; do not reload an unchanged resource."
         ),
         returns=(
             "The resource's content as text. A skill or a resource name that "
@@ -124,3 +161,6 @@ def _describe(toolset: FunctionToolset[Any]) -> None:
         text = SKILL_TEXTS.get(name)
         if text is not None:
             tool.description = text.render()
+            tool.function_schema.json_schema["properties"]["skill_name"]["description"] = (
+                "Name of the skill, exactly as it appears in available skills."
+            )

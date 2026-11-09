@@ -1,5 +1,7 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -24,17 +26,16 @@ import {
   useSharedConversations,
 } from "@/hooks/use-conversation-shares";
 import {
+  RefreshCw,
   Archive,
   ArchiveRestore,
   Star,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
-  Inbox,
   LogOut,
   Users,
   Loader2,
-  MessageSquare,
   MoreVertical,
   Pencil,
   Search,
@@ -43,6 +44,7 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react";
+import { InboxIcon as Inbox, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { Conversation } from "@/types";
 import {
   ConversationFilters,
@@ -129,7 +131,19 @@ function ConversationItem({
   // can begin and end between two listings, and the thread asked in must not
   // look idle for it.
   const workingHere = useWorkingStore((state) => state.since[conversation.id]);
-  const runningSince = conversation.running_since ?? workingHere ?? null;
+  const waiting = useWorkingStore((state) => state.waiting[conversation.id]);
+  const tTools = useTranslations("pages.runs");
+  const finishedAt = useWorkingStore((state) => state.finishedAt[conversation.id]);
+  const finishedRuns = useWorkingStore((state) => state.finishedRuns[conversation.id]);
+  const serverSince = conversation.running_since;
+  const listedSince =
+    serverSince &&
+    (conversation.running_run_ids !== undefined
+      ? conversation.running_run_ids.some((id) => !finishedRuns?.[id])
+      : !finishedAt || Date.parse(serverSince) > Date.parse(finishedAt))
+      ? serverSince
+      : null;
+  const runningSince = workingHere ?? listedSince;
   // A thread this tab left mid-answer keeps its own mark until the listing has
   // the run - then the listing speaks for it, and polls it to its end - or until
   // long enough that a turn the listing never saw has surely finished.
@@ -153,7 +167,7 @@ function ConversationItem({
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
         "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-colors",
-        isActive ? "bg-accent" : "hover:bg-accent/60",
+        isActive ? "bg-accent" : "hover:bg-foreground/5",
         // Over the rows below while its menu is open: their agent faces are
         // stacked up to `z-30`, and drew over the menu's first line.
         showMenu && "z-40",
@@ -210,8 +224,10 @@ function ConversationItem({
             {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
-            {runningSince ? (
-              <RunningFor since={runningSince} />
+            {waiting ? (
+              tTools("toolState", { status: waiting })
+            ) : runningSince ? (
+              <RunningFor key={runningSince} since={runningSince} />
             ) : (
               <>
                 {agentLabel && <>{agentLabel} · </>}
@@ -476,18 +492,6 @@ export function byAge(
     groups.set(age, [...(groups.get(age) ?? []), conversation]);
   }
   return AGES.filter((age) => groups.has(age)).map((age) => ({ age, rows: groups.get(age)! }));
-}
-
-/** A project's initial on a tile - the mark the main sidebar draws for it too. */
-function ProjectTile({ name }: { name: string }) {
-  return (
-    <span
-      aria-hidden
-      className="bg-foreground/[0.07] text-foreground flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] leading-none font-semibold"
-    >
-      {name.trim().charAt(0).toUpperCase()}
-    </span>
-  );
 }
 
 /** One band of the list: what heads it, and the threads under it. */
@@ -801,7 +805,7 @@ function ConversationList({
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "shared" && <Users className="h-3.5 w-3.5" aria-hidden />}
-                    {icon === "project" && <ProjectTile name={heading} />}
+                    {icon === "project" && <ProjectAvatar name={heading} />}
                     <span>{heading}</span>
                     {isFolded(key) && (
                       <span className="text-muted-foreground/70 tabular-nums">{rows.length}</span>
@@ -839,6 +843,7 @@ function ConversationList({
       </div>
       {shareConversationId && (
         <ShareDialog
+          key={shareConversationId}
           conversationId={shareConversationId}
           open={!!shareConversationId}
           onOpenChange={(open) => {
@@ -907,7 +912,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
   // Only on the plain active list: an agent filter narrows the reader's own
   // threads, and a shared band beside it would ignore that filter.
-  const shared = useSharedConversations(view === "active" && agentId === null);
+  const sharedState = useSharedConversations(view === "active" && agentId === null);
+  const shared = sharedState.items;
   const leaveShared = useLeaveSharedConversation();
   const leave = async (id: string) => {
     // A thread left while it is open is one the reader can no longer read.
@@ -979,6 +985,32 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   // button before that, sat between the title and the first conversation.
   // The rail stands the same three in a column, in the same order, so collapsing
   // the list changes its width and nothing a hand has learned.
+  const filters = (beside = false) => (
+    <ConversationFilters
+      agentId={agentId}
+      onAgentChange={changeAgent}
+      sort={sort}
+      onSortChange={changeSort}
+      hideApi={hideApi}
+      onHideApiChange={changeHideApi}
+      view={view}
+      onViewChange={changeView}
+      beside={beside}
+    />
+  );
+  const sharedNotice = sharedState.failed ? (
+    <div role="alert" className="text-muted-foreground space-y-1 px-4 py-2 text-xs">
+      <p>{ts("sharedFailed")}</p>
+      <Button variant="ghost" size="sm" onClick={sharedState.retry}>
+        {ts("retryShared")}
+      </Button>
+    </div>
+  ) : sharedState.isLoading ? (
+    <p role="status" className="text-muted-foreground flex items-center gap-2 px-4 py-2 text-xs">
+      <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
+      {ts("sharedLoading")}
+    </p>
+  ) : null;
   const toolbar = (afterNewChat?: () => void, column = false) => (
     <div className={cn("flex shrink-0 items-center gap-0.5", column && "flex-col")}>
       <IconButton
@@ -990,17 +1022,18 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       >
         <Search />
       </IconButton>
-      <ConversationFilters
-        agentId={agentId}
-        onAgentChange={changeAgent}
-        sort={sort}
-        onSortChange={changeSort}
-        hideApi={hideApi}
-        onHideApiChange={changeHideApi}
-        view={view}
-        onViewChange={changeView}
-        beside={column}
-      />
+      {column && filters(true)}
+      {column && sharedState.failed && (
+        <IconButton
+          size="icon"
+          aria-label={ts("retryShared")}
+          title={ts("sharedFailed")}
+          onClick={sharedState.retry}
+          className={HEADER_ICON}
+        >
+          <RefreshCw />
+        </IconButton>
+      )}
       <IconButton
         size="icon"
         data-tour="chat-start"
@@ -1045,12 +1078,12 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     <>
       <aside
         className={cn(
-          "bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col border-r md:flex",
+          "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex",
           className,
         )}
       >
         <div
-          className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4"
+          className="flex h-12 shrink-0 items-center gap-1 pr-2 pl-4"
           data-tauri-drag-region="deep"
         >
           <h2 data-tauri-drag-region className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -1067,6 +1100,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             <ChevronLeft />
           </IconButton>
         </div>
+        <div className="shrink-0 px-3 py-2">{filters()}</div>
+        {sharedNotice}
         <ConversationList {...listProps} />
       </aside>
 
@@ -1080,6 +1115,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             <SheetClose onClick={close} />
           </SheetHeader>
           <div className="flex h-[calc(100%-48px)] flex-col">
+            <div className="shrink-0 px-3 py-2">{filters()}</div>
+            {sharedNotice}
             <ConversationList {...listProps} onNavigate={close} />
           </div>
         </SheetContent>
@@ -1134,12 +1171,9 @@ function CollapsedSidebar({
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
-    <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col border-r md:flex", className)}>
+    <div className={cn("bg-sidebar-secondary hidden w-12 shrink-0 flex-col md:flex", className)}>
       {/* The same 48px header the list has, with its chevron where the list's is. */}
-      <div
-        className="flex h-12 shrink-0 items-center justify-center border-b"
-        data-tauri-drag-region="deep"
-      >
+      <div className="flex h-12 shrink-0 items-center justify-center" data-tauri-drag-region="deep">
         <IconButton
           size="icon"
           onClick={onExpand}
@@ -1195,7 +1229,7 @@ function CollapsedSidebar({
                   ) : icon === "shared" ? (
                     <Users className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "project" ? (
-                    <ProjectTile name={heading} />
+                    <ProjectAvatar name={heading} />
                   ) : (
                     <span
                       aria-hidden
@@ -1222,7 +1256,7 @@ function CollapsedSidebar({
                       aria-current={isActive ? "true" : undefined}
                       className={cn(
                         "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
-                        isActive ? "bg-accent" : "hover:bg-accent/60",
+                        isActive ? "bg-accent" : "hover:bg-foreground/5",
                       )}
                     >
                       <span className="relative">

@@ -1,6 +1,7 @@
 "use client";
 
-import { Inbox, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
+import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 

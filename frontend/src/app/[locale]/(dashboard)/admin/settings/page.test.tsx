@@ -129,6 +129,45 @@ describe("deployment settings loading", () => {
     expect(save).toHaveBeenCalledWith({ app_name: "Updated" }, expect.any(Object));
   });
 
+  it("keeps drafts across sections and discards them without saving", () => {
+    settings = SAVED;
+    loading = false;
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    expect(screen.getByRole("button", { name: /^Identity$/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New name" } });
+    fireEvent.click(screen.getByRole("button", { name: "Access & accounts" }));
+    expect(screen.queryByLabelText("Name")).not.toBeVisible();
+    expect(screen.getByRole("button", { name: "Access & accounts" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Identity$/ }));
+    expect(screen.getByLabelText("Name")).toHaveValue("New name");
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Acme");
+    expect(screen.getByRole("button", { name: /^Save$/ })).toBeDisabled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("saves edited fields from different sections in a single patch", () => {
+    settings = SAVED;
+    loading = false;
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Across sections" } });
+    fireEvent.click(screen.getByRole("button", { name: "Access & accounts" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Personal organizations" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+    expect(save).toHaveBeenCalledWith(
+      { app_name: "Across sections", personal_organizations: false },
+      expect.any(Object),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Maintenance$/ }));
+    expect(screen.getByText(/^Installed:/)).toBeVisible();
+  });
+
   it("reports a failed read instead of offering a default-valued form", () => {
     loading = false;
     error = new Error("down");

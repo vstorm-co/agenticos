@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.core.blocking import run_blocking_settled
 from app.db.vector_tables import VectorScope
+from app.repositories import collection_teardown_repo
 from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import TenantScope, compose
@@ -44,6 +45,7 @@ async def test_embedding_http_runs_off_loop_and_books_the_request_ledger(
     monkeypatch.setattr(store, "_ensure_collection", AsyncMock())
     monkeypatch.setattr(store, "_for_collection", AsyncMock(return_value=(embedding, 2)))
     monkeypatch.setattr(store, "_apply_search_tuning", AsyncMock())
+    monkeypatch.setattr(collection_teardown_repo, "hold_unreserved", AsyncMock(return_value=True))
     result = MagicMock()
     result.fetchall.return_value = []
     db = MagicMock(execute=AsyncMock(return_value=result), commit=AsyncMock())

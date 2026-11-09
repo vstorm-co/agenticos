@@ -1,11 +1,16 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { use } from "react";
 import Link from "next/link";
-import { FolderKanban, Plus, Files, MessageSquare, AppWindow, FileText } from "lucide-react";
+import { Plus, AppWindow, FileText } from "lucide-react";
+import { DocumentIcon as Files, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
+import { TaskBoardButton } from "@/components/tasks/task-board-button";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ProjectTrackingControl } from "@/components/projects/project-tracking-control";
 import { ProjectApps } from "@/components/projects/project-apps";
 import { ProjectChats } from "@/components/projects/project-chats";
 import { FileExplorer } from "@/components/sandboxes/workspace-explorer";
@@ -53,9 +58,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         ]}
         title={
           <span className="flex items-center gap-3">
-            <span className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-              <FolderKanban className="h-5 w-5" aria-hidden />
-            </span>
+            {project ? (
+              <ProjectAvatar name={project.name} size="lg" />
+            ) : (
+              <Skeleton className="size-10 rounded-xl" />
+            )}
             {project?.name ?? (
               <span
                 aria-hidden
@@ -74,17 +81,27 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         }
         secondaryActions={
           project && (
-            <ShareResourceButton
-              resourceType="project"
-              resourceId={project.id}
-              name={project.name}
-              canManage={project.can_edit}
-            />
+            <>
+              <ShareResourceButton
+                resourceType="project"
+                resourceId={project.id}
+                name={project.name}
+                canManage={project.can_edit}
+              />
+              {project.can_use &&
+                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
+                  <ProjectTrackingControl project={project} />
+                )}
+            </>
           )
         }
         actions={
           project ? (
             <>
+              {project.can_use &&
+                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
+                  <TaskBoardButton scope="project" scopeId={project.id} />
+                )}
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
                   <Button asChild>

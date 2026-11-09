@@ -456,7 +456,9 @@ class TestGroupService:
         assert await group_repo.get(db, organization_id=org.id, group_id=group.id) is None
         actions = [
             entry.action
-            for entry in (await db.execute(select(AppAdminAuditLog))).scalars()
+            for entry in (
+                await db.execute(select(AppAdminAuditLog).order_by(AppAdminAuditLog.seq))
+            ).scalars()
             if entry.target_id == str(group.id)
         ]
         assert actions == [

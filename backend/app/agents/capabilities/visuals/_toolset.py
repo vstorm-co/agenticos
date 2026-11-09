@@ -28,6 +28,7 @@ from app.agents.capabilities.artifacts._toolset import ArtifactEdit, apply_edits
 from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.deps import AgentDeps
 from app.core.config import settings
+from app.core.tool_identity import ToolIdentity
 from app.repositories.conversation import ToolCallArgs
 from app.services import visual as visuals
 from app.services.visual import (
@@ -248,6 +249,14 @@ class VisualsToolset:
         in a box. Write `<style>` first, then the markup, then the scripts: the drawing
         shows as it streams. Before a first drawing, load the `visual-design` skill if
         it is available - it has the house style and a template for each kind of answer.
+
+        Give the drawing one clear explanatory purpose and make its controls work.
+        Label sourced values, units and assumptions; do not fill a template with
+        invented numbers. Inspect the rendered result with the available visual
+        tools and revise defects before claiming it is checked. This tool renders
+        SVG, Mermaid or HTML; it does not compile LaTeX or export editable slides.
+        For a paper or native presentation load document-production when available
+        and use a workspace compiler/generator and renderer instead.
 
         Args:
             title: What the drawing shows, in a few words, e.g. `Order flow`.
@@ -508,14 +517,18 @@ class VisualsToolset:
             if not isinstance(message, ModelResponse):
                 continue
             for part in message.parts:
+                if not isinstance(part, ToolCallPart):
+                    continue
+                identity = ctx.deps.tool_identities.get(part.tool_call_id, ToolIdentity())
+                name = identity.tool_id or part.tool_name
                 if (
-                    isinstance(part, ToolCallPart)
-                    and part.tool_name in VISUAL_TOOLS
+                    identity.presentation_kind != "generic"
+                    and name in VISUAL_TOOLS
                     and part.tool_call_id in self.drawn
                 ):
                     calls[part.tool_call_id] = ToolCallArgs(
                         tool_call_id=part.tool_call_id,
-                        tool_name=part.tool_name,
+                        tool_name=name,
                         args=part.args_as_dict(),
                     )
         return calls

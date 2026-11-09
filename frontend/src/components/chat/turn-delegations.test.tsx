@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ToolCall } from "@/types";
 
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+
 import { TurnDelegations } from "./turn-delegations";
 
 vi.mock("./markdown-content", () => ({
@@ -229,4 +231,98 @@ it("opens a minimal coding report without inventing a brief or steps", async () 
   await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
   expect(within(screen.getByRole("dialog")).getByText("No changes needed")).toBeInTheDocument();
   expect(screen.queryByText("Brief")).toBeNull();
+});
+
+it("keeps a renamed delegation's full execution record in the settled byline", async () => {
+  render(
+    <TurnDelegations
+      agents={AGENTS}
+      toolCalls={[{ ...asked("call", "finance-analyst"), name: "consult_finance" }]}
+      delegations={[
+        {
+          taskId: "task-identity",
+          subagent: "finance-analyst",
+          depth: 0,
+          mode: "sync",
+          prompt: "Inspect the invoice",
+          parentTaskId: null,
+          status: "completed",
+          specialist: null,
+          harness: null,
+          text: "Invoice checked",
+          thinking: "Checked the source",
+          steps: [{ id: "step", name: "read", title: "invoice.md", ok: true }],
+          runId: "run-identity",
+          costUsd: 0.12,
+          inputTokens: 125,
+          outputTokens: 40,
+          error: null,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText(/Talked it through with Finance Analyst/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+  expect(screen.getByText("Invoice checked")).toBeInTheDocument();
+  expect(screen.getByText(/125 input.*40 output/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open in run history" })).toHaveAttribute(
+    "href",
+    "/runs?run=run-identity",
+  );
+  expect(screen.getByText(/0.1200/)).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Thought about it"));
+  expect(screen.getByText("Checked the source")).toBeInTheDocument();
+});
+
+it("keeps an open sheet usable when live task identities give way to saved calls", async () => {
+  const view = render(
+    <TurnDelegations agents={AGENTS} toolCalls={[asked("first", "finance-analyst")]} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+  view.rerender(<TurnDelegations agents={AGENTS} toolCalls={[asked("saved", "support-desk")]} />);
+  expect(
+    within(screen.getByRole("dialog")).getByText("Answer from support-desk"),
+  ).toBeInTheDocument();
+});
+
+it("keeps a renamed delegation's byline and exchange sheet", async () => {
+  render(
+    <TurnDelegations
+      toolCalls={[{ ...asked("renamed", "finance-analyst"), name: "consult", tool_id: "task" }]}
+      agents={AGENTS}
+    />,
+  );
+  expect(
+    screen.getByText("Talked it through with Finance Analyst · 1 exchange"),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+  expect(
+    within(screen.getByRole("dialog")).getByText("Answer from finance-analyst"),
+  ).toBeInTheDocument();
+});
+
+it("keeps renamed coding reports in the team summary", () => {
+  render(
+    <TurnDelegations
+      toolCalls={[
+        {
+          id: "coded",
+          name: "build",
+          tool_id: "run_coding_agent",
+          args: {},
+          status: "completed",
+          result: JSON.stringify({
+            kind: "coding_agent",
+            harness: "codex",
+            access: "edit",
+            outcome: "completed",
+            answer: "Built",
+            steps: [],
+          }),
+        },
+      ]}
+      agents={AGENTS}
+    />,
+  );
+  expect(screen.getByText("Talked it through with Codex · 1 exchange")).toBeInTheDocument();
 });

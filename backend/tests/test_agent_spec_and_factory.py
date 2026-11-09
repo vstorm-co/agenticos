@@ -32,6 +32,7 @@ from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.code_mode import CodeCalls
+from app.agents.computer_on_use import ComputerAccessRequest, RequestComputerOnUse
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import (
     _AUDIENCE_AWARE,
@@ -248,6 +249,32 @@ class TestStarters:
 
     def test_a_spec_written_before_them_has_none(self):
         assert AgentSpec.model_validate({"name": "Support"}).starters == []
+
+    def test_old_specs_need_no_icons_and_new_icons_round_trip(self) -> None:
+        assert (
+            AgentSpec.model_validate({"name": "Support", "starters": ["Help"]}).starter_icons == {}
+        )
+        spec = AgentSpec(
+            name="Support",
+            starters=["Help"],
+            starter_icons={"Help": "compass"},
+            starter_titles={"Help": "Get help"},
+        )
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+        assert spec.model_dump()["starter_icons"] == {"Help": "compass"}
+
+    def test_title_metadata_is_optional_bounded_and_trimmed(self) -> None:
+        assert AgentSpec(name="Support").starter_titles == {}
+        assert AgentSpec(
+            name="Support", starter_titles={"Help": "  Get help  "}
+        ).starter_titles == {"Help": "Get help"}
+        with pytest.raises(ValidationError):
+            AgentSpec(name="Support", starter_titles={"Help": "x" * 81})
+
+    @pytest.mark.parametrize("icons", [{"Help": "unknown"}, {str(i): "mail" for i in range(5)}])
+    def test_invalid_or_unbounded_icon_metadata_is_refused(self, icons: dict[str, str]) -> None:
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate({"name": "Support", "starter_icons": icons})
 
     def test_a_blank_one_is_dropped_and_the_rest_trimmed(self):
         """The Builder saves as it is typed; a starter cleared to retype it is not an error."""
@@ -677,6 +704,38 @@ class TestToolSearchDefersMcp:
             await built.agent.run("hello", deps=built.deps)
 
         assert asked == ["notion"]
+        approval.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_asking_about_everything_does_not_ask_about_the_computer(self):
+        """`request_computer_access` is itself the question, like `connect_account`."""
+        asked: list[str] = []
+
+        async def request_access(request: ComputerAccessRequest) -> bool:
+            asked.append(request.reason)
+            return False
+
+        approval = AsyncMock()
+        built = build_agent(
+            AgentSpec(name="x"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+            request_approval=approval,
+            extra_capabilities=[RequestComputerOnUse(request_access=request_access)],
+        )
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(
+                    parts=[ToolCallPart("request_computer_access", {"reason": "README"})]
+                )
+            return ModelResponse(parts=[TextPart("done")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+
+        assert asked == ["README"]
         approval.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -1309,7 +1368,7 @@ class TestVoiceSpec:
 
     def test_the_spec_version_did_not_move(self):
         # 13 is the browser's fold (#2127); an optional section with a default adds none.
-        assert SPEC_VERSION == 13
+        assert SPEC_VERSION == 14
 
 
 @pytest.mark.parametrize(
@@ -1382,3 +1441,31 @@ def test_the_factory_hands_guardrails_the_tools_whose_arguments_are_the_answer()
     (guardrails,) = [c for c in built.capabilities if type(c).__name__ == "CombinedCapability"]
     (answer,) = [c for c in guardrails.capabilities if isinstance(c, ScreenedToolArgs)]
     assert answer.tools == frozenset({"write_draft"})
+
+
+@pytest.mark.anyio
+async def test_routine_tool_policy_is_bound_to_the_exact_agent_and_published_spec() -> None:
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.routine_actions import RoutineToolDecision
+    from app.core.exceptions import BadRequestError
+
+    spec = AgentSpec(name="Routine")
+    policy = AsyncMock(return_value=RoutineToolDecision(required=True))
+    with pytest.raises(BadRequestError, match="agent identity"):
+        build_agent(spec, _model_spec(), organization_id=uuid.uuid4(), routine_action_check=policy)
+    agent_id = uuid.uuid4()
+    built = build_agent(
+        spec,
+        _model_spec(),
+        organization_id=uuid.uuid4(),
+        agent_id=agent_id,
+        routine_action_check=policy,
+    )
+    attached: list[object] = []
+    built.agent.root_capability.apply(attached.append)
+    gate = next(one for one in attached if isinstance(one, ApprovalGate))
+    assert gate.routine_policy is not None
+    tool = ToolDefinition(name="send", parameters_json_schema={})
+    assert (await gate.routine_policy(tool)).required
+    policy.assert_awaited_once_with(agent_id, spec, tool)

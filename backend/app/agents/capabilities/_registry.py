@@ -74,15 +74,12 @@ logger = logging.getLogger(__name__)
 # never be called.
 TOOL_NAME_PATTERN = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
-#: Tool names the framework puts in front of the model itself.
-#:
-#: `load_capability` is Pydantic AI's: a run carrying any deferred capability -
-#: which is every run with a skill bound - gets it whether this deployment
-#: declares it or not. Nothing here can rename or remove it, so a capability
-#: renaming one of its own tools onto that name offers the model two tools
-#: called the same thing, and the library aborts the turn on the duplicate.
+#: Framework loader names reserved against capability/MCP alias collisions.
+#: `load_capability` stays the stable policy id and historical native spelling;
+#: the skills adapter presents `read_skill` to models.
 LOAD_CAPABILITY = "load_capability"
-FRAMEWORK_TOOL_NAMES = frozenset({LOAD_CAPABILITY})
+READ_SKILL = "read_skill"
+FRAMEWORK_TOOL_NAMES = frozenset({LOAD_CAPABILITY, READ_SKILL})
 
 
 class ToolOverride(BaseModel):
@@ -208,6 +205,15 @@ class CapabilityToolInfo(BaseModel):
     """What the model sees. Defaults to `id`; only a rename makes them differ."""
 
     description: str
+
+    always_requires_approval: bool = False
+    """Whether a person must approve every call, whatever the binding says.
+
+    For the rare tool whose effect cannot be undone by the person it borrows authority
+    from - widening who may read something, say - where a model that was talked into
+    calling it by text it read must still be stopped by a human who sees exactly what
+    would be shared. A binding's `approval` and `tool_approval` cannot waive it.
+    """
 
     side_effecting: bool | None = None
     """Whether *this tool* acts on the world, when the capability is not one answer.
@@ -403,6 +409,9 @@ class CapabilityDef:
                 # one call worth gating, which is the exact failure `id` exists
                 # to prevent.
                 side_effecting=tool.side_effecting,
+                # Carried for the same reason, and with more at stake: renaming a tool
+                # must not be a way to take it off its mandatory approval.
+                always_requires_approval=tool.always_requires_approval,
             )
             for tool in self.tools
         )
@@ -729,9 +738,9 @@ def load_builtins() -> None:
         knowledge,
         media,
         memory_files,
-        memory_mem0,
         mirage,
         monitor,
+        phone_calls,
         planning,
         sandbox,
         skills,
@@ -742,7 +751,6 @@ def load_builtins() -> None:
         tool_output_limits,
         tool_search,
         video_generation,
-        virtual_tables,
         visuals,
         web_fetch,
         web_research,

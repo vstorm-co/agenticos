@@ -266,6 +266,42 @@ class TestPublishedStarters:
         assert await agent_repo.published_starters(session, version_ids=[]) == {}
         session.execute.assert_not_awaited()
 
+    @pytest.mark.anyio
+    async def test_icons_are_validated_from_the_published_version(self) -> None:
+        from uuid import uuid4
+
+        from app.repositories import agent as agent_repo
+
+        version = uuid4()
+        session = MagicMock()
+        session.execute = AsyncMock(
+            return_value=MagicMock(all=lambda: [(version, {"Help": "compass"})])
+        )
+        assert await agent_repo.published_starter_icons(session, version_ids=[version]) == {
+            version: {"Help": "compass"}
+        }
+        session.execute.reset_mock()
+        assert await agent_repo.published_starter_icons(session, version_ids=[]) == {}
+        session.execute.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_titles_are_read_from_the_frozen_version(self) -> None:
+        from uuid import uuid4
+
+        from app.repositories import agent as agent_repo
+
+        version = uuid4()
+        session = MagicMock()
+        session.execute = AsyncMock(
+            return_value=MagicMock(all=lambda: [(version, {"Help": "Get help"})])
+        )
+        assert await agent_repo.published_starter_titles(session, version_ids=[version]) == {
+            version: {"Help": "Get help"}
+        }
+        session.execute.reset_mock()
+        assert await agent_repo.published_starter_titles(session, version_ids=[]) == {}
+        session.execute.assert_not_awaited()
+
 
 class TestOrganizationSecretRepository:
     """Promoting a departing owner's private keys before their row is deleted."""

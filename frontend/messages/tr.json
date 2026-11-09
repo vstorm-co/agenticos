@@ -8,6 +8,7 @@
     "confirmPassword": "Şifreyi onayla",
     "continueWithGithub": "GitHub ile devam et",
     "continueWithGoogle": "Google ile devam et",
+    "googleNotConfigured": "Bu kurulumda Google ile oturum açma yapılandırılmamış.",
     "continueWithProvider": "{provider} ile devam et",
     "continueWithMicrosoft": "Microsoft ile devam et",
     "createHeading": "<em>Workspace’inizi</em> oluşturun.",
@@ -208,6 +209,7 @@
     "releaseCheckUnavailable": "Yeni sürüm kontrol edilemedi. Daha sonra tekrar deneyin."
   },
   "nav": {
+    "monitoring": "İzleme",
     "memory": "Hafıza",
     "account": "Hesap",
     "activity": "Etkinlik",
@@ -389,6 +391,7 @@
     "clearSearch": "Aramayı temizle"
   },
   "notifications": {
+    "needsAttention": "İlgilenilmesi gerekiyor",
     "markAllRead": "Tümünü okundu işaretle",
     "loadMore": "Daha fazla yükle",
     "failedLoad": "Bildirimler yüklenemedi",
@@ -755,7 +758,13 @@
         "boolean": "Evet veya hayır",
         "date": "Tarih",
         "choice": "Seçenek"
-      }
+      },
+      "contractFormat": "Giriş sözleşmesi",
+      "simpleFields": "Basit alanlar",
+      "jsonSchema": "JSON Schema",
+      "formatHint": "Basit alanları veya JSON Schema sözleşmesini seçin. Bu tetikleyici açıkken her kayıtlı biçim korunur; workflow’a yalnızca seçilen biçim kaydedilir.",
+      "schemaHint": "İç içe nesneler, diziler ve referanslar için JSON Schema Draft 2020-12 kullanın. Girdiler run başlamadan önce doğrulanır.",
+      "schemaInvalid": "Bir JSON nesnesi girin. Bu değişiklik kaydedilmedi."
     },
     "categoryHint": {
       "triggers": "run nasıl başlar?",
@@ -1353,7 +1362,7 @@
     "templateUnknown": "{placeholder}, bu adımın okuyabileceği bir alanı belirtmiyor.",
     "templatePreview": "Önizleme:",
     "templateSuggestions": "Önceki adımlardaki değerler",
-    "triggerHintCall": "Başka bir workflow’daki Run a workflow adımı bunu girdisiyle başlatır; girdi bu alanlara göre doğrulanır. Sonraki adımlar bunları payload olarak okur.",
+    "triggerHintCall": "Başka bir workflow’daki Run a workflow adımı bunu girdisiyle başlatır; girdi bu giriş sözleşmesine göre doğrulanır. Sonraki adımlar girdiyi payload olarak okur.",
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Bir workflow seçin",
     "pickerWorkflowNone": "Henüz Called by a workflow ile başlayan bir workflow yayımlanmadı.",
@@ -2290,8 +2299,6 @@
       "older": "Daha eski",
       "title": "Belleğiniz",
       "description": "Buradaki agentların sizin hakkınızda not ettikleri ve bu notlarla ilgili yapabilecekleriniz.",
-      "nothingYet": "Henüz not alınmış bir şey yok",
-      "nothingYetWhy": "Agentlar, konuşmalar arasında saklamaya değer bir şey öğrendiklerinde not alır. Burada bir şey görünmüyorsa henüz not alan olmamıştır.",
       "externalStores": "Bu agentlar ayrıca bu sayfanın okuyamadığı bir dış hizmette bellek tutuyor: {agents}.",
       "writtenBy": "{agent} tarafından yazıldı · {when}",
       "anAgent": "bir agent",
@@ -2419,10 +2426,11 @@
     },
     "routines": {
       "title": "Rutinler",
-      "description": "Agent rutinleri görevleri yerine getirir. İzleme rutinlerim bağlı hesaplarınızı kontrol eder ve bulguları özel Inbox kutunuza getirir.",
-      "newWatch": "Yeni izleme rutini",
-      "agentsTab": "Agent rutinleri",
-      "watchesTab": "İzleme rutinlerim"
+      "description": "Görevler ve izleme tek yerde. Çalışma zamanını ve ne zaman dikkat gerektiğini seçin.",
+      "newWatch": "İzle ve bildir",
+      "newRoutine": "Yeni rutin",
+      "scheduledTask": "Zamanlamaya göre çalıştır",
+      "eventTask": "Bir olay geldiğinde çalıştır"
     },
     "signIns": {
       "cancel": "İptal",
@@ -2739,11 +2747,12 @@
       "workspaces": "Kuruluşlar",
       "you": "(siz)",
       "yourRoleHere": "Buradaki rolünüz: <badge>{role}</badge>",
-      "tabProfile": "Profil",
+      "tabProfile": "Çalışma alanı",
       "tabGovernance": "Budget ve onaylar",
       "tabProactivity": "Proaktiflik",
-      "tabVoice": "Ses",
-      "tabAssistant": "AI Architect"
+      "tabAssistant": "Yapay zekâ ve hizmetler",
+      "workspaceSettingsHint": "Kuruluş kimliği ve ajanların ve kanal botlarının devraldığı varsayılan ses ayarları.",
+      "aiServicesHint": "Kuruluş Architect’ini, bellek bakımı ve özetler için arka plan hizmetlerini yapılandırın. Öneri ve izleme ilkeleri Proaktiflik sekmesindedir."
     },
     "admin": {
       "active": "Etkin",
@@ -3155,7 +3164,7 @@
       "inCategoryUse": "Kullanımdaki kategoriler",
       "inTagUse": "Kullanımdaki etiketler",
       "mcpToolLoad": "Bu MCP sunucuları her istekte modele {count} araç sunar; kullanıcı yazmaya başlamadan önce yaklaşık {tokens, number} token ve modelin iyi seçemeyeceği kadar çok araç anlamına gelir. Tool search, agent arayana kadar bu araçları görünümden kaldırır.",
-      "mcpToolLoadEnable": "Tool search özelliğini aç",
+      "mcpToolLoadEnable": "MCP tool aramasını etkinleştir",
       "agentDescriptionLabel": "Açıklama",
       "agentNameLabel": "Ad",
       "agentNameRequired": "Agentın adı olmalı.",
@@ -3250,7 +3259,12 @@
         "makeShared": "Tabloyu açabilen herkesle paylaş",
         "makePrivate": "Özel yap; yalnızca siz görün",
         "nowShared": "Görünüm paylaşıldı",
-        "nowPrivate": "Görünüm özel yapıldı"
+        "nowPrivate": "Görünüm özel yapıldı",
+        "defaultName": "Varsayılan: {kind}",
+        "defaultSaved": "Varsayılan görünüm kaydedildi",
+        "defaultHint": "Tabloya erişimi olan herkes için bu görünümü varsayılan yap. Kayıtlı görünüm paylaşılacaktır.",
+        "setDefault": "Varsayılan yap",
+        "isDefault": "Varsayılan görünüm"
       },
       "noDescription": "Henüz açıklama yok.",
       "readOnly": "Salt okunur",
@@ -4226,7 +4240,8 @@
       "templateCategories": "Kategoriler",
       "templateCount": "{count, plural, one {# şablon} other {# şablon}}",
       "automationCategoryHint": "Tabloları otomatik hazırlanan, kullanıma hazır otomasyonlar.",
-      "exampleCategoryHint": "Kendi otomasyonunuzu öğrenmek ve oluşturmak için küçük akışlar."
+      "exampleCategoryHint": "Kendi otomasyonunuzu öğrenmek ve oluşturmak için küçük akışlar.",
+      "startRunSchema": "Beklenen giriş şeması"
     },
     "runs": {
       "aParkedRunIsStill": "Beklemeye alınmış run hâlâ beklemede. Hiçbir karar verilmedi ve hiçbir şeyin süresi dolmadı.",
@@ -4479,6 +4494,22 @@
       "surfaceProactive": "Proaktif",
       "standaloneRequest": "Model isteği",
       "standaloneResponse": "Model yanıtı"
+    },
+    "adminSettingsLayout": {
+      "title": "Dağıtım ayarları",
+      "hint": "Değişiklikler tüm dağıtım için geçerlidir.",
+      "unsaved": "Kaydedilmemiş değişiklikleriniz var.",
+      "discard": "Değişiklikleri iptal et",
+      "identity": "Kimlik",
+      "identityHint": "Konsolda gösterilen ad, görünüm ve yasal bağlantılar.",
+      "access": "Erişim ve hesaplar",
+      "accessHint": "Katılımı, başlangıç kuruluşunu ve kullanım sınırlarını yönetin.",
+      "notices": "Duyurular",
+      "noticesHint": "Bir duyuru paylaşın veya bakım ekranını yapılandırın.",
+      "services": "Ses ve mobil",
+      "servicesHint": "Ses kaydı tercihleri ve mobil uygulama anlık bildirimleri.",
+      "operations": "Bakım",
+      "operationsHint": "Uygulama güncellemeleri ve dağıtım tanılaması."
     }
   },
   "mcp": {
@@ -4542,6 +4573,7 @@
     "failedLoadConnections": "Bağlantılar yüklenemedi",
     "failedLoadOrgServers": "Kuruluşun MCP server'ları yüklenemedi",
     "finishConsentThenReturn": "Açılan sekmedeki işlemi tamamlayıp geri dönün. Yetkilendirildiğinde server burada görünür.",
+    "finishConsentInBrowser": "Tarayıcınızda oturum açmayı tamamlayıp geri dönün. Yetkilendirildiğinde server burada görünür.",
     "consentTabBlocked": "Tarayıcınız oturum açma sekmesini engelledi. Bu site için açılır pencerelere izin verip yeniden deneyin.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "Genel MCP registry'den. Burada kimse incelemedi: açıklama yayınlayana aittir ve hangi kimlik bilgisini istediğine dair yönlendirme yoktur.",
@@ -5250,6 +5282,26 @@
       "max_results": {
         "title": "Arama başına eşleşme",
         "description": "Yerel aramanın döndüreceği eşleşme sayısı; native search'te kullanılmaz."
+      },
+      "defer_capabilities": {
+        "title": "Capability tool’larını ertele",
+        "description": "Etkin capability’lerin uygun tool’larını agent arayana kadar gizler. Kapatıldığında capability tool’ları görünür kalır."
+      },
+      "defer_mcp_servers": {
+        "title": "MCP tool’larını ertele",
+        "description": "Bağlı MCP server’ların uygun tool’larını agent arayana kadar gizler. Kapatıldığında MCP tool’ları görünür kalır."
+      },
+      "exclude_capabilities": {
+        "title": "Her zaman görünür capability’ler",
+        "description": "Tool’ları görünür kalacak capability kimliklerini virgülle ayırın; ör. knowledge veya visuals. Bu capability’lerin yine de etkin olması gerekir."
+      },
+      "exclude_mcp_servers": {
+        "title": "Her zaman görünür MCP server’lar",
+        "description": "Tool’ları görünür kalacak MCP tool ad alanı öneklerini virgülle ayırın; ör. github_work veya agenticos. Tool adından önceki öneki kullanın ve kısa çizgileri alt çizgiyle değiştirin."
+      },
+      "exclude_tools": {
+        "title": "Her zaman görünür tool’lar",
+        "description": "Görünür kalacak tool’ların modelin gördüğü adlarını virgülle ayırın. Yeniden adlandırılan capability tool adlarını ve tam önekli MCP tool adlarını kullanın; ör. github_work_list_issues."
       }
     },
     "web_fetch": {
@@ -5303,7 +5355,14 @@
       },
       "runs_on": {
         "title": "Nerede çalışır",
-        "description": "Burada saklanan key ile Agent'ın kendi sandbox'ında ya da kişinin desktop app'te kendi bilgisayarından seçtiği klasörde çalışır. İkinci durumda Claude Code ve Codex mevcut oturum açma bilgilerini kullanır, key gerekmez."
+        "description": "Burada saklanan key ile Agent'ın kendi sandbox'ında ya da kişinin desktop app'te kendi bilgisayarından seçtiği klasörde çalışır. İkinci durumda Claude Code ve Codex mevcut oturum açma bilgilerini kullanır, key gerekmez.",
+        "options": {
+          "personal_sandbox": {
+            "label": "Hesabımla özel bulut görevi",
+            "description": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez.",
+            "summary": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez."
+          }
+        }
       }
     },
     "workflows": {
@@ -5314,16 +5373,6 @@
       "wait_seconds": {
         "title": "Run için beklenecek süre (saniye)",
         "description": "run_workflow tamamlanmış bir run'ın id'sini daha sonra okunmak üzere döndürmeden önce ne kadar bekler."
-      }
-    },
-    "virtual_tables": {
-      "tables": {
-        "title": "Kullanabileceği tablolar",
-        "description": "Agent'ın erişebileceği tablolar ve her birinde yapabilecekleri."
-      },
-      "allow_create": {
-        "title": "Tablo oluştursun",
-        "description": "Agent'ın yeni tablo oluşturmasına izin ver. Agent'ın adına işlem yaptığı üyenin yine de tables:create izni olmalıdır."
       }
     },
     "artifacts": {
@@ -5639,7 +5688,7 @@
     "tool_search": {
       "name": "Tool arama",
       "does": "Çok sayıda tool'u olan Agent'ın her seferinde tümünü okumak yerine ihtiyacı olduğunda doğru tool'u bulmasını sağlar.",
-      "example1": "Düzinelerce tool'u olan birkaç MCP server'a bağlı Agent",
+      "example1": "Çok sayıda etkin capability’si ve bağlı MCP server’ı olan Agent",
       "needs": "Ek bir şey gerekmez.",
       "never": "Tool eklemez; Agent arayana kadar tool'ları gizler."
     },
@@ -5666,14 +5715,6 @@
       "example2": "Döndürebileceğin depo modelini 3D oluştur",
       "needs": "Ek bir şey gerekmez. Visual design skill'i çizimlerin tasarımlı görünmesini sağlar.",
       "never": "Ağ erişimi yoktur; çizim bir app sayfası gibi yalıtılmış biçimde çalışır."
-    },
-    "virtual_tables": {
-      "name": "Tablolar",
-      "does": "Agent'ın kendisine verilen yapılandırılmış tablolarda kayıt eklemesini, güncellemesini, aramasını ve okumasını sağlar.",
-      "example1": "Her yeni destek talebini satır olarak kaydet",
-      "example2": "Yanıtlamadan önce tablodan müşterinin planını kontrol et",
-      "needs": "En az bir tablo için izin veya tablo oluşturma yetkisi gerekir.",
-      "never": "İzin verilmemiş tabloya dokunmaz ve tablo silmez; silinen kayıtların geçmişi tutulur."
     },
     "workflows": {
       "name": "Workflow'lar",
@@ -5968,6 +6009,7 @@
     "mapCycleBadge": "Döngüye dönüyor",
     "mapCycleDetail": "Delegation bu dalda daha üstte bulunan bir Agent'a geri dönüyor. Run döngüyü izlemek yerine reddeder.",
     "mapDelegate": "Delegate",
+    "mapMoreItems": "+{count} tane daha · tümünü aç",
     "mapDepthCap": "Altında devamı var",
     "mapDepthCapDetail": "Kendi delegate'leri var, ancak delegation derinliği sınırı veya delegation'ın kapalı olması nedeniyle bu Agent'tan başlayan run onlara ulaşamaz.",
     "mapDetailRegion": "{name} için ayrıntılar",
@@ -6371,7 +6413,7 @@
     "testPanelWhatAnswers": "Yanıtların içeriği",
     "testPanelCompare": "İki yanıtı yan yana karşılaştır",
     "testPanelComparedWith": "Şununla karşılaştırıldı:",
-    "testPanelCompareHint": "İki chat yan yana yanıt verir. Aynı mesajları almaları için aşağıdaki kutudan ikisine de sorun.",
+    "testPanelCompareHint": "Aynı promptu almaları için aşağıdaki kutudan her iki chate de sorun.",
     "testPanelChanges": "Taslağın değişiklikleri",
     "testPanelChangesTitle": "Taslağın değişiklikleri",
     "testPanelChangesWhy": "Test edilen taslak, yayınlanmış v{version} sürümüyle karşılaştırılıyor.",
@@ -6539,17 +6581,6 @@
     "voicePreview": "Bu voice'u dinle",
     "voicePreviewStop": "Durdur",
     "voicePreviewNeedsKey": "Bu voice'u dinlemek için key seçin",
-    "tablesGrantsLabel": "Agent'ın kullanabileceği tablolar",
-    "tablesGrantsDetail": "Bir tabloyu işaretleyip Agent'ın orada neler yapabileceğini seçin. Okuma her zaman açıktır. Agent burada işaretlenmemiş tabloya erişemez ve her çağrı Agent'ın adına işlem yaptığı üye olarak denetlenir.",
-    "tablesNone": "Henüz tablo yok. Tables altında bir tane oluşturup erişim vermek için buraya dönün.",
-    "tablesGrantToggle": "Agent'ın {name} kullanmasına izin ver",
-    "tablesOperationsLabel": "Agent'ın {name} içinde yapabilecekleri",
-    "tablesOperationRead": "Oku",
-    "tablesOperationCreate": "Ekle",
-    "tablesOperationUpdate": "Güncelle",
-    "tablesOperationDelete": "Sil",
-    "tablesGrantOrphaned": "İzin verilen tablo silinmiş veya artık sizinle paylaşılmıyor:",
-    "tablesManage": "Tabloları yönet",
     "workflowsGrantsLabel": "Başlatabileceği workflow'lar",
     "workflowsGrantsDetail": "Her workflow, belirttiği girdiyle Agent'ın çalıştırabileceği bir öğeye dönüşür; Agent'ın adına işlem yapan üye olarak çalışır ve sonuç beklenir.",
     "workflowsNeedsPermission": "Workflow seçmek için workflows:view izni gerekir.",
@@ -6644,8 +6675,8 @@
     "addSeparateModel": "Ayrı model ekle",
     "separateEndpointHint": "Mevcut profili diğer Agent'lar için korumak üzere bu endpoint'i ayrı bir model olarak kaydedin. “Modeli güncelle” kullanıldığı her yerde paylaşılan profili değiştirir.",
     "backendComputerLabel": "Bilgisayar",
-    "backendComputerDetail": "Kişinin bilgisayarını kullanın; her desktop chat'te ayrıca onaylanır.",
-    "backendComputerConsent": "Her kişi chat ayarlarında bir klasör veya Tüm bilgisayar seçer. Bu ayar erişim vermez ve kişisel yol saklamaz. Hosted chat'te bu workspace için desktop app kullanılmalıdır.",
+    "backendComputerDetail": "Kişinin bilgisayarını kullanır; masaüstü uygulamasında agent başına bir kez onaylanır.",
+    "backendComputerConsent": "Her kişi masaüstü uygulamasında bu agent'a ilk mesajında bir klasör ya da Tüm bilgisayarı seçer; seçim agent için hatırlanır. Bu ayar erişim vermez ve kişisel yol saklamaz. Barındırılan bir sohbet bu çalışma alanı için masaüstü uygulamasını kullanmalıdır.",
     "workflowTablesViaMcp": "Workflow'lar ve Tables, AgenticOS MCP server'ında tool olarak sunulur. MCP servers bölümünden ekleyip Agent'ın ihtiyacı olan tool'ları seçin. Mevcut capability bağlantılarının kayıtlı izinleri korunur.",
     "modelApiFromModel": "Modelin belirlediği {api}",
     "modelApiFromModelHint": "Stav.ai çoğu modeli Chat Completions, bazılarını ise yalnızca Responses üzerinden sunar. Kullanılacak API’yi model belirler.",
@@ -8456,6 +8487,22 @@
       "workspace-graph": {
         "title": "Bağlantılı notları keşfedin",
         "body": "Grafik görünümü, Markdown ve frontmatter içindeki bağlantılardan ve geri bağlantılardan oluşturulur. Açık olduğu sürece yenilenir ve yalnızca bu konumda okuyabildiğiniz dosyaları kullanır."
+      },
+      "org-system-agents": {
+        "title": "Arka plan hizmetleri",
+        "body": "Platform hizmetlerinin modellerini ve bütçelerini seçin, kullanımı inceleyin. Günlük özet ayarları Proaktiflik sekmesindedir."
+      },
+      "personal-coding-accounts": {
+        "title": "Kodlama hesapları",
+        "body": "Kodlama hesabını bağla ve kullanımına açıkça izin ver. Özel bulut görevleri ortak proje dosyalarını otomatik değiştirmeden farkları ve sonuç arşivini döndürür."
+      },
+      "chat-coding-accounts": {
+        "title": "Kodlama hesapların",
+        "body": "Sohbetten ayrılmadan Codex veya Claude Code bağla. Bunlar özel bulut hesaplarındır; yerel masaüstü araçları kendi oturumlarını kullanır."
+      },
+      "workflow-input-contract": {
+        "title": "Beklenen girdiyi tanımlayın",
+        "body": "Manuel, API veya Bir workflow tarafından çağrılan tetikleyicileri, basit alanları veya JSON Schema Draft 2020-12 sözleşmesini kullanabilir. Şema iç içe değerleri destekler ve run başlamadan önce doğrulanır."
       }
     }
   },
@@ -8619,7 +8666,10 @@
           "refreshSettings": "Seçenekleri yenile",
           "unavailableOption": "{value} (kullanılamıyor)"
         },
-        "off": "Kapalı"
+        "off": "Kapalı",
+        "asksFirst": "İlk mesajda sorar",
+        "noCloud": "Bu agent bilgisayarında çalışır, bu yüzden bulut çalışma alanı yoktur. Bir klasör ya da tüm bilgisayarı seç.",
+        "agentComputerConsent": "Bu bilgisayardaki her konuşmada {agent} için izin verildi. Komutlar tek tek yerel onay istemeden çalışır. Erişimi buradan geri alabilirsin; işletim sistemi izinleri geçerli olmaya devam eder."
       },
       "modelSection": "Model",
       "permissionsSection": "İzinler",
@@ -8880,7 +8930,10 @@
       "unread": "Yeni yanıt",
       "unreadHeading": "Okunmamış",
       "unnamedProject": "Bir project",
-      "sharedHeading": "Sizinle paylaşılanlar"
+      "sharedHeading": "Sizinle paylaşılanlar",
+      "sharedLoading": "Paylaşılan konuşmalar yükleniyor…",
+      "sharedFailed": "Paylaşılan konuşmalar yüklenemedi.",
+      "retryShared": "Paylaşılan konuşmaları yeniden yükle"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",
@@ -8901,7 +8954,8 @@
       "elapsedSeconds": "{seconds} sn.",
       "elapsedMinutes": "{minutes} dk.{seconds, plural, =0 {} other { # sn.}}",
       "stopped": "Durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
-      "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}"
+      "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
+      "activityCount": "{count, plural, one {# işlem} other {# işlem}}"
     },
     "streamError": "❌ Hata: {message}",
     "turnInterrupted": "Yanıtın ortasında bağlantı kesildi. Agent turu tamamlayıp yanıtı bu konuşmaya kaydeder.",
@@ -8970,11 +9024,11 @@
       "knowledgeBaseSearch": "Bilgi tabanı araması",
       "listed": "{named, select, no {Listelendi…} other {{subject} listelendi}}",
       "listing": "{named, select, no {Listeleniyor…} other {{subject} listeleniyor}}",
-      "loadSkill": "Skill yükle",
+      "loadSkill": "Skill oku",
       "loading": "Yükleniyor…",
       "availableSkills": "Kullanılabilir skill'ler",
       "lookingThroughSkills": "Skill'ler inceleniyor",
-      "loadingSkill": "Bir skill yükleniyor",
+      "loadingSkill": "Bir skill okunuyor",
       "lookedFor": "{named, select, no {Arandı…} other {{subject} arandı}}",
       "lookingAtChannel": "Kanal inceleniyor",
       "lookingAtChannelMembers": "Kanaldaki kişiler inceleniyor",
@@ -9089,7 +9143,22 @@
         "filesChanged": "{count, plural, =1 {1 dosya değiştirildi:} other {# dosya değiştirildi:}}",
         "steps": "{count, plural, =1 {1 adım} other {# adım}}",
         "stepKind": "{kind, select, read {Okudu} search {Aradı} edit {Düzenledi} command {Çalıştırdı} web {Bilgi aradı} failed {Başarısız oldu} other {Kullandı}}",
-        "refused": "Salt okunur modda izin verilmiyor: {tools}"
+        "refused": "Salt okunur modda izin verilmiyor: {tools}",
+        "changes": "{count, plural, =1 {1 dosya değişti} other {# dosya değişti}}",
+        "changesLoading": "Görevin değişiklikleri yükleniyor…",
+        "changesUnavailable": "Görevin değişiklikleri yüklenemedi.",
+        "noChanges": "Görev hiçbir dosyayı değiştirmedi.",
+        "changeStatus": "{status, select, added {Eklendi} deleted {Silindi} renamed {Yeniden adlandırıldı} other {Değiştirildi}}",
+        "renamedPath": "{from} → {to}",
+        "patchCut": "Yama platformun sakladığından uzun, bu yüzden kısaltıldı: Yamayı kopyala saklananı kopyalar.",
+        "filesOmitted": "{count, plural, =1 {1 değişen dosya daha listelenmedi.} other {# değişen dosya daha listelenmedi.}}",
+        "moreLines": "{count, plural, =1 {1 satır daha - Yamayı kopyala içinde.} other {# satır daha - Yamayı kopyala içinde.}}",
+        "copyPatch": "Yamayı kopyala",
+        "patchCopied": "Yama kopyalandı",
+        "binary": "ikili",
+        "binaryFile": "İkili dosya: gösterilecek satır yok.",
+        "patchOmitted": "Yama sınırının ötesinde: yalnızca adı saklandı.",
+        "noTextChanges": "İçerik değişmedi: dosya yeniden adlandırıldı ya da modu değişti."
       },
       "runCodingAgent": "İşi kodlama Agent'ına devret",
       "runningCodingAgent": "Kodlama Agent'ı çalışıyor",
@@ -9103,22 +9172,6 @@
       "readVisual": "Görsel okundu",
       "workingInText": "Metin üzerinde çalışılıyor",
       "workedInText": "Metin üzerinde çalıştı",
-      "tablesListing": "Kullanabileceği tablolar denetleniyor",
-      "tablesChecking": "Bir tablo denetleniyor",
-      "tablesDescribing": "Tablonun sütunları okunuyor",
-      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor",
-      "tablesCreating": "Tablo oluşturuluyor",
-      "recordsChecking": "Kayıt aranıyor",
-      "recordsListing": "Kayıtlar listeleniyor",
-      "recordsReading": "Kayıt okunuyor",
-      "recordsCreating": "Kayıt ekleniyor",
-      "recordsUpserting": "Kayıt kaydediliyor",
-      "recordsUpdating": "Kayıt güncelleniyor",
-      "recordsDeleting": "Kayıt siliniyor",
-      "approveCreateRecord": "{table} tablosuna kayıt ekle",
-      "approveUpsertRecord": "{table} tablosunda kayıt oluştur veya güncelle",
-      "approveUpdateRecord": "{table} tablosundaki kaydı değiştir",
-      "approveDeleteRecord": "{table} tablosundan kayıt sil",
       "workflowsListing": "Başlatabileceği workflow'lar denetleniyor",
       "workflowRunning": "Workflow çalıştırılıyor",
       "workflowRunReading": "Workflow run'ın durumu denetleniyor",
@@ -9157,7 +9210,23 @@
       "backgroundTasks": "Arka plan konuları",
       "listingBackgroundTasks": "Arka plan konuları okunuyor",
       "startingBackgroundTask": "Arka plan konusu başlatılıyor",
-      "stoppingBackgroundTask": "Arka plan konusu durduruluyor"
+      "stoppingBackgroundTask": "Arka plan konusu durduruluyor",
+      "approveCreateRecord": "{table} tablosuna kayıt ekle",
+      "approveDeleteRecord": "{table} tablosundan kayıt sil",
+      "approveUpdateRecord": "{table} tablosundaki kaydı değiştir",
+      "approveUpsertRecord": "{table} tablosunda kayıt oluştur veya güncelle",
+      "recordsChecking": "Kayıt aranıyor",
+      "recordsCreating": "Kayıt ekleniyor",
+      "recordsDeleting": "Kayıt siliniyor",
+      "recordsListing": "Kayıtlar listeleniyor",
+      "recordsReading": "Kayıt okunuyor",
+      "recordsUpdating": "Kayıt güncelleniyor",
+      "recordsUpserting": "Kayıt kaydediliyor",
+      "tablesChecking": "Bir tablo denetleniyor",
+      "tablesCreating": "Tablo oluşturuluyor",
+      "tablesDescribing": "Tablonun sütunları okunuyor",
+      "tablesListing": "Kullanabileceği tablolar denetleniyor",
+      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -9651,6 +9720,36 @@
         "xhigh": "Çok yüksek"
       }
     },
+    "platformObjects": {
+      "project": "Proje",
+      "table": "Tablo",
+      "task": "Görev",
+      "record": "Tablo kaydı",
+      "agent": "Ajan",
+      "workflow": "İş akışı",
+      "skill": "Beceri",
+      "context": "Bağlam dosyası"
+    },
+    "approvalRememberOptions": "Diğer onay seçenekleri",
+    "approvalRememberChat": "Bu sohbette bu araca izin ver",
+    "approvalRememberAgent": "Bu ajan için bu araca her zaman izin ver",
+    "approvalRememberedTitle": "Hatırlanan araç onayları",
+    "approvalRememberedEmpty": "Hatırlanan onay yok.",
+    "approvalRememberForget": "Tekrar sor",
+    "approvalRememberFailed": "Onay kaldırılamadı. Tekrar deneyin.",
+    "approvalRememberRetry": "Tekrar dene",
+    "localAccess": {
+      "continue": "Erişim verildi - lütfen devam et.",
+      "title": "{agent} nerede çalışabilir?",
+      "description": "{agent} bu istek için bilgisayarındaki dosyalara ihtiyaç duyuyor. Seçimin bu agent için hatırlanır; daha sonra Chat controls → Work on altında değiştirebilir ya da geri alabilirsin.",
+      "computer": "Tüm bilgisayar",
+      "computerHint": "Hesabının erişebildiği her yerde dosyaları okuyup değiştirebilir ve senin adına komut çalıştırabilir. Bilgisayarın onay ister.",
+      "folder": "Klasör seç",
+      "folderHint": "Yalnızca seçtiğin klasörde çalışır.",
+      "cancel": "Şimdi değil",
+      "agentUnavailable": "Seçilen ajan yüklenemedi. Tekrar deneyin.",
+      "failed": "Bu bilgisayarda erişim ayarlanamadı"
+    },
     "fork": "Yeni konuşmaya dallandır",
     "forkedToast": "Konuşma dallandırıldı",
     "failedForkConversation": "Konuşma dallandırılamadı",
@@ -9662,7 +9761,11 @@
     "conversationViewOnly": "Sizinle salt okunur olarak paylaşıldı",
     "accessChanged": "Erişim değiştirildi",
     "failedToChangeAccess": "Erişim değiştirilemedi",
-    "accessLevelFor": "{name} için erişim düzeyi"
+    "accessLevelFor": "{name} için erişim düzeyi",
+    "accessChecking": "Sohbet erişimi kontrol ediliyor…",
+    "accessFailed": "Bu sohbete erişim doğrulanamadı",
+    "accessRetry": "Tekrar dene",
+    "forking": "Sohbet dallandırılıyor…"
   },
   "admin": {
     "actions": "Eylemler",
@@ -9920,7 +10023,8 @@
     "revoked": "Anahtar iptal edildi",
     "couldNotLoad": "API anahtarlarınız yüklenemedi",
     "emptyTitle": "Henüz API anahtarı yok",
-    "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun."
+    "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun.",
+    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin."
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",
@@ -10160,7 +10264,6 @@
     "everySixHours": "6 saatte bir",
     "failedCount": "{count} başarısız",
     "ingestedCount": "{count} içeri aktarıldı",
-    "integration": "Entegrasyon",
     "leaveEmptyAutoGenerate": "Otomatik oluşturmak için boş bırakın",
     "loading": "Yükleniyor…",
     "modeFull": "Tam",
@@ -10305,6 +10408,8 @@
     "dayOfMonthLabel": "Ayın günü",
     "timeLabel": "Saat",
     "timeZoneLabel": "Saat dilimi",
+    "searchTimeZones": "Şehir veya saat dilimi ara…",
+    "noTimeZones": "Saat dilimi bulunamadı. Başka bir şehir deneyin.",
     "timeZoneHelp": "Yaz saati uygulaması dâhil, saatin yorumlandığı saat dilimi. Varsayılan sizin saat diliminizdir.",
     "timeZoneInvalid": "Listeden Europe/Warsaw gibi bir saat dilimi seçin.",
     "weekdayMon": "Pzt",
@@ -10409,6 +10514,8 @@
     "rotateAutoNote": "Platform webhook’u yeni secret ile yeniden kaydetti. Yapıştırmanız gereken bir şey yok.",
     "secretRotated": "İmzalama secret’ı yenilendi",
     "templatesLabel": "Şablonla başlayın",
+    "templatesUnavailable": "Kullanılabilir şablon yok. Kendi mesajınızı yazabilirsiniz.",
+    "templatesLoadFailed": "Şablonlar yüklenemedi. Yine de kendi mesajınızı yazabilirsiniz.",
     "templateScratch": "Sıfırdan başla",
     "templateScratchHelp": "Kendi mesajınızı ve çalışma sıklığınızı yazın.",
     "stepSchedule": "Schedule",
@@ -10443,13 +10550,20 @@
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {
+      "useAllowed": "İzin verilen klasörü kullan",
+      "allRoutines": "Tüm rutinlerim",
       "label": "Üzerinde çalış",
       "hint": "Her çalışma, masaüstü uygulaması aracılığıyla bilgisayarınızdaki bir klasörde veya agent’ın sandbox’ında gerçekleşir. Uygulama kapalıysa çalışma uygulamanın açılmasını bekler.",
       "elsewhereHint": "Her çalışma bilgisayarınızdaki bu klasörde gerçekleşir. Bunu o bilgisayardaki masaüstü uygulamasından değiştirin.",
       "sandbox": "Agent’ın sandbox’ı",
       "pick": "Bir klasör seçin…",
       "useSandbox": "Sandbox’ı kullan"
-    }
+    },
+    "resultMode": "Sonuçlar ne zaman bildirilsin",
+    "resultReport": "Tamamlanan her çalışmadan sonra",
+    "resultInbox": "Yalnızca dikkat gerektiğinde",
+    "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
+    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir."
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -10570,13 +10684,53 @@
     "publicLiveDataConfirmTitle": "Herkese açık sayfalarda canlı veriye izin verilsin mi?",
     "publicLiveDataConfirmWhy": "Bir sayfanın herkese açık bağlantısına sahip herkes ve sayfayı embed eden tüm siteler, oturum açmadan tablo verilerini görür. Sayfanın sahibi veya bir Owner ya da Admin onaylayana kadar hiçbir veri gösterilmez. Daha önce onaylanmış sayfalar verilerini hemen yeniden gösterir.",
     "publicLiveDataConfirm": "İzin ver",
-    "proactive": {
-      "title": "Proactivity",
-      "description": "Platformun arka planda, kişiler için kendi kendine yaptığı işler. Siz açana kadar kapalıdır.",
-      "nightly": "Gece önerileri",
-      "nightlyHint": "Her kişinin haftasına göz atar: tekrarlayıp durduğu bir istek için routine, profili ve boş sohbetinde gösterilen ilk mesajlar. Kişiler kendi ayarlarından bu özelliği kapatabilir.",
+    "systemAgents": {
+      "title": "Arka plan hizmetleri",
+      "description": "Model kullanan platform hizmetleri. Model ve bütçeyi yapılandırmak için bir hizmeti genişletin. Kullanım ve son çalıştırmalar aşağıda görünür.",
+      "configure": "Model ve bütçeyi yapılandır",
+      "on": "Açık",
+      "off": "Kapalı",
+      "managedIn": "{model} üzerinde çalışır. Ortak model ve sınır Proaktiflik sekmesinde yapılandırılır.",
+      "managedInNoModel": "Henüz model seçilmedi. Proaktiflik sekmesinde yapılandırın.",
+      "enabled": "Bu rolü çalıştır",
       "model": "Model",
-      "modelHint": "Gece incelemesi ve watch’ların kullandığı model. Küçük ve ekonomik bir model yeterlidir.",
+      "modelHint": "Rol, o anda istenmemiş bir iş için para harcadığından model açıkça seçilir.",
+      "budget": "Aylık bütçe (USD)",
+      "noBudget": "Ayrı bir sınır yok",
+      "invalid": "Sıfır veya daha büyük bir sayı girin.",
+      "modelRequired": "Etkinleştirmeden önce bu rolün modelini seçin.",
+      "save": "Kaydet",
+      "saved": "Kaydedildi",
+      "savedOff": "Kapatıldı",
+      "spent": "Bu ay harcanan: {amount}",
+      "spentOf": "Bu ay harcanan: {amount} / {budget}",
+      "noRuns": "Henüz çalıştırılmadı.",
+      "unknownModel": "Model bilinmiyor",
+      "roles": {
+        "daily_briefing": {
+          "name": "Günlük özet",
+          "what": "Her kişinin haftasını gece inceleyerek özet hazırlar."
+        },
+        "memory_maintenance": {
+          "name": "Bellek bakımı",
+          "what": "Tamamlanan bir sohbeti okuyarak kalıcı bilgileri, tercihleri ve kararları sohbetin kapsamına kaydeder. Kapalıyken veya modeli yokken çalışmaz."
+        }
+      },
+      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın."
+    },
+    "proactive": {
+      "budgetTitle": "Bütçe ve sınırlar",
+      "budgetHint": "Her üye için aylık arka plan çalışma bütçesi.",
+      "deliveryTitle": "İletim zamanlaması",
+      "deliveryHint": "Önerilerin ve acil olmayan izleme özetlerinin ne zaman çalışacağını seçin. Her üyenin kendi saat dilimi kullanılır.",
+      "unsavedChanges": "Kaydedilmemiş değişiklikleriniz var",
+      "discardChanges": "Değişiklikleri iptal et",
+      "title": "Asistan önerileri ve izleme",
+      "description": "Sohbet tabanlı öneriler ve salt okunur izleme bağımsızdır. Zamanlanmış ve olay rutinleri önerilerin etkin olmasını gerektirmez.",
+      "nightly": "Gece önerileri",
+      "nightlyHint": "Son sohbetlerden ve bellekten rutin, ajan ve profil güncellemeleri önerir. Posta kutularını taramaz. Önerilen rutini oluşturmak kullanıcı onayı gerektirir.",
+      "model": "Model",
+      "modelHint": "Yalnızca sohbetlerden iyileştirme önermek içindir. İzleme seçilen ajanın modelini kullanır.",
       "modelRequired": "Açmadan önce kullanılacak modeli seçin.",
       "label": "Kişi başına sınır (aylık USD)",
       "days": "Gün",
@@ -10596,13 +10750,13 @@
       "welcomeTextHint": "Her kişinin dilindeki yerleşik selamlamayı kullanmak için boş bırakın. '{organization}', '{bot}' ve '{url}' alanları doldurulur.",
       "welcomeTextPlaceholder": "'{organization}' organizasyonuna hoş geldiniz! Bana buradan istediğinizi sorun.",
       "welcomeSaved": "Karşılama mesajı kaydedildi",
-      "watches": "Kişilerin bağlantılarını izle",
-      "watchesHint": "Kişiler bağlı hesaplarında neyin izleneceğini seçer (kendilerini bekleyen pull request veya vadesi geçmiş fatura gibi) ve yeni olanlardan haberdar edilir. Yalnızca okur; buldukları her kişiye özeldir.",
-      "watchMinutes": "En sık",
+      "watches": "Salt okunur izleme rutinlerine izin ver",
+      "watchesHint": "Üyeler ajanı seçer ve kendi hesaplarındaki kaynakları onaylar. İlgili değişiklikler Inbox’a, istenen taslaklar çalışma sohbetine gider.",
+      "watchMinutes": "Kontroller arası minimum süre",
       "watchMinutesHint": "Bir watch’ın en sık ne zaman kontrol edebileceği. Daha sık kontrol daha maliyetlidir.",
       "switchOrganizationHint": "Proactivity’yi yapılandırmadan önce bu kuruluşa geçin; böylece buradaki model profilleri ve key’ler kullanılır.",
       "switchOrganization": "{name} kuruluşuna geç",
-      "runAttribution": "Arka plan kontrolleri Activity’de yayımlanmış AgenticOS başlangıç agent’ının altında görünür. Bu atama platform tarafından sabittir. Kontroller aşağıda seçilen proactivity modelini kullanır; agent’ın kendi modelinden bağımsızdır."
+      "runAttribution": "Öneriler ayrı bir model kullanır; izleme, seçilen temsilcinin modelini kullanır. Her iki özellik de üye başına aylık arka plan çalışma bütçesini paylaşır."
     }
   },
   "groups": {
@@ -12212,11 +12366,11 @@
     "loading": "Yükleniyor"
   },
   "watches": {
-    "title": "Watch’lar",
+    "title": "Salt okunur izleme",
     "description": "Asistan, kendi bağlı hesaplarınızı zamanlanmış aralıklarla kontrol edip yenilikleri bildirir. Yalnızca okur ve bulduklarını yalnızca siz görürsünüz.",
     "orgOff": "Kuruluşunuz watch’ları açmadı. Bir yönetici bunu kuruluş sayfasındaki Proactivity bölümünden açabilir.",
     "noConnections": "Önce MCP servers sayfasından kendi hesaplarınızdan birini bağlayın - GitHub, Linear veya posta kutunuz.",
-    "add": "Yeni watch",
+    "add": "İzle ve bildir",
     "resumed": "İzleme yeniden başladı",
     "paused": "Duraklatıldı",
     "removed": "İzleme durduruldu",
@@ -12228,8 +12382,8 @@
     "activeLabel": "{title} öğesini izle",
     "editLabel": "{title} watch’ını düzenle",
     "removeLabel": "{title} watch’ını durdur",
-    "newTitle": "Bir şeyi izle",
-    "editTitle": "Watch’ı düzenle",
+    "newTitle": "İzleme rutini",
+    "editTitle": "İzleme rutinini düzenle",
     "dialogDescription": "Hesaplarınızdan birinde ne aranacağını ve ne sıklıkta kontrol edileceğini seçin. Yalnızca okur; buldukları yalnızca size özeldir.",
     "connection": "Hesap",
     "connectionPlaceholder": "Bağlantılarınızdan birini seçin",
@@ -12246,7 +12400,7 @@
     "exclusionsHint": "Her satıra bir tane: yeniden bildirilmesini istemedikleriniz.",
     "cancel": "İptal",
     "save": "Kaydet",
-    "create": "İzlemeyi başlat",
+    "create": "Rutin oluştur",
     "saved": "Watch kaydedildi",
     "created": "İzleniyor - ilk kontrol bir dakika içinde yapılır",
     "cadence": {
@@ -12359,23 +12513,24 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Routines altında bulunur; buldukları gelen kutunuza düşer.",
     "seeIt": "Görüntüle",
-    "manageInRoutines": "Watch’larınızı Routines’ten yönetin"
+    "manageInRoutines": "Watch’larınızı Routines’ten yönetin",
+    "watchAndInform": "İzle ve bildir"
   },
   "inbox": {
     "title": "Gelen kutusu",
-    "description": "Platformun kendiliğinden size getirdikleri: watch’larınızın buldukları ve gece incelemesinin önerdikleri.",
+    "description": "Dikkat gerektiren sonuçlar, onaylar ve sohbetlerinize dayalı öneriler.",
     "filterLabel": "Göster",
     "filter": {
       "all": "Tümü",
       "urgent": "Önemli",
-      "watches": "Watch’lardan",
+      "watches": "Rutin sonuçları",
       "suggestions": "Öneriler",
       "done": "Tamamlandı"
     },
     "empty": {
       "title": "Burada bekleyen yok",
-      "description": "Watch’larınızın buldukları ve gece incelemesinin önerileri burada görünür.",
-      "watches": "Bir watch ayarlayın"
+      "description": "İlgili rutin sonuçları ve asistan önerileri burada görünür.",
+      "watches": "Rutin oluştur"
     },
     "doneEmpty": "Henüz yanıtlanan yok",
     "waiting": "{count, plural, =0 {Bekleyen yok} =1 {1 öğe bekliyor} other {# öğe bekliyor}}",
@@ -12385,8 +12540,9 @@
       "agent": "Agent fikri",
       "profile": "Profil",
       "role_pack": "Routine paketi",
-      "finding": "Watch"
-    }
+      "finding": "Rutin"
+    },
+    "openWorkingChat": "Sohbeti aç"
   },
   "agentLimit": {
     "title": "Bu kuruluş agent sınırına ulaştı",
@@ -12639,5 +12795,99 @@
     "rootFolder": "Kök klasör",
     "untagged": "Etiketsiz",
     "visibleNotes": "Görünür not sayısı: {visible}/{total}"
+  },
+  "durableTasks": {
+    "tasks": "Görevler",
+    "newTask": "Yeni görev",
+    "hint": "Siz ve ajanlarınız için kalıcı görevler. Tablo, çalışma sohbeti ve gelen kutusu aynı göreve bağlıdır.",
+    "board": "Görev tablosu",
+    "openTable": "Tabloyu aç",
+    "title": "Görev",
+    "description": "Talimatlar veya bağlam",
+    "assignee": "Sonraki adımı kim atacak?",
+    "me": "Ben",
+    "start": "Başlangıç",
+    "due": "Son tarih",
+    "reminderHint": "İsteğe bağlı: bu saatte gelen kutusunda hatırlat.",
+    "startHint": "İsteğe bağlı: bu saatte bir kez çalıştır. Boş bırakırsanız şimdi başlar.",
+    "dueHint": "Son tarih, çalışmanın başlangıcından ayrıdır.",
+    "localTime": "Tarihler cihazınızın saat dilimini kullanır.",
+    "createHint": "Bir görev, ileri tarihli çalışma veya hatırlatıcı kaydedin. Ajan sonuçları incelemeniz için çalışma sohbetinde bekler.",
+    "agentsUnavailable": "Ajanlar yüklenemedi. Görevi yine de kendinize atayabilirsiniz.",
+    "cancel": "İptal",
+    "saving": "Kaydediliyor…",
+    "create": "Görev oluştur",
+    "retry": "Tekrar dene",
+    "empty": "Henüz görev yok",
+    "emptyHint": "Bir ajandan daha sonra yapılacak bir iş planlamasını isteyin veya görev oluşturun. Özel tablo otomatik oluşturulur.",
+    "openChat": "Çalışma sohbetini aç",
+    "done": "Tamamlandı olarak işaretle",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "scope": {
+      "private": "Görevlerim",
+      "project": "Proje görevleri",
+      "group": "Grup görevleri",
+      "organization": "Kuruluş görevleri"
+    },
+    "status": {
+      "planned": "Planlandı",
+      "in_progress": "Devam ediyor",
+      "waiting_for_user": "Sizi bekliyor",
+      "blocked": "Engellendi",
+      "done": "Tamamlandı",
+      "cancelled": "İptal edildi"
+    },
+    "nextActor": {
+      "user": "Sonraki adım: kişi",
+      "agent": "Sonraki adım: ajan"
+    }
+  },
+  "setupHints": {
+    "title": "Yapılandırma mevcut",
+    "voiceModel": "Ses için varsayılan sağlayıcı veya model yok. Sağlayıcı üzerinden transkripsiyon için Çalışma alanı → Ses bölümünde seçin.",
+    "voiceKey": "Ses sağlayıcısı ve modeli var ancak anahtar yok. Çalışma alanı → Ses bölümünde kuruluş anahtarı seçin.",
+    "proactivityOff": "Gece önerileri kapalı. Asistanın ekibiniz için öneriler hazırlamasını istiyorsanız Proaktiflik bölümünde açın.",
+    "proactivityModel": "Gece önerileri açık ancak model seçilmedi. Proaktiflik bölümünde bir model seçin.",
+    "memoryModel": "Bellek bakımı için model seçilmedi. Otomatik bellek bakımı için Yapay zekâ ve hizmetler → Arka plan hizmetleri bölümünde model seçin.",
+    "architectModel": "Architect bir model gerektiriyor. Yapay zekâ ve hizmetler üzerinden Agent Builder’da açın ve bir model seçin.",
+    "mobilePush": "iPhone anlık bildirimleri için Apple anahtarı yapılandırılmadı. Kendi iOS uygulama derlemenizi kullanıyorsanız buraya APNs anahtarınızı ekleyin."
+  },
+  "outcomes": {
+    "reviewApproval": "Onay isteğini incele"
+  },
+  "codingAccounts": {
+    "title": "Kodlama hesapları",
+    "description": "Bu kuruluşta başlattığın kodlama görevleri için kendi hesabın. Diğer üyeler kullanamaz.",
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "connectNamed": "{name} bağla",
+    "label": "Hesap etiketi",
+    "apiKey": "API anahtarı",
+    "chatGPT": "ChatGPT oturumu",
+    "oauthHelp": "Tarayıcıda yeni bir oturum aç ve localhost geri dönüş adresinin tamamını buraya yapıştır. CLI auth.json dosyasını içe aktarma.",
+    "continueOpenAI": "OpenAI ile devam et",
+    "startSignIn": "Oturum açmayı başlat",
+    "callback": "Geri dönüş adresi",
+    "credential": "API anahtarı veya Claude kurulum belirteci",
+    "keyHelp": "Claude Code, Anthropic API anahtarı veya kurulum belirteci; Codex ise OpenAI API anahtarı kabul eder. Kişisel hesaplar doğrudan sağlayıcılarına bağlanır.",
+    "consent": "Bu kuruluştaki ajanlar başlattığım kodlama görevleri için bu hesabı kullanabilsin.",
+    "sharing": "Özel bulut görevleri çalışma alanını yalıtılmış bir kapsayıcıya kopyalar. Sonuçlar sohbet okuyucularıyla paylaşılır; ortak proje dosyaları otomatik değiştirilmez.",
+    "connecting": "Bağlanıyor…",
+    "connect": "Bağla",
+    "notConnected": "Bağlı değil",
+    "enabled": "Görevlerim için etkin",
+    "disabled": "Etkin değil",
+    "disable": "Kullanımı devre dışı bırak",
+    "enable": "Kullanımı etkinleştir",
+    "disconnect": "Bağlantıyı kes",
+    "loadFailed": "Kodlama hesapların yüklenemedi",
+    "retry": "Tekrar dene",
+    "localHelp": "Profilini kullanmak için Coding agent aracında Hesabımla özel bulut görevi seçeneğini seç. Bu bilgisayarda seçeneği yerel CLI oturumunu ve onayladığın klasörü kullanır; yerel kimlik bilgileri bilgisayarında kalır.",
+    "disconnectHelp": "Bağlantıyı kesmek AgenticOS kopyasını kaldırır ve görevlerini durdurur. ChatGPT yetkisini OpenAI ChatGPT Ayarlarından iptal et. Zamanlanmış ve kanal görevleri bu hesapları kullanmaz.",
+    "personalAccount": "Kişisel hesap: {label}",
+    "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
+    "chatTitle": "{name} hesabın",
+    "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
   }
 }

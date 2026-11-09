@@ -5,16 +5,20 @@ import type { ApprovalMode } from "@/stores/chat-controls-store";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useId, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Check, ChevronDown, HelpCircle, SlidersHorizontal, X } from "lucide-react";
+import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
+import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useOrgStore } from "@/stores";
+import { useAgents } from "@/hooks/use-agents";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -88,8 +92,25 @@ export function ChatControls({
   const openPage = useOnboardingStore((state) => state.openPage);
   const [open, setOpen] = useState(false);
   const desktop = isDesktopShell(useShell());
-  const [preferences, setPreferences] = useState<boolean | null>(null);
-  const expanded = preferences ?? !desktop;
+  const [tab, setTab] = useState("model");
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents } = useAgents();
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const personalHarness = selectedAgent?.personal_coding_harness ?? null;
+  // What the agent reaches, kept apart from the model it runs on: the folder,
+  // browser, screen and coding agent on the desktop, and the coding account an
+  // agent that codes on the person's own account needs anywhere.
+  // A delegate can need either personal harness, even when the selected agent
+  // has no coding binding itself. Keep both connection doors in that case.
+  const delegates =
+    (agentCapabilities ?? selectedAgent?.published_capabilities)?.includes("subagents") === true;
+  const harnesses = delegates
+    ? (["claude_code", "codex"] as const)
+    : personalHarness
+      ? [personalHarness]
+      : [];
+  const tools = desktop || harnesses.length > 0;
+  const selectedTab = !tools && tab === "tools" ? "model" : tab;
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -149,6 +170,7 @@ export function ChatControls({
 
       <PopoverContent
         ref={panel}
+        style={{ backgroundColor: "var(--color-card)" }}
         aria-label={t("label")}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -158,81 +180,93 @@ export function ChatControls({
         align="end"
         sideOffset={12}
         tabIndex={-1}
-        className="bg-popover flex max-h-[min(720px,var(--radix-popover-content-available-height))] w-[440px] flex-col overflow-hidden rounded-2xl p-0 shadow-2xl"
+        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] flex-col overflow-hidden rounded-xl p-0 shadow-2xl"
         // The page tour walks through these settings sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
         onInteractOutside={(event) => {
-          if (document.querySelector(".driver-popover")) event.preventDefault();
+          if (
+            document.querySelector(".driver-popover") ||
+            (event.target instanceof Element &&
+              event.target.closest("[data-coding-account-connect]"))
+          )
+            event.preventDefault();
         }}
       >
-        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
-          <h2 className="text-sm font-semibold">{t("label")}</h2>
+        <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-3">
+          <h2 className="text-base font-semibold tracking-tight">{t("label")}</h2>
           <button
             type="button"
             aria-label={tCommon("close")}
             onClick={() => setOpen(false)}
-            className="text-muted-foreground hover:bg-accent hover:text-foreground flex size-7 items-center justify-center rounded-md"
+            className="text-foreground/75 hover:bg-accent hover:text-foreground flex size-8 items-center justify-center rounded-md"
           >
             <X className="size-4" aria-hidden />
           </button>
         </div>
-        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-4">
-          <div className="mb-2 flex items-center gap-1">
-            <h3 className="text-foreground/85 text-[13px] font-medium">{t("modelSection")}</h3>
-            <ContextHelp>{t("whichModelRunsHere")}</ContextHelp>
-          </div>
-          <ChatModelPicker
-            value={profileId}
-            agentModel={agentModel}
-            onChange={(next) => {
-              setProfileId(next);
-              onModelProfileChange?.(next);
-            }}
-            // "No override" is not "the organization default": an agent names its
-            // own model, and leaving that alone is the default here - so there is
-            // no row for one.
-          />
-          {profileId !== null && (
-            <button
-              type="button"
-              onClick={() => {
-                setProfileId(null);
-                onModelProfileChange?.(null);
-              }}
-              className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
-            >
-              {t("backAgentAposS")}
-            </button>
-          )}
-
-          {desktop && (
-            <div className="mt-5 border-t pt-4">
-              <p className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">
+        <Tabs value={selectedTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="mx-5 shrink-0 gap-5">
+            <TabsTrigger value="model" data-tour="chat-settings-model" className="px-0">
+              {t("modelSection")}
+            </TabsTrigger>
+            {tools && (
+              <TabsTrigger value="tools" data-tour="chat-settings-tools" className="px-0">
                 {t("toolsTab")}
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="preferences" data-tour="chat-settings-preferences" className="px-0">
+              {t("preferencesTab")}
+            </TabsTrigger>
+          </TabsList>
+          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-5">
+            <TabsContent value="model" forceMount hidden={selectedTab !== "model"} className="mt-0">
+              <p className="text-muted-foreground mb-4 text-[13px] leading-5">
+                {t("whichModelRunsHere")}
               </p>
-              <WorkOn agentCapabilities={agentCapabilities} />
-            </div>
-          )}
-          <button
-            type="button"
-            data-tour="chat-settings-preferences"
-            aria-expanded={expanded}
-            onClick={() => setPreferences(!expanded)}
-            className="text-muted-foreground hover:text-foreground mt-4 flex w-full items-center justify-between border-t pt-4 text-xs font-medium"
-          >
-            {t("preferencesTab")}
-            <ChevronDown
-              aria-hidden
-              className={cn("size-4 transition-transform", expanded && "rotate-180")}
-            />
-          </button>
-          {expanded && (
-            <div>
-              <div
-                className="border-foreground/10 mt-4 border-t pt-4"
-                data-tour="chat-approval-mode"
+              <ChatModelPicker
+                value={profileId}
+                agentModel={agentModel}
+                onChange={(next) => {
+                  setProfileId(next);
+                  onModelProfileChange?.(next);
+                }}
+                // "No override" is not "the organization default": an agent names its
+                // own model, and leaving that alone is the default here - so there is
+                // no row for one.
+              />
+              {profileId !== null && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileId(null);
+                    onModelProfileChange?.(null);
+                  }}
+                  className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
+                >
+                  {t("backAgentAposS")}
+                </button>
+              )}
+            </TabsContent>
+            {tools && (
+              <TabsContent
+                value="tools"
+                forceMount
+                hidden={selectedTab !== "tools"}
+                className="mt-0"
               >
+                {harnesses.map((harness) => (
+                  <PersonalCodingAccount key={harness} harness={harness} />
+                ))}
+                {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
+              </TabsContent>
+            )}
+            <TabsContent
+              value="preferences"
+              forceMount
+              hidden={selectedTab !== "preferences"}
+              className="mt-0"
+            >
+              <div className="space-y-4" data-tour="chat-approval-mode">
                 <div className="mb-2 flex items-center gap-1">
                   <h3 className="text-foreground/85 text-[13px] font-medium">
                     {t("permissionsSection")}
@@ -253,7 +287,7 @@ export function ChatControls({
                   role="radiogroup"
                   aria-label={t("approvalMode")}
                   aria-describedby={!mayWaive ? waiverHintId : undefined}
-                  className="space-y-1"
+                  className="space-y-2"
                 >
                   {APPROVAL_MODES.map((mode) => {
                     // Rendered but unavailable, rather than hidden: "you cannot waive
@@ -267,23 +301,25 @@ export function ChatControls({
                         type="button"
                         role="radio"
                         aria-checked={approvalMode === mode}
+                        aria-label={t(`mode.${mode}`)}
+                        aria-describedby={`${waiverHintId}-${mode}`}
                         disabled={!offered}
                         onClick={() => {
                           setApprovalMode(mode);
                           onApprovalModeChange?.(mode);
                         }}
                         className={cn(
-                          "focus-visible:ring-ring flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+                          "focus-visible:ring-ring flex w-full items-start justify-between gap-4 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
                           approvalMode === mode
-                            ? "bg-foreground/[0.06] text-foreground"
-                            : "text-foreground/70 hover:bg-foreground/[0.04]",
-                          !offered && "cursor-not-allowed opacity-45",
+                            ? "border-foreground/20 bg-foreground/[0.04] text-foreground"
+                            : "border-border/60 text-foreground/80 hover:bg-foreground/[0.025]",
+                          !offered && "text-muted-foreground cursor-not-allowed border-dashed",
                         )}
                       >
                         <span
                           aria-hidden
                           className={cn(
-                            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                            "order-last mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
                             approvalMode === mode
                               ? "border-foreground bg-foreground text-background"
                               : "border-input",
@@ -293,16 +329,18 @@ export function ChatControls({
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[13px] font-medium">{t(`mode.${mode}`)}</span>
-                          {approvalMode === mode && (
-                            <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
-                              {t(`modeHint.${mode}`)}
-                            </span>
-                          )}
+                          <span
+                            id={`${waiverHintId}-${mode}`}
+                            className="text-muted-foreground mt-1 block text-xs leading-relaxed"
+                          >
+                            {t(`modeHint.${mode}`)}
+                          </span>
                         </span>
                       </button>
                     );
                   })}
                 </div>
+                {can(Perm.approvalsDecide) && <RememberedApprovals />}
                 {!mayWaive && (
                   <div className="text-muted-foreground mt-2 space-y-2 text-xs leading-relaxed">
                     <p id={waiverHintId}>
@@ -346,15 +384,12 @@ export function ChatControls({
                   </button>
                 </div>
               )}
-            </div>
-          )}
-        </div>
+            </TabsContent>
+          </div>
+        </Tabs>
 
-        <div className="border-foreground/10 text-muted-foreground flex shrink-0 items-center justify-between border-t px-5 py-2.5 text-[11px]">
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
-            {t("savedAutomatically")}
-          </span>
+        <div className="text-muted-foreground flex shrink-0 items-center justify-between px-5 pt-1 pb-4 text-[11px]">
+          <span className="inline-flex items-center gap-1.5">{t("savedAutomatically")}</span>
           <span>{t("escToClose")}</span>
         </div>
       </PopoverContent>

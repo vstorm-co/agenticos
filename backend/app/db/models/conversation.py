@@ -129,6 +129,11 @@ class Conversation(Base, TimestampMixin):
     Null until a summary has run, which for most conversations is for ever.
     """
 
+    guardrail_revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    """Fences summaries built before a turn became refused, including in-flight compaction."""
+
     summary_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """The last transcript row `summary_messages` accounts for.
 
@@ -444,6 +449,18 @@ class Message(Base, TimestampMixin):
     then reached the model on the next turn. Set on every row of the run when it
     ends `guardrail_blocked`, and on a row written for such a run afterwards."""
 
+    nightly_read_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    """A successful nightly read, independent of run settlement and retention.
+
+    The digest detects changed text without copying it. Keeping the person's id
+    prevents a reassigned or newly unattributed message inheriting another
+    person's receipt; the foreign key clears that association on account deletion.
+    Missing receipts are deliberately unread after upgrade.
+    """
+    nightly_read_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     conversation: Mapped[Conversation] = relationship(
         "Conversation", back_populates="messages", foreign_keys=[conversation_id]
     )
@@ -496,6 +513,8 @@ class ToolCall(Base):
     )
     tool_call_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tool_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    presentation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     args: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")

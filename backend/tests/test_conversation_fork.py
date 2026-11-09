@@ -1,5 +1,7 @@
 """Forking a conversation at one of its answers (#2762): who may, from where, and who sees the origin."""
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
@@ -50,11 +52,22 @@ def _ctx(user_id: UUID = OWNER_ID) -> AuthContext:
 
 @pytest.fixture
 def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
+    @asynccontextmanager
+    async def no_lock_wait(_db: object, **_options: object) -> AsyncGenerator[None]:
+        yield
+
+    monkeypatch.setattr("app.services.conversation.lock_wait_within", no_lock_wait)
     service = ConversationService(AsyncMock())
     monkeypatch.setattr(conversation_repo, "owned_titles", AsyncMock(return_value={}))
     monkeypatch.setattr(conversation_repo, "run_ids_through", AsyncMock(return_value=set()))
     monkeypatch.setattr(conversation_repo, "run_outcomes", AsyncMock(return_value={}))
     monkeypatch.setattr(conversation_repo, "mark_read", AsyncMock())
+    monkeypatch.setattr(
+        conversation_repo,
+        "lock_fork_history",
+        AsyncMock(return_value=conversation_repo.ForkRowCounts(1, 0)),
+    )
+    monkeypatch.setattr(conversation_repo, "fork_payload_bytes", AsyncMock(return_value=0))
     return service
 
 
@@ -66,7 +79,7 @@ def _forkable(
 ) -> AsyncMock:
     """The source opens for the caller and `answer` is what the message lookup finds."""
     monkeypatch.setattr(service, "get_conversation", AsyncMock(return_value=source))
-    monkeypatch.setattr(conversation_repo, "get_message_by_id", AsyncMock(return_value=answer))
+    monkeypatch.setattr(conversation_repo, "get_fork_point", AsyncMock(return_value=answer))
     fork = _conversation(forked_from=source.id)
     copy = AsyncMock(return_value=fork)
     monkeypatch.setattr(conversation_repo, "fork_conversation", copy)
@@ -273,3 +286,36 @@ class TestTheOriginIsTheOwnersAlone:
         assert fork.forked_from is None
         assert plain.forked_from is None
         assert titles.await_count == 0
+
+
+async def test_a_disappearing_source_does_not_leave_a_partial_copy(service, monkeypatch):
+    source = _conversation()
+    answer = _message(source)
+    copy = _forkable(monkeypatch, service, source, answer)
+    monkeypatch.setattr(conversation_repo, "lock_fork_history", AsyncMock(return_value=None))
+    with pytest.raises(NotFoundError):
+        await _fork(service, source, answer.id)
+    copy.assert_not_awaited()
+
+
+@pytest.mark.parametrize("sqlstate", ["55P03", "40P01", "XX000"])
+async def test_lock_conflicts_are_retryable_but_database_bugs_remain_errors(
+    service, monkeypatch, sqlstate
+):
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.exceptions import ConcurrentChangeError
+
+    class DatabaseFailure(Exception):
+        def __init__(self, state: str) -> None:
+            self.sqlstate = state
+
+    source = _conversation()
+    answer = _message(source)
+    copy = _forkable(monkeypatch, service, source, answer)
+    failure = DBAPIError("select", {}, DatabaseFailure(sqlstate))
+    monkeypatch.setattr(conversation_repo, "lock_fork_history", AsyncMock(side_effect=failure))
+    expected = DBAPIError if sqlstate == "XX000" else ConcurrentChangeError
+    with pytest.raises(expected):
+        await _fork(service, source, answer.id)
+    copy.assert_not_awaited()

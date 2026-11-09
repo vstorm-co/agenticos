@@ -10,7 +10,7 @@ overrides = [
 
 [[package]]
 name = "agenticos"
-version = "1.49.0"
+version = "1.59.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -42,7 +42,6 @@ dependencies = [
     { name = "logfire", extra = ["asyncpg", "fastapi", "httpx", "redis"] },
     { name = "markdown-it-py" },
     { name = "mcp" },
-    { name = "mem0ai" },
     { name = "odfpy" },
     { name = "olefile" },
     { name = "openpyxl" },
@@ -66,7 +65,7 @@ dependencies = [
     { name = "pywebpush" },
     { name = "rank-bm25" },
     { name = "redis" },
-    { name = "requests" },
+    { name = "referencing" },
     { name = "slack-sdk" },
     { name = "soupsieve" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -148,7 +147,6 @@ requires-dist = [
     { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.2.0" },
     { name = "markdown-it-py", specifier = ">=4.0.0" },
     { name = "mcp", specifier = ">=2.3.0" },
-    { name = "mem0ai", specifier = ">=2.2.1" },
     { name = "mirage-ai", extras = ["pydantic-ai", "ssh", "mongodb", "gridfs", "postgres", "redis", "email", "nextcloud", "hf-buckets", "chroma", "mem0", "langfuse", "qdrant", "lancedb"], marker = "extra == 'mirage'", specifier = "==0.0.8" },
     { name = "odfpy", specifier = ">=1.4.1" },
     { name = "olefile", specifier = ">=0.47" },
@@ -174,7 +172,7 @@ requires-dist = [
     { name = "pywebpush", specifier = ">=2" },
     { name = "rank-bm25", specifier = ">=0.2.2" },
     { name = "redis", specifier = ">=8.1.0" },
-    { name = "requests", specifier = ">=2.34.2" },
+    { name = "referencing", specifier = ">=0.36.2" },
     { name = "slack-sdk", specifier = ">=3.45.0" },
     { name = "soupsieve", specifier = ">=2.9.2" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.4" },

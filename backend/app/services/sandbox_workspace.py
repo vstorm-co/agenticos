@@ -696,8 +696,13 @@ class SandboxWorkspaceService:
         scope_override: SessionScope | None = None,
         on_wait: SandboxWaitSink | None = None,
         local: LocalTarget | None = None,
+        defer_local: bool = False,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
+
+        `defer_local` is a run that can ask for the computer when it needs it: an
+        agent whose workspace is the person's computer, with none chosen yet, then
+        starts with no workspace instead of being refused.
 
         `local` is the chat's "Work on: This computer" (#2305): the same sandbox
         tools, carried out by the person's desktop app in the folder they picked.
@@ -728,9 +733,15 @@ class SandboxWorkspaceService:
             return None
         if local is not None and local.folder is not None:
             return await self._open_local(
-                ctx, local, conversation_id=identity.conversation_id, on_wait=on_wait
+                ctx,
+                local,
+                conversation_id=identity.conversation_id,
+                agent_id=identity.agent_id,
+                on_wait=on_wait,
             )
         if config.backend == "local":
+            if defer_local:
+                return None
             raise BadRequestError(
                 message="This agent uses your computer. In desktop chat settings, choose a folder or Whole computer and approve access.",
                 details={"target": "local"},
@@ -756,6 +767,7 @@ class SandboxWorkspaceService:
         local: LocalTarget,
         *,
         conversation_id: UUID | None = None,
+        agent_id: UUID | None = None,
         on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace:
         """A workspace on one of the caller's own computers.
@@ -775,7 +787,14 @@ class SandboxWorkspaceService:
                 message="Only your own chats can work on your computer",
                 details={"target": "local"},
             )
-        device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        from app.services.routine_devices import local_scope, ready
+
+        routine_scope = local_scope(ctx, local)
+        device = (
+            await ready(self.db, ctx, local)
+            if routine_scope is not None
+            else await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        )
         if device is None:
             if on_wait is not None:
                 await on_wait(True)
@@ -794,7 +813,12 @@ class SandboxWorkspaceService:
         return OpenWorkspace(
             workspace=Workspace(
                 DeviceWorkspace(
-                    device.session_id, ctx.user_id, local, conversation_id=conversation_id
+                    device.session_id,
+                    ctx.user_id,
+                    local,
+                    conversation_id=conversation_id,
+                    agent_id=agent_id,
+                    routine_scope=routine_scope,
                 )
             ),
             kind="service",
@@ -812,7 +836,7 @@ class SandboxWorkspaceService:
                         "there; anything outside it is read only."
                     ),
                     "full_access": (
-                        "The person approved whole-computer access for this conversation. "
+                        "The person approved whole-computer access for you. "
                         "You may use absolute paths outside the working directory. Commands "
                         "run without individual native prompts until access is revoked. "
                         "Files are not automatically collected from this computer."

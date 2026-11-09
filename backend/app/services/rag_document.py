@@ -13,10 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorWriterKind, VectorScope
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
@@ -180,12 +179,22 @@ class RAGDocumentService:
         The teardown uses this lock before reserving a name and deleting its rows.
         A CLI insert therefore either precedes that delete or observes its tombstone.
         """
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
-        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+        if not await collection_teardown_repo.hold_unreserved(self.db, collection_name):
             raise BadRequestError(
                 message="Collection is being deleted. Try again shortly.",
                 details={"collection": collection_name},
             )
+
+    async def audit_unfiled_provenance(
+        self, collection_name: str
+    ) -> rag_document_repo.UnfiledProvenanceCounts:
+        """Read-only aggregate audit for the server operator, never an API grant."""
+        return await rag_document_repo.unfiled_provenance_counts(self.db, collection_name)
+
+    async def confirm_operator_unfiled(self, collection_name: str) -> int:
+        """Apply an explicit operator assertion to this name's unknown unfiled data."""
+        await self.hold_ingestion_name(collection_name)
+        return await rag_document_repo.confirm_operator_unfiled(self.db, collection_name)
 
     async def create_document(
         self,
@@ -205,6 +214,7 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        writer_kind: VectorWriterKind = VectorWriterKind.DOCUMENT,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -235,10 +245,21 @@ class RAGDocumentService:
         `sync_source_id` is the source a connector sync ingested this for, and
         the row is opened claimed by it: that claim is what lets a later run of
         the source remove it once it is no longer listed (`unlisted_by_source`).
+
+        The previous attempts retired are those in the new row's own scope - the
+        base it is filed under, else the unfiled rows of `organization_id` - and
+        never another tenant's or another base's at the same path (#2747).
+
+        Raises:
+            NotFoundError: If `knowledge_base_id` names no knowledge base.
         """
         if source_path:
             await rag_document_repo.discard_failed(
-                self.db, collection_name=collection_name, source_path=source_path
+                self.db,
+                collection_name=collection_name,
+                source_path=source_path,
+                organization_id=organization_id,
+                scope=await self._filing_scope(knowledge_base_id),
             )
         return await rag_document_repo.create(
             self.db,
@@ -263,7 +284,20 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            writer_kind=writer_kind,
         )
+
+    async def _filing_scope(self, knowledge_base_id: UUID | None) -> CollectionScope | None:
+        """The scope of the base a new row is filed under, `None` for an unfiled one."""
+        if knowledge_base_id is None:
+            return None
+        kb = await knowledge_base_repo.get_by_id(self.db, knowledge_base_id)
+        if kb is None:
+            raise NotFoundError(
+                message="Knowledge base not found",
+                details={"knowledge_base_id": str(knowledge_base_id)},
+            )
+        return CollectionScope.of(kb)
 
     async def dispatch_upload(
         self,
@@ -339,11 +373,10 @@ class RAGDocumentService:
         # slipped into that window would `_ensure_collection`-recreate the table the
         # drop then destroys, orphaning this row and losing its vectors. The reservation
         # is committed with the delete, so this catches every upload that arrives after
-        # it. Deliberately unlocked: taking the teardown lock here, before the insert's
-        # foreign-key lock on the knowledge_bases row, would invert
-        # `KnowledgeBaseService.delete`'s order (that row first, then the teardown lock)
-        # and deadlock. Fully serialising the narrow commit-to-reserve window, and the
-        # worker ingestion paths, is #1382 (#1362, #1364).
+        # it. Unlocked, so it is best-effort: the teardown takes the name and then the
+        # base row (`KnowledgeBaseService._tear_down`), and nothing here holds the name.
+        # Fully serialising the narrow commit-to-reserve window, and the worker
+        # ingestion paths, is #1382 (#1362, #1364).
         if await collection_teardown_repo.is_reserved(self.db, collection_name):
             raise AlreadyExistsError(
                 message=f"A collection named '{collection_name}' is being torn down; "

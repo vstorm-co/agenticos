@@ -203,7 +203,7 @@ export function ActivityLog({ sessionId }: ActivityLogProps) {
           className="min-w-48 flex-1"
         />
         <Select value={operation} onValueChange={(next) => narrow(() => setOperation(next))}>
-          <SelectTrigger className="h-9 w-40" aria-label={t("sessions.operation")}>
+          <SelectTrigger size="sm" className="w-40" aria-label={t("sessions.operation")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

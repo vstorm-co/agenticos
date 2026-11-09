@@ -1,7 +1,7 @@
 """ChannelIdentity repository (PostgreSQL async)."""
 
 from collections.abc import Collection
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -12,9 +12,11 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.user import User
 
 
-async def get_by_id(db: AsyncSession, identity_id: UUID) -> ChannelIdentity | None:
+async def get_by_id(
+    db: AsyncSession, identity_id: UUID, *, fresh: bool = False
+) -> ChannelIdentity | None:
     """Get a channel identity by ID."""
-    return await db.get(ChannelIdentity, identity_id)
+    return await db.get(ChannelIdentity, identity_id, populate_existing=fresh)
 
 
 async def get_by_platform_user(
@@ -136,6 +138,8 @@ async def update(
     update_data: dict,
 ) -> ChannelIdentity:
     """Update a channel identity."""
+    if "user_id" in update_data:
+        db_identity.authorization_generation = uuid4()
     for field, value in update_data.items():
         setattr(db_identity, field, value)
     db.add(db_identity)

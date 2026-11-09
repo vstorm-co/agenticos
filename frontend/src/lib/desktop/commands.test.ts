@@ -152,6 +152,7 @@ describe("the commands", () => {
     await commands.notify({ kind: "inbox", title: "t", body: "b", path: "/runs" });
     await commands.setBadge(3.7);
     await commands.setBadge(-2);
+    await commands.openConsent("https://consent.example");
     await commands.openInConsole("/chat");
     await commands.openChat();
     await commands.showConsole();
@@ -171,6 +172,7 @@ describe("the commands", () => {
       ["notify", { notice: { kind: "inbox", title: "t", body: "b", path: "/runs" } }],
       ["set_badge", { count: 3 }],
       ["set_badge", { count: 0 }],
+      ["open_consent", { url: "https://consent.example" }],
       ["open_in_console", { path: "/chat" }],
       ["open_chat"],
       ["show_console"],
@@ -271,7 +273,11 @@ describe("paired device and folder grants", () => {
 it("validates whole-computer native consent and keeps cancellation explicit", async () => {
   invoke.mockResolvedValue(null);
   await expect(commands.allowWholeComputer(null)).resolves.toBeNull();
-  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", { conversationId: null });
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", {
+    conversationId: null,
+    agentId: null,
+    agentName: null,
+  });
   invoke.mockResolvedValue({ path: "/home/person", id: "consent" });
   await expect(commands.allowWholeComputer("chat")).resolves.toEqual({
     folder: "/home/person",
@@ -280,6 +286,13 @@ it("validates whole-computer native consent and keeps cancellation explicit", as
   });
   await commands.revokeWholeComputer("consent");
   expect(invoke).toHaveBeenLastCalledWith("local_revoke_computer", { id: "consent" });
+  // For one agent, the consent names it, so the app holds it across its chats.
+  await commands.allowWholeComputer("chat", { id: "agent-1", name: "AgenticOS" });
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", {
+    conversationId: "chat",
+    agentId: "agent-1",
+    agentName: "AgenticOS",
+  });
   invoke.mockResolvedValue({ path: "/home/person" });
   await expect(commands.allowWholeComputer("chat")).rejects.toThrow("malformed");
 });
@@ -293,6 +306,26 @@ it("checks native pin state and sends the pin and file picker policies", async (
   expect(invoke).toHaveBeenLastCalledWith("set_quick_ask_picker_open", { open: true });
   invoke.mockResolvedValue("true");
   await expect(commands.quickAskPinned()).rejects.toThrow("malformed");
+});
+
+it("checks the paired device identity while accepting older native statuses", () => {
+  const identity = {
+    origin: "https://example.com",
+    user_id: "00000000-0000-4000-8000-000000000001",
+    device_id: "00000000-0000-4000-8000-000000000002",
+  };
+  expect(commands.parseDeviceStatus({ linked: true, connected: true, identity })).toEqual({
+    linked: true,
+    connected: true,
+    identity,
+  });
+  expect(() =>
+    commands.parseDeviceStatus({
+      linked: true,
+      connected: true,
+      identity: { ...identity, device_id: false },
+    }),
+  ).toThrow("malformed");
 });
 
 describe("local skills", () => {

@@ -25,11 +25,11 @@ const SHARED_IN_SIDEBAR = 50;
  * started, joined or reach through a project - so without this a share was
  * reachable only by its link.
  */
-export function useSharedConversations(enabled: boolean): Conversation[] {
+export function useSharedConversations(enabled: boolean) {
   // The active organization's shares: the request carries its header, and the
   // key has to change with it or a switch shows the last organization's list.
   const orgId = useOrgStore((state) => state.activeOrgId);
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId),
     queryFn: () =>
       apiClient.get<ConversationListResponse>(
@@ -39,16 +39,25 @@ export function useSharedConversations(enabled: boolean): Conversation[] {
   });
   // An archived thread is its owner's to bring back; it is no conversation to
   // continue, so it is not offered beside the active ones.
-  return useMemo(
+  const items = useMemo(
     () => (enabled ? (data?.items ?? []).filter((conversation) => !conversation.is_archived) : []),
     [enabled, data],
   );
+  return {
+    items,
+    isLoading: enabled && isLoading,
+    failed: enabled && isError,
+    retry: () => void refetch(),
+  };
 }
 
 /** What the reader may do in an open conversation, once it is known. */
 export interface ConversationAccess {
   /** Whether the answer has arrived; until it has, nothing should be written. */
   known: boolean;
+  failed: boolean;
+  conversation: Conversation | null;
+  retry: () => void;
   archived: boolean;
   /** Shared with the reader to view only. */
   viewOnly: boolean;
@@ -60,21 +69,24 @@ export interface ConversationAccess {
  * Opened by link or from a notice, or past the first page of shares, a thread
  * has no row to read this from - and a composer offered on a guess is a message
  * the server then refuses. Asked of the conversation itself, only when needed.
- * A read that fails restricts nothing: the server still refuses what it must.
+ * A failing read keeps writes closed until access can be verified.
  */
 export function useConversationAccess(
   conversationId: string | null,
   enabled: boolean,
 ): ConversationAccess {
   const orgId = useOrgStore((state) => state.activeOrgId);
-  const { data, isError } = useQuery({
+  const { data, isError, refetch } = useQuery({
     queryKey: qk.conversationShares.access(conversationId ?? "", orgId),
     queryFn: () => apiClient.get<Conversation>(`/conversations/${conversationId}/metadata`),
     enabled: enabled && conversationId !== null,
     retry: false,
   });
   return {
-    known: !enabled || data !== undefined || isError,
+    known: !enabled || (data !== undefined && !isError),
+    failed: enabled && isError,
+    conversation: enabled && !isError ? (data ?? null) : null,
+    retry: () => void refetch(),
     archived: data?.is_archived === true,
     viewOnly: data?.share_permission === "view",
   };
@@ -109,6 +121,7 @@ export function useLeaveSharedConversation(): (conversationId: string) => Promis
 export function useConversationShares() {
   const tErrors = useTranslations("errors");
   const t = useTranslations("sharing");
+  const orgId = useOrgStore((state) => state.activeOrgId);
   const queryClient = useQueryClient();
 
   // The shares list belongs to whichever conversation was last requested via
@@ -136,8 +149,8 @@ export function useConversationShares() {
 
   const sharedWithMeQuery = useQuery({
     queryKey: sharedWithMeParams
-      ? qk.conversationShares.sharedWithMe(sharedWithMeParams.skip, sharedWithMeParams.limit)
-      : qk.conversationShares.sharedWithMe(0, 50),
+      ? qk.conversationShares.sharedWithMe(sharedWithMeParams.skip, sharedWithMeParams.limit, orgId)
+      : qk.conversationShares.sharedWithMe(0, 50, orgId),
     queryFn: async () => {
       const { skip, limit } = sharedWithMeParams!;
       return apiClient.get<ConversationListResponse>(
@@ -247,10 +260,10 @@ export function useConversationShares() {
       setError(null);
       setSharedWithMeParams({ skip, limit });
       await queryClient.invalidateQueries({
-        queryKey: qk.conversationShares.sharedWithMe(skip, limit),
+        queryKey: qk.conversationShares.sharedWithMe(skip, limit, orgId),
       });
     },
-    [queryClient],
+    [queryClient, orgId],
   );
 
   return {

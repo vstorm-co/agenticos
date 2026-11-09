@@ -250,3 +250,18 @@ describe("the conversations shared with me", () => {
     expect(result.current.sharedWithMeTotal).toBe(0);
   });
 });
+
+it("does not retain another organization's shared page", async () => {
+  const { useOrgStore } = await import("@/stores/org-store");
+  useOrgStore.setState({ activeOrgId: "org-first" });
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "first" }], total: 1 });
+  const { result } = renderHook(() => useConversationShares(), { wrapper });
+  await act(async () => {
+    await result.current.fetchSharedWithMe();
+  });
+  await waitFor(() => expect(result.current.sharedWithMe[0]?.id).toBe("first"));
+  vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+  act(() => useOrgStore.setState({ activeOrgId: "org-second" }));
+  expect(result.current.sharedWithMe).toEqual([]);
+  useOrgStore.setState({ activeOrgId: null });
+});

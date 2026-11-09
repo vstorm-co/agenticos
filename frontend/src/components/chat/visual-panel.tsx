@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import {
   AppWindow,
   ArrowUp,
@@ -112,7 +114,7 @@ export function ConversationVisualsProvider({
     const calls = new Map<string, ToolCall>();
     for (const message of messages) {
       for (const call of message.toolCalls ?? []) {
-        if (isVisualTool(call.name)) calls.set(call.id, call);
+        if (isVisualTool(toolLookupName(call))) calls.set(call.id, call);
       }
     }
     return calls;
@@ -175,7 +177,7 @@ function lineageOf(call: ToolCall, known: KnownCalls): string[] {
   let current: ToolCall | undefined = call;
   while (current !== undefined && ids.length < 50) {
     ids.push(current.id);
-    const base: unknown = current.name === REVISE ? current.args.visual_id : undefined;
+    const base: unknown = toolLookupName(current) === REVISE ? current.args.visual_id : undefined;
     current = typeof base === "string" ? known.get(base) : undefined;
   }
   return ids;
@@ -190,7 +192,7 @@ function useShown(call: ToolCall, known: KnownCalls): Shown | null | "missing" {
   const streamed = useVisualStreamStore((state) => state.args[call.id]);
   return useMemo(() => {
     const arrived = Object.keys(call.args).length > 0;
-    const revision = call.name === REVISE;
+    const revision = toolLookupName(call) === REVISE;
     if (arrived) {
       const visual = resolveVisual(call, known);
       if (visual === null) return revision ? "missing" : null;
@@ -380,7 +382,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const label = unfinished
     ? t("unfinished")
     : !shown.done
-      ? call.name === REVISE
+      ? toolLookupName(call) === REVISE
         ? t("revising")
         : t("drawing")
       : shown.revisionOf !== null

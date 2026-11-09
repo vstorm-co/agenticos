@@ -388,6 +388,30 @@ describe("the conversation list", () => {
 });
 
 describe("the conversation named in the address bar", () => {
+  it("opens the transcript without waiting for sidebar invalidation", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    const result = await hook();
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+    try {
+      const opening = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(useConversationStore.getState().currentConversationId).toBe("c-9"),
+      );
+      expect(useConversationStore.getState().currentMessages[0]?.content).toBe("hi");
+      await act(async () => {
+        finish();
+        await opening;
+      });
+    } finally {
+      finish();
+      invalidate.mockRestore();
+    }
+  });
+
   it("does nothing for a refresh already cancelled", async () => {
     const result = await hook();
     const controller = new AbortController();
@@ -1460,6 +1484,19 @@ describe("a request that outlives the account that made it", () => {
 });
 
 describe("starting a new chat", () => {
+  it("requests composer focus again even if the previous draft was already empty", async () => {
+    const result = await hook();
+    const before = useConversationStore.getState().composerFocusRequest;
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    expect(useConversationStore.getState().composerFocusRequest).toBe(before + 1);
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    expect(useConversationStore.getState().composerFocusRequest).toBe(before + 2);
+  });
+
   it("leaves even an empty stored conversation so its project cannot leak into a new draft", async () => {
     // A stored conversation has a fixed project identity, even before any messages.
     const result = await hook();
@@ -1932,3 +1969,62 @@ it("does not send a read marker after the organization changes during query canc
     cancel.mockRestore();
   }
 });
+
+it("does not reopen the previous address when a refresh starts navigation", async () => {
+  const result = await hook();
+  window.history.replaceState({}, "", "/chat?id=c-9");
+  vi.mocked(apiClient.get).mockClear();
+  const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockImplementation(() => {
+    window.history.replaceState({}, "", "/chat");
+    return Promise.resolve();
+  });
+  try {
+    await result.current.fetchConversations();
+    expect(apiClient.get).not.toHaveBeenCalledWith(
+      expect.stringContaining("c-9/messages"),
+      expect.anything(),
+    );
+  } finally {
+    invalidate.mockRestore();
+  }
+});
+
+it.each(["organization", "account", "selection"])(
+  "does not replace the open chat when %s changes during a fork",
+  async (changed) => {
+    const previousUser = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: "fork-owner",
+        email: "fork@example.com",
+        is_active: true,
+        created_at: "2026-11-09T00:00:00Z",
+      },
+    });
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const result = await hook();
+    let finish: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const forking = result.current.forkConversation("c-1", "m-7");
+    try {
+      act(() => {
+        if (changed === "organization") useOrgStore.setState({ activeOrgId: "org-b" });
+        if (changed === "account") useAuthStore.setState({ user: null });
+        if (changed === "selection")
+          useConversationStore.getState().setCurrentConversationId("c-elsewhere");
+      });
+      const selected = useConversationStore.getState().currentConversationId;
+      await act(async () => {
+        finish(conversation("c-fork"));
+        await forking;
+      });
+      expect(useConversationStore.getState().currentConversationId).toBe(selected);
+    } finally {
+      useAuthStore.setState({ user: previousUser });
+    }
+  },
+);

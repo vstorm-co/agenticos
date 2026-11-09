@@ -1,12 +1,14 @@
 ---
-source_sha: "27e31adcbb5e"
+source_sha: "b0d63e54b2c9"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
 
 Natywne logowanie OAuth korzysta z PKCE S256. Aplikacja zachowuje prywatny weryfikator, a callback przenosi tylko jego publiczny skrót. Weryfikator jest wysyłany w treści żądania wymiany, nigdy w adresie URL. Wylogowanie usuwa natywne podglądy powiadomień telefonu.
 
-Odłączenie, wylogowanie, ponowne sparowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
+Odłączenie, wylogowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Wspólne zgody na foldery procedur przetrwają wygaśnięcie sesji i ponowne sparowanie z tym samym zweryfikowanym kontem i serwerem. Pozostają nieaktywne do ponownej weryfikacji tej tożsamości; jawne odłączenie, wylogowanie lub zmiana serwera albo konta je usuwa.
+
+Opublikowany delegat potrzebujący tego komputera może poprosić o zgodę w tej samej rozmowie, także gdy główny agent działa w chmurze. Zgoda należy do głównego agenta rozpoczynającego uruchomienie. Lokalny delegat kodujący prosi o pełny dostęp; zagnieżdżeni delegaci korzystają z zatwierdzonej przestrzeni urządzenia, bez udostępniania jej innym delegatom chmurowym. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
 
 AgenticOS działa w przeglądarce i tak używa go większość ludzi. Aplikacja
 desktopowa jest dla tych, którzy chcą więcej na własnym komputerze: konsola we
@@ -172,6 +174,12 @@ connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną ins
 z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
 zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
 nie przekazuje aplikacji zarządzania nim.
+
+Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
+usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
+workspace przechowujący same pliki. W **Chat controls → Tools & files** wybierz
+**Work on → This computer** dla dostępu do folderów oraz **Browser → Local browser**
+dla przeglądania. **Computer use** oddzielnie udostępnia ekran, mysz i klawiaturę.
 
 Metadane znajdują się w `local-instances.json` w katalogu konfiguracji; pliki nowych
 instancji w `local-stacks/<id>/` w katalogu danych aplikacji. Istniejące instalacje
@@ -351,7 +359,9 @@ transfer nie rozłączał urządzenia. Większy zapis jest odrzucany przed kodow
 i wysłaniem danych pliku.
 
 Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
-wtedy, gdy jest zainstalowany `bwrap`.
+wtedy, gdy jest zainstalowany `bwrap` z obsługą `--bind-fd`. Aplikacja utrzymuje uchwyt katalogu otwartego bez podążania za dowiązaniami do startu sandboxa, więc zmiana nazwy folderu ani podmiana go na dowiązanie symboliczne nie zmieni zatwierdzonego katalogu. Na Linuksie zmienne środowiskowe zadania są ustawiane wewnątrz sandboxa, a nie w procesie, który go uruchamia; ich wartości są przekazywane przez prywatny deskryptor.
+
+Ścieżka korzenia folderu routine nie może zawierać dowiązań symbolicznych ani junctions. Wybierz rzeczywisty folder w pickerze; dopuszczenie zadania w tle nie rozwiązuje dowiązań w ścieżce korzenia.
 
 **Decyduje komputer, nie serwer.** Wybrane foldery wraz z trybami są trzymane w
 ustawieniach aplikacji, a każda operacja podaje folder i tryb, które aplikacja z
@@ -359,14 +369,15 @@ nimi porównuje: folder, którego nie wybrałeś, tryb szerszy niż dozwolony al
 ścieżka wychodząca poza folder są odrzucane na komputerze, cokolwiek serwer
 poprosił. Wybór jest zapamiętywany dla każdej rozmowy. Nowe czaty dziedziczą ostatni folder
 i narzędzia dla konta i organizacji; ustawienia projektu mają pierwszeństwo.
-Zgoda na cały komputer nigdy nie przechodzi do innej rozmowy.
+Zgoda na cały komputer udzielona w czacie nigdy nie przechodzi do innej rozmowy;
+zgoda udzielona agentowi obowiązuje dla tego agenta (zob. **Cały komputer**).
 
 **Tylko twoje runy.** Czat sięga twojego komputera tylko wtedy, gdy jest twój -
 nigdy klucz API, gość widżetu czy czat kogoś innego - a
 [trigger](triggers.md) tylko wtedy, gdy działa jako jego twórca, który wskazuje mu
 folder swojego komputera w polu **Pracuj na** triggera.
 
-**Gdy komputera nie ma.** Run, który poprosił o ten komputer i zastał aplikację
+**Gdy komputera nie ma — czat interaktywny.** Run, który poprosił o ten komputer i zastał aplikację
 bez połączenia, czeka na nią do dziesięciu minut, a czat o tym mówi. Operacja,
 która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmiana sieci
 
@@ -377,18 +388,30 @@ Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana l
 
 W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
 natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
-Bez wyboru uruchomienie prosi o niego zamiast otwierać sandbox w chmurze. Przy
+Taki agent nie ma przestrzeni w chmurze, więc **Work on** nie oferuje dla niego
+chmury.
+
+Możesz do niego
+pisać, zanim cokolwiek udzielisz: odpowiada na to, co nie wymaga plików, i dopiero
+gdy prośba potrzebuje twoich plików, pyta, gdzie może pracować - **Cały komputer**
+albo folder. Przebieg czeka na twój wybór, a potem czat sam kontynuuje z plikami.
+Odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego kolejne
+czaty startują tam bez pytania. W konsoli w przeglądarce, gdzie nie ma komputera do
+udostępnienia, agent mówi, że nie ma dostępu do twoich plików. Przy
 tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
 prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 
 **Cały komputer.** Czat desktopowy oferuje też **Cały komputer**, bez wyboru
-folderu. Jedno natywne ostrzeżenie zatwierdza dostęp dla tej rozmowy: narzędzia
+folderu. Jedno natywne ostrzeżenie zatwierdza dostęp: dla agenta z obszarem
+**Komputer** ostrzeżenie wymienia agenta, a zgoda obowiązuje dla niego w każdej
+rozmowie; w pozostałych przypadkach dotyczy tej rozmowy. Narzędzia
 plików mogą korzystać ze ścieżek bezwzględnych wszędzie, gdzie sięga twoje konto,
 a polecenia działają jako ty, bez osobnych natywnych potwierdzeń. Uprawnienia systemu
 i reguły zatwierdzania agenta nadal obowiązują. **Cofnij dostęp do całego komputera**
 lub wybór **Chmura** blokuje nowe operacje; działające polecenia nie są przerywane.
-Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz rozmowy; nowy szkic
-wiąże ją przy pierwszej operacji. Nowy czat wymaga własnej zgody. Ten tryb nie
+Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz agenta lub rozmowy;
+nowy szkic wiąże zgodę rozmowy przy pierwszej operacji. Nowy czat z innym agentem
+wymaga własnej zgody. Ten tryb nie
 przeszukuje katalogu domowego ani nie zbiera automatycznie załączników.
 
 Lokalna przeglądarka i narzędzia plików są dostępne w czacie desktopowym także bez
@@ -464,9 +487,12 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 ## Czego celowo nie robi { #what-it-deliberately-does-not-do }
 
 - **Brak strażnika nawigacji.** Link wychodzący poza origin serwera otwiera się w
-  oknie, bo przepływ OAuth - podłączanie serwera MCP - musi wrócić do tego samego
-  webview, żeby jego ciasteczko trafiło na miejsce. Tytuł okna nazywa każdy inny
-  host, który pokazuje.
+  oknie, bo niektóre przepływy OAuth - podłączanie konta dla terminala - muszą
+  wrócić do tego samego webview, żeby ich ciasteczko trafiło na miejsce. Tytuł okna
+  nazywa każdy inny host, który pokazuje. Podłączanie serwera MCP do nich nie
+  należy: jego zgoda otwiera się w twojej przeglądarce, gdzie są twoje logowania i
+  passkeye, bo callback uwierzytelnia sam `state`. Dokończ tam i wróć; serwer
+  pojawi się w aplikacji po autoryzacji.
 
 - **Brak stałego dostępu.** Połączenie komputera samo niczego nie daje: run sięga
   tylko zatwierdzonych folderów lub całego komputera po osobnej zgodzie dla rozmowy, a ekranu dopiero po
@@ -496,19 +522,19 @@ magazynu poświadczeń; udane logowanie i przygotowanie automatycznie odświeża
 
 W aplikacji desktopowej wybierz **Ustawienia czatu → Narzędzia i pliki → Agent programistyczny**, a następnie **Claude Code** lub **Codex**, również gdy opublikowana capability jest wyłączona lub nieobecna. Aplikacja przygotowuje lokalne narzędzia plikowe i otwiera natywny wybór folderu, chyba że bieżący folder ma już grant pełnego dostępu. Anulowanie pozostawia poprzednie ustawienia. **Użyj ustawienia agenta** przywraca opublikowaną konfigurację.
 
-Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Model jest na górze, a pod nim Narzędzia i pliki. Rozwiń **Work on**, aby zarządzać dostępem do folderu, lub **Preferencje**, aby zmienić zatwierdzanie i powiadomienia.
+Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Ma karty **Model**, **Narzędzia i pliki** (Coding agent, Work on, Browser, Computer use i skille) oraz **Preferencje** (zatwierdzanie i powiadomienia).
 
 Ustaw capability **Coding agent** na **On this computer**, wybierz folder w
 **Work on** i przyznaj mu pełny dostęp. Natywna zgoda jest zapamiętywana dla tego
 agenta, folderu, wersji adaptera i połączenia. Usunięcie lub ponowne wybranie
 folderu usuwa zgodę i zatrzymuje działających w nim agentów; zmiana konta lub
 serwera też usuwa zgody. Adapter działa jako Twoje konto systemowe: folder
-wyznacza katalog roboczy, a nie sandbox systemu. Dostęp do całego komputera nie
-uruchamia coding agenta. Zgody na zadania i uprawnienia systemowe nadal obowiązują.
+wyznacza katalog roboczy, a nie sandbox systemu. Dostęp do całego komputera
+uruchamia też coding agenta, w katalogu domowym albo folderze wewnątrz niego. Zgody na zadania i uprawnienia systemowe nadal obowiązują.
 
 Zgoda capability obowiązuje raz na zadanie. W jego trakcie `edit` zezwala na żądane operacje, a `read_only` odmawia zmian. Claude w trybie odczytu wyłącza bypass uprawnień i udostępnia tylko narzędzia do czytania. Codex wybiera swój natywny sandbox tylko do odczytu. Lokalny agent używa własnych ustawień modelu; użycie subskrypcji nie jest wyceniane, więc koszt runu stanowi dolną granicę.
 
-Kolejne zadania wznawiają sesję tego samego harnessu dla danej rozmowy, agenta, folderu, konta i polityki dostępu. `fresh_session` jawnie zaczyna od nowa. Identyfikatory sesji pozostają w ustawieniach desktopu, poza repozytorium, i są usuwane po odłączeniu lub zmianie konta. Niedostępna zapisana sesja kończy zadanie jawnym błędem; w razie potrzeby zacznij od nowa. Odłączenie zatrzymuje proces, ale zapisaną historię harnessu można wznowić.
+Kolejne zadania wznawiają nazwaną sesję (`main`, gdy zadanie nie wskazuje żadnej) dla danej rozmowy, agenta, harnessu, folderu, konta i polityki dostępu; kilka sesji działa naraz, do ośmiu na jednym komputerze, każda w folderze czatu albo folderze wewnątrz niego. `fresh_session` jawnie zaczyna od nowa. Identyfikatory sesji pozostają w ustawieniach desktopu, poza repozytorium, i są usuwane po odłączeniu lub zmianie konta. Niedostępna zapisana sesja kończy zadanie jawnym błędem; w razie potrzeby zacznij od nowa. Odłączenie zatrzymuje proces, ale zapisaną historię harnessu można wznowić.
 
 Korekta wysłana podczas lokalnego zadania przerywa bieżącą turę ACP. Po potwierdzeniu zatrzymania przez adapter ta sama sesja kontynuuje z korektą. Transkrypt zapisuje zastosowaną korektę; wiadomość po zakończeniu pozostaje dostępna dla nadrzędnego agenta.
 
@@ -657,3 +683,29 @@ nie potwierdzi ich niepodpisany lokalny build.
 Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje własny szkic, załączniki, wybranego agenta i trwającą odpowiedź. Ostatnie rozmowy otwiera przeszukiwaną listę i przełącza na istniejącą zakładkę, jeśli rozmowa jest już otwarta; zapisane rozmowy wczytują wiadomości i wcześniejszą historię. Nieaktywne zakładki nie przechwytują plików, skrótów dyktowania ani fokusu. Ostatnie rozmowy pokazują avatary agentów w rozwijanej sekcji. Zajmuje ona tylko potrzebne miejsce, bez rezerwowania pustej wysokości okna. Nowy czat jest jedyną akcją otwierającą nową zakładkę. Sidebar w przeglądarce proponuje pobranie desktopu; zamknięcie przypomnienia wycisza je na 14 dni dla tego konta w tej przeglądarce.
 
 Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok istniejącego skrótu przytrzymywanego. Połączenia głosowe korzystają z tych samych kontrolek co chat: konfiguracji wybranego agenta, napisów, zatwierdzeń i pytań. Wypowiedziane tury zapisują się w rozmowie. Wysyłanie tekstu i dyktowanie czekają podczas połączenia. Przejście do innej zakładki lub zmiana agenta kończy połączenie i zwalnia mikrofon.
+
+## Rutyny lokalne { #local-routines }
+
+Odmowa na komputerze zastępczym nie dowodzi cofnięcia zgody na zatwierdzonym komputerze: może on po prostu być offline. Właściciel otrzymuje powiadomienie bez duplikatów, aby połączyć komputer lub przejrzeć dostęp; procedura i dane jej zdarzeń nadal czekają. Odmowa na pierwotnie wybranej aktywnej sesji nadal zatrzymuje procedurę do przeglądu.
+
+Na Linuxie aplikacja sprawdza, czy zainstalowany bubblewrap udostępnia `--bind-fd`, zanim zaoferuje zapis w folderze lub uruchomi komendę w sandboxie. Brak programu, nieobsługiwana albo nieodpowiadająca wersja oznacza odmowę; zaktualizuj bubblewrap, aby włączyć ten tryb.
+
+JSON zgód procedur jest weryfikowany względem aktualnego skrótu SHA-256 w systemowym keychainie. Edycja pliku ani przywrócenie kopii sprzed cofnięcia zgody nie nadaje dostępu. Niedostępny keychain lub niezgodność blokuje procedury. **Aktualizacja:** starsze zgody nie mają skrótu i wymagają ponownego zatwierdzenia: jawnie odłącz komputer, powiąż go ponownie i przejrzyj procedury. Ten sam reset naprawia przerwany zapis zgód; aplikacja nigdy automatycznie nie ufa niezweryfikowanemu plikowi.
+
+Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę. Za pierwszym razem aplikacja komputerowa pyta raz, w natywnym oknie, czy **wszystkie twoje rutyny** w tej organizacji mogą pracować w tym folderze i jego podfolderach, z tymi operacjami; wybierz folder domowy, aby objąć cały komputer.
+
+Każda kolejna rutyna w tym folderze zapisuje się bez pytania, a zgoda przetrwa aktualizację aplikacji i ponowne zalogowanie. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+
+**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Zmiana serwera lub konta usuwa te zgody; zgoda na jedną rutynę, udzielona przez starszą aplikację, kończy się też razem z jej sesją. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
+
+Gdy konkretny zatwierdzony komputer jest offline przed wykonaniem, trwała aktywacja czeka w PostgreSQL. Wiersz rutyny pokazuje liczbę oczekujących aktywacji. Wywołania harmonogramu i ręczne łączą się podczas oczekiwania; odrębne zdarzenia zachowują własny kontekst i identyfikator aktywacji. Istniejący worker sprawdza połączenie co minutę. Sprawdzanie gotowości nie wywołuje modelu i nie zużywa prób błędnych uruchomień. Dopuszczenie do wykonania zatwierdza się z przebiegiem przed pierwszym wywołaniem modelu. Rozpoczęta aktywacja nie jest automatycznie powtarzana po awarii workera; niepewna operacja plikowa lub polecenie nie tworzy nowego przebiegu.
+
+Wstrzymanie, zmiana zadania lub zgody lokalnej, usunięcie rutyny albo osiągnięcie jej końca anuluje stare oczekiwanie zamiast przenosić je do innego folderu. Cofnięta sesja urządzenia wymaga ponownego przeglądu. Trzy martwe lub utracone zadania przed dopuszczeniem zatrzymują rutynę i tworzą incydent właściciela; kontekst nieudanego zdarzenia pozostaje dostępny w eksporcie jego danych. Kontekst po rozpoczęciu lub anulowaniu jest od razu usuwany. Zakończone metadane i nieudany kontekst podlegają retencji historii przebiegów organizacji; aktywne oczekiwanie trwa do dopuszczenia, anulowania lub usunięcia.
+
+Wdrażaj API, workery i aplikację komputerową razem; przed włączeniem kontraktu opróżnij stare workery. Starsze aplikacje nie potwierdzają zgód rutyn; istniejące rutyny lokalne wymagają jawnego przeglądu. Migracja `0272_routine_device_waits.py` dodaje oczekiwanie bez zmiany tożsamości rutyny. Przed cofnięciem migracji wstrzymaj rutyny lokalne i opróżnij ich zadania: cofnięcie usuwa oczekujący kontekst i go nie wykonuje. Stare zaparkowane przebiegi bez migawki celu lokalnego wymagają nowego uruchomienia.
+
+Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
+
+Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
+
+ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.

@@ -54,7 +54,7 @@ class RunStatus(enum.StrEnum):
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
     AWAITING_ANSWER = "awaiting_answer"
-    """Parked on an `ask_user` question the person left without answering (#2064).
+    """Parked on an unanswered `ask_user` question (#2064).
     It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"
@@ -115,6 +115,10 @@ class RunSurface(enum.StrEnum):
     # Another system's agent sent it a task over A2A (#2092).
     A2A = "a2a"
     TEAMS = "teams"
+    SMS = "sms"
+    EMAIL = "email"
+    IMESSAGE = "imessage"
+
     DISCORD = "discord"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
@@ -140,6 +144,9 @@ CHANNEL_SURFACES = frozenset(
         RunSurface.MATTERMOST,
         RunSurface.TEAMS,
         RunSurface.DISCORD,
+        RunSurface.SMS,
+        RunSurface.EMAIL,
+        RunSurface.IMESSAGE,
     }
 )
 
@@ -237,6 +244,17 @@ class AgentRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    routine_origin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """Immutable routine provenance; survives deletion so a parked run cannot lose its guard."""
+    routine_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="trigger", server_default="trigger"
+    )
+    routine_activation_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    routine_policy: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
@@ -326,6 +344,14 @@ class AgentRun(Base, TimestampMixin):
     modality: Mapped[str] = mapped_column(
         String(8), nullable=False, default="text", server_default="text"
     )
+    system_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    """The platform role that did this work, when no agent's instructions ran (#2575).
+
+    A system role's model call is recorded under the starter agent so it has a row,
+    a cost and a trace, but it is not the starter's work: this says whose it was,
+    so Activity can name `memory_maintenance` rather than an agent that never ran,
+    and a role's spend is counted apart from a person's own proactivity limit.
+    """
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=RunStatus.RUNNING.value, index=True
     )
@@ -412,6 +438,11 @@ class AgentRun(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "routine_kind IN ('trigger', 'watch') AND "
+            "(routine_kind != 'watch' OR (routine_origin_id IS NOT NULL AND routine_policy IS NOT NULL))",
+            name="ck_agent_runs_routine_policy",
+        ),
         # Monthly spend, per organization. Read before *every* model request to
         # check the budget, so it is the most frequently served query here.
         Index("ix_agent_runs_org_started", "organization_id", "started_at"),
@@ -557,6 +588,7 @@ class ToolApproval(Base, TimestampMixin):
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remember_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     # How, not what. A row approved by a click and one granted in advance by a
     # conversation's approval mode are both `approved`, and telling them apart is
@@ -585,6 +617,17 @@ class ToolApproval(Base, TimestampMixin):
         # `status` index the column declares cannot serve it - every row in the
         # deployment shares four status values.
         Index("ix_tool_approvals_org_status", "organization_id", "status"),
+        Index(
+            "ix_tool_approval_consent",
+            "organization_id",
+            "decided_by_user_id",
+            "tool_id",
+            postgresql_where=text("remember_scope IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "remember_scope IS NULL OR (remember_scope IN ('conversation', 'agent') AND status = 'approved' AND decided_via = 'click')",
+            name="ck_tool_approval_consent",
+        ),
     )
 
     def __repr__(self) -> str:

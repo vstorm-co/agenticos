@@ -1,5 +1,5 @@
 ---
-source_sha: "59cdf11dca18"
+source_sha: "939263497b24"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -260,6 +260,13 @@ sequenceDiagram
 
 Ese es todo el vocabulario de entrada, más `context` (lo que la página dice del
 visitante) y `file_ids` (lo que adjuntó, en una página que acepta ficheros).
+
+Cada frame `message` cuenta para un límite por conexión, aunque esté vacío o
+sea inválido. Los mensajes válidos consumen además la cuota existente del
+visitante; las entradas inválidas no agotan la cuota compartida con otros
+visitantes anónimos. Un frame admite como máximo tres identificadores de archivo;
+las listas mayores se rechazan antes de analizarlas. Los identificadores inválidos
+de una lista acotada se descartan y generan un único log agregado sin sus valores.
 
 **Deliberadamente no incluye los tres campos que sí lleva el frame propio del
 dashboard:** el agent, el perfil de modelo y el entorno.
@@ -1069,6 +1076,112 @@ Un agent que no se sirve — desactivado, sin publicar, archivado o de otra
 organización — responde `404`, tanto la card como el endpoint.
 
 ---
+
+## SMS { #sms }
+
+Un SMS a un número de Twilio llega a un agent como un mensaje directo en cualquier otra
+plataforma: por el mismo router, la identidad vinculada, la política de acceso y los
+presupuestos (#2082). Solo el transporte es nuevo.
+
+**Añade el bot** en Canales → SMS (Twilio). Su token es el SID de la cuenta de Twilio, el token
+de autenticación y el número desde el que envía, unidos con dos puntos:
+`ACxxxxxxxx:auth_token:+15551234567`. Un bot de SMS funciona solo por webhook; tras guardarlo,
+pega la URL del webhook que se muestra en el ajuste de mensajes entrantes del número en la consola
+de Twilio. La dirección que Twilio firma se construye a partir de `PUBLIC_BASE_URL`, así que ese ajuste tiene que ser la dirección a la que Twilio llama de verdad: tras un proxy que la reescribe, todo SMS se rechaza.
+
+**Quién escribe.** Una petición se acepta solo con una firma de Twilio válida - HMAC-SHA1 de la
+dirección a la que Twilio llamó y de sus campos, con el token de autenticación - y cualquier otra
+recibe un 403 antes de leer una palabra. Una firma válida prueba que la petición vino de Twilio. No
+prueba quién es el remitente: el número es una afirmación, así que una persona actúa con sus propios
+permisos solo cuando ha vinculado ese número a su cuenta como cualquier otra identidad de canal. El vínculo caduca tras `SMS_LINK_MAX_AGE_DAYS` (90 por defecto, `0` lo mantiene siempre), porque un número puede reasignarse o ser tomado; la persona lo vincula de nuevo.
+
+**Qué vuelve.** El webhook responde al instante y el agent contesta por la API de Twilio cuando
+tiene una respuesta. Una respuesta es texto plano - se quitan los marcadores de markdown y un
+enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso de que el resto
+está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
+transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
+llega como líneas numeradas y se responde enviando el número por SMS. Un solo número que nombre una
+opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal.
+
+Los archivos MMS entrantes, también sin texto, pasan por el procesamiento
+compartido de adjuntos tras verificar identidad y acceso. Se leen hasta diez
+archivos; sus URL deben identificar la cuenta Twilio del bot y el mensaje
+entrante. Las descargas autenticadas rechazan redirecciones, se detienen en
+`CHAT_MAX_UPLOAD_SIZE_MB` y tienen un límite total de 30 segundos. La ruta de
+carga compartida valida tipo y contenido y guarda los archivos aceptados en la
+conversación. Un número con un archivo es un mensaje, no una aprobación numerada.
+
+Las respuestas pueden enviar archivos del workspace elegidos explícitamente y
+gráficos como MMS, incluso sin texto. La herramienta de archivos del canal sigue
+controlando el archivo y destino. El adaptador rechaza tipos no admitidos,
+archivos vacíos, más de diez adjuntos o más de 5 MB de texto y medios en total.
+JPEG/PNG/GIF pueden usar ese total; otros tipos aceptados, incluidos PDF y CSV,
+tienen un límite de 500 KB. Sigue siendo necesaria la compatibilidad del operador
+y destino; un rechazo del proveedor sigue siendo un error.
+
+MMS requiere una `PUBLIC_BASE_URL` HTTPS pública y Redis compartido. Solo se
+almacenan copias entregadas explícitamente al adaptador, cada una con una
+credencial aleatoria de descarga durante 15 minutos. Twilio la usa para GET y
+HEAD; el almacén autenticado original no se expone. Su cola se limita a diez
+minutos, menos que la vida de la copia. Los enlaces no se guardan en el chat ni
+se devuelven al modelo. La aceptación de la API significa envío al proveedor,
+no entrega del operador. Consulta [formatos y límites de Twilio](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
+
+## Correo electrónico { #email }
+
+Un correo a una dirección llega a un agente como un mensaje directo en cualquier otra plataforma: por
+el mismo router, la misma identidad vinculada, la misma política de acceso y los mismos presupuestos
+(#2082). Solo el transporte es nuevo.
+
+**Añade el bot** en Canales → Correo electrónico. Su token es la dirección desde la que responde, por
+ejemplo `agent@mail.example.com`, y las respuestas salen por el proveedor de correo del propio despliegue,
+así que `EMAIL_PROVIDER` debe ser uno que envíe de verdad: un bot con el proveedor `log` se niega a
+responder en lugar de fingir que lo hizo. Un bot de correo funciona solo por webhook y necesita un
+secreto: usa Generar y cópialo en el relay.
+
+**El relay.** El correo no se consulta. Lo que lo recibe - un Cloudflare Email Worker, una ruta entrante
+de Postmark o Mailgun, un script en un servidor de correo - envía por POST un documento JSON por mensaje
+a la URL que se muestra en el bot tras guardarlo:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+y lo firma con dos cabeceras: `X-AgenticOS-Timestamp` (segundos unix) y `X-AgenticOS-Signature`, es decir,
+`sha256=` más el HMAC-SHA256 hexadecimal de `timestamp.body` con el secreto. Una petición sin firma
+válida, o con más de cinco minutos de diferencia, recibe un 403 antes de leer una palabra, y un bot sin
+secreto rechaza todo. El cuerpo está limitado a 25 MB, se leen hasta diez adjuntos y un identificador de
+mensaje ya visto se ignora, de modo que un reintento del relay ejecuta el agente una sola vez.
+
+Los adjuntos entrantes comparten un límite de caché de 64 MiB de datos codificados y 1024 archivos por bot. Cada entrega se guarda atómicamente; al agotarse el límite, se devuelve 429 con Retry-After antes de guardar archivos o el hilo. Leer o descartar archivos libera su capacidad inmediatamente. Los archivos no leídos caducan tras 15 minutos; la siguiente operación recupera su capacidad. Los errores de procesamiento también descartan los adjuntos sin usar. Las respuestas y preguntas conservan el hilo de su propio mensaje entrante aunque llegue otro mientras tanto.
+
+El webhook guarda un trabajo `process-email-delivery` antes de devolver 200. El trabajo conserva el cuerpo validado, incluidos los adjuntos; un reinicio de la API o una caché caducada no elimina el trabajo aceptado. La deduplicación por Message-ID se confirma junto con el trabajo; una transacción revertida permite reintentar. Los workers vuelven a comprobar bot y organización, serializan entregas al mismo interlocutor y registran intentos fallidos en Admin → Background jobs. Los payloads terminados siguen `BACKGROUND_JOB_RETENTION_DAYS`; los administradores del despliegue pueden consultarlos.
+
+Los webhooks SMS e iMessage guardan un trabajo `process-channel-delivery` antes de confirmar un mensaje válido. Payload y recibo Message-ID comparten una transacción: el rollback permite reintentar y los reinicios de API conservan el trabajo aceptado. Los workers vuelven a comprobar organización, plataforma y actividad del bot, y resuelven respuestas numéricas contra preguntas actuales; las identidades SMS caducadas no pueden aprobar solicitudes antiguas. Los payloads siguen la retención de trabajos en segundo plano y son visibles para administradores del despliegue.
+
+**Quién escribe.** La firma prueba que el relay envió la petición, no quién escribió el correo: una
+dirección es una afirmación. Una persona actúa con sus propios permisos solo cuando ha vinculado esa
+dirección a su cuenta como cualquier otra identidad de canal. Cada mensaje debe incluir
+`sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}`, que confirme un resultado DMARC
+válido y alineado para esa dirección exacta del encabezado From. El relay debe obtener el resultado
+de su servidor de correo receptor de confianza, nunca de encabezados de autenticación proporcionados
+por el remitente. Las confirmaciones ausentes, fallidas o discordantes se ignoran antes de buscar
+la cuenta, guardar adjuntos o procesar aprobaciones. Los relays existentes deben añadir este campo
+antes de actualizar; una firma HMAC por sí sola ya no permite admitir un mensaje.
+
+**Qué vuelve.** El webhook responde de inmediato y el agente contesta por correo como respuesta al
+último mensaje del remitente: `Re:` y el mismo asunto, con `In-Reply-To` y `References` para que el
+cliente de correo lo archive en el hilo, y con los archivos que el agente haya producido adjuntos. El
+historial citado bajo una respuesta se corta antes de que el agente lo lea. Una aprobación o una
+pregunta llega como líneas numeradas y se responde contestando solo con el número; los números se
+comportan como en SMS, y una pregunta sigue abierta un día.
+
+Las `references` entrantes deben ser una lista de cadenas sin CR ni LF; las entradas conservadas no pueden superar los 998 caracteres. Los mensajes con referencias incorrectas se ignoran antes de procesarlos. Los asuntos de varias líneas se unen en una sola antes de crear las cabeceras de respuesta.
+
 
 ## Slack { #slack }
 
@@ -2932,3 +3045,45 @@ Una publicación que solo contiene la mención del bot o espacios se ignora desp
 El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. El prompt del vínculo guarda solo añadidos propios. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.
 
 Al revertir la migración, se restauran las pautas de canal guardadas de la versión anterior y se conservan los añadidos propios, incluso en vínculos creados tras actualizar. Las demás superficies permanecen intactas.
+
+## Notificaciones mediante canales vinculados { #linked-notifications }
+
+En **Ajustes → Notificaciones** elige un destino privado por plataforma
+y organización: Slack, Telegram, Mattermost, Teams, Discord, SMS e iMessage utilizan el bot
+vinculado existente. Correo y push conservan su configuración. Las preferencias
+de eventos y selecciones de rutina se comprueban al enviar, junto con permisos
+del recurso y estado del caso compartido. Vincular la cuenta de chat no activa
+por sí solo las entregas.
+
+Slack recibe bloques de texto plano con un enlace al caso existente. Abrirlo
+utiliza la autorización normal de consola. Reconocer o resolver el caso detiene
+avisos externos pendientes en todos los canales. El estado de envío registra
+aceptación por la plataforma; el caso conserva su propio reconocimiento.
+
+Un [HTTP 429 de Slack](https://docs.slack.dev/apis/web-api/rate-limits/) confirmado
+permite un reintento acotado tras `Retry-After`. El cliente desactiva los
+[reintentos del SDK](https://docs.slack.dev/tools/python-slack-sdk/web/), por lo que
+timeouts y resultados desconocidos permanecen como fallos visibles en vez de
+envíos duplicados. La [política de notificaciones](governance.md) explica
+revocaciones, avisos de aprobación limitados y migraciones.
+
+## iMessage mediante un Mac de la empresa { #imessage }
+
+Un Mac de la empresa con Mensajes y [BlueBubbles](https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks) proporciona el transporte. Manténgalo conectado y con la sesión iniciada, conceda los permisos de macOS que solicite BlueBubbles y active su REST API. En **Canales**, registre **iMessage** con la dirección HTTP del puente y su contraseña de servidor como token del bot. La contraseña se cifra en la bóveda de la organización; la dirección no admite credenciales, parámetros ni fragmentos.
+
+Asocie el agente publicado, edite el canal y seleccione **Registrar webhook de iMessage** después de guardar los cambios. Cambiar la dirección o la contraseña revoca la credencial anterior del callback; vuelva a registrarlo. AgenticOS registra únicamente `new-message` en `/api/v1/imessage/{bot_id}/webhook`. Genera una credencial independiente para el callback y la registra mediante autenticación HTTP Basic. Configure HTTPS para redes no fiables. Si AgenticOS tiene una dirección privada, el administrador de BlueBubbles debe permitir expresamente que los webhooks de la API accedan a direcciones locales. Al eliminar el webhook solo se eliminan los callbacks de este bot en este despliegue.
+
+Los textos y archivos usan el transporte AppleScript de BlueBubbles. Las confirmaciones opcionales con reacciones necesitan su Private API. Un remitente privado vinculado recibe una conversación independiente del canal. Vincular una identidad no autoriza al bot o puente a leer el historial privado anterior de la consola; los grupos conservan conversaciones independientes y requieren la mención habitual del agente. Las aprobaciones usan las preguntas numeradas existentes: responda con el número mostrado. Los ecos propios, reacciones y eventos del sistema no inician otro turno. Los adjuntos se descargan únicamente por GUID desde el puente configurado, con el límite de carga establecido.
+
+Seleccione la conversación privada vinculada en **Ajustes → Notificaciones** para activar la entrega. Un grupo nunca es un destino privado. La aceptación del puente registra el envío, no la entrega por Apple ni la confirmación del destinatario. Un puente desconectado produce un error visible; los envíos inciertos no se repiten automáticamente.
+
+[Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) es un servicio empresarial independiente. Su [configuración con un proveedor](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) requiere una cuenta de Messages for Business y un proveedor de mensajería; este adaptador de Mac no configura esa integración.
+
+
+Los formularios del webhook SMS tienen un límite de 64 KiB y diez segundos de lectura antes de verificar la firma. Las respuestas numéricas SMS e iMessage reservan el identificador del proveedor antes de procesarse para que un duplicado no alterne dos veces una selección pendiente.
+
+
+El correo entrante se lee como un flujo limitado a 25 MiB antes de verificar la firma, incluso sin un Content-Length fiable.
+
+
+Antes de aceptar correo de forma duradera, cada organización tiene un máximo de 4096 trabajos de entrega retenidos y 256 MiB de contenido, incluidas entregas completadas y fallidas. La admisión se serializa entre workers; los Message-ID duplicados siguen siendo idempotentes. Al alcanzar la cuota se devuelve HTTP 429 antes de almacenar otro contenido; la limpieza de retención o la eliminación de trabajos libera capacidad.

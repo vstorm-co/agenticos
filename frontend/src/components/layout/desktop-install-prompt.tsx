@@ -61,7 +61,7 @@ export function DesktopInstallPrompt() {
 
   return (
     <aside
-      className="bg-foreground/4 relative mx-3 mb-3 hidden rounded-xl border p-3 md:block"
+      className="bg-foreground/4 relative mx-3 mb-3 hidden rounded-xl p-3 md:block"
       aria-label={t("title")}
     >
       <button
@@ -88,7 +88,7 @@ export function DesktopInstallPrompt() {
         href="https://github.com/vstorm-co/agenticos/releases/latest"
         target="_blank"
         rel="noopener noreferrer"
-        className="hover:bg-accent mt-2.5 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium"
+        className="bg-foreground/5 hover:bg-foreground/10 mt-2.5 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium"
       >
         {t("download")}
         <ArrowUpRight className="size-3.5" aria-hidden />

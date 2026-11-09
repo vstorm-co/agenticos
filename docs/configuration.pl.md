@@ -1,5 +1,5 @@
 ---
-source_sha: "81e337178b21"
+source_sha: "0f3dca8ab414"
 ---
 
 # Konfiguracja { #configuration }
@@ -56,8 +56,8 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Co **obcy** może przesłać na hostowaną stronę. Sufit nałożony na `CHAT_MAX_UPLOAD_SIZE_MB`, nigdy sposób na jego obejście |
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Ile może wysłać jedno wywołanie [usług ML](ml-services.md) — dokument do sparsowania, skan do rozpoznania, nagranie do transkrypcji. Własne ustawienie, bo bajty są parsowane albo wysyłane do silnika w obrębie jednego żądania, a nie zapisywane, więc limit dotyczy tego, ile może zająć pojedyncze synchroniczne wywołanie. Stoi na 25 MB klienta transkrypcji, najniższym limicie silnika za tą powierzchnią |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Ile dokumentów jeden worker parsuje naraz na potrzeby [usług ML](ml-services.md). Limit tempa liczy starty i nie widzi tego, co wciąż trwa, więc bez tego minutowy przydział wywołań OCR to tyle samo rozpoznawań w locie. Powyżej tej liczby wywołujący dostaje odmowę z `Retry-After`, a nie miejsce w kolejce |
-| `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — dokładnie ten kształt problemu, dla którego istnieje `MEM0_ALLOWED_HOSTS`, i powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
+| `SMS_LINK_MAX_AGE_DAYS` | `90` | Jak długo numer telefonu pozostaje powiązany z kontem, zanim osoba musi go połączyć ponownie. Numer można przepisać lub przejąć, więc powiązanie SMS wygasa; `0` zostawia powiązania na zawsze. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, z którymi folder [wirtualnego terminala](reference/capabilities.md#mirage) może się połączyć, gdy autor wpisuje adres: serwer SSH, host w DSN Postgresa albo MongoDB, serwer IMAP. Adres pochodzi ze speca agenta albo z sekretu, który spec wskazuje, a połączenie nawiązuje to wdrożenie. Dopasowanie jest dokładne i niewrażliwe na wielkość liter. Publikacja sprawdza wpisany host, a każdy run sprawdza hosty w sekretach. Pusta wartość nie dopuszcza żadnego wpisanego adresu. Usługi ze stałym API, takie jak Dysk, GitHub i Notion, nie potrzebują wpisu |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent z [obsługą komputera](reference/capabilities.md#computer-use) może prowadzić pulpit `computerd`. `daemon_url` jest w specu agenta, a run wysyła token daemona pod adres, który on wskazuje, więc to ta sama lista dozwolonych co `BROWSER_CDP_ALLOWED_HOSTS`: dokładne dopasowanie bez rozróżniania wielkości liter, bez globów. Sprawdzana przy publikacji i ponownie za każdym razem, gdy run otwiera daemona, więc usunięcie hosta zatrzymuje agentów już opublikowanych. Token nie jest ustawieniem: należy do organizacji i leży w jej vaulcie, więc każda organizacja może wskazać dozwolony host, a wejdzie tylko ta, która ma token tego pulpitu. Pusta odmawia backendu daemon; pulpit w sandboksie agenta nie potrzebuje wpisu |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
@@ -657,13 +657,18 @@ w trakcie runu przez model — dziedziczy tryb. Jedno
 ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
 best-effort, a błąd jest logowany, gdy run trwa dalej.
 
-Przy `ENVIRONMENT=production` żaden span nie trafia na konsolę. Eksporter
-konsolowy Logfire wypisuje jedną linię na każde wywołanie SQL i Redisa, około
-czterdziestu na zapytanie, do logu kontenera, którego nikt nie przeszuka. W
-produkcji span istnieje więc tylko tam, dokąd wysyła go token, a bez tokenu wolne
-zapytanie nie zostawia żadnego śladu. `agenticos cmd doctor` zgłasza to w linii
-`tracing`. W innych środowiskach konsola dalej wypisuje spany dla tego, kto patrzy
-na serwer.
+Logi aplikacji z API, workera, procesów ingestujących i CLI trafiają na stderr
+ze znacznikiem czasu, poziomem i nazwą loggera. Działają bez tokenu Logfire i są
+widoczne przez `docker compose logs -f`. `LOG_LEVEL` domyślnie wynosi `INFO`;
+ustaw `DEBUG`, `WARNING`, `ERROR` lub `CRITICAL`, aby zmienić szczegółowość.
+Redakcja danych osobowych i poświadczeń obejmuje także tracebacki wyjątków.
+
+Logowanie zapytań SQL pozostaje wyłączone, dopóki nie ustawisz `DB_ECHO=true`.
+Komunikaty INFO/DEBUG transportu HTTP są wyciszone. Spany Logfire domyślnie nie
+trafiają na konsolę w żadnym środowisku; ustaw `LOGFIRE_CONSOLE=true`, aby je
+wypisywać podczas debugowania. Nie zmienia to eksportu trace'ów do Logfire.
+Bez tokenu spany nie są eksportowane; `agenticos cmd doctor` zgłasza to w linii
+`tracing`.
 
 Daj każdemu wdrożeniu własne `LOGFIRE_ENVIRONMENT`, na przykład `local` na
 laptopie i `production` na serwerze. Jeden projekt może wtedy trzymać oba i nadal
@@ -671,6 +676,8 @@ je rozróżniać.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Poziom logów aplikacji: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `LOGFIRE_CONSOLE` | `false` | Wypisuj spany Logfire na konsolę podczas debugowania |
 | `LOGFIRE_TOKEN` | (none) | Token Pydantic Logfire. Zdobądź go na https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Nazwa usługi na dashboardzie Logfire |
 | `LOGFIRE_ENVIRONMENT` | `development` | Etykieta środowiska |

@@ -15,7 +15,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -58,12 +58,17 @@ class NotificationDelivery(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    # Only `email` ships today; `NotificationChannel` also carries `in_app`,
-    # which never gets a delivery row - the `Notification` row itself is the
-    # in-app delivery.
+    # In-app has no transport row; this is one external channel submission.
     channel: Mapped[str] = mapped_column(String(16), nullable=False)
+    route_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("notification_routes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=DeliveryStatus.PENDING)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    retry_safe: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sa_text("false")
+    )
+    """A confirmed provider refusal permits another claim; cleared before each send."""
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The lease: stamped by the claim, alongside incrementing `attempts`, in the
     # same committed transaction. `claimed_until` is when another worker may
@@ -74,7 +79,14 @@ class NotificationDelivery(Base, TimestampMixin):
     claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("channel IN ('email', 'push')", name="ck_notification_deliveries_channel"),
+        CheckConstraint(
+            "NOT retry_safe OR (status = 'pending' AND claimed_at IS NULL AND claimed_until IS NOT NULL)",
+            name="ck_notification_retry_safe",
+        ),
+        CheckConstraint(
+            "channel IN ('email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms', 'imessage', 'discord')",
+            name="ck_notification_deliveries_channel",
+        ),
         CheckConstraint(
             "status IN ('pending', 'sent', 'failed', 'skipped')",
             name="ck_notification_deliveries_status",

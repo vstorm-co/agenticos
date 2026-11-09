@@ -15,6 +15,7 @@ vi.mock("@/components/settings/agent-context-settings", () => ({
   AgentContextSettings: () => null,
 }));
 vi.mock("@/components/settings/appearance-settings", () => ({ AppearanceSettings: () => null }));
+vi.mock("@/components/settings/coding-accounts", () => ({ CodingAccounts: () => null }));
 vi.mock("@/components/settings/chat-accounts", () => ({ ChatAccounts: () => null }));
 vi.mock("@/components/memory/forget-me", () => ({ ForgetMe: () => null }));
 

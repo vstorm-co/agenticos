@@ -2489,6 +2489,16 @@ class TestTheWorkspaceADelegationRunsIn:
         assert seen == [False]
 
 
+async def test_a_nested_delegate_uses_its_explicit_device_workspace():
+    approved_files, parent_files = StateBackend(), StateBackend()
+    approved = document_workspace(approved_files)
+    parent = document_workspace(parent_files)
+    delegate = _a_writing_delegate(approved)
+    await delegate_to(a_capability(a_runtime(delegate)), replace(a_context(), workspace=parent))
+    assert approved_files.read_bytes("/notes.md") == b"found it"
+    assert parent_files.files == {}
+
+
 class TestDelegateDeps:
     """What a delegation actually runs with, which is not what its build produced."""
 
@@ -2781,3 +2791,21 @@ class TestFrames:
         """Not an error: a run emits far more events than a panel can show, and
         each one forwarded is a socket write to show a reader nothing."""
         assert frame_for(event, LABELS) is None
+
+
+@pytest.mark.parametrize("refused", [False, True])
+async def test_discovered_delegate_checks_live_access_before_spending(refused: bool) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import AuthorizationError
+
+    access = AsyncMock(side_effect=AuthorizationError(message="Revoked") if refused else None)
+    ledger = SpendLedger()
+    delegate = replace(a_delegate(model=answering(ledger=ledger)), authorize=access)
+    capability = a_capability(a_runtime(delegate, ledger=ledger))
+    answer = await delegate_to(capability, a_context())
+    access.assert_awaited_once()
+    if refused:
+        assert "Delegation refused" in answer and ledger.total_usd == 0
+    else:
+        assert "found it" in answer and ledger.total_usd == ENTRY.cost_usd

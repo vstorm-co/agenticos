@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
@@ -36,12 +36,13 @@ from app.repositories import (
     chat_file_repo,
     conversation_repo,
     member_repo,
+    primary_conversation_repo,
 )
 from app.schemas.channel_bot import AccessPolicy
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
-from app.services.channels import get_adapter, membership
+from app.services.channels import get_adapter, membership, sms_prompts
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
@@ -78,6 +79,7 @@ from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
+from app.services.message_history import ModelHistory
 from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -707,7 +709,8 @@ class ChannelMessageRouter:
         # everything before it is the history. The turn itself is written by the
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
-        history = thread_history + await self._load_history(db, session.conversation_id)
+        history = await self._load_history(db, session.conversation_id)
+        history[:0] = thread_history
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
@@ -1815,9 +1818,29 @@ class ChannelMessageRouter:
             platform_display_name=incoming.platform_display_name,
             user_id=None,
         )
+        if identity.user_id is not None and self._sms_link_lapsed(incoming.platform, identity):
+            # Dropped rather than refused: the person is asked to link again like any
+            # unlinked sender, and a sender who still holds the number can.
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
+            )
         if identity.user_id is None:
             await self._link_vouched(incoming, bot, db, identity)
         return identity
+
+    @staticmethod
+    def _sms_link_lapsed(platform: str, identity: ChannelIdentity) -> bool:
+        """Whether this phone number was linked longer ago than the deployment trusts it.
+
+        A number is not the person: it can be reassigned or taken over, and a valid Twilio
+        signature authenticates Twilio, not continued ownership. So an SMS link expires
+        (`SMS_LINK_MAX_AGE_DAYS`) and is made again by the person.
+        """
+        limit = settings.SMS_LINK_MAX_AGE_DAYS
+        if platform != "sms" or limit <= 0:
+            return False
+        linked = identity.updated_at or identity.created_at
+        return linked is not None and datetime.now(UTC) - linked > timedelta(days=limit)
 
     async def _link_vouched(
         self,
@@ -1866,28 +1889,84 @@ class ChannelMessageRouter:
             db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
         )
         if not session:
-            # The conversation belongs to the organization that owns the bot -
-            # not to the linked user's personal org. A Slack channel is the
-            # tenant's workspace, and whoever happens to speak in it does not
-            # move the conversation into their own org.
-            conv = await conversation_repo.create_conversation(
-                db,
-                title=f"{incoming.platform.capitalize()} Chat",
-                user_id=identity.user_id,
-                organization_id=bot.organization_id,
-            )
             session = await channel_session_repo.create(
                 db,
                 bot_id=bot.id,
                 identity_id=identity.id,
                 platform_chat_id=incoming.platform_chat_id,
-                conversation_id=conv.id,
+                chat_type=incoming.chat_type,
+                conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
+            )
+        elif await self._owner_changed(session, incoming, identity, db, bot=bot):
+            # The owner or bound agent changed: what the old conversation holds, and above
+            # all the web conversation a private chat now continues, is not the new
+            # holder's. A fresh start, and whatever was waiting on an answer goes with it.
+            await sms_prompts.forget(
+                str(bot.id), incoming.platform_chat_id, platform=incoming.platform
+            )
+            session = await channel_session_repo.update(
+                db,
+                db_session=session,
+                update_data={
+                    "identity_id": identity.id,
+                    "conversation_id": await self._first_conversation(incoming, bot, identity, db),
+                },
             )
         # Records that this chat had a turn, which is what "report usage every n
         # messages" counts. Here rather than after the answer, because a turn that
         # failed still happened - a counter that only advanced on success would
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
+
+    @staticmethod
+    async def _owner_changed(
+        session: ChannelSession,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+        *,
+        bot: ChannelBot,
+    ) -> bool:
+        """Whether this private chat's conversation belongs to somebody other than who is now linked.
+
+        A phone number can be re-linked to another member; the chat's session is keyed on
+        the number, so it would otherwise carry the previous holder's history into the new
+        holder's runs. Only a private chat is checked: a room's conversation is the room's.
+        """
+        if incoming.chat_type != "private" or identity.user_id is None:
+            return False
+        conversation_id = session.conversation_id
+        if conversation_id is None:
+            return False
+        owner = await conversation_repo.get_owner(db, conversation_id)
+        if owner is None:
+            return False
+        if owner != identity.user_id:
+            return True
+        # A bridge's asserted sender identity is not consent to disclose console history.
+        return (
+            await primary_conversation_repo.agent_for_conversation(
+                db,
+                organization_id=bot.organization_id,
+                conversation_id=conversation_id,
+            )
+            is not None
+        )
+
+    @staticmethod
+    async def _first_conversation(
+        incoming: IncomingMessage, bot: ChannelBot, identity: ChannelIdentity, db: AsyncSession
+    ) -> Any:
+        """Keep channel history separate from private console conversations.
+
+        Linking a platform identity authenticates the sender; it does not authorize
+        a bot or bridge to receive the person's pre-existing console history.
+        """
+        title = f"{incoming.platform.capitalize()} Chat"
+        conv = await conversation_repo.create_conversation(
+            db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
+        )
+        return conv.id
 
     async def _sync_discord_roles(
         self,
@@ -2406,7 +2485,7 @@ class ChannelMessageRouter:
         return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
-    async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:
+    async def _load_history(db: AsyncSession, conversation_id: UUID | None) -> ModelHistory:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
@@ -2419,4 +2498,6 @@ class ChannelMessageRouter:
         Where a summary has run it starts from that instead, which is what stops
         a long-lived channel thread buying one on every message (#49).
         """
+        if conversation_id is None:
+            return ModelHistory([], revision=None)
         return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)

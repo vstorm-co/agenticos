@@ -201,7 +201,8 @@ describe("a tool call in the transcript", () => {
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
       [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
-      [{ name: "load_capability", args: {} }, "Load Skill"],
+      [{ name: "load_capability", args: {} }, "Read Skill"],
+      [{ name: "read_skill", args: { id: "refund_policy" } }, "Refund Policy"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
         { name: "grep", args: { pattern: "TODO", path: "/workspace/app.py" } },
@@ -264,11 +265,11 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("https://acme.example/help")).toBeInTheDocument();
   });
 
-  it("says nothing about the input while the tool is still running", () => {
+  it("keeps the search subject visible while the tool is running", () => {
     // The caption already occupies that line.
     card({ name: "web_search", args: { query: "refund law" }, status: "running" });
 
-    expect(screen.queryByText("refund law")).toBeNull();
+    expect(screen.getByText("refund law")).toBeVisible();
   });
 
   it("opens and closes on the row", async () => {
@@ -280,6 +281,26 @@ describe("a tool call in the transcript", () => {
 
     await open();
     expect(screen.queryByText("the output")).toBeNull();
+  });
+
+  it("keeps generic results closed even when the caller requests automatic expansion", async () => {
+    render(
+      <ToolCallCard
+        mcpServers={[]}
+        autoExpand={false}
+        startOpen
+        toolCall={{
+          id: "tc-1",
+          name: "agenticos_list_projects",
+          args: {},
+          status: "completed",
+          result: "large result",
+        }}
+      />,
+    );
+    expect(screen.queryByText("large result")).toBeNull();
+    await open();
+    expect(screen.getByText("large result")).toBeInTheDocument();
   });
 
   it("is a button, so a keyboard opens it without a handler of its own", () => {
@@ -763,4 +784,34 @@ it("does not stringify a collapsed result, and computes it only when opened (#24
   } finally {
     stringify.mockRestore();
   }
+});
+
+it("shows the task being worked on before the platform tool finishes", () => {
+  card({
+    name: "agenticos_create_task",
+    args: { task: { title: "Review supplier draft" } },
+    status: "running",
+  });
+  expect(screen.getByText("Create task")).toBeVisible();
+  expect(screen.getByText("Review supplier draft")).toBeVisible();
+});
+
+it("renders a renamed chart through its stable identity while showing the actual alias", () => {
+  card({
+    name: "plot_sales",
+    tool_id: "create_chart",
+    result: JSON.stringify({ kind: "chart", title: "Sales", series: [] }),
+  });
+  expect(screen.getByTestId("chart")).toHaveTextContent("Sales");
+  expect(row()).toHaveTextContent("Plot Sales");
+});
+
+it("keeps an MCP tool named create_chart generic even with a chart-shaped result", () => {
+  card({
+    name: "create_chart",
+    tool_id: null,
+    presentation_kind: "generic",
+    result: JSON.stringify({ kind: "chart", title: "External", series: [] }),
+  });
+  expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
 });

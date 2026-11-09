@@ -202,9 +202,60 @@ class McpServerSpec:
     # The organization's connection row this server is, so a call can be
     # recorded against it. None for a member's own connection and for `/mcp`.
     connection_id: UUID | None = None
+    # Both personal and organization accounts; independent of usage tracking.
+    source_connection_id: UUID | None = None
+    authorization_generation: UUID | None = None
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class McpSourceIdentity:
+    """A consented endpoint and credential generation, without credential contents."""
+
+    endpoint_hash: str
+    authorization_generation: UUID
+    tool_prefix: str | None = None
+
+
+MCP_ORIGIN = "agenticos_mcp_origin"
+
+
+@dataclass(frozen=True)
+class McpToolOrigin:
+    connection_id: UUID
+    identity: McpSourceIdentity
+    tool_id: str
+
+
+def tool_origin(tool: ToolDefinition) -> McpToolOrigin | None:
+    origin = (tool.metadata or {}).get(MCP_ORIGIN)
+    return origin if isinstance(origin, McpToolOrigin) else None
+
+
+@dataclass
+class SourceStamped(WrapperToolset[Any]):
+    """Stamp raw tool identity before prefixing/fitting, from trusted connection state."""
+
+    connection_id: UUID
+    identity: McpSourceIdentity
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await self.wrapped.get_tools(ctx)
+        return {
+            name: replace(
+                tool,
+                tool_def=replace(
+                    tool.tool_def,
+                    metadata={
+                        **(tool.tool_def.metadata or {}),
+                        MCP_ORIGIN: McpToolOrigin(self.connection_id, self.identity, name),
+                    },
+                ),
+            )
+            for name, tool in tools.items()
+        }
 
 
 @asynccontextmanager
@@ -400,12 +451,23 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         process_tool_call=_platform_domain_result if spec.in_process else None,
         include_instructions=spec.include_instructions,
     )
+    if spec.source_connection_id is not None and spec.authorization_generation is not None:
+        server = SourceStamped(
+            server,
+            connection_id=spec.source_connection_id,
+            identity=McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+                authorization_generation=spec.authorization_generation,
+                tool_prefix=tool_prefix(spec.name),
+            ),
+        )
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
     return ApprovalMarked(
         FittedNames(server.prefixed(prefix)),
         policy=spec.approval,
+        in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
     )
@@ -471,6 +533,9 @@ Top-level in the metadata for the reason `NEEDS_APPROVAL` is: a server cannot wr
 there, so it cannot claim to be another account.
 """
 
+PLATFORM_TOOL = "agenticos_platform_tool"
+"""Set only by the in-process transport, never by a server-provided annotation."""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -498,6 +563,7 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
 
@@ -511,6 +577,7 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
+                        PLATFORM_TOOL: self.in_process,
                         NEEDS_APPROVAL: name not in self.ungated
                         and needs_approval(tool.tool_def, self.policy),
                         **named,

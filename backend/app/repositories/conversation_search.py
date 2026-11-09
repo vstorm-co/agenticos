@@ -17,9 +17,10 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
@@ -112,6 +113,18 @@ def _tsquery(query: str) -> Any:
     return func.websearch_to_tsquery(SEARCH_CONFIG, query)
 
 
+def _model_title() -> ColumnElement[str | None]:
+    """Do not let a stored title repeat a refused turn, including titles written before #2767."""
+    refused = aliased(Message)
+    has_refusal = (
+        select(refused.id)
+        .where(refused.conversation_id == Conversation.id, refused.guardrail_refused.is_(True))
+        .correlate(Conversation)
+        .exists()
+    )
+    return case((has_refusal, None), else_=Conversation.title).label("title")
+
+
 class ConversationHit(NamedTuple):
     """One conversation the search matched, and the best thing it matched on."""
 
@@ -152,6 +165,7 @@ async def search(
     tsquery = _tsquery(query)
     matches = (
         Message.search_vector.op("@@")(tsquery),
+        Message.guardrail_refused.is_(False),
         Conversation.organization_id == organization_id,
         readable,
     )
@@ -190,7 +204,7 @@ async def search(
             func.ts_headline(SEARCH_CONFIG, Message.content, tsquery, _HEADLINE_OPTIONS).label(
                 "snippet"
             ),
-            Conversation.title,
+            _model_title(),
             func.coalesce(Conversation.updated_at, Conversation.created_at).label("updated_at"),
             ChannelIdentity.platform_display_name,
             ChannelIdentity.platform_username,
@@ -225,13 +239,20 @@ async def search(
     return sorted(found, key=lambda hit: order[hit.conversation_id])
 
 
+class ReadableConversation(NamedTuple):
+    id: UUID
+    user_id: UUID | None
+    project_id: UUID | None
+    title: str | None
+
+
 async def readable_conversation(
     db: AsyncSession,
     *,
     conversation_id: UUID,
     organization_id: UUID,
     readable: ColumnElement[bool],
-) -> Conversation | None:
+) -> ReadableConversation | None:
     """One conversation, only if this reader may have it.
 
     The access predicate is in the query rather than applied to what it returns,
@@ -240,13 +261,20 @@ async def readable_conversation(
     a row somebody then has to remember to check.
     """
     result = await db.execute(
-        select(Conversation).where(
+        select(
+            Conversation.id, Conversation.user_id, Conversation.project_id, _model_title()
+        ).where(
             Conversation.id == conversation_id,
             Conversation.organization_id == organization_id,
             readable,
         )
     )
-    return result.scalar_one_or_none()
+    row = result.one_or_none()
+    return (
+        None
+        if row is None
+        else ReadableConversation(row.id, row.user_id, row.project_id, row.title)
+    )
 
 
 class Turn(NamedTuple):
@@ -273,7 +301,9 @@ async def turns(
     "USER" would be unreadable.
     """
     total = await db.scalar(
-        select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
+        select(func.count())
+        .select_from(Message)
+        .where(Message.conversation_id == conversation_id, Message.guardrail_refused.is_(False))
     )
     rows = await db.execute(
         select(
@@ -289,7 +319,7 @@ async def turns(
         .outerjoin(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
         # Who typed a console turn - in a project's chat, one of several people.
         .outerjoin(User, User.id == Message.author_user_id)
-        .where(Message.conversation_id == conversation_id)
+        .where(Message.conversation_id == conversation_id, Message.guardrail_refused.is_(False))
         .order_by(Message.ordinal)
         .offset(skip)
         .limit(limit)

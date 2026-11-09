@@ -7,26 +7,37 @@ which says so in its own docstring) and must not be called from anywhere a
 member's request reaches.
 """
 
+import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import (
+    CapabilityLoadDeltaPart,
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+)
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ConcurrentChangeError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LOCK_NOT_AVAILABLE, lock_wait_within
 from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
+from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
@@ -59,7 +70,12 @@ from app.services.access import AGENT, PROJECT, resolve_access, visible_resource
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
-from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
+from app.services.message_history import (
+    REFUSED_TURN,
+    HistoryMessage,
+    ModelHistory,
+    build_message_history,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,17 +132,41 @@ def _as_history(
     for row in rows:
         if row.id == exclude_message_id:
             continue
-        # What the person added while the answer was being written, as they added
-        # it: before the answer it changed. Stored only as parts of the answer,
-        # it was in the conversation on screen and missing from the next turn.
-        # Not for a turn a guardrail stopped, whose words are withheld whole.
-        history.extend(
-            {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
-            for part in row.parts or []
-            if part.get("type") == "steer"
-            and isinstance(part.get("text"), str)
-            and not row.guardrail_refused
-        )
+        # Rebuild the assistant's spoken sequence around human answers, instead
+        # of moving every answer before the text that originally asked for it.
+        ordered: list[HistoryMessage] = []
+        texts: list[str] = []
+        if not row.guardrail_refused:
+            for part in row.parts or []:
+                kind = part.get("type")
+                if (
+                    row.role == "assistant"
+                    and kind == "text"
+                    and isinstance(text := part.get("text"), str)
+                    and text.strip()
+                ):
+                    ordered.append({"role": "assistant", "content": text})
+                    texts.append(text)
+                elif kind == "steer" and isinstance(text := part.get("text"), str):
+                    ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
+                elif (
+                    row.role == "assistant"
+                    and kind == "ask_user"
+                    and isinstance(question := part.get("question"), str)
+                    and isinstance(answer := part.get("answer"), str)
+                    and answer.strip()
+                ):
+                    ordered.append(
+                        {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
+                    )
+        history.extend(ordered)
+        if texts and (row.content == texts[-1] or row.content == "".join(texts)):
+            # Anchor compaction to the last answer, not to every streamed fragment.
+            for entry in reversed(ordered):
+                if entry["role"] == "assistant":
+                    entry["context_used_tokens"] = row.context_used_tokens
+                    break
+            continue
         history.append(
             {
                 "role": row.role,
@@ -149,13 +189,55 @@ def _as_history(
     return history
 
 
+async def check_history_snapshot(
+    db: AsyncSession, conversation_id: UUID | None, history: ModelHistory
+) -> None:
+    """Refuse a superseded snapshot before replaying tools or calling a model."""
+    if conversation_id is None:
+        current_history = history.revision is None
+    else:
+        revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
+        expected = history.revision if history.revision is not None else 0
+        current_history = revision is not None and revision == expected
+    if not current_history:
+        raise GuardrailBlocked(
+            edge="input",
+            message="This run's conversation history is no longer valid. Start a new turn.",
+        )
+
+
+def model_context_check(
+    conversation_id: UUID | None,
+    history: Sequence[ModelMessage] | None,
+    source_check: Callable[[AsyncSession], Awaitable[None]] | None = None,
+) -> ModelContextCheck | None:
+    """Check trusted context in a fresh transaction before each provider request."""
+    snapshot = history if isinstance(history, ModelHistory) else None
+    if snapshot is None and source_check is None:
+        return None
+
+    async def check() -> None:
+        async with get_db_context() as db:
+            if snapshot is not None:
+                await check_history_snapshot(db, conversation_id, snapshot)
+            if source_check is not None:
+                await source_check(db)
+
+    return check
+
+
+MAX_FORK_MESSAGES = 2_000
+MAX_FORK_TOOL_CALLS = 10_000
+MAX_FORK_BYTES = 20 * 1024 * 1024
+
+
 class ConversationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def model_history(
         self, conversation_id: UUID, *, limit: int, exclude_message_id: UUID | None = None
-    ) -> list[ModelMessage]:
+    ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
         Two halves where a summary has run: the history it reduced the older
@@ -173,12 +255,16 @@ class ConversationService:
         this reads - and left in, the model is asked the same question twice.
         """
         conversation = await conversation_repo.get_conversation_by_id(
-            self.db, conversation_id, include_summary=True
+            self.db, conversation_id, include_summary=True, fresh=True
         )
+        revision = None if conversation is None else conversation.guardrail_revision
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
-            return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+            return ModelHistory(
+                await self._from_transcript(
+                    conversation_id, limit, exclude_message_id, conversation
+                ),
+                revision=revision,
             )
         # Re-inline whatever the stored history references before it is parsed
         # (#55). Unconditional: offloading is the `media` capability's decision,
@@ -204,14 +290,24 @@ class ConversationService:
             logger.exception(
                 "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
-            return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+            return ModelHistory(
+                await self._from_transcript(
+                    conversation_id, limit, exclude_message_id, conversation
+                ),
+                revision=revision,
             )
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
         spoken = await self._spoken(since, conversation)
-        return [*replayed, *build_message_history(_as_history(since, exclude_message_id, spoken))]
+        history = [
+            *replayed,
+            *build_message_history(_as_history(since, exclude_message_id, spoken)),
+        ]
+        return ModelHistory(
+            await self._restore_capability_loads(history, since, exclude_message_id),
+            revision=revision,
+        )
 
     async def _from_transcript(
         self,
@@ -223,7 +319,48 @@ class ConversationService:
         """The recent window, which is what every surface read before #49."""
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
         spoken = await self._spoken(rows, conversation)
-        return build_message_history(_as_history(rows, exclude_message_id, spoken))
+        history = build_message_history(_as_history(rows, exclude_message_id, spoken))
+        return await self._restore_capability_loads(history, rows, exclude_message_id)
+
+    async def _restore_capability_loads(
+        self, history: list[ModelMessage], rows: Sequence[Message], exclude_message_id: UUID | None
+    ) -> list[ModelMessage]:
+        """Keep successful on-demand loads across turns without replaying tool dumps.
+
+        The public delta records availability, not old instructions. Pydantic AI
+        intersects it with the current capability registry and resolves current
+        instructions, so an unbound skill cannot regain tools from old history.
+        Fresh table records and other mutable data must still be read afresh.
+        """
+        calls = await conversation_repo.capability_loads_in_messages(
+            self.db,
+            {row.id for row in rows if row.id != exclude_message_id and not row.guardrail_refused},
+        )
+        loaded: dict[str, None] = {}
+        for call in calls:
+            capability_id = call.args.get("id")
+            if not isinstance(capability_id, str) or call.result is None:
+                continue
+            try:
+                returned = json.loads(call.result)
+            except ValueError, TypeError:
+                continue
+            if isinstance(returned, dict) and returned.get("message") in (
+                f"Capability {capability_id!r} loaded. Its instructions, if any, follow.",
+                f"Skill {capability_id!r} loaded. Its instructions, if any, follow.",
+            ):
+                loaded[capability_id] = None
+        if loaded:
+            history.append(
+                ModelRequest(
+                    parts=[
+                        CapabilityLoadDeltaPart(
+                            loaded=list(loaded), tool_call_id="agenticos:restored-loads"
+                        )
+                    ]
+                )
+            )
+        return history
 
     async def find_conversation(self, conversation_id: UUID) -> Conversation | None:
         """A conversation by id with no access check, for a caller that already holds it.
@@ -346,22 +483,41 @@ class ConversationService:
             return
         await conversation_repo.set_plan(self.db, db_conversation=conversation, items=items)
 
-    async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
+    async def keep_summary(
+        self,
+        conversation_id: UUID,
+        messages: list[dict[str, Any]],
+        *,
+        expected_revision: int | None,
+    ) -> None:
         """Write down the history a summary reduced this conversation to.
 
         Called once a turn's rows are written, so the ordinal it records covers
         the answer as well as the question - which is what stops the next turn
-        replaying the summary *and* the turn already inside it.
+        replaying the summary *and* the turn already inside it. `expected_revision`
+        comes from the history read before the model call; absent or superseded
+        provenance cannot replace the cache with potentially refused text.
         """
+        if expected_revision is None:
+            logger.info(
+                "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
+            )
+            return
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
             return
-        await conversation_repo.set_summary(
+        stored = await conversation_repo.set_summary(
             self.db,
             db_conversation=conversation,
             messages=messages,
             ordinal=await conversation_repo.last_ordinal(self.db, conversation_id),
+            expected_revision=expected_revision,
         )
+
+        if not stored:
+            logger.info(
+                "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
+            )
 
     async def get_conversation(
         self,
@@ -643,7 +799,8 @@ class ConversationService:
         A project's chat is the project's here as on read: a turn needs the
         right to work in the project, whoever started the chat, and renaming,
         archiving or deleting it stays its starter's while the project is still
-        theirs to see.
+        theirs to see. An ownerless automation log can instead be managed by
+        someone who may edit the project.
         """
         if conversation.origin == "workflow":
             return False
@@ -652,10 +809,10 @@ class ConversationService:
         if getattr(conversation, "project_id", None) is not None:
             if turn:
                 return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_USE)
-            return (
-                owner is not None
-                and str(owner) == str(user_id)
-                and await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
+            if owner is None:
+                return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_EDIT)
+            return str(owner) == str(user_id) and await self._project_allows(
+                conversation, user_id, ctx, Perm.PROJECTS_VIEW
             )
         if owner is not None and str(owner) == str(user_id):
             return True
@@ -836,6 +993,7 @@ class ConversationService:
         hide_channels: bool = False,
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
+        for_model: bool = False,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -892,6 +1050,7 @@ class ConversationService:
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
+            for_model=for_model,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -906,6 +1065,7 @@ class ConversationService:
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
+            for_model=for_model,
         )
         await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
@@ -974,11 +1134,13 @@ class ConversationService:
         `attach_agents` is, and one query for the page."""
         if not conversations:
             return
-        since = await conversation_repo.running_since(
+        activity = await conversation_repo.running_activity(
             self.db, [conversation.id for conversation in conversations]
         )
         for conversation in conversations:
-            conversation.running_since = since.get(conversation.id)  # ty: ignore[unresolved-attribute]
+            current = activity.get(conversation.id)
+            conversation.running_since = current.since if current else None  # ty: ignore[unresolved-attribute]
+            conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[unresolved-attribute]
 
     async def attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
@@ -1218,7 +1380,9 @@ class ConversationService:
         Raises:
             NotFoundError: If the conversation is unknown, not the caller's, or
                 the message is not one of its answers.
-            BadRequestError: If a run in the copied history has not finished.
+            BadRequestError: If a run in the copied history has not finished, or
+                the prefix exceeds 2,000 messages, 10,000 tool calls or 20 MiB.
+            ConcurrentChangeError: If the source is busy; no partial fork remains.
         """
         source = await self.get_conversation(
             conversation_id,
@@ -1232,11 +1396,48 @@ class ConversationService:
                 message="Conversation not found",
                 details={"conversation_id": conversation_id},
             )
-        answer = await conversation_repo.get_message_by_id(self.db, message_id)
+        answer = await conversation_repo.get_fork_point(self.db, message_id)
         if answer is None or answer.conversation_id != source.id or answer.role != "assistant":
             raise NotFoundError(
                 message="Message not found",
                 details={"conversation_id": conversation_id, "message_id": message_id},
+            )
+        try:
+            async with lock_wait_within(self.db, wait_ms=1_000):
+                return await self._fork_locked(source, answer, user_id=user_id, ctx=ctx)
+        except DBAPIError as failed:
+            if getattr(failed.orig, "sqlstate", None) not in {LOCK_NOT_AVAILABLE, "40P01"}:
+                raise
+            raise ConcurrentChangeError(
+                message="This conversation is being updated. Try forking it again.",
+                details={"conversation_id": conversation_id},
+            ) from failed
+
+    async def _fork_locked(
+        self, source: Conversation, answer: Message, *, user_id: UUID, ctx: AuthContext
+    ) -> Conversation:
+        """Authorize and copy the current locked prefix within one bounded transaction."""
+        counts = await conversation_repo.lock_fork_history(
+            self.db,
+            source=source,
+            through=answer,
+            message_limit=MAX_FORK_MESSAGES,
+            tool_call_limit=MAX_FORK_TOOL_CALLS,
+        )
+        if counts is None:
+            raise NotFoundError(message="Message not found", details={"message_id": answer.id})
+        if source.project_id is not None:
+            # Imported here: the project service builds on this one.
+            from app.services.project import ProjectService
+
+            await ProjectService(self.db).check_can_start(ctx, source.project_id)
+        if counts.messages > MAX_FORK_MESSAGES or counts.tool_calls > MAX_FORK_TOOL_CALLS:
+            raise BadRequestError(
+                message="This conversation is too large to fork",
+                details={
+                    "max_messages": MAX_FORK_MESSAGES,
+                    "max_tool_calls": MAX_FORK_TOOL_CALLS,
+                },
             )
         runs = await conversation_repo.run_ids_through(
             self.db, conversation_id=source.id, ordinal=answer.ordinal
@@ -1249,13 +1450,16 @@ class ConversationService:
         if unfinished:
             raise BadRequestError(
                 message="A run in this history is still being written or waits on a decision - fork it once it has finished",
-                details={"message_id": message_id, "run_status": unfinished[0]},
+                details={"message_id": answer.id, "run_status": unfinished[0]},
             )
-        if source.project_id is not None:
-            # Imported here: the project service builds on this one.
-            from app.services.project import ProjectService
-
-            await ProjectService(self.db).check_can_start(ctx, source.project_id)
+        payload_bytes = await conversation_repo.fork_payload_bytes(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        )
+        if payload_bytes > MAX_FORK_BYTES:
+            raise BadRequestError(
+                message="This conversation is too large to fork",
+                details={"max_bytes": MAX_FORK_BYTES},
+            )
         fork = await conversation_repo.fork_conversation(self.db, source=source, through=answer)
         # Its owner made it a moment ago: it holds nothing they have not seen.
         await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=fork.id)
@@ -1337,6 +1541,7 @@ class ConversationService:
         *,
         organization_id: UUID,
         user_id: UUID | None = None,
+        ctx: AuthContext | None = None,
     ) -> bool:
         """Delete one thread, its turns, and the files that arrived with them.
 
@@ -1363,6 +1568,7 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
             include_favourite=False,
+            ctx=ctx,
         )
         await self.forget_stored_files(organization_id, [conversation_id])
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
@@ -1427,6 +1633,7 @@ class ConversationService:
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
+        for_model: bool = False,
     ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
         """One conversation's messages and its cost, for a reader allowed to see them.
 
@@ -1443,6 +1650,9 @@ class ConversationService:
         The page and the cost share one authorization: on a channel thread each
         `get_conversation` can ask the platform whether the reader is still in
         the room.
+
+        `for_model` omits refused turns before pagination and removes quoted
+        reply excerpts; the console keeps its complete transcript.
 
         The cost is summed over every turn, not over the page asked for, and is
         `None` where nothing in the thread was ever measured.
@@ -1462,9 +1672,22 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
             latest=latest,
             before=before,
+            for_model=for_model,
+            fresh=for_model,
         )
-        total = await conversation_repo.count_messages(self.db, conversation_id)
+        total = await conversation_repo.count_messages(
+            self.db, conversation_id, for_model=for_model
+        )
         await self._attach_senders(items, conversation)
+        if for_model:
+            return (
+                [
+                    MessageRead.model_validate(msg).model_copy(update={"reply_to": None})
+                    for msg in items
+                ],
+                total,
+                await self._cost(conversation_id),
+            )
         await self._attach_replies(items)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
@@ -1490,6 +1713,7 @@ class ConversationService:
                 outcome = outcomes.get(msg.run_id) if msg.run_id else None
                 msg_schema.run_status = outcome.status if outcome else None
                 msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
+                msg_schema.run_started_at = outcome.started_at if outcome else None
                 enriched.append(msg_schema)
             return enriched, total, cost
         return list(items), total, cost
@@ -1591,7 +1815,9 @@ class ConversationService:
                 if data.parts is None
                 else [part.model_dump(mode="json", exclude_none=True) for part in data.parts]
             ),
-            model_name=data.model_name,
+            # Which model wrote a turn is the runner's to say: the nightly look reads
+            # it as proof that a prompt whose run is gone reached one (#2746).
+            model_name=data.model_name if user_id is None else None,
             tokens_used=data.tokens_used,
             # Every field the schema carries, and the two at the end were being
             # dropped here: `persist_assistant_turn` built them, the model documents
@@ -1613,6 +1839,15 @@ class ConversationService:
             # Whose words these are: in a project's chat, not always the owner's.
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
+        )
+
+        from app.services.change_feed import announce_conversation
+
+        announce_conversation(
+            self.db,
+            organization_id=organization_id,
+            conversation_id=conversation_id,
+            actor_user_id=user_id,
         )
 
         if data.role == "assistant" and run_id is not None and data.content.strip():
@@ -1647,7 +1882,10 @@ class ConversationService:
         data: ToolCallCreate,
         *,
         parked: bool = False,
+        awaiting_answer: bool = False,
         mcp_connection_id: UUID | None = None,
+        tool_id: str | None = None,
+        presentation_kind: Literal["draft", "generic", "platform"] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -1655,7 +1893,8 @@ class ConversationService:
         reason `MessageCreate` carries no `run_id`: the schema is bindable from
         a request body, and whether a call is awaiting a person is the runner's
         fact, not a caller's claim - as is `mcp_connection_id`, the organization
-        MCP connection that served the call.
+        MCP connection that served the call. `awaiting_answer` distinguishes
+        parked questions from approvals without relying on an exposed tool name.
         """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
@@ -1665,8 +1904,12 @@ class ConversationService:
             tool_name=data.tool_name,
             args=data.args,
             started_at=data.started_at or datetime.now(UTC),
-            status=parked_status(data.tool_name) if parked else "running",
+            status=parked_status(data.tool_name, awaiting_answer=awaiting_answer)
+            if parked
+            else "running",
             mcp_connection_id=mcp_connection_id,
+            tool_id=tool_id,
+            presentation_kind=presentation_kind,
         )
 
     async def complete_tool_call(

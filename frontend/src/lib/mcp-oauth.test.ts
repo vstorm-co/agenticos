@@ -173,3 +173,19 @@ describe("a client registered by hand", () => {
     expect(secretWithoutClientId("", "")).toBe(false);
   });
 });
+
+describe("Google hosted MCP setup", () => {
+  it("requires a pre-registered client only for Google's MCP endpoints", async () => {
+    const { needsGoogleOAuthClient } = await import("./mcp-oauth");
+    expect(needsGoogleOAuthClient("https://calendarmcp.googleapis.com/mcp/v1")).toBe(true);
+    expect(needsGoogleOAuthClient("https://people.googleapis.com/mcp/v1")).toBe(true);
+    for (const url of [
+      "https://mcp.linear.app/sse",
+      "https://calendarmcp.googleapis.com.evil.test/mcp/v1",
+      "https://www.googleapis.com/calendar/v3",
+      "invalid",
+    ]) {
+      expect(needsGoogleOAuthClient(url)).toBe(false);
+    }
+  });
+});

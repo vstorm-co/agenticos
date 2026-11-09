@@ -16,7 +16,7 @@ import pytest
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent_run import ApprovalStatus
+from app.db.models.agent_run import ApprovalStatus, RunSurface
 from app.services.approvals import ApprovalService
 from app.services.parked_runs import Continued, DecidedApproval, ParkedRunService
 
@@ -190,7 +190,11 @@ class TestDeciding:
         assert decided.approval is p.decided
         assert decided.continues_in_chat is False
         assert p.approvals.decide.await_args.args == (_person(), APPROVAL)
-        assert p.approvals.decide.await_args.kwargs == {"approved": True, "note": "n"}
+        assert p.approvals.decide.await_args.kwargs == {
+            "approved": True,
+            "note": "n",
+            "remember_scope": None,
+        }
 
     async def test_a_decision_on_a_chat_run_parked_before_its_chat_was_recorded_leaves_resuming_to_the_browser(
         self,
@@ -262,6 +266,10 @@ class TestDeciding:
             ),
             patch("app.services.approvals.record_audit", AsyncMock()),
             patch(
+                "app.services.approvals.agent_run_repo.list_approvals_for_run",
+                AsyncMock(return_value=[pending]),
+            ),
+            patch(
                 "app.services.approvals.spawn_after_commit",
                 side_effect=lambda d, c, name: wake(c, name=name),
             ),
@@ -324,6 +332,43 @@ class TestResuming:
 
 
 class TestAnswering:
+    async def test_a_workflow_answer_queues_its_owner_instead_of_executing_inline(self) -> None:
+        with (
+            _Patched(_run(RunSurface.WORKFLOW.value)) as p,
+            patch("app.services.workflow_execution.WorkflowExecutionService") as workflows,
+        ):
+            workflows.return_value.answer_agent_questions = AsyncMock(return_value=MagicMock())
+            result = await p.service.answer(_person(), RUN, {"q": [{"answer": "yes"}]})
+
+        workflows.return_value.answer_agent_questions.assert_awaited_once_with(
+            _person(), RUN, {"q": [{"answer": "yes"}]}
+        )
+        p.runner.answer.assert_not_awaited()
+        p.runner.resume.assert_not_awaited()
+        assert result.segment.run.id == RUN
+        assert result.segment.output == ""
+        assert result.continues_in_chat is False
+
+    async def test_a_workflow_run_without_an_owner_is_not_resumed_inline(self) -> None:
+        with (
+            _Patched(_run(RunSurface.WORKFLOW.value)) as p,
+            patch("app.services.workflow_execution.WorkflowExecutionService") as workflows,
+        ):
+            workflows.return_value.answer_agent_questions = AsyncMock(return_value=None)
+            with pytest.raises(BadRequestError, match="no longer waiting"):
+                await p.service.answer(_person(), RUN, {})
+
+        p.runner.answer.assert_not_awaited()
+
+    async def test_the_generic_resume_route_cannot_bypass_a_workflow(self) -> None:
+        with (
+            _Patched(_run(RunSurface.WORKFLOW.value)) as p,
+            pytest.raises(BadRequestError, match="continued by its workflow"),
+        ):
+            await p.service.resume(_person(), RUN)
+
+        p.runner.resume.assert_not_awaited()
+
     async def test_an_answer_settles_buttons_and_installs_transactional_handback(self) -> None:
         callback = AsyncMock()
         with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback):

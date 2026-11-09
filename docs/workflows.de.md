@@ -1,5 +1,5 @@
 ---
-source_sha: "102f4da698e8"
+source_sha: "fadba4d54af0"
 ---
 
 # Workflows { #workflows }
@@ -42,7 +42,23 @@ Kopie einer veröffentlichten Version.
 
 ### Vorlagen, Export und Import { #templates-exporting-and-importing }
 
-Die sofort ausführbaren Automationen heißen **Öffentliche API → Tabelle** und **Markdown-Notizbuch**. Der Server erstellt eine Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Standardmäßig bleiben beide privat; eine ausdrücklich gewählte Zielgruppe gilt für Workflow und Tabelle. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
+Die Vorlagen mit Tabellen sind **Public API → table** und **Markdown notebook**. Der Server erstellt eine Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Standardmäßig bleiben beide privat; eine ausdrücklich gewählte Zielgruppe gilt für Workflow und Tabelle. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
+
+**Auf Antwort warten** erstellt einen privaten manuellen Workflow für das bei der
+Erstellung ausdrücklich ausgewählte Gmail- oder Outlook-Postfach. Er benötigt weder
+Tabellenrechte noch ein Modell oder Sendeberechtigungen, nur die vorhandene
+Lesezustimmung. Den Entwurf veröffentlichen; **Run** fragt nach Thread-ID, genauem
+Absender, Anfangszeit und Frist (ISO 8601 mit Zeitzone). Eine verifizierte Antwort
+beendet den Antwortzweig. Andernfalls erstellt die erfolgreiche letzte Postfachprüfung
+eine Erinnerung für den Ersteller, den Thread zu prüfen und eine Folgeantwort
+vorzubereiten. Der Workflow sendet keine Folgeantwort automatisch.
+
+Bei Outlook kann das Erstellungsformular auch ein freigegebenes Postfach angeben, das das verbundene Konto lesen darf.
+
+Standard ist die Benachrichtigung in der App. **Notify members** bietet weitere
+Kanäle unter Beachtung persönlicher Einstellungen und privater Kanalzustimmung.
+Der [Warteschritt](reference/workflow-nodes.md#flow-await-reply) behält Abgleich,
+Pause, Korrektur, Abbruch und Fristregeln bei.
 
 Die Run-Historie füllt den verfügbaren Seitenbereich automatisch, ohne zusätzlichen Vergrößerungsknopf. Der Katalog füllt den verfügbaren Seitenbereich und bietet einen eigenen Vollbildknopf. Seitennavigation erscheint nur bei weiteren Seiten. Der Dateiimport bietet einen beschrifteten Bereich zum Auswählen oder Ablegen einer JSON-Datei.
 
@@ -95,7 +111,9 @@ einen Workflow, was seinen Trigger ebenfalls pausiert. Ein archivierter lässt s
 wiederherstellen, weiterhin pausiert, oder mit Versionen, Läufen und Freigaben löschen;
 einer mit noch nicht beendeten Läufen wird mit `WORKFLOW_IN_USE` abgelehnt.
 
-Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheint nur das Workflow-Ergebnis. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
+Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheinen das Workflow-Ergebnis und Fragen des Agents. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
+
+Ein Agent-Schritt kann mit `ask_user_question` pausieren und **Wartet auf Benutzer** anzeigen. Beantworte die Frage im ursprünglichen Chat oder auf der Run-Seite. Deine Antwort schließt den offenen Tool-Aufruf ab, und der Workflow-Worker setzt dieselbe Unterhaltung des Agents fort. Der Agent kann weitere Fragen stellen, bevor er sein Ergebnis zurückgibt. Unabhängige Zweige können währenddessen weiterlaufen.
 
 Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im Hintergrund-Worker als auch im Webchat verwenden.
 
@@ -1009,6 +1027,16 @@ Eingabefeld, so typisiert wie dieses, und ein API-Aufruf, dessen Eingabe nicht p
 wird mit den falschen Feldern abgelehnt. Siehe
 [core.input](reference/workflow-nodes.md#core-input).
 
+Konfiguriere für verschachtelte Objekte und Arrays optional `input_schema`
+nach JSON Schema Draft 2020-12 bei **Manual**, **API request** oder
+**Called by a workflow** anstelle einfacher Felder. Das Schema wird mit der
+veröffentlichten Version gespeichert, und jeder Run muss vor dem Start den Vertrag
+dieser Version erfüllen. API- und MCP-Aufrufer können denselben Vertrag vor dem
+Senden der Eingabe prüfen. Siehe
+[Eingabeverträge mit JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+für Konfiguration, Referenzen und Validierungsfehler. Bestehende Eingaben mit
+einfachen Feldern und Workflows ohne Vertrag behalten ihr Verhalten.
+
 ### Aus dem Chat { #from-the-chat }
 
 Die Auswahl im Chat, wer antwortet, listet unter den Agenten die veröffentlichten
@@ -1440,3 +1468,8 @@ Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und 
   wie er abgelaufen ist.
 
 Neue Automatisierungen können mit `prepare_workflow_draft` eingereicht werden: Eine Freigabe erstellt eine private Tabelle und den vollständigen Graphen atomar. Bei ungültigen Daten bleibt keine der Ressourcen bestehen. `check_workflow_draft` prüft Graph und Ressourcenverweise ohne Ausführung oder Schreibfreigabe und meldet Integrationen ausdrücklich als ungeprüft. Aktionstests benötigen weiterhin eine Freigabe. Zeitplantests nehmen einfache Beispieldaten an und ergänzen Zeitstempel und konfigurierte Vorgaben. Die Run-Seite unterscheidet Grundgerüsttests von Integrationsprüfungen.
+
+
+### Follow-up-Entwürfe { #follow-up-drafts }
+
+Im Dialog für das Warten auf eine Antwort kannst du auch einen Follow-up-Entwurf nach Ablauf aktivieren. Wähle ein vorhandenes Modell und Höchstkosten pro Entwurf. Gib beim Start den Kontext für den Text an. Nur der nach erfolgreicher Postfachprüfung gewählte Fristzweig startet den Agenten; eine bestätigte Antwort überspringt ihn, ein Postfachfehler beendet die Prüfung als Fehler. Der Agent hat keine Werkzeuge. Sein Entwurf wird im Workflow-Ergebnis gespeichert; eine Benachrichtigung führt dorthin. Prüfe vor dem Senden den aktuellen Thread. Diese Vorlage erstellt keinen Gmail-/Outlook-Entwurf und versendet keine E-Mail.

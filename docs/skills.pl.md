@@ -1,5 +1,5 @@
 ---
-source_sha: "14464b543991"
+source_sha: "740acc9b4b0d"
 ---
 
 # Skille { #skills }
@@ -16,9 +16,9 @@ odwracają tę zależność:
 
 ```mermaid
 flowchart LR
-    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
+    A["available skills<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_capability - the body"]
+    B -->|yes| C["read_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -91,6 +91,8 @@ części rozmów nie musi siedzieć w treści, którą wczytuje każda istotna r
 wpływu na to, co widzi agent — model wybiera po `description`, nigdy po
 kategorii.
 
+Długie zasoby tekstowe są stronicowane, aby całe podręczniki nie trafiały do każdego żądania modelu: domyślna strona ma 8 000 znaków, maksymalnie 20 000. Przekaż `args` z `offset` i `limit` do `read_skill_resource`; odpowiedź podaje kolejny offset. Czytaj potrzebne fragmenty i wykorzystuj już wczytany materiał.
+
 ## Jak agent go czyta { #how-an-agent-reads-one }
 
 Przez [capability `skills`](reference/capabilities.md#skills). Każdy skill, który
@@ -99,17 +101,15 @@ a otwieraną na żądanie:
 
 | Jak | Co robi |
 |---|---|
-| Katalog capability | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
-| `load_capability` | Pełna treść jednego skilla, wciągnięta do rozmowy |
+| Dostępne skille | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
+| `read_skill` | Pełna treść jednego skilla, wciągnięta do rozmowy |
 | `read_skill_resource` | Jeden plik obok skilla |
 
-`load_capability` jest narzędziem samego frameworka agentowego, a nie czymś, co
-publikuje ta platforma — spec go więc nie przyznaje i nie zmienia mu nazwy. Może go
-natomiast **bramkować**, bo to wywołanie otwiera skilla: `tool_approval` na nim jest
-sposobem, w jaki agent pyta człowieka, zanim skill trafi do modelu, a spec, który
-bramkował dawne `load_skill`, jest na nie migrowany, zamiast zostać bez bramki. Jako
-własne narzędzie ta capability wnosi `read_skill_resource`, i tylko wtedy, gdy
-przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
+`read_skill` nadaje natywnemu loaderowi frameworka nazwy dotyczące skilli.
+Polityki zgód zachowują stały klucz `load_capability`, dzięki czemu opublikowane
+specy i oczekujące zgody nadal działają. Dawny klucz zgody `load_skill` nadal jest
+na niego migrowany. Nie ma osobnego narzędzia listującego. `read_skill_resource`
+czyta pliki pomocnicze dopiero po otwarciu skilla.
 
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.
@@ -203,32 +203,46 @@ jej statusu i kosztu.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
-`artifact-pages`, który uczy agenta budować stronę dla capability
-[Aplikacje](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
-bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
-widoczne dla organizacji.
+**Wbudowana biblioteka instaluje się automatycznie.** Nowe organizacje dostają
+procedury budowania platformy, długiej pracy, researchu, wizualizacji, Apps i
+prezentacji. Lista Skills oznacza te kopie jako `built-in`. To zwykłe skille
+organizacji, a nie odwołania do zewnętrznego rejestru.
 
-Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one po
-prostu przychodzą, raz, przy tworzeniu organizacji.
+Etykieta `built-in` obejmuje też zainstalowane kopie z galerii dostarczanej z platformą, w tym skille przypinane przez agentów startowych. Oznacza pochodzenie z platformy, a nie automatyczny sposób instalacji. Galeria nadal wymaga wyboru skilla, a istniejące modyfikacje można edytować.
 
-**I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
-edytować albo usunąć. Nic nie przywraca usuniętego.
+Istniejące instalacje dostają nowe skille przy odświeżaniu dostarczonych agentów
+po otwarciu konsoli; tworzenie agenta z domyślnego wzorca również uruchamia
+synchronizację. Nie trzeba ręcznie wywoływać seed. Niezmienione kopie aktualizują
+się wraz z zasobami; edytowane i różniące się kopie bez historii zostają zachowane.
+Potwierdzenia instalacji pozwalają rozpoznać celowe usunięcie: automatyczna
+aktualizacja nie przywraca wycofanego skilla. Jawna komenda seed może go przywrócić.
+Sama lista skilli nie zapisuje danych.
 
-To jest zmiana. Lista wcześniej sama się uzupełniała — dokopiowywała każdą
-dołączoną nazwę, której organizacja nie miała, przy każdym otwarciu strony —
-więc usunięty built-in wracał przy następnej wizycie, a wyłączenie było jedynym
-sposobem na jego wycofanie. Oznaczało to też stronę, która zapisuje wiersze
-w trakcie czytania. Galeria jest miejscem, w którym wybiera się skill, a komenda
-seed poniżej jest sposobem, w jaki deployment rozsyła nowy dołączony skill
-świadomie.
+AgenticOS, Architect i nowi domyślni agenci mają podpięte:
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
 
-!!! info "Organizacja utworzona przed nowym dołączonym skillem nie dostanie go sama"
+Opcjonalne `platform-tables`, `platform-context`, `platform-skills` i poradniki API z galerii pozostają w bibliotece, ale nie są już podpięte domyślnie. Zwykły odczyt lub edycja przez MCP nie wymaga ładowania skilla. Aktualne opisy narzędzi określają operacje, parametry i uprawnienia; skille dodają zasady projektowania i weryfikacji. Szczegółowe przepisy wizualne są zasobami ładowanymi na żądanie.
 
-    Uruchom dla niej `seed-skills` albo zainstaluj skill z galerii. Obie drogi są
-    świadome i o to chodzi: nic nie pojawia się przy wczytaniu strony.
+Dostają też procedury Apps, wizualizacji i prezentacji, w tym planowanie narracji
+i review. Skille ładują się stopniowo: najpierw nazwy i opisy, następnie potrzebne
+treści i zasoby. Nie nadają narzędzi, kont ani kompilatora. Architect ma też
+capabilities Apps i Charts.
+
+Odświeżanie domyślnych agentów chroni osobno zmienione pola promptu, narzędzi i
+powiązań skilli. Zmiana samego modelu nie blokuje aktualizacji pozostałych
+niezmienionych ustawień. Nowe domyślne ustawienia dotyczą nowo tworzonych agentów;
+istniejący agenci napisani przez użytkownika nie są przepisywani.
+
+Platform MCP pozwala wyszukiwać, tworzyć i edytować Context, podpinać `context_ids`
+do draftu oraz czytać i edytować skille i dodawać zasoby tekstowe. Context ma tryb
+`inject` dla stałego kontekstu i `link` dla odczytu na żądanie. Edycja podpiętego
+pliku działa od kolejnego uruchomienia; zmiana powiązania draftu wymaga publikacji.
+Zapisy nadal podlegają uprawnieniom i zatwierdzeniom.
+
+Skill dokumentowy zawiera źródła startowe LaTeX oraz procedurę budowania i oceny
+renderów. HTML Apps i prezentacje przeglądarkowe różnią się od skompilowanego PDF
+czy edytowalnego PPTX. Agent sprawdza dostępny kompilator, generator i renderer;
+brak wykonanej kompilacji lub oceny wizualnej musi jasno wskazać.
 
 Komenda seed robi to samo z terminala, na potrzeby skryptowanych instalacji:
 
@@ -386,4 +400,4 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 - Podpięcie skilla **wypożycza** go, więc publikujący musi móc go zobaczyć — a w
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
-  życzenie — w odróżnieniu od dołączonej trójki, która przychodzi sama.
+  życzenie — w odróżnieniu od wbudowanej biblioteki, która przychodzi sama.

@@ -38,7 +38,12 @@ vi.mock("@/hooks", () => ({
 // starters show; `chat-empty-state.test.tsx` covers an agent with Visuals.
 vi.mock("@/hooks/use-mentionables", () => ({ useMentionables: () => ({ items: [] }) }));
 
+vi.mock("@/hooks/use-suggestions", () => ({
+  usePersonalStarterQuery: () => ({ data: [], isPending: false }),
+}));
+
 beforeEach(() => {
+  vi.spyOn(Date.prototype, "getHours").mockReturnValue(9);
   auth.user = null;
   auth.agents = [];
   useAgentSelectionStore.setState({ selectedAgentId: null });
@@ -407,7 +412,7 @@ describe("the empty chat", () => {
 
     render(<ChatEmptyState onPick={vi.fn()} />);
 
-    expect(screen.getByText("How can I help, Kacper?")).toBeInTheDocument();
+    expect(screen.getByText("Good morning, Kacper. What’s on your mind?")).toBeInTheDocument();
   });
 
   it("falls back to the local part of the address", () => {
@@ -415,7 +420,7 @@ describe("the empty chat", () => {
 
     render(<ChatEmptyState onPick={vi.fn()} />);
 
-    expect(screen.getByText("How can I help, kacper?")).toBeInTheDocument();
+    expect(screen.getByText("Good morning, kacper. What’s on your mind?")).toBeInTheDocument();
   });
 
   it("greets nobody in particular when it knows no name", () => {

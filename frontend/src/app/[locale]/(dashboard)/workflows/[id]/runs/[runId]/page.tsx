@@ -33,10 +33,12 @@ import {
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
+import { WorkflowRunQuestions } from "@/components/workflows/runs/run-questions";
 import { RunAnswer } from "@/components/workflows/runs/run-answer";
 import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
 import { StepLogs } from "@/components/workflows/logs/step-logs";
 import { RunFiles } from "@/components/workflows/runs/run-files";
+import { ReplyExpectationControl } from "@/components/workflows/runs/reply-expectation-control";
 import { StepAttentionDialog } from "@/components/workflows/runs/step-attention-dialog";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import {
@@ -319,6 +321,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
         </Alert>
       )}
 
+      {live && nodes.some((node) => node.status === "waiting") && (
+        <WorkflowRunQuestions runId={run.id} />
+      )}
+
       <div className="grid min-h-[34rem] flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="border-border bg-card min-h-[28rem] overflow-hidden rounded-xl border lg:min-h-0">
           {graph === null ? (
@@ -403,6 +409,18 @@ export default function WorkflowRunPage({ params }: PageProps) {
                         : ""}
                       {node.attempts > 1 ? ` · ${t("runAttempts", { count: node.attempts })}` : ""}
                     </p>
+                  )}
+                  {node.reply_expectation != null && (
+                    <ReplyExpectationControl
+                      runId={run.id}
+                      nodeRunId={node.id}
+                      value={node.reply_expectation}
+                      editable={
+                        live &&
+                        run.can_cancel &&
+                        (node.status === "waiting" || node.status === "needs_attention")
+                      }
+                    />
                   )}
                   {node.error && <StepProblem problem={node.error} />}
                   <CalledRun

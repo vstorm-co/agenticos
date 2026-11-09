@@ -17,6 +17,8 @@ import type {
 export interface RawToolCall {
   tool_call_id: string;
   tool_name: string;
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   args: Record<string, unknown>;
   result?: unknown;
   status: string;
@@ -24,8 +26,9 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
+  type:
+    "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run" | "phone_call";
   file_source?: TurnFileSource | null;
-  type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run";
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
   mention_kind?: MentionKind | null;
@@ -35,6 +38,7 @@ export interface RawMessagePart {
   answer?: string | null;
   asked_by?: string | null;
   run_id?: string | null;
+  phone_call_id?: string | null;
   workflow_id?: string | null;
   workflow_name?: string | null;
   status?: string | null;
@@ -54,6 +58,7 @@ export interface RawMessage {
   run_id?: string | null;
   run_status?: string | null;
   run_duration_ms?: number | null;
+  run_started_at?: string | null;
   /** The version number of the frozen spec that produced it. */
   agent_version?: number | null;
   tool_calls?: RawToolCall[] | null;
@@ -116,6 +121,15 @@ export function replayStoredParts(
         answer: entry.answer ?? "",
         ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
       });
+      return;
+    }
+    if (entry.type === "phone_call") {
+      if (entry.phone_call_id)
+        parts.push({
+          id: `${msgId}-phone-${index}`,
+          type: "phone_call",
+          phoneCallId: entry.phone_call_id,
+        });
       return;
     }
     if (entry.type === "workflow_run") {
@@ -196,6 +210,8 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   const toolCalls: ToolCall[] | undefined = msg.tool_calls?.map((tc) => ({
     id: tc.tool_call_id,
     name: tc.tool_name,
+    tool_id: tc.tool_id,
+    presentation_kind: tc.presentation_kind,
     args: tc.args,
     result: tc.result,
     status: replayedStatus(tc.status),
@@ -230,6 +246,13 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
+    runStartedAt: msg.run_started_at ? new Date(msg.run_started_at) : undefined,
+    runWaitingFor:
+      msg.run_status === "awaiting_approval"
+        ? "approval"
+        : msg.run_status === "awaiting_answer"
+          ? "answer"
+          : undefined,
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",

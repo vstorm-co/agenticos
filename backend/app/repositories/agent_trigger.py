@@ -1,7 +1,9 @@
 """Agent trigger repository (PostgreSQL async)."""
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any
+from decimal import Decimal
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import and_, false, func, or_, select, true
@@ -9,7 +11,8 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger, TriggerOverlap
 from app.db.models.resource_grant import Visibility
@@ -29,24 +32,35 @@ _NON_TERMINAL_STATUSES = (
 FIRE_LEASE = timedelta(hours=1)
 
 
-async def get(db: AsyncSession, trigger_id: UUID, *, organization_id: UUID) -> AgentTrigger | None:
-    result = await db.execute(
-        select(AgentTrigger).where(
-            AgentTrigger.id == trigger_id,
-            AgentTrigger.organization_id == organization_id,
-        )
+async def get(
+    db: AsyncSession, trigger_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> AgentTrigger | None:
+    statement = select(AgentTrigger).where(
+        AgentTrigger.id == trigger_id, AgentTrigger.organization_id == organization_id
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 
-async def get_by_id(db: AsyncSession, trigger_id: UUID) -> AgentTrigger | None:
+async def get_by_id(
+    db: AsyncSession, trigger_id: UUID, *, fresh: bool = False, for_update: bool = False
+) -> AgentTrigger | None:
     """The trigger by id alone, for the worker: a flow has an id and no tenant.
 
     Not organization-scoped, because a scheduled flow is dispatched with a
     trigger id and there is no ambient tenant in a worker - the organization is
     read off the row this returns, and every later query is scoped by it.
     """
-    result = await db.execute(select(AgentTrigger).where(AgentTrigger.id == trigger_id))
+    query = (
+        select(AgentTrigger)
+        .where(AgentTrigger.id == trigger_id)
+        .execution_options(populate_existing=fresh)
+    )
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -76,6 +90,20 @@ async def list_for_agent(
         .order_by(AgentTrigger.created_at.asc())
     )
     return list(result.scalars().all())
+
+
+async def list_for_project(
+    db: AsyncSession, *, project_id: UUID, organization_id: UUID
+) -> list[AgentTrigger]:
+    """Project routines before their foreign-key cascade removes webhook receipts."""
+    result = await db.scalars(
+        select(AgentTrigger)
+        .where(
+            AgentTrigger.project_id == project_id, AgentTrigger.organization_id == organization_id
+        )
+        .order_by(AgentTrigger.created_at, AgentTrigger.id)
+    )
+    return list(result.all())
 
 
 async def list_for_connection(
@@ -137,6 +165,53 @@ async def prompts_created_by(
     return list(result.scalars().all())
 
 
+class RoutinePrompt(NamedTuple):
+    prompt: str
+    spec: dict[str, object]
+
+
+async def routine_prompts_for_screening(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[RoutinePrompt]:
+    """Prompts with the immutable spec they would fire; unresolved targets are omitted.
+
+    A named environment must resolve, rather than falling back to a different
+    agent version. A routine whose latest fire was refused stays out even if
+    the current input screen would now accept its prompt. Once retention removes
+    the last run, a fire timestamp still distinguishes an unknown verdict from
+    a routine that has never fired; an unknown verdict is left out too.
+    """
+    target = func.coalesce(
+        AgentTrigger.pinned_version_id,
+        AgentEnvironment.version_id,
+        Agent.current_version_id,
+    )
+    rows = await db.execute(
+        select(AgentTrigger.prompt, AgentVersion.spec)
+        .join(
+            Agent, and_(Agent.id == AgentTrigger.agent_id, Agent.organization_id == organization_id)
+        )
+        .outerjoin(
+            AgentEnvironment,
+            and_(
+                AgentEnvironment.id == AgentTrigger.environment_id,
+                AgentEnvironment.agent_id == Agent.id,
+                AgentEnvironment.organization_id == organization_id,
+            ),
+        )
+        .join(AgentVersion, and_(AgentVersion.id == target, AgentVersion.agent_id == Agent.id))
+        .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+            or_(AgentTrigger.environment_id.is_(None), AgentEnvironment.id.is_not(None)),
+            or_(AgentRun.id.is_not(None), AgentTrigger.last_fired_at.is_(None)),
+            or_(AgentRun.id.is_(None), AgentRun.status != RunStatus.GUARDRAIL_BLOCKED.value),
+        )
+    )
+    return [RoutinePrompt(row.prompt, row.spec) for row in rows.all()]
+
+
 async def list_for_organization(
     db: AsyncSession,
     *,
@@ -159,7 +234,7 @@ async def list_for_organization(
     surfaces must not disagree with it. The join onto `agents` also supplies the
     name each surface shows beside a row displayed away from its agent's page.
     """
-    where = [AgentTrigger.organization_id == organization_id]
+    where = [AgentTrigger.organization_id == organization_id, AgentTrigger.one_shot.is_(False)]
     if not see_all:
         where.append(
             or_(
@@ -213,8 +288,23 @@ async def create(
     overlap: str = TriggerOverlap.SKIP.value,
     teams_conversation_id: UUID | None = None,
     time_zone: str | None = None,
+    result_mode: str = "report",
+    answer_to: str = "run_log",
+    delivery_conversation_id: UUID | None = None,
+    ends_at: datetime | None = None,
+    max_failures: int | None = 3,
+    notification_channels: Sequence[str] | None = None,
+    monthly_budget_usd: Decimal | None = None,
+    pinned_version_id: UUID | None = None,
+    one_shot: bool = False,
+    is_active: bool = True,
+    project_id: UUID | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
+        project_id=project_id,
+        one_shot=one_shot,
+        is_active=is_active,
+        max_failures=max_failures,
         organization_id=organization_id,
         agent_id=agent_id,
         created_by_user_id=created_by_user_id,
@@ -229,6 +319,7 @@ async def create(
         event_secret_encrypted=event_secret_encrypted,
         secret_key_version=secret_key_version,
         environment_id=environment_id,
+        pinned_version_id=pinned_version_id,
         next_fire_at=next_fire_at,
         connection_id=connection_id,
         portal_key=portal_key,
@@ -238,6 +329,14 @@ async def create(
         overlap=overlap,
         teams_conversation_id=teams_conversation_id,
         time_zone=time_zone,
+        result_mode=result_mode,
+        answer_to=answer_to,
+        delivery_conversation_id=delivery_conversation_id,
+        ends_at=ends_at,
+        notification_channels=None
+        if notification_channels is None
+        else list(notification_channels),
+        monthly_budget_usd=monthly_budget_usd,
     )
     db.add(trigger)
     await db.flush()
@@ -404,6 +503,7 @@ async def claim_due(
         .where(
             AgentTrigger.is_active.is_(True),
             AgentTrigger.next_fire_at <= now,
+            AgentTrigger.waiting_device_count == 0,
             (AgentTrigger.overlap != TriggerOverlap.QUEUE.value) | ~busy,
         )
         .order_by(AgentTrigger.next_fire_at.asc())
@@ -425,9 +525,44 @@ async def withdraw_creator_consent(
         .where(
             AgentTrigger.agent_id == agent_id,
             AgentTrigger.runs_as_creator.is_(True),
+            AgentTrigger.pinned_version_id.is_(None),
             AgentTrigger.created_by_user_id.is_distinct_from(kept_for),
         )
         .values(runs_as_creator=False)
     )
     await db.flush()
     return int(getattr(result, "rowcount", 0) or 0)
+
+
+async def claim_ended(db: AsyncSession, *, now: datetime, limit: int) -> list[AgentTrigger]:
+    """Claim unfinished deadline cleanup independently of activation cadence and pause."""
+    result = await db.scalars(
+        select(AgentTrigger)
+        .where(
+            AgentTrigger.ends_at <= now,
+            or_(
+                AgentTrigger.is_active.is_(True),
+                AgentTrigger.end_settled_at.is_distinct_from(AgentTrigger.ends_at),
+            ),
+        )
+        .order_by(AgentTrigger.ends_at, AgentTrigger.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())
+
+
+async def revoke_member_authority(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> None:
+    """A later invitation must not revive this membership's unattended consents."""
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+        )
+        .values(is_active=False, approved_sources=None, action_consents=[])
+    )
+    await db.flush()

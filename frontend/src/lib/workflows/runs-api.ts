@@ -9,6 +9,8 @@ import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
 import type {
   RunHistoryQuery,
+  ReplyExpectation,
+  ReplyExpectationEdit,
   StepChoice,
   WorkflowGraph,
   WorkflowNodeRunList,
@@ -16,6 +18,8 @@ import type {
   WorkflowRunFileList,
   WorkflowRunList,
   WorkflowRunRead,
+  WorkflowQuestionRead,
+  WorkflowQuestionResponses,
   WorkflowRunStart,
 } from "@/lib/workflows/types";
 
@@ -118,4 +122,32 @@ export async function listWorkflowRunFiles(runId: string): Promise<WorkflowRunFi
 export async function downloadWorkflowRunFile(runId: string, file: WorkflowRunFile): Promise<void> {
   const response = await apiClient.raw(`${ROOT}/${runId}/files/${file.id}`);
   saveBlob(await response.blob(), file.filename ?? file.id);
+}
+
+/** Correct or pause an expectation; the account cannot be silently replaced. */
+export async function editReplyExpectation(
+  runId: string,
+  nodeRunId: string,
+  body: ReplyExpectationEdit,
+): Promise<ReplyExpectation> {
+  return apiClient.put<ReplyExpectation>(
+    `${ROOT}/${runId}/steps/${nodeRunId}/reply-expectation`,
+    body,
+  );
+}
+
+/** Pending questions visible to the signed-in person who started the agent step. */
+export async function listWorkflowRunQuestions(runId: string): Promise<WorkflowQuestionRead[]> {
+  return apiClient.get<WorkflowQuestionRead[]>(`${ROOT}/${runId}/questions`);
+}
+
+/** Save answers for the suspended step and queue its existing agent conversation. */
+export async function answerWorkflowRunQuestions(
+  runId: string,
+  nodeRunId: string,
+  responses: WorkflowQuestionResponses,
+): Promise<WorkflowRunRead> {
+  return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/nodes/${nodeRunId}/answers`, {
+    responses,
+  });
 }

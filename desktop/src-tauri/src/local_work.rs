@@ -73,7 +73,7 @@ fn io_refusal(error: &std::io::Error, path: &str) -> Refusal {
 /// The modes this computer can offer, as it tells the server.
 pub fn modes() -> Vec<&'static str> {
     let mut modes = vec!["read_only"];
-    if cfg!(target_os = "macos") || (cfg!(target_os = "linux") && which("bwrap").is_some()) {
+    if cfg!(target_os = "macos") || (cfg!(target_os = "linux") && descriptor_bwrap().is_some()) {
         modes.push("workspace_write");
     }
     modes.push("full_access");
@@ -88,6 +88,50 @@ fn which(program: &str) -> Option<PathBuf> {
     })
 }
 
+/// Check the installed build, including distributor backports, rather than
+/// accepting every executable named bubblewrap or guessing from its version.
+fn descriptor_bwrap() -> Option<PathBuf> {
+    which("bwrap").filter(|path| supports_descriptor_binds(path))
+}
+
+fn supports_descriptor_binds(path: &Path) -> bool {
+    use std::io::Read;
+    use std::time::{Duration, Instant};
+
+    let Ok(mut child) = std::process::Command::new(path)
+        .arg("--help")
+        .env_clear()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if !status.success() {
+                    return false;
+                }
+                let Some(stdout) = child.stdout.take() else {
+                    return false;
+                };
+                let mut help = String::new();
+                return stdout.take(32 * 1024).read_to_string(&mut help).is_ok()
+                    && help.split_whitespace().any(|word| word == "--bind-fd");
+            }
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
+    }
+}
+
 fn validate_mode(mode: Mode) -> Result<(), String> {
     if mode == Mode::WorkspaceWrite && !modes().contains(&"workspace_write") {
         return Err("This computer cannot sandbox commands. Choose read only or full access.".into());
@@ -100,14 +144,19 @@ fn validate_mode(mode: Mode) -> Result<(), String> {
 pub struct LocalState {
     grants: Vec<Grant>,
     modes: Vec<&'static str>,
+    computer_grants: Vec<String>,
 }
 
 #[tauri::command]
-pub fn local_grants(app: AppHandle) -> LocalState {
-    LocalState {
+pub fn local_grants(app: AppHandle) -> Result<LocalState, String> {
+    Ok(LocalState {
         grants: settings::current(&app).local_grants,
         modes: modes(),
-    }
+        computer_grants: crate::computer_access::active(&app)?
+            .into_iter()
+            .map(|grant| grant.id)
+            .collect(),
+    })
 }
 
 /// Pick a folder in the native picker and allow agents to work there, up to `mode`.
@@ -262,6 +311,7 @@ pub async fn local_file(app: AppHandle, root: String, path: String) -> Result<St
 
 #[tauri::command]
 pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> {
+    crate::routine_access::revoke_folder(&app, &path)?;
     let (settings, ()) = settings::update(&app, |settings| {
         settings.coding_consents.retain(|consent| !consent.is_for_folder(&path));
         settings.local_grants.retain(|existing| existing.path != path);
@@ -273,6 +323,10 @@ pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> 
     Ok(LocalState {
         grants: settings.local_grants,
         modes: modes(),
+        computer_grants: crate::computer_access::active(&app)?
+            .into_iter()
+            .map(|grant| grant.id)
+            .collect(),
     })
 }
 
@@ -281,6 +335,27 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
     let root = text(args, "root")?;
     let asked: Mode = serde_json::from_value(args.get("mode").cloned().unwrap_or(Value::Null))
         .map_err(|_| Refusal::new("denied", "No mode was named."))?;
+    if let agenticos_shell_core::routine_grants::WorkContext::Routine(scope) =
+        crate::routine_access::context(args).map_err(|error| Refusal::new("denied", error))?
+    {
+        let mode = if scope.operations.write {
+            Mode::WorkspaceWrite
+        } else {
+            Mode::ReadOnly
+        };
+        if asked != mode || args.contains_key("computer_grant") {
+            return Err(Refusal::new(
+                "denied",
+                "Routine access cannot use full-computer or a different folder mode",
+            ));
+        }
+        let root =
+            crate::routine_access::check(app, &scope, &root, op).map_err(|error| Refusal::new("denied", error))?;
+        return match op {
+            "shell.run" => shell(app, &root, mode, args, false).await,
+            _ => files(op, &root, mode, args).await,
+        };
+    }
     if args.contains_key("computer_grant") {
         crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
         let root = PathBuf::from(&root);
@@ -315,6 +390,52 @@ pub(crate) fn granted_folder(app: &AppHandle, root: &str, asked: Mode) -> Result
         ));
     }
     Ok(PathBuf::from(grant.path))
+}
+
+/// `root`, when it is a granted folder or a folder inside one granted at least
+/// `asked`: a coding session may work in one project of a granted workspace.
+///
+/// Both sides are resolved on disk first, so `..` and symbolic links cannot
+/// climb out of the grant.
+pub(crate) fn granted_folder_within(app: &AppHandle, root: &str, asked: Mode) -> Result<PathBuf, Refusal> {
+    if let Ok(folder) = granted_folder(app, root, asked) {
+        return Ok(folder);
+    }
+    let wanted = std::fs::canonicalize(root)
+        .ok()
+        .filter(|path| path.is_dir())
+        .ok_or_else(|| Refusal::new("denied", format!("{root} is not a folder on this computer.")))?;
+    let grants = settings::current(app).local_grants;
+    within(&wanted, &grants, asked)?;
+    Ok(wanted)
+}
+
+/// Whether a resolved folder sits inside a grant that allows `asked`.
+fn within(wanted: &Path, grants: &[Grant], asked: Mode) -> Result<(), Refusal> {
+    let inside = grants
+        .iter()
+        .filter(|grant| std::fs::canonicalize(&grant.path).is_ok_and(|path| wanted.starts_with(path)));
+    let mut found = false;
+    for grant in inside {
+        found = true;
+        if asked <= grant.mode {
+            return Ok(());
+        }
+    }
+    Err(Refusal::new(
+        "denied",
+        if found {
+            format!(
+                "You allowed less than that in {}. Running an agent needs full access.",
+                wanted.display()
+            )
+        } else {
+            format!(
+                "{} is not inside a folder you allowed agents to work in.",
+                wanted.display()
+            )
+        },
+    ))
 }
 
 fn text(args: &Map<String, Value>, key: &str) -> Result<String, Refusal> {
@@ -549,20 +670,12 @@ async fn shell(
         return Err(Refusal::new("denied", "You did not allow that command."));
     }
     let timeout = args.get("timeout").and_then(Value::as_f64).unwrap_or(600.0);
-    let mut command = sandboxed(root, mode, &line)?;
+    let mut command = sandboxed(root, mode, &line, args.get("env").and_then(Value::as_object))?;
     command
-        .current_dir(root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if let Some(Value::Object(env)) = args.get("env") {
-        for (key, value) in env {
-            if let Some(value) = value.as_str() {
-                command.env(key, value);
-            }
-        }
-    }
     run_command(command, timeout).await
 }
 
@@ -638,10 +751,98 @@ async fn capped(stream: &mut (impl tokio::io::AsyncRead + Unpin)) -> Vec<u8> {
     kept
 }
 
+/// Retain a descriptor through spawn without making it inheritable in the
+/// multithreaded parent. The command owns it until exec or cancellation.
+#[cfg(target_os = "linux")]
+fn inherit_descriptor(
+    command: &mut tokio::process::Command,
+    descriptor: std::os::fd::OwnedFd,
+) -> Result<std::os::fd::RawFd, Refusal> {
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+
+    // Duplicate above the standard streams so configuring stdin/stdout cannot
+    // replace it. CLOEXEC stays set until the child has forked.
+    let fd = unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
+    if fd < 0 {
+        return Err(Refusal::new(
+            "io",
+            format!(
+                "The sandbox descriptor could not be retained: {}",
+                std::io::Error::last_os_error()
+            ),
+        ));
+    }
+    // fcntl returned a fresh descriptor; this closure owns and closes it on
+    // cancellation or spawn failure. Only async-signal-safe calls run after fork.
+    let held = unsafe { OwnedFd::from_raw_fd(fd) };
+    unsafe {
+        command.pre_exec(move || {
+            let fd = held.as_raw_fd();
+            let flags = libc::fcntl(fd, libc::F_GETFD);
+            if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    Ok(fd)
+}
+
+/// Pass sandbox parameters through an anonymous file so task environment values
+/// do not become visible in the wrapper's process command line.
+#[cfg(target_os = "linux")]
+fn inherit_arguments(
+    command: &mut tokio::process::Command,
+    arguments: &[String],
+) -> Result<std::os::fd::RawFd, Refusal> {
+    use std::io::{Seek, Write};
+    use std::os::fd::FromRawFd;
+
+    // The name is a static NUL-terminated C string; a successful memfd is owned
+    // by File immediately, including all write and seek failure paths.
+    let fd = unsafe { libc::memfd_create(c"agenticos-sandbox-args".as_ptr(), libc::MFD_CLOEXEC) };
+    if fd < 0 {
+        return Err(Refusal::new(
+            "io",
+            format!(
+                "The sandbox arguments could not be retained: {}",
+                std::io::Error::last_os_error()
+            ),
+        ));
+    }
+    let mut file = unsafe { std::fs::File::from_raw_fd(fd) };
+    for argument in arguments {
+        if argument.as_bytes().contains(&0) {
+            return Err(Refusal::new("denied", "Sandbox arguments cannot contain NUL bytes."));
+        }
+        file.write_all(argument.as_bytes())
+            .and_then(|()| file.write_all(&[0]))
+            .map_err(|error| Refusal::new("io", format!("The sandbox arguments could not be written: {error}")))?;
+    }
+    file.rewind()
+        .map_err(|error| Refusal::new("io", format!("The sandbox arguments could not be read: {error}")))?;
+    inherit_descriptor(command, file.into())
+}
+
 /// The command, wrapped in this OS's sandbox when the mode asks for one.
-fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Command, Refusal> {
+fn sandboxed(
+    root: &Path,
+    mode: Mode,
+    line: &str,
+    environment: Option<&Map<String, Value>>,
+) -> Result<tokio::process::Command, Refusal> {
+    let environment: Vec<(&str, &str)> = environment
+        .into_iter()
+        .flatten()
+        .filter_map(|(key, value)| value.as_str().map(|value| (key.as_str(), value)))
+        .collect();
     if mode == Mode::FullAccess {
-        return Ok(plain_shell(line));
+        let mut command = plain_shell(line);
+        command.current_dir(root);
+        for (key, value) in environment {
+            command.env(key, value);
+        }
+        return Ok(command);
     }
     let root_text = root.to_string_lossy();
     if cfg!(target_os = "macos") {
@@ -656,32 +857,44 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
              (subpath \"/dev/fd\") (literal \"/dev/stdout\") (literal \"/dev/stderr\") (literal \"/dev/tty\"))"
         );
         let mut command = tokio::process::Command::new("/usr/bin/sandbox-exec");
-        command.args(["-p", &profile, "/bin/sh", "-c", line]);
+        command.args(["-p", &profile, "/bin/sh", "-c", line]).current_dir(root);
         command
             .env_clear()
             .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin")
             .env("HOME", root)
             .env("TMPDIR", root);
+        for (key, value) in environment {
+            command.env(key, value);
+        }
         return Ok(command);
     }
-    if cfg!(target_os = "linux") {
-        let bwrap = which("bwrap").ok_or_else(|| {
+    #[cfg(target_os = "linux")]
+    {
+        let bwrap = descriptor_bwrap().ok_or_else(|| {
             Refusal::new(
                 "denied",
-                "Writing in a folder needs bubblewrap on Linux; install it, or use full access.",
+                "Writing in a folder needs bubblewrap with --bind-fd support on Linux; upgrade it, or use full access.",
             )
         })?;
         let mut command = tokio::process::Command::new(bwrap);
-        command.args([
-            "--unshare-pid",
-            "--dev",
-            "/dev",
-            "--proc",
-            "/proc",
-            "--tmpfs",
-            "/tmp",
-            "--die-with-parent",
-        ]);
+        let directory = crate::local_fs::open(root)
+            .map_err(|error| Refusal::new("denied", format!("The approved folder could not be opened: {error}")))?;
+        let root_fd = inherit_descriptor(&mut command, directory.into_std_file().into())?.to_string();
+        let mut options = Vec::new();
+        command.current_dir("/");
+        options.extend(
+            [
+                "--unshare-pid",
+                "--dev",
+                "/dev",
+                "--proc",
+                "/proc",
+                "--tmpfs",
+                "/tmp",
+                "--die-with-parent",
+            ]
+            .map(str::to_owned),
+        );
         // Runtime files only: binding `/` also exposes the person's SSH keys,
         // browser profiles and other files outside the approved workspace.
         for runtime in [
@@ -700,19 +913,25 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
             "/etc/pki",
         ] {
             if Path::new(runtime).exists() {
-                command.args(["--ro-bind", runtime, runtime]);
+                options.extend(["--ro-bind", runtime, runtime].map(str::to_owned));
             }
         }
-        command.args([
-            "--bind", &root_text, &root_text, "--chdir", &root_text, "--", "/bin/sh", "-c", line,
-        ]);
+        options.extend(["--bind-fd", &root_fd, &root_text, "--chdir", &root_text].map(str::to_owned));
+        for (key, value) in environment {
+            options.extend(["--setenv", key, value].map(str::to_owned));
+        }
+        let arguments_fd = inherit_arguments(&mut command, &options)?.to_string();
+        // Bubblewrap's --args file carries options only; its parser does not
+        // propagate a command read from that file back to the outer argv.
+        command.args(["--args", &arguments_fd, "--", "/bin/sh", "-c", line]);
         command
             .env_clear()
             .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin")
             .env("HOME", root)
             .env("TMPDIR", "/tmp");
-        return Ok(command);
+        Ok(command)
     }
+    #[cfg(not(target_os = "linux"))]
     Err(Refusal::new(
         "denied",
         "This computer has no sandbox for writing in a folder; use full access.",
@@ -759,6 +978,36 @@ async fn allowed(app: &AppHandle, root: &Path, line: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_session_may_start_inside_a_full_access_folder_and_nowhere_else() {
+        let base = std::fs::canonicalize(std::env::temp_dir())
+            .unwrap()
+            .join(format!("agenticos-within-{}", uuid::Uuid::new_v4()));
+        let granted = base.join("work");
+        let app = granted.join("app");
+        let sibling = base.join("work-other");
+        for folder in [&app, &sibling] {
+            std::fs::create_dir_all(folder).unwrap();
+        }
+        let full = [Grant {
+            path: granted.to_string_lossy().into_owned(),
+            mode: Mode::FullAccess,
+        }];
+        assert!(super::within(&app, &full, Mode::FullAccess).is_ok());
+        // A name that merely starts the same is not inside it.
+        assert!(super::within(&sibling, &full, Mode::FullAccess).is_err());
+        let read = [Grant {
+            path: granted.to_string_lossy().into_owned(),
+            mode: Mode::ReadOnly,
+        }];
+        let refused = super::within(&app, &read, Mode::FullAccess).unwrap_err();
+        assert!(refused.message.contains("less than that"));
+        // `..` is resolved before it is compared, so it cannot climb out.
+        let climbed = std::fs::canonicalize(app.join("../../work-other")).unwrap();
+        assert!(super::within(&climbed, &full, Mode::FullAccess).is_err());
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
     use super::*;
 
     #[test]
@@ -917,6 +1166,61 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn replacing_a_root_after_command_preparation_cannot_change_the_mounted_directory() {
+        let root = folder();
+        let outside = folder();
+        let moved = root.with_extension("retained");
+        std::fs::write(root.join("allowed"), "workspace-data").unwrap();
+        std::fs::write(outside.join("secret"), "private-data").unwrap();
+        let mut command = sandboxed(
+            &root,
+            Mode::WorkspaceWrite,
+            "printf confined > marker; cat allowed; cat secret",
+            None,
+        )
+        .unwrap();
+        std::fs::rename(&root, &moved).unwrap();
+        std::os::unix::fs::symlink(&outside, &root).unwrap();
+        let output = command.output().await.unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            text.contains("workspace-data"),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!text.contains("private-data"));
+        assert_eq!(std::fs::read_to_string(moved.join("marker")).unwrap(), "confined");
+        assert!(!outside.join("marker").exists());
+        std::fs::remove_file(root).unwrap();
+        std::fs::remove_dir_all(moved).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn caller_environment_is_private_and_applied_only_inside_the_sandbox() {
+        let root = folder();
+        let environment = object(serde_json::json!({"LD_PRELOAD": "untrusted.so", "TASK": "example"}));
+        let command = sandboxed(&root, Mode::WorkspaceWrite, "true", Some(&environment)).unwrap();
+        assert!(!command
+            .as_std()
+            .get_envs()
+            .any(|(name, _)| name == "LD_PRELOAD" || name == "TASK"));
+        let arguments: Vec<_> = command.as_std().get_args().collect();
+        assert_eq!(arguments[0], "--args");
+        assert_eq!(arguments.len(), 6);
+        assert_eq!(&arguments[2..], ["--", "/bin/sh", "-c", "true"]);
+        let retained = std::fs::read(format!("/proc/self/fd/{}", arguments[1].to_string_lossy())).unwrap();
+        assert!(retained
+            .windows(b"--setenv\0LD_PRELOAD\0untrusted.so\0".len())
+            .any(|bytes| bytes == b"--setenv\0LD_PRELOAD\0untrusted.so\0"));
+        let invalid = object(serde_json::json!({"TASK": "has\0nul"}));
+        assert!(sandboxed(&root, Mode::WorkspaceWrite, "true", Some(&invalid)).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[tokio::test]
     async fn workspace_shell_cannot_read_files_outside_the_grant() {
@@ -928,7 +1232,7 @@ mod tests {
             "cat allowed; cat {}",
             shell_quote(&outside.join("secret").to_string_lossy())
         );
-        let output = sandboxed(&root, Mode::WorkspaceWrite, &line)
+        let output = sandboxed(&root, Mode::WorkspaceWrite, &line, None)
             .unwrap()
             .current_dir(&root)
             .output()
@@ -1073,5 +1377,27 @@ mod tests {
         assert_eq!(shell_quote("ls"), "ls");
         assert_eq!(shell_quote("a b"), "'a b'");
         assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn descriptor_bind_probe_rejects_unsupported_failing_missing_and_hung_builds() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = folder();
+        let binary = root.join("bwrap");
+        assert!(!supports_descriptor_binds(&binary));
+        for (script, expected) in [
+            ("#!/bin/sh\nprintf '%s\\n' '--bind SRC DEST'\n", false),
+            ("#!/bin/sh\nprintf '%s\\n' '--bind-fd FD DEST'\n", true),
+            ("#!/bin/sh\nprintf '%s\\n' '--bind-fd FD DEST'\nexit 1\n", false),
+            ("#!/bin/sh\nexec sleep 5\n", false),
+        ] {
+            std::fs::write(&binary, script).unwrap();
+            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let started = std::time::Instant::now();
+            assert_eq!(supports_descriptor_binds(&binary), expected);
+            assert!(started.elapsed() < std::time::Duration::from_secs(4));
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

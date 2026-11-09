@@ -13,10 +13,23 @@ and is kept, and a run parked on an approval has to resume with it.
 """
 
 from collections.abc import Sequence
+from copy import copy
+from dataclasses import asdict
 from typing import Any
 from uuid import uuid4
 
-from pydantic_ai.messages import BinaryContent, ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import (
+    BinaryContent,
+    LoadCapabilityCallPart,
+    LoadCapabilityReturnPart,
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+)
+
+from app.agents.capabilities._registry import READ_SKILL
 
 EPHEMERAL = "ephemeral-"
 """The prefix of an ephemeral picture's `identifier`, which survives serialization."""
@@ -58,9 +71,40 @@ def without_ephemeral(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return messages
 
 
+def _serializable_messages(messages: Sequence[ModelMessage]) -> list[ModelMessage]:
+    """Use the base schema only for extended loader parts, preserving SDK codecs.
+
+    The SDK union selects a native parent's literal-name schema for subclasses.
+    Generic copies retain the namespaced kind and all fields; SDK deserialization
+    promotes them back. Copy messages without constructing them again, because
+    their post-init would immediately promote the parts before serialization.
+    """
+    prepared: list[ModelMessage] = []
+    for message in messages:
+        shadow = copy(message)
+        if isinstance(shadow, ModelResponse):
+            shadow.parts = [
+                ToolCallPart(**asdict(part))
+                if isinstance(part, LoadCapabilityCallPart) and part.tool_name == READ_SKILL
+                else part
+                for part in shadow.parts
+            ]
+        else:
+            shadow.parts = [
+                ToolReturnPart(**asdict(part))
+                if isinstance(part, LoadCapabilityReturnPart) and part.tool_name == READ_SKILL
+                else part
+                for part in shadow.parts
+            ]
+        prepared.append(shadow)
+    return prepared
+
+
 def dump_messages(messages: Sequence[ModelMessage]) -> list[dict[str, Any]]:
     """Messages as JSON to store, without the pictures nobody keeps."""
-    return without_ephemeral(ModelMessagesTypeAdapter.dump_python(list(messages), mode="json"))
+    return without_ephemeral(
+        ModelMessagesTypeAdapter.dump_python(_serializable_messages(messages), mode="json")
+    )
 
 
 def describe_binary(value: object) -> str:

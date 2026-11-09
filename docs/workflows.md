@@ -36,7 +36,22 @@ of a published version.
 
 ### Templates, exporting and importing { #templates-exporting-and-importing }
 
-The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a table and a fully configured draft in one transaction. Templates start private; an explicit audience applies to both the workflow and its table. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
+The templates with tables are **Public API → table** and **Markdown notebook**. The server prepares a table and a fully configured draft in one transaction. Templates start private; an explicit audience applies to both the workflow and its table. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
+
+**Await a reply** starts a private manual workflow against a connected Gmail or
+Outlook mailbox you select explicitly during creation. It needs no table permission,
+model or sender credential beyond the existing read grant. Publish the draft, then
+**Run** asks for the provider thread ID, exact sender, start timestamp and deadline
+(ISO 8601 with timezone). A verified reply ends through the reply branch; otherwise
+a successful final mailbox check writes one reminder for the creator to review the
+thread and prepare a follow-up. No follow-up is sent automatically.
+
+For Outlook, the creation form can also name a shared mailbox the connected account may read.
+
+The notification defaults to in-app. Its **Notify members** step can select the
+other supported notification channels, subject to each recipient's preferences
+and private-channel consent. The [awaited-reply step](reference/workflow-nodes.md#flow-await-reply)
+keeps matching, pause/correction, cancellation and deadline semantics.
 
 Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
 
@@ -86,7 +101,9 @@ on resumes it as its publisher, so it needs permission to run the workflow. A ca
 be restored, still paused, or deleted with its versions, runs and shares; one whose
 runs have not ended is refused with `WORKFLOW_IN_USE`.
 
-Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives only the workflow result. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives the workflow result and any agent questions. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
+
+An agent step can call `ask_user_question` to pause with **Waiting for user**. Answer its question card in the originating chat or on the run page. Your answer completes the pending tool call, and the workflow worker resumes the same agent conversation. The agent can ask again before returning its final result. Other independent branches may continue while this step waits.
 
 Agents called from workflows can use their AgenticOS MCP tools in the background worker as well as in the web chat.
 
@@ -894,6 +911,15 @@ other trigger has a door of its own. A test run of the draft takes any trigger, 
 field is, and an API call whose input does not fit is refused with the fields that
 are wrong. See [core.input](reference/workflow-nodes.md#core-input).
 
+For nested objects and arrays, configure an optional JSON Schema Draft 2020-12
+`input_schema` on **Manual**, **API request** or **Called by a workflow** instead
+of simple fields. The schema is saved with the published version, and every run
+must satisfy that version's contract before it starts. API and MCP callers can
+inspect the same contract before sending input. See
+[JSON Schema input contracts](reference/workflow-nodes.md#json-schema-input-contracts)
+for configuration, references and validation errors. Existing simple-field inputs
+and workflows without a contract keep their behavior.
+
 ### From the chat { #from-the-chat }
 
 The chat's picker of who answers lists, below the agents, the published workflows
@@ -1295,3 +1321,8 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
   version, and a run shows its graph step by step as it happened.
 
 New automations can be submitted through `prepare_workflow_draft`: one approval creates a private table and complete graph atomically. A failed validation leaves neither resource behind. `check_workflow_draft` checks the graph and its resource references without executing handlers or requiring a write approval. It explicitly reports that integrations remain unverified. Test runs with actions still require approval; schedule tests accept plain sample input and supply the event timestamp and configured defaults automatically. The run page distinguishes skeleton checks from integration verification.
+
+
+### Follow-up drafts { #follow-up-drafts }
+
+The Await reply creation dialog can also enable **Prepare a follow-up draft after the deadline**. Choose an existing model and a maximum cost per draft. When starting the workflow, provide the context the draft should use. Only a successfully checked deadline branch runs this agent; a verified reply skips it, and a mailbox failure fails the check. The agent has no tools. Its draft is saved in the workflow result and you receive a notification pointing there. Review the current thread before sending anything. This preset does not create a draft in Gmail/Outlook or send mail.

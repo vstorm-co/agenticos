@@ -7,15 +7,19 @@ happily - the token itself is what talks to Slack or Telegram as that
 organization, so that was a tenant boundary with nothing behind it.
 """
 
+import hashlib
 import logging
 import secrets
 from typing import Any
-from uuid import UUID
+from urllib.parse import urlsplit
+from uuid import UUID, uuid4
 
+from pydantic import JsonValue, SecretStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import spawn_after_commit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, assignable_roles
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
@@ -45,7 +49,13 @@ from app.services.channels import (
     get_adapter,
     inbound_webhook_url,
 )
+from app.services.channels.base import IncomingMessage
+from app.services.channels.email import is_address
+from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.imessage import TAPBACK_REACTIONS
+from app.services.channels.imessage_transport import BridgeCredentials
 from app.services.channels.slack_manifest import slack_manifest
+from app.services.channels.sms import split_credentials
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
@@ -84,6 +94,14 @@ def unseal_bot_token(bot: ChannelBot) -> str:
             app_id=bot.teams_app_id or "",
             tenant_id=bot.teams_tenant_id or "",
             client_secret=token,
+        ).encode()
+    if bot.platform == "imessage":
+        secret = unseal_webhook_secret(bot)
+        return BridgeCredentials(
+            bot_id=bot.id,
+            server=bot.api_base_url or "",
+            password=SecretStr(token),
+            webhook_secret=SecretStr(secret) if secret is not None else None,
         ).encode()
     return token
 
@@ -171,8 +189,8 @@ class ChannelBotService:
     `organization_id` is the tenant every management call is scoped to. It is
     `None` only on the inbound path (webhook / poller), where no member is
     making the request and the bot row itself carries the organization - those
-    callers may use :meth:`find_active` and :meth:`get_decrypted_token` and
-    nothing else.
+    callers may use :meth:`find_active`, :meth:`get_decrypted_token` and
+    :meth:`queue_delivery`.
     """
 
     def __init__(self, db: AsyncSession, organization_id: UUID | None = None) -> None:
@@ -233,6 +251,58 @@ class ChannelBotService:
             name=f"open_channel_stream:{bot_id}",
         )
 
+    async def queue_delivery(
+        self, bot: ChannelBot, payload: dict[str, JsonValue], incoming: IncomingMessage
+    ) -> None:
+        """Persist an authenticated SMS/iMessage before the provider receives its acknowledgement."""
+        from app.repositories import background_job as job_repo
+        from app.services.background_jobs import enqueue
+        from app.worker.jobs import PROCESS_CHANNEL_DELIVERY, ChannelDelivery
+
+        if bot.platform not in {"sms", "imessage"}:
+            raise ValueError("This delivery queue accepts SMS and iMessage only")
+        job = ChannelDelivery.model_validate(
+            {
+                "organization_id": bot.organization_id,
+                "bot_id": bot.id,
+                "platform": bot.platform,
+                "payload": payload,
+            }
+        )
+        key = (
+            f"channel:{bot.id}:{hashlib.sha256(incoming.message_id.encode()).hexdigest()}"
+            if incoming.message_id
+            else None
+        )
+        if (
+            key is not None
+            and await job_repo.get_by_idempotency_key(
+                self.db, organization_id=bot.organization_id, idempotency_key=key
+            )
+            is not None
+        ):
+            return
+        try:
+            async with self.db.begin_nested():
+                await enqueue(
+                    self.db,
+                    PROCESS_CHANNEL_DELIVERY,
+                    job,
+                    organization_id=bot.organization_id,
+                    idempotency_key=key,
+                    concurrency_key=f"channel:{bot.id}:{hashlib.sha256(incoming.platform_chat_id.encode()).hexdigest()}",
+                )
+        except IntegrityError:
+            if (
+                key is not None
+                and await job_repo.get_by_idempotency_key(
+                    self.db, organization_id=bot.organization_id, idempotency_key=key
+                )
+                is not None
+            ):
+                return
+            raise
+
     async def create(self, data: ChannelBotCreate) -> ChannelBot:
         """Create a new channel bot with its credentials sealed, and open its stream.
 
@@ -258,6 +328,9 @@ class ChannelBotService:
                 data.speech_to_text_secret_id, provider=data.speech_to_text_provider
             )
         self._check_command_token(data.platform, data.command_token)
+        self._check_sms(data)
+        self._check_email(data)
+        self._check_imessage_reaction(data.platform, data.ack_reaction)
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
         webhook_secret = self._initial_webhook_secret(data)
         bot = await channel_bot_repo.create(
@@ -426,20 +499,79 @@ class ChannelBotService:
         an attachment, which is the state every Mattermost bot was in before the
         field existed.
         """
-        if platform == "mattermost" and api_base_url is None:
+        if platform in {"mattermost", "imessage"} and api_base_url is None:
             raise refused_field(
                 "api_base_url",
-                "A Mattermost bot cannot lose its server URL - it is self-hosted, "
+                "A self-hosted bot cannot lose its server URL - "
                 "so there is no default address to fall back to",
                 platform=platform,
             )
-        if platform != "mattermost" and api_base_url is not None:
+        if platform == "imessage" and api_base_url is not None:
+            endpoint = urlsplit(api_base_url)
+            if endpoint.query or endpoint.fragment:
+                raise refused_field(
+                    "api_base_url", "An iMessage bridge endpoint cannot contain query or fragment"
+                )
+        if platform not in {"mattermost", "imessage"} and api_base_url is not None:
             raise refused_field(
                 "api_base_url",
                 f"A server URL is for a self-hosted platform - a {platform} bot "
                 "has one address for everybody",
                 platform=platform,
             )
+
+    @staticmethod
+    def _check_imessage_reaction(platform: str, reaction: str | None) -> None:
+        if (
+            platform == "imessage"
+            and reaction is not None
+            and reaction not in TAPBACK_REACTIONS | {"eyes"}
+        ):
+            raise refused_field(
+                "ack_reaction", "Choose a supported iMessage tapback or turn it off"
+            )
+
+    @staticmethod
+    def _check_sms(data: ChannelBotCreate) -> None:
+        """An SMS bot is a Twilio number: webhook only, and a token that can sign and send."""
+        if data.platform != "sms":
+            return
+        if not data.webhook_mode:
+            raise refused_field(
+                "webhook_mode", "SMS arrives only by webhook; there is no connection to open"
+            )
+        ChannelBotService._check_sms_token(data.platform, data.token)
+
+    @staticmethod
+    def _check_sms_token(platform: str, token: str) -> None:
+        """A replacement token for an SMS bot must still be one that can sign and send."""
+        if platform != "sms":
+            return
+        try:
+            split_credentials(token)
+        except ChannelNotConfigured as exc:
+            raise refused_field("token", exc.message) from exc
+
+    @staticmethod
+    def _check_email(data: ChannelBotCreate) -> None:
+        """An e-mail bot is an address and a relay: webhook only, signed with a secret it was given."""
+        if data.platform != "email":
+            return
+        if not data.webhook_mode:
+            raise refused_field(
+                "webhook_mode", "E-mail arrives only through the relay's webhook; nothing to poll"
+            )
+        ChannelBotService._check_email_token(data.platform, data.token)
+        if data.webhook_secret is None:
+            raise refused_field(
+                "webhook_secret", "Give the secret the mail relay will sign its requests with"
+            )
+
+    @staticmethod
+    def _check_email_token(platform: str, token: str) -> None:
+        """An e-mail bot's token is the address its replies come from."""
+        if platform == "email" and not is_address(token):
+            raise refused_field("token", "An e-mail bot's token is the address it sends from")
 
     @staticmethod
     def _check_command_token(platform: str, command_token: str | None) -> None:
@@ -633,6 +765,20 @@ class ChannelBotService:
                 reads that as everybody having left them, so replacing the token
                 takes what deleting the mappings takes.
         """
+        if data.token is not None:
+            candidate = await self.get(bot_id)
+            if candidate.platform == "sms":
+                from app.db.locks import LockScope, hold_subject
+                from app.repositories import telephony as phone_repo
+
+                # Match admission/deletion ordering: the org fence precedes the bot row.
+                await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, self._org_id)
+                if await phone_repo.bot_has_unfinished_calls(
+                    self.db, organization_id=self._org_id, bot_id=bot_id
+                ):
+                    raise ConflictError(
+                        message="End all telephone calls before replacing this SMS bot's credentials"
+                    )
         # Locked from the read: every credential below is sealed at the row's
         # recorded key version, and a rotation committing between an unlocked
         # read and this write would tag the new envelopes with a version they
@@ -650,6 +796,26 @@ class ChannelBotService:
                 "Say true or false - a null pair is what inherits now",
             )
         update_data = writable(data, over=ChannelBot)
+        if "ack_reaction" in update_data:
+            self._check_imessage_reaction(bot.platform, update_data["ack_reaction"])
+        if bot.platform == "imessage" and update_data.get("webhook_mode") is False:
+            raise refused_field("webhook_mode", "iMessage arrives only through its bridge webhook")
+        if bot.platform == "imessage" and "webhook_secret" in update_data:
+            raise refused_field(
+                "webhook_secret", "The iMessage callback credential is generated by AgenticOS"
+            )
+        if update_data.get("token") is not None or any(
+            field in update_data and update_data[field] != getattr(bot, field)
+            for field in ("api_base_url", "teams_app_id", "teams_tenant_id")
+        ):
+            update_data["authorization_generation"] = uuid4()
+            if bot.platform == "imessage":
+                # The old Mac knows its callback credential. Replacing the bridge
+                # must revoke that caller too, before the new hook is registered.
+                update_data["webhook_secret_encrypted"] = self._seal_at(
+                    secrets.token_urlsafe(32), key_version=bot.secret_key_version
+                )
+
         if bot.platform in STREAM_ONLY and (
             update_data.get("webhook_mode") or update_data.get("webhook_secret") is not None
         ):
@@ -680,6 +846,9 @@ class ChannelBotService:
                 update_data.pop("slack_app_token"), key_version=bot.secret_key_version
             )
         if update_data.get("token") is not None:
+            self._check_sms_token(bot.platform, update_data["token"])
+            self._check_email_token(bot.platform, update_data["token"])
+
             await self._refuse_unless_mappings_removable(bot, ctx)
             # Sealed at the row's existing version, beside its other envelopes, and
             # the version column is left alone. Re-sealing the token afresh (at the
@@ -741,6 +910,16 @@ class ChannelBotService:
         """
         # Locked before its mappings are read: they cascade with the bot, and
         # one committed between this check and the delete would go unchecked.
+        bot = await self.get(bot_id)
+        if bot.platform == "sms":
+            from app.db.locks import LockScope, hold_subject
+            from app.repositories import telephony as phone_repo
+
+            await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, self._org_id)
+            if await phone_repo.bot_has_unfinished_calls(
+                self.db, organization_id=self._org_id, bot_id=bot_id
+            ):
+                raise ConflictError(message="End all telephone calls before deleting this SMS bot")
         bot = await self.get(bot_id, for_update=True)
         await self._refuse_unless_mappings_removable(bot, ctx)
         platform = bot.platform
@@ -792,6 +971,18 @@ class ChannelBotService:
         "stop it" needed a deploy.
         """
         bot = await self.get(bot_id)
+        if bot.platform == "sms":
+            from app.db.locks import LockScope, hold_subject
+            from app.repositories import telephony as phone_repo
+
+            await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, self._org_id)
+            if await phone_repo.bot_has_unfinished_calls(
+                self.db, organization_id=self._org_id, bot_id=bot_id
+            ):
+                raise ConflictError(
+                    message="End all telephone calls before deactivating this SMS bot"
+                )
+        bot = await self.get(bot_id, for_update=True)
         deactivated = await channel_bot_repo.update(
             self.db, db_bot=bot, update_data={"is_active": False}
         )

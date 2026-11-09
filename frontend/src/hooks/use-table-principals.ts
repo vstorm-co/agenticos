@@ -1,5 +1,9 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { getTableAssignees } from "@/lib/tables-api";
+import { qk } from "@/lib/query-keys";
+
 import { useMembers } from "./use-members";
 import { useAgents } from "./use-agents";
 import { useOrgStore } from "@/stores/org-store";
@@ -11,10 +15,13 @@ export interface PrincipalOption extends RecordSource {
 }
 
 /** Reuses the console's tenant-scoped, permission-filtered directories. */
-export function useTablePrincipals(kind: "user" | "agent") {
+export function useTablePrincipals(kind: "user" | "agent", enabled = true) {
   const orgId = useOrgStore((state) => state.activeOrgId);
-  const people = useMembers(kind === "user" ? (orgId ?? "") : "");
-  const agents = useAgents({ includeArchived: true, enabled: kind === "agent" && orgId !== null });
+  const people = useMembers(kind === "user" && enabled ? (orgId ?? "") : "");
+  const agents = useAgents({
+    includeArchived: true,
+    enabled: enabled && kind === "agent" && orgId !== null,
+  });
   const items: PrincipalOption[] =
     kind === "user"
       ? people.members.map((member) => ({
@@ -38,4 +45,12 @@ export function useTablePrincipals(kind: "user" | "agent") {
     isLoading: kind === "user" ? people.isLoading : agents.isLoading,
     error: kind === "user" ? people.error : agents.error,
   };
+}
+
+export function useTableAssignees(tableId: string) {
+  return useQuery({
+    queryKey: qk.tables.assignees(tableId),
+    queryFn: () => getTableAssignees(tableId),
+    staleTime: 0,
+  });
 }
