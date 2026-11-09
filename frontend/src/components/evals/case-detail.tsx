@@ -1,5 +1,7 @@
 "use client";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
+
 import Link from "next/link";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -60,7 +62,9 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
       </div>
       <div className="space-y-2 p-3">
         {attempt.answer !== null && (
-          <p className="text-foreground text-sm whitespace-pre-wrap">{attempt.answer}</p>
+          <div className="prose-sm min-w-0 text-sm leading-relaxed wrap-anywhere">
+            <MarkdownContent content={attempt.answer} inertImages />
+          </div>
         )}
         {attempt.error && (
           <div

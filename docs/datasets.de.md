@@ -1,5 +1,5 @@
 ---
-source_sha: "b2ccf149c486"
+source_sha: "9c37b08af0c5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -247,8 +247,10 @@ nennt das Dataset und öffnet es.
 
 ### Vom Fallgenerator { #generating-cases }
 
+**Fälle generieren** öffnet den Dialog direkt unter Fälle. Nach dem Start erscheint die Vorschlagsansicht; beim Abbrechen bleibt die Fallliste geöffnet. Referenzantworten und tatsächliche Antworten unterstützen Markdown und aufklappbare Vorschauen für lange Inhalte. Auf breiten Bildschirmen stehen sie in den Antwortdetails nebeneinander.
+
 Hundert gute Fälle von Hand zu schreiben ist der Grund, warum die meisten Teams
-keine haben. Der Ansicht **Fälle → Generierung** auf der Seite eines Datasets, sichtbar für
+keine haben. Die Aktion **Fälle generieren** auf der Seite eines Datasets, sichtbar für
 Mitglieder, die das Dataset bearbeiten dürfen, bittet den Fallgenerator, sie zu entwerfen, und Sie entscheiden, welche das Dataset behält.
 Wählen Sie den Agent, den die Fälle testen - den, aus dessen Anweisungen, Tools
 und Chats sie geschrieben werden; gegen ihn läuft nichts -, die Quellen und wie

@@ -1,5 +1,5 @@
 ---
-source_sha: "b2ccf149c486"
+source_sha: "9c37b08af0c5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -233,8 +233,10 @@ dataset y lo abre.
 
 ### Generados por el generador de casos { #generating-cases }
 
+**Generate cases** abre el diálogo directamente desde Cases. Al iniciar la generación se abre la vista de propuestas; al cancelar permanece la lista de casos. Las respuestas de referencia y reales admiten Markdown y vistas previas ampliables para textos largos. En pantallas anchas, los detalles las muestran una al lado de la otra.
+
 Escribir cien buenos casos a mano es la razón por la que la mayoría de los
-equipos no tiene ninguno. La vista **Generate cases** en Cases de la página de un dataset, visible para
+equipos no tiene ninguno. La acción **Generate cases** en Cases de la página de un dataset, visible para
 quienes pueden editarlo, pide al
 generador de casos que los redacte, y tú decides cuáles conserva el dataset.
 Elige el agent que prueban los casos (aquel de cuyas instrucciones, herramientas

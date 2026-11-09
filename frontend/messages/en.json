@@ -13803,8 +13803,8 @@
       "judgeRun": "Judge's run",
       "verdictNote": "Note",
       "verdictNotePlaceholder": "Why, for whoever reads this next (optional)",
-      "markPassed": "Answer is fine (the judge was wrong)",
-      "markFailed": "Answer is wrong",
+      "markPassed": "Mark as passed",
+      "markFailed": "Mark as failed",
       "withdrawVerdict": "Withdraw decision",
       "verdictSaved": "Decision saved",
       "verdictWithdrawn": "Decision withdrawn",
@@ -13861,7 +13861,7 @@
         "description": "Evaluate answer quality with a model, using the instructions and criteria below. Model calls are paid and recorded in Activity."
       },
       "reviewCard": {
-        "title": "Review by a person"
+        "title": "Answer details"
       },
       "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
       "suggestReferenceAction": "Compare with the reference",

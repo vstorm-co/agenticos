@@ -32,8 +32,8 @@ environment without a person's decision.
   `WORKER_EVAL_CONCURRENCY` (default `4`) sizes that pool, and
   `agenticos cmd doctor` names a pool no live worker serves.
 - **Evaluation settings belong to datasets.** Choose the grading model and
-  instructions in **Grading**, and generation/improvement models and instructions
-  in **Settings**, using the Agent Builder's model picker and Markdown editor.
+  instructions in **Settings**, alongside generation/improvement models and
+  instructions, using the Agent Builder's model picker and Markdown editor.
   Code-defined helpers keep internal run identities, budgets and historical pins
   without appearing in the agent catalog or consuming the user-agent allowance.
   There is no organization-wide AI-assistance switch or grading-model override.

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useOrgStore } from "@/stores/org-store";
+import { ApiError } from "@/lib/api-error";
 import { StartSession } from "./start-session";
 
 const state = vi.hoisted(() => ({
@@ -408,4 +409,24 @@ it("drops a stale refusal after a dataset is successfully priced again", async (
   await userEvent.click(screen.getByRole("option", { name: "Refund desk - test questions" }));
   await waitFor(() => expect(state.estimate).toHaveBeenCalledTimes(3));
   await waitFor(() => expect(screen.queryByText("Old refusal")).toBeNull());
+});
+
+it("shows draft validation problems and a direct way back to the builder", async () => {
+  state.estimate.mockRejectedValueOnce(
+    new ApiError(400, "The draft cannot be evaluated", {
+      error: {
+        code: "BAD_REQUEST",
+        message: "The draft cannot be evaluated",
+        details: { problems: ["A model is required", "Select an available tool"] },
+      },
+    }),
+  );
+  const onClose = vi.fn();
+  render(<StartSession agentId="a1" onClose={onClose} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("A model is required");
+  expect(screen.getByRole("alert")).toHaveTextContent("Select an available tool");
+  const builder = screen.getByRole("link", { name: "Open the agent" });
+  expect(builder).toHaveAttribute("href", "/agents/a1?tab=build");
+  await userEvent.click(builder);
+  expect(onClose).toHaveBeenCalled();
 });

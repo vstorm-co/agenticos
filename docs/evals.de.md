@@ -1,5 +1,5 @@
 ---
-source_sha: "b3a1704cdeae"
+source_sha: "b01337524a1f"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -107,10 +107,7 @@ verlässt - ein Run nennt deren Zahl als `routed_replacing` - und eine Antwort,
 die älter ist als die wartende, wird nicht gesendet. Die Antwort eines anderen
 Agents auf den Fall wartet daneben.
 
-Der eigene Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent,
-jeden mit seinem Verlauf und seinen Runs, und **Evals starten** (Run evals) in
-seinem Kopfbereich öffnet den Startdialog auf dem Dataset und fragt, welcher
-Agent getestet werden soll.
+Unter **Ergebnisse → Testläufe** zeigt ein Dataset alle gemessenen Agents in einem gemeinsamen Diagramm und einer Run-Tabelle. **Evals starten** öffnet den Dialog auf diesem Dataset und fragt nach dem Agent. Wenn alle Antworten mit demselben Konfigurationsfehler scheitern, steht **Start fehlgeschlagen** statt einer Bestehensquote; solche Runs fehlen im Qualitätsverlauf.
 
 Die Karte **Eval-Runs** (Eval runs) im Dashboard listet die neuesten Runs der
 Organisation mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die

@@ -106,13 +106,29 @@ export function Toggle({
 }) {
   const id = useId();
   return (
-    <div className="flex items-start gap-2">
-      <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-      <div className="space-y-0.5">
-        <Label htmlFor={id}>{label}</Label>
-        <p className="text-muted-foreground text-xs">{hint}</p>
-      </div>
-    </div>
+    <label
+      htmlFor={id}
+      className={cn(
+        "has-[:focus-visible]:ring-ring flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2",
+        checked ? "border-foreground/30 bg-accent/40" : "hover:bg-accent/30",
+      )}
+    >
+      <Checkbox
+        id={id}
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-hint`}
+        checked={checked}
+        onCheckedChange={(value) => onChange(value === true)}
+      />
+      <span className="min-w-0 space-y-1">
+        <span id={`${id}-label`} className="block text-sm font-medium">
+          {label}
+        </span>
+        <span id={`${id}-hint`} className="text-muted-foreground block text-xs leading-relaxed">
+          {hint}
+        </span>
+      </span>
+    </label>
   );
 }
 

@@ -24,7 +24,7 @@ import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
-import { getErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, problemList } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
 import type { Improvement, ImprovementEstimate } from "@/types/improvement";
@@ -56,7 +56,11 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const [written, setWritten] = useState(0);
   const [budget, setBudget] = useState<string | null>(null);
   const [quoted, setQuote] = useState<{ key: string; value: ImprovementEstimate } | null>(null);
-  const [refusal, setRefusal] = useState<{ key: string; message: string } | null>(null);
+  const [refusal, setRefusal] = useState<{
+    key: string;
+    message: string;
+    problems: string[] | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
   // A set made for this agent wins over one it was only run against or guarded by.
@@ -90,7 +94,12 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         }
       },
       (failure: unknown) => {
-        if (current) setRefusal({ key, message: getErrorMessage(failure, tErrors) });
+        if (current)
+          setRefusal({
+            key,
+            message: getErrorMessage(failure, tErrors),
+            problems: problemList(failure),
+          });
       },
     );
     return () => {
@@ -191,9 +200,26 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
           <WriteQuestions agentId={agentId} onReady={questionsReady} />
         )}
         {refused !== null && (
-          <p role="alert" className="text-destructive-ink text-sm">
-            {refused}
-          </p>
+          <div
+            role="alert"
+            className="bg-destructive/5 border-destructive/20 space-y-3 rounded-lg border p-4 text-sm"
+          >
+            <p className="text-destructive-ink font-medium">{refused}</p>
+            {refusal?.problems && (
+              <ul className="text-muted-foreground list-disc space-y-1 pl-5 break-words">
+                {refusal.problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            )}
+            {refusal?.problems && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/agents/${agentId}?tab=build`} onClick={onClose}>
+                  {t("openAgent")}
+                </Link>
+              </Button>
+            )}
+          </div>
         )}
         {target && !quote && refused === null && (
           <p role="status" className="text-muted-foreground text-sm">

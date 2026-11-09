@@ -113,6 +113,19 @@ describe("ScoreCard", () => {
     expect(screen.getByText("The answer is not kept.")).toBeInTheDocument();
   });
 
+  it("keeps a long reference in a preview until the reader expands it", async () => {
+    render(<ScoreCard score={score({ reference_answer: "Expected details. ".repeat(40) })} />);
+    const reference = screen.getByText("Reference answer").parentElement;
+    if (!reference) throw new Error("Missing reference section");
+    const toggle = within(reference).getByRole("button", { name: "Show all" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(within(reference).getByRole("button", { name: "Show less" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("says the answer is hidden from a reader who may not view the agent that gave it", () => {
     render(<ScoreCard score={score({ answer: null, answer_hidden: true })} />);
 
@@ -398,10 +411,8 @@ describe("ScoreCard", () => {
     render(<ScoreCard score={score()} onVerdict={onVerdict} />);
 
     await userEvent.type(screen.getByRole("textbox", { name: "Note" }), "Fine by policy");
-    await userEvent.click(
-      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mark as passed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mark as failed" }));
 
     expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: true, note: "Fine by policy" });
     expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: "Fine by policy" });
@@ -415,7 +426,7 @@ describe("ScoreCard", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Withdraw decision" }));
     await userEvent.clear(screen.getByRole("textbox", { name: "Note" }));
-    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mark as failed" }));
 
     expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: null, note: null });
     expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: null });
@@ -424,10 +435,8 @@ describe("ScoreCard", () => {
   it("holds the decision while one is being saved", () => {
     render(<ScoreCard score={score()} onVerdict={vi.fn()} busy />);
 
-    expect(
-      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-    ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Answer is wrong" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Mark as passed" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Mark as failed" })).toBeDisabled();
   });
 
   it("offers review only for a score not already waiting", async () => {

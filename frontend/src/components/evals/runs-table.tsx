@@ -108,14 +108,20 @@ export function RunsTable({
                     }
                   >
                     <div className="text-sm font-semibold">
-                      {percent(candidate.summary.pass_rate, locale)}
+                      {candidate.failed_alike ? "—" : percent(candidate.summary.pass_rate, locale)}
                     </div>
-                    <div className="text-muted-foreground text-xs">
-                      {t("table.passedCount", {
-                        passed: candidate.summary.passed,
-                        total: candidate.summary.cases,
-                      })}
-                    </div>
+                    {candidate.failed_alike ? (
+                      <div className="text-muted-foreground text-xs">
+                        {t("comparison.verdict.failedAlike")}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">
+                        {t("table.passedCount", {
+                          passed: candidate.summary.passed,
+                          total: candidate.summary.cases,
+                        })}
+                      </div>
+                    )}
                     {candidate.summary.incomplete + candidate.summary.ungraded > 0 && (
                       <div className="text-muted-foreground text-xs">
                         {t("table.undecidedCount", {

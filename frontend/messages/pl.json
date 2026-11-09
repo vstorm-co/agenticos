@@ -13576,8 +13576,8 @@
       "judgeRun": "Run sędziego",
       "verdictNote": "Notatka",
       "verdictNotePlaceholder": "Dlaczego, dla kolejnej osoby, która to przeczyta (opcjonalnie)",
-      "markPassed": "Odpowiedź jest poprawna (sędzia się pomylił)",
-      "markFailed": "Odpowiedź jest błędna",
+      "markPassed": "Oznacz jako zaliczone",
+      "markFailed": "Oznacz jako niezaliczone",
       "withdrawVerdict": "Wycofaj decyzję",
       "verdictSaved": "Zapisano decyzję",
       "verdictWithdrawn": "Wycofano decyzję",
@@ -13634,7 +13634,7 @@
         "description": "Oceń jakość odpowiedzi modelem, według poniższych instrukcji i kryteriów. Wywołania są płatne i zapisywane w Aktywności."
       },
       "reviewCard": {
-        "title": "Przegląd przez człowieka"
+        "title": "Szczegóły odpowiedzi"
       },
       "suggestReference": "{count, plural, one {# przypadek ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} few {# przypadki mają odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} many {# przypadków ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} other {# przypadku ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.}}",
       "suggestReferenceAction": "Porównuj z wzorcem",

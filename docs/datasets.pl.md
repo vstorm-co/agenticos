@@ -1,5 +1,5 @@
 ---
-source_sha: "b2ccf149c486"
+source_sha: "9c37b08af0c5"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -231,9 +231,11 @@ nazwę datasetu i go otwiera.
 
 ### Z generatora przypadków { #generating-cases }
 
+**Generuj przypadki** otwiera formularz bezpośrednio z Przypadków. Po rozpoczęciu generowania otwiera się widok propozycji; anulowanie pozostawia listę przypadków. Odpowiedzi wzorcowe i rzeczywiste obsługują Markdown oraz rozwijane podglądy długiej treści. Na szerokim ekranie szczegóły pokazują je obok siebie.
+
 Napisanie stu dobrych przypadków ręcznie to powód, dla którego większość
-zespołów nie ma żadnych. Zakładka **Wygenerowane** na stronie datasetu,
-widoczna dla członków, którzy mogą go edytować, prosi generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
+zespołów nie ma żadnych. Przycisk **Generuj przypadki** w Przypadkach na stronie datasetu,
+widoczny dla członków, którzy mogą go edytować, prosi generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
 datasetu. Wybierz agenta, którego przypadki testują - tego, z którego
 instrukcji, narzędzi i czatów są pisane; nic nie jest na nim uruchamiane -
 źródła i liczbę

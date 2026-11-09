@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, X, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -58,13 +59,16 @@ export function ScoreDecision({
           />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(true)}>
+              <Check className="size-4" aria-hidden />
               {t("markPassed")}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(false)}>
+              <X className="size-4" aria-hidden />
               {t("markFailed")}
             </Button>
             {decided !== null && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => decide(null)}>
+                <Undo2 className="size-4" aria-hidden />
                 {t("withdrawVerdict")}
               </Button>
             )}

@@ -231,6 +231,7 @@ export function SuiteFormDialog({
             {t("cancel")}
           </Button>
           <Button
+            loading={saving}
             disabled={!ready || saving}
             onClick={() =>
               void save(inputFor(form))

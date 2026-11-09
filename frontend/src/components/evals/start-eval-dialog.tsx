@@ -22,7 +22,7 @@ import {
   useEveryDataset,
 } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage, problemList } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { isRunnable } from "@/lib/datasets";
 import { AgentSelect } from "@/components/agents/agent-select";
@@ -169,6 +169,7 @@ export function StartEvalDialog({
   // next is debounced must not be the price a click agrees to.
   const priced =
     asked !== null && JSON.stringify(estimate.variables) === asked ? estimate.data : undefined;
+  const problems = problemList(failure);
   const dataset = runnable.find((item) => item.id === datasetId);
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -240,6 +241,24 @@ export function StartEvalDialog({
           {failure && (
             <div role="alert" className="text-destructive-ink space-y-1 text-sm">
               <p>{getErrorMessage(failure, tErrors)}</p>
+              {problems && (
+                <>
+                  <ul className="list-disc space-y-1 pl-5 break-words">
+                    {problems.map((problem) => (
+                      <li key={problem}>{problem}</li>
+                    ))}
+                  </ul>
+                  {agentId && (
+                    <Link
+                      href={`${ROUTES.AGENTS}/${agentId}?tab=build`}
+                      onClick={() => onOpenChange(false)}
+                      className="text-foreground inline-block py-2 underline underline-offset-4"
+                    >
+                      {t("actions.backToBuild")}
+                    </Link>
+                  )}
+                </>
+              )}
               {assistanceOff && (
                 <Link
                   href={`${ROUTES.ORGS}/${activeOrgId}/members`}
@@ -257,6 +276,7 @@ export function StartEvalDialog({
           </Button>
           <Button
             data-tour="eval-run-start"
+            loading={start.isPending}
             disabled={!priced || !priced.affordable || start.isPending}
             onClick={() => full && void run(full).catch(() => undefined)}
           >

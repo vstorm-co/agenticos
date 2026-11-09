@@ -89,9 +89,7 @@ waiting, which leaves the queue undecided - a run says how many as
 `routed_replacing` - and an answer older than the one waiting is not sent.
 Another agent's answer to the case waits beside it.
 
-A dataset's own **Evals** tab lists every agent measured on it, each with its
-trend and runs, and its header's **Run evals** opens the start dialog on the
-dataset, asking which agent to test.
+A dataset’s **Results → Test runs** view lists every agent measured on it with a shared trend and runs table. **Run evals** opens the start dialog on the dataset, asking which agent to test. Runs whose answers all failed with the same setup error show **Could not run** instead of a pass rate and are excluded from the quality trend.
 
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out

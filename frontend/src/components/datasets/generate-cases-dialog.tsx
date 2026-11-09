@@ -15,7 +15,6 @@ import {
   DialogTitle,
   FormField,
   Input,
-  Label,
 } from "@/components/ui";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { useAgents } from "@/hooks/use-agents";
@@ -46,6 +45,7 @@ interface GenerateCasesDialogProps {
   datasetId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStarted?: () => void;
   /** What the form opens with, when the caller already knows the agent and how many. */
   initial?: { agentId: string; count: number };
 }
@@ -62,6 +62,7 @@ export function GenerateCasesDialog({
   open,
   onOpenChange,
   initial,
+  onStarted,
 }: GenerateCasesDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -87,6 +88,7 @@ export function GenerateCasesDialog({
     !agentsLoading &&
     agentId !== "" &&
     sources.length > 0 &&
+    Number.isInteger(count) &&
     count >= 1 &&
     count <= MAX_GENERATED;
   const changed = () => {
@@ -115,6 +117,7 @@ export function GenerateCasesDialog({
       await start.mutateAsync(request);
       toast.success(t("generationStarted", { count }));
       onOpenChange(false);
+      onStarted?.();
     } catch (error) {
       const failure = submitFailure(error, { fields: [...FIELDS] }, tErrors);
       setErrors(failure.fields);
@@ -163,12 +166,13 @@ export function GenerateCasesDialog({
               {CASE_ORIGINS.map((origin) => {
                 const locked = origin === "conversation" && !can(Perm.runsView);
                 return (
-                  <div
+                  <label
                     key={origin}
+                    htmlFor={`source-${origin}`}
                     className={cn(
-                      "flex items-start gap-3 rounded-xl border p-4 transition-colors",
+                      "has-[:focus-visible]:ring-ring flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2",
                       sources.includes(origin) && "border-foreground/30 bg-accent/40",
-                      locked && "opacity-50",
+                      locked ? "cursor-not-allowed opacity-50" : "hover:bg-accent/40",
                     )}
                   >
                     <Checkbox
@@ -184,13 +188,13 @@ export function GenerateCasesDialog({
                         changed();
                       }}
                     />
-                    <Label htmlFor={`source-${origin}`} className="space-y-0.5 font-normal">
-                      <span className="block text-sm">{t(`origin.${origin}`)}</span>
-                      <span className="text-muted-foreground block text-xs">
+                    <span className="space-y-0.5 text-sm font-medium">
+                      {t(`origin.${origin}`)}
+                      <span className="text-muted-foreground block text-xs font-normal">
                         {t(locked ? "sourceNeedsRunsView" : `sourceHint.${origin}`)}
                       </span>
-                    </Label>
-                  </div>
+                    </span>
+                  </label>
                 );
               })}
             </div>
@@ -220,11 +224,19 @@ export function GenerateCasesDialog({
             {t("cancel")}
           </Button>
           {estimated === null ? (
-            <Button disabled={!valid || estimate.isPending} onClick={() => void submit("estimate")}>
+            <Button
+              loading={estimate.isPending}
+              disabled={!valid || estimate.isPending}
+              onClick={() => void submit("estimate")}
+            >
               {t("estimateCost")}
             </Button>
           ) : (
-            <Button disabled={start.isPending} onClick={() => void submit("start")}>
+            <Button
+              loading={start.isPending}
+              disabled={start.isPending}
+              onClick={() => void submit("start")}
+            >
               {t("generate")}
             </Button>
           )}

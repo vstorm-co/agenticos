@@ -275,7 +275,7 @@ describe("ReviewPanel", () => {
     render(<ReviewPanel dataset={dataset()} />);
 
     await userEvent.click(screen.getByText(SCORE.question));
-    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mark as failed" }));
     await userEvent.click(screen.getByRole("button", { name: "Withdraw decision" }));
 
     await waitFor(() =>
@@ -300,9 +300,7 @@ describe("ReviewPanel", () => {
     render(<ReviewPanel dataset={dataset()} />);
 
     await userEvent.click(screen.getByText(SCORE.question));
-    await userEvent.click(
-      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Mark as passed" }));
     if (!screen.queryByRole("dialog"))
       await userEvent.click(
         screen.getByRole("button", {
@@ -363,9 +361,7 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 1 };
     render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
 
-    expect(
-      screen.queryByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mark as passed" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
   });
 
@@ -535,14 +531,10 @@ it("retains a newly decided answer in place, collapsed with its effect and crite
     reviewed_at: "2026-10-24T12:00:00Z",
   });
   const { rerender } = render(<ReviewPanel dataset={dataset()} />);
-  expect(
-    screen.queryByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Mark as passed" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByText(waiting.question));
   await userEvent.type(screen.getByRole("textbox"), "Cite the policy");
-  await userEvent.click(
-    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Mark as passed" }));
   expect(await screen.findByRole("status")).toHaveTextContent("Counts as passed.");
   state.answer = { scores: [], total: 0 };
   rerender(<ReviewPanel dataset={dataset()} />);
@@ -582,9 +574,7 @@ it("does not restore a decided answer after switching organizations while its re
   );
   render(<ReviewPanel dataset={dataset()} />);
   await userEvent.click(screen.getByText(waiting.question));
-  await userEvent.click(
-    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Mark as passed" }));
   state.answer = { scores: [], total: 0 };
   await act(async () => {
     useOrgStore.setState({ activeOrgId: "next-org" });
@@ -612,9 +602,7 @@ it("takes a refreshed server decision over a retained local decision without clo
   const { rerender } = render(<ReviewPanel dataset={dataset()} />);
   await userEvent.click(screen.getByText(waiting.question));
   await userEvent.type(screen.getByRole("textbox"), "Local decision");
-  await userEvent.click(
-    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Mark as passed" }));
   expect(await screen.findByRole("status")).toHaveTextContent("Counts as passed.");
   state.answer = {
     scores: [

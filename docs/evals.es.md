@@ -1,5 +1,5 @@
 ---
-source_sha: "b3a1704cdeae"
+source_sha: "b01337524a1f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -96,9 +96,7 @@ agent que aún espera, que sale de la cola sin decisión - un run dice cuántas
 como `routed_replacing` - y una respuesta más antigua que la que espera no se
 envía. La respuesta de otro agent al caso espera a su lado.
 
-La propia pestaña **Evals** de un dataset lista cada agent medido en él, cada
-uno con su tendencia y sus runs, y **Run evals** en su encabezado abre el
-diálogo de inicio en el dataset y pregunta qué agent probar.
+La vista **Results → Test runs** del dataset muestra todos los agents medidos en un gráfico compartido y una tabla de runs. **Run evals** abre el diálogo en el dataset y pregunta qué agent probar. Los runs cuyas respuestas fallan todas con el mismo error de configuración muestran **Could not run** en lugar de una tasa de aprobación y se excluyen de la tendencia de calidad.
 
 La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la

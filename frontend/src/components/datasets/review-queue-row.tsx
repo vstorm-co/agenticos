@@ -41,7 +41,7 @@ export function ReviewQueueRow(props: Props) {
         <PanelRightOpen className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
       </button>
       <Sheet open={expanded} onOpenChange={setExpanded}>
-        <SheetContent side="right" className="bg-background w-full sm:max-w-3xl">
+        <SheetContent side="right" className="bg-background w-full sm:max-w-5xl">
           <SheetHeader className="shrink-0 py-4">
             <SheetTitle>{t("reviewCard.title")}</SheetTitle>
             <SheetClose onClick={() => setExpanded(false)} />

@@ -266,7 +266,7 @@ test("test questions, review and improvement publish keep a guarded environment 
       response.request().method() === "PUT" &&
       /\/scores\/[^/]+\/verdict$/.test(new URL(response.url()).pathname),
   );
-  await page.getByRole("button", { name: "Answer is wrong", exact: true }).click();
+  await page.getByRole("button", { name: "Mark as failed", exact: true }).click();
   const reviewed = await reviewedResponse;
   expect(reviewed.ok()).toBeTruthy();
   const storedReview = record(await reviewed.json());

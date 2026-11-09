@@ -13475,8 +13475,8 @@
       "judgeRun": "Run des Bewerters",
       "verdictNote": "Notiz",
       "verdictNotePlaceholder": "Warum, für die nächste Person, die das liest (optional)",
-      "markPassed": "Antwort ist richtig (der Bewerter lag falsch)",
-      "markFailed": "Antwort ist falsch",
+      "markPassed": "Als bestanden markieren",
+      "markFailed": "Als nicht bestanden markieren",
       "withdrawVerdict": "Entscheidung zurückziehen",
       "verdictSaved": "Entscheidung gespeichert",
       "verdictWithdrawn": "Entscheidung zurückgezogen",
@@ -13533,7 +13533,7 @@
         "description": "Bewerte die Antwortqualität mit einem Modell anhand der folgenden Anweisungen und Kriterien. Aufrufe sind kostenpflichtig und werden in Aktivität erfasst."
       },
       "reviewCard": {
-        "title": "Prüfung durch eine Person"
+        "title": "Antwortdetails"
       },
       "suggestReference": "{count, plural, =1 {1 Fall hat eine Referenzantwort, und noch vergleicht nichts Antworten damit.} other {# Fälle haben eine Referenzantwort, und noch vergleicht nichts Antworten damit.}}",
       "suggestReferenceAction": "Mit der Referenz vergleichen",

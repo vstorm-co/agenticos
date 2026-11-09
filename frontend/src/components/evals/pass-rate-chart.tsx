@@ -80,7 +80,7 @@ export function passRateLines(
       const arm =
         run.arms.find((item) => item.id === run.outcome?.candidate_arm_id) ??
         run.arms.find((item) => item.role === "candidate");
-      return arm === undefined || arm.summary.pass_rate === null
+      return arm === undefined || arm.failed_alike !== null || arm.summary.pass_rate === null
         ? []
         : [{ run, arm, rate: arm.summary.pass_rate }];
     });

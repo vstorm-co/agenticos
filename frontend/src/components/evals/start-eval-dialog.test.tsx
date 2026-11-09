@@ -482,6 +482,25 @@ describe("StartEvalDialog", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("explains each invalid draft field and links back to Build", () => {
+    hooks.estimate = mutation({
+      error: new ApiError(400, "The draft cannot be evaluated", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "The draft cannot be evaluated",
+          details: { problems: ["Choose a model"] },
+        },
+      }),
+    });
+    const onOpenChange = open();
+    expect(screen.getByRole("alert")).toHaveTextContent("Choose a model");
+    expect(screen.getByRole("link", { name: "Back to Build" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1?tab=build",
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it("shows whoever may turn AI assistance on where to do it", () => {
     const off = new ApiError(400, "The judge needs AI assistance", {
       error: {

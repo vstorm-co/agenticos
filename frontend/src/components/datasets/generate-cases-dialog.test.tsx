@@ -68,8 +68,11 @@ const ESTIMATE = {
 
 function mount() {
   const onOpenChange = vi.fn();
-  render(<GenerateCasesDialog datasetId="d1" open onOpenChange={onOpenChange} />);
-  return { onOpenChange };
+  const onStarted = vi.fn();
+  render(
+    <GenerateCasesDialog datasetId="d1" open onOpenChange={onOpenChange} onStarted={onStarted} />,
+  );
+  return { onOpenChange, onStarted };
 }
 
 async function chooseAgent() {
@@ -117,7 +120,7 @@ describe("GenerateCasesDialog", () => {
   it("estimates first, then starts exactly what was estimated", async () => {
     estimate.mutateAsync.mockResolvedValue(ESTIMATE);
     start.mutateAsync.mockResolvedValue({ id: "g1" });
-    const { onOpenChange } = mount();
+    const { onOpenChange, onStarted } = mount();
     expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
     expect(screen.getByText(/Nothing is run against it\./)).toBeInTheDocument();
 
@@ -140,7 +143,18 @@ describe("GenerateCasesDialog", () => {
       count: 20,
     });
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onStarted).toHaveBeenCalledOnce();
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("requires a whole number of cases before estimating", async () => {
+    mount();
+    await chooseAgent();
+    const count = screen.getByLabelText("Number of cases");
+    await userEvent.clear(count);
+    await userEvent.type(count, "2.5");
+    expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
+    expect(estimate.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("ignores a quote that arrives after the generation request changes", async () => {

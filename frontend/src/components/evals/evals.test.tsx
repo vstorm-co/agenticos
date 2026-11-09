@@ -20,6 +20,7 @@ import { EstimateSummary } from "./estimate-summary";
 import { EvalRunVerdict } from "./eval-run-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
+import { RunsTable } from "./runs-table";
 import { VerdictChip } from "./run-row";
 import { sideName } from "./names";
 import { PassRateChart, passRateLines, trendRange } from "./pass-rate-chart";
@@ -163,6 +164,19 @@ describe("passRateLines", () => {
     values ? `${key}:${Object.values(values).join("|")}` : key;
 
   afterEach(() => vi.useRealTimers());
+
+  it("excludes setup failures from quality trends and pass rates", () => {
+    const failed = evalRun({
+      arms: [arm({ failed_alike: "Workspace unavailable" })],
+    });
+    expect(
+      passRateLines([failed], (run) => ({ key: run.dataset_id, name: run.dataset_name }), t, "en"),
+    ).toEqual([]);
+    render(<RunsTable runs={[failed]} />);
+    expect(screen.getByText("Could not run")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).toBeNull();
+    expect(screen.queryByText(/of .* passed/)).toBeNull();
+  });
 
   it("puts finished runs in order, a line per group by its dash, each point in its verdict's colour", () => {
     // On the reader's wall clock, so "today" is the same day in every time zone.

@@ -26,6 +26,7 @@ import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { EmptyCases } from "@/components/datasets/empty-cases";
 import { HelperSettings } from "@/components/datasets/helper-settings";
+import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
 import { GeneratePanel } from "@/components/datasets/generate-panel";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel, type GradingCopy } from "@/components/datasets/grading-panel";
@@ -101,6 +102,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [generating, setGenerating] = useState(false);
   const [gradingUnsaved, setGradingUnsaved] = useState(false);
   const leave = useUnsavedChangesStore((state) => state.leave);
   const organization = useOrgStore((state) => state.activeOrgId) ?? "default";
@@ -317,7 +319,7 @@ export default function DatasetPage({ params }: PageProps) {
                           disabled={!editable}
                           onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
                           onImport={(file) => cases.importFile.mutateAsync(file)}
-                          onGenerate={() => showTab("generated")}
+                          onGenerate={() => setGenerating(true)}
                         />
                       )}
                   </div>
@@ -342,7 +344,7 @@ export default function DatasetPage({ params }: PageProps) {
                       editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                     }
                     onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
-                    onGenerate={editable ? () => showTab("generated") : undefined}
+                    onGenerate={editable ? () => setGenerating(true) : undefined}
                   />
                 ) : (
                   <div className="flex flex-1 flex-col gap-4">
@@ -430,6 +432,14 @@ export default function DatasetPage({ params }: PageProps) {
         </Tabs>
       </div>
 
+      {generating && editable && (
+        <GenerateCasesDialog
+          datasetId={id}
+          open
+          onOpenChange={setGenerating}
+          onStarted={() => setTab("generated")}
+        />
+      )}
       {dialog === "details" && (
         <EditDatasetDialog dataset={dataset} onOpenChange={() => setDialog(null)} update={update} />
       )}

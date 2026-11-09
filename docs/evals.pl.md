@@ -1,5 +1,5 @@
 ---
-source_sha: "b3a1704cdeae"
+source_sha: "b01337524a1f"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -104,9 +104,7 @@ podaje, ile ich było, jako `routed_replacing` - a odpowiedź starsza od
 czekającej nie jest wysyłana. Odpowiedź innego agenta na ten przypadek czeka
 obok.
 
-Własna zakładka **Ewaluacje** datasetu wymienia każdego mierzonego na nim
-agenta, każdego ze swoim trendem i runami, a **Uruchom ewaluację** w jego
-nagłówku otwiera dialog startu na tym datasecie i pyta, którego agenta testować.
+Widok **Wyniki → Testy agentów** datasetu pokazuje wszystkich mierzonych agentów na wspólnym wykresie i w tabeli runów. **Uruchom ewaluację** otwiera formularz na tym datasecie i pyta o agenta. Runy, w których wszystkie odpowiedzi zawiodły z tym samym błędem konfiguracji, pokazują **Nie udało się uruchomić** zamiast odsetka zaliczeń i są pomijane na wykresie jakości.
 
 Karta **Runy ewaluacji** (Eval runs) na dashboardzie wymienia ostatnie runy
 organizacji z ich agentem i werdyktem. Przypadki ewaluacji i ocenianie sędziego

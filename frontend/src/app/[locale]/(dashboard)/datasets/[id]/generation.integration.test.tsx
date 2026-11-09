@@ -150,15 +150,14 @@ describe("generated cases on the dataset page", () => {
     answer({ ...DATASET, can_edit: true });
     await mount();
     await userEvent.click(await screen.findByRole("button", { name: "Generate cases" }));
-    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("estimated cost");
   });
 
-  it("leads an empty dataset to the generator", async () => {
+  it("opens the generator directly from an empty dataset", async () => {
     answer({ ...DATASET, can_edit: true });
     await mount();
     await userEvent.click(await screen.findByRole("button", { name: "Generate cases" }));
-    expect(await screen.findByRole("tab", { name: "Cases", selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toHaveTextContent("estimated cost");
   });
 
   it("shows a reader sent to the drafts the cases instead", async () => {

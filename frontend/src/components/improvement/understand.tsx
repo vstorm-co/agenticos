@@ -1,4 +1,5 @@
 "use client";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import Link from "next/link";
 import { BookCheck, MessageSquareQuote } from "lucide-react";
@@ -233,7 +234,9 @@ function TopicCard({ items }: { items: ImprovementEvidenceItem[] }) {
           </span>
         </summary>
         <div className="space-y-3 border-t p-3">
-          <p className="break-words whitespace-pre-wrap">{item.answer || t("unavailableAnswer")}</p>
+          <div className="prose-sm min-w-0 leading-relaxed wrap-anywhere">
+            <MarkdownContent content={item.answer || t("unavailableAnswer")} inertImages />
+          </div>
           {comments.map((comment, index) => (
             <blockquote
               key={index}
