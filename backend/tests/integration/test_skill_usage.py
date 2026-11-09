@@ -377,6 +377,21 @@ class TestStatistics:
             ("returns-policy", 2, None, True)
         ]
 
+    async def test_the_gallery_names_the_copy_an_organization_installed(self, db: AsyncSession):
+        org, user = await _org(db)
+        installed = await _skill(db, org, "agenticos-guide")
+        await _skill(db, org)
+
+        gallery = await SkillService(db).gallery(_builder(org, user))
+
+        found = {
+            skill.name: skill.installed_id
+            for industry in gallery.industries
+            for skill in industry.skills
+            if skill.installed
+        }
+        assert found == {"agenticos-guide": installed.id}
+
     async def test_loads_are_split_by_the_version_served(self, db: AsyncSession):
         org, user = await _org(db)
         desk = await _agent(db, org, user, "Desk")
