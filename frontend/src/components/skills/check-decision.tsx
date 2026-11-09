@@ -75,6 +75,10 @@ export function CheckDecision({
             <Button variant="outline" disabled={busy} onClick={onEdit}>
               {t("backToEditing")}
             </Button>
+          ) : busy ? (
+            <Button variant="outline" disabled>
+              {t("improveFurther")}
+            </Button>
           ) : (
             <Button variant="outline" asChild>
               <Link

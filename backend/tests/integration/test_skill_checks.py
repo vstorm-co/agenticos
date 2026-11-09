@@ -1355,6 +1355,7 @@ class TestAProposalGoesLiveOnlyThroughItsCheck:
         check = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
         evals.outcomes = {lab.a.id: Outcome(fixed=1)}
         await _run_to_end(service, evals, lab, check.id)
+        assert [item.proposal_id for item in await service.awaiting(lab.ctx)] == [proposal.id]
 
         decided = await SkillProposalService(db).apply(
             lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision, check_id=check.id)
@@ -1426,6 +1427,7 @@ class TestAwaiting:
             3,
         )
         assert running.status is CheckStatus.RUNNING
+        assert running.proposal_id is None
         evals.outcomes = {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(), lab.c.id: Outcome()}
         await _run_to_end(service, evals, lab, check.id)
         [done] = await service.awaiting(lab.ctx)

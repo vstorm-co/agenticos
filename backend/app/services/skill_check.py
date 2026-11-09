@@ -1343,6 +1343,7 @@ class SkillCheckService:
                 line=_line_ref(None if check.fork_id is None else forks.get(check.fork_id)),
                 status=CheckStatus(check.status),
                 verdict=None if check.verdict is None else CheckVerdict(check.verdict),
+                proposal_id=check.proposal_id,
                 agents=agents[check.id],
                 created_at=check.created_at,
             )

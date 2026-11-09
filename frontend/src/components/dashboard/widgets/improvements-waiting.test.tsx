@@ -353,7 +353,7 @@ describe("ImprovementsWaitingWidget", () => {
     expect(proposals.refetch).not.toHaveBeenCalled();
   });
 
-  it("lists the checks a person started among the sessions, and the proposed changes after", async () => {
+  it("lists the checks a person started among the sessions, and the proposed changes after, a checked one once", async () => {
     state.sessions = [waiting({ created_at: "2026-10-27T10:00:00Z" })];
     checks.checks = [
       {
@@ -363,6 +363,7 @@ describe("ImprovementsWaitingWidget", () => {
         line: { fork_id: null, name: "main" },
         status: "running",
         verdict: null,
+        proposal_id: null,
         agents: 3,
         created_at: "2026-10-28T10:00:00Z",
       },
@@ -373,6 +374,7 @@ describe("ImprovementsWaitingWidget", () => {
         line: { fork_id: "f1", name: "Shop" },
         status: "done",
         verdict: "no_better",
+        proposal_id: "p3",
         agents: 1,
         created_at: "2026-10-26T10:00:00Z",
       },
@@ -380,6 +382,7 @@ describe("ImprovementsWaitingWidget", () => {
     proposals.changes = [
       { id: "p1", name: "returns", skill_id: "sk3", reaches: [{}, {}], reaches_hidden: 1 },
       { id: "p2", name: "gift-cards", skill_id: null, reaches: [], reaches_hidden: 0 },
+      { id: "p3", name: "prints", skill_id: "sk2", reaches: [], reaches_hidden: 0 },
     ] as unknown as SkillChangeRecord[];
     widget();
 

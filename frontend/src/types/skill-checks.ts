@@ -121,6 +121,8 @@ export interface SkillCheckAwaiting {
   line: { fork_id: string | null; name: string };
   status: "running" | "done";
   verdict: CheckVerdict | null;
+  /** The proposed change it checks; null for a text checked by hand. */
+  proposal_id: string | null;
   /** The agents it checks, counting the ones the reader may not see. */
   agents: number;
   created_at: string;
