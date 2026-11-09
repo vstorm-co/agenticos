@@ -4138,6 +4138,40 @@ async def test_a_closed_surface_returns_no_answers_without_opening_a_live_prompt
 
 
 class TestStarterSetupReply:
+    async def test_a_setup_card_requires_a_persisted_conversation(self) -> None:
+        session = _session()
+        session.user.locale = "en"
+        with (
+            patch("app.services.agent_session.persist_assistant_turn", AsyncMock()) as persist,
+            pytest.raises(RuntimeError, match="requires a persisted conversation"),
+        ):
+            await session._reply_with_model_setup(uuid4(), "Architect")
+        persist.assert_not_awaited()
+        assert [kind for kind, _ in _sent_events(session)] == ["model_setup_required"]
+
+    @pytest.mark.security
+    async def test_setup_access_is_refused_before_persisting_or_running_a_turn(self) -> None:
+        session = _session()
+
+        @asynccontextmanager
+        async def db_context() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        with (
+            patch("app.services.agent_session.get_db_context", db_context),
+            patch.object(session, "_chat_context", AsyncMock()),
+            patch(
+                "app.services.agent_session.ShippedAgentService.setup_candidate",
+                AsyncMock(side_effect=AuthorizationError(message="Agent access denied")),
+            ),
+            patch("app.services.agent_session.persist_user_turn", AsyncMock()) as persist,
+            patch("app.services.agent_session.ChatAgentRunner.run", AsyncMock()) as run,
+        ):
+            await session.process_message({"message": "hello", "allow_setup_reply": True})
+        persist.assert_not_awaited()
+        run.assert_not_awaited()
+        assert _sent_events(session) == [("error", {"message": "Agent access denied"})]
+
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "locale, greeting", [("pl", "Cześć"), ("de", "Hallo"), ("tr", "Merhaba"), ("fr", "Hi")]
