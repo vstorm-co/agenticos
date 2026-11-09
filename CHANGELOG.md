@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.61.4] - 2026-11-09
+
 ### Fixed
 
 - Refuse paused sync sources at the shared service boundary, disable their console
@@ -20868,7 +20870,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...HEAD
+[1.61.4]: https://github.com/vstorm-co/agenticos/compare/v1.61.3...v1.61.4
 [1.61.3]: https://github.com/vstorm-co/agenticos/compare/v1.61.2...v1.61.3
 [1.61.2]: https://github.com/vstorm-co/agenticos/compare/v1.61.1...v1.61.2
 [1.61.1]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...v1.61.1
