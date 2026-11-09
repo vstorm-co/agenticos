@@ -9407,6 +9407,8 @@
     "menuOpenSettings": "Open settings",
     "menuDuplicate": "Duplicate",
     "menuPaste": "Paste",
+    "pasteRefusedTrigger": "A trigger starts a run, so it can only be pasted at the top level.",
+    "pasteRefusedTooDeep": "Loops nest at most 3 deep, and this paste would go deeper.",
     "triggerHintApi": "Start it with POST /api/v1/workflow-runs, or over the run WebSocket. Trigger shows the full request. The steps after it read the input as payload.",
     "validationLabelTaken": "Another step is already called “{label}”.",
     "validationTriggerSwitchedOff": "The trigger cannot be switched off.",

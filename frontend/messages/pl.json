@@ -10122,6 +10122,8 @@
     "menuOpenSettings": "Otwórz ustawienia",
     "menuDuplicate": "Duplikuj",
     "menuPaste": "Wklej",
+    "pasteRefusedTrigger": "Wyzwalacz rozpoczyna run, więc można go wkleić tylko na najwyższym poziomie.",
+    "pasteRefusedTooDeep": "Pętle można zagnieżdżać najwyżej na 3 poziomy, a to wklejenie zeszłoby głębiej.",
     "triggerHintApi": "Uruchom go przez POST /api/v1/workflow-runs albo przez WebSocket runów. Pełne żądanie pokazuje Trigger. Kolejne kroki czytają wejście jako payload.",
     "validationLabelTaken": "Inny krok nazywa się już „{label}”.",
     "validationTriggerSwitchedOff": "Wyzwalacza nie można wyłączyć.",

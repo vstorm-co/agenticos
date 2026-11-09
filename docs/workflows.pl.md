@@ -1,5 +1,5 @@
 ---
-source_sha: "08e1516001c1"
+source_sha: "5841f507b3fd"
 ---
 
 # Workflows { #workflows }
@@ -1290,7 +1290,7 @@ jest bezczynny, gdy edytor jest tylko do odczytu - w opublikowanej wersji albo w
 **View only**; `Escape` wciąż przerywa zabłąkane połączenie, a `?` wciąż pokazuje
 skróty.
 
-Kopiowanie i wklejanie mają trzy ograniczenia:
+Kopiowanie i wklejanie mają cztery ograniczenia:
 
 - **Krok z bindingami czyta stamtąd, skąd czytał.** Skopiowany krok zachowuje swoje
   bindingi. Ten, który czyta z kroku, którego nie skopiowałeś, wciąż czyta z oryginału,
@@ -1302,6 +1302,10 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 - **Skróty należą do kanwy.** Działają, gdy fokus jest na kanwie, a kliknięcie w dowolnym
   jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w ustawieniach kroku lub w wyborze kroków zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
   ich użyjesz.
+- **Wklejenie trafia tylko tam, gdzie paleta by je wstawiła.** Wewnątrz pętli wklejenie
+  wyzwalacza jest odrzucane, podobnie jak pętli, która razem z niesionymi pętlami
+  zagnieździłaby się głębiej niż na trzy poziomy. Odrzucane jest całe wklejenie, a schowek
+  je zachowuje, więc otwórz najwyższy poziom albo płytszą pętlę i wklej tam.
 
 Załączniki obrazów agenta mają wspólny limit 20 MB, sprawdzany przed odczytem
 każdego pliku, również dla powtórzonych referencji. Wyniki MCP usuwają nagłówki

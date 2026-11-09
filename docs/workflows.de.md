@@ -1,5 +1,5 @@
 ---
-source_sha: "08e1516001c1"
+source_sha: "5841f507b3fd"
 ---
 
 # Workflows { #workflows }
@@ -1395,7 +1395,7 @@ Jedes Bearbeitungskürzel ist wirkungslos, solange der Editor schreibgeschützt 
 einer veröffentlichten Version oder im Modus **View only**; `Escape` bricht eine übrig
 gebliebene Verbindung weiterhin ab, und `?` zeigt weiterhin die Kürzel.
 
-Kopieren und Einfügen haben drei Grenzen:
+Kopieren und Einfügen haben vier Grenzen:
 
 - **Ein gebundener Schritt liest weiter von dort, wo er zuvor las.** Ein kopierter
   Schritt behält seine Bindings. Liest er von einem Schritt, den Sie nicht kopiert
@@ -1409,6 +1409,11 @@ Kopieren und Einfügen haben drei Grenzen:
   Zeichenfläche liegt, und ein Klick irgendwo darin — auf einen Schritt, die leere
   Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus in den Einstellungen eines Schritts oder in der Schrittauswahl, bleiben die Tasten diesen Feldern, klicken Sie also die
   Zeichenfläche an, bevor Sie sie drücken.
+- **Eingefügt wird nur, wo die Palette es anbieten würde.** In einer Schleife wird
+  das Einfügen eines Triggers abgelehnt, ebenso eine Schleife, die mit den Schleifen,
+  die sie mitbringt, tiefer als drei Ebenen verschachtelt wäre. Abgelehnt wird das
+  ganze Einfügen, und die Zwischenablage behält es; öffnen Sie also die oberste Ebene
+  oder eine flachere Schleife und fügen Sie dort ein.
 
 Bildanhänge eines Agenten teilen sich ein Limit von 20 MB, geprüft vor jedem
 Dateizugriff, auch bei wiederholten Referenzen. MCP-Ergebnisse entfernen

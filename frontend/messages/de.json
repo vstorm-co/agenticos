@@ -9286,6 +9286,8 @@
     "menuOpenSettings": "Einstellungen öffnen",
     "menuDuplicate": "Duplizieren",
     "menuPaste": "Einfügen",
+    "pasteRefusedTrigger": "Ein Trigger startet einen Run und kann deshalb nur auf der obersten Ebene eingefügt werden.",
+    "pasteRefusedTooDeep": "Schleifen lassen sich höchstens 3 Ebenen tief verschachteln, und dieses Einfügen ginge tiefer.",
     "triggerHintApi": "Starten Sie ihn mit POST /api/v1/workflow-runs oder über den Run-WebSocket. Trigger zeigt die ganze Anfrage. Die folgenden Schritte lesen die Eingabe als payload.",
     "validationLabelTaken": "Ein anderer Schritt heißt bereits „{label}“.",
     "validationTriggerSwitchedOff": "Der Trigger kann nicht ausgeschaltet werden.",

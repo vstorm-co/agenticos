@@ -1,5 +1,5 @@
 ---
-source_sha: "08e1516001c1"
+source_sha: "5841f507b3fd"
 ---
 
 # Workflows { #workflows }
@@ -1325,7 +1325,7 @@ los pasos pegados leen unos de otros y no de los originales. Cada atajo de edici
 inerte mientras el editor es de solo lectura - una versión publicada, o **View only** -;
 `Escape` sigue cancelando una conexión perdida, y `?` sigue mostrando los atajos.
 
-Copiar y pegar tienen tres límites:
+Copiar y pegar tienen cuatro límites:
 
 - **Un paso con bindings lee de donde leía.** Un paso copiado conserva sus bindings.
   Uno que lee de un paso que no copiaste sigue leyendo del original, pero nada conecta
@@ -1337,6 +1337,10 @@ Copiar y pegar tienen tres límites:
   hacer clic en cualquier parte de él — un paso, el lienzo vacío, una conexión — lo
   mantiene ahí. Con el foco en los ajustes de un paso o en el selector de pasos, las teclas son de
   esos campos, así que haz clic en el lienzo antes de pulsarlas.
+- **Un pegado solo cae donde la paleta lo pondría.** Dentro de un bucle se rechaza
+  pegar un trigger, y también un bucle que, con los bucles que lleva dentro, quedaría
+  anidado a más de tres niveles. Se rechaza todo el pegado y el portapapeles lo
+  conserva, así que abre el nivel superior, o un bucle menos profundo, y pega ahí.
 
 Los adjuntos de imagen de un agente comparten un límite de 20 MB, comprobado
 antes de cargar cada archivo, incluidas referencias repetidas. Los resultados MCP

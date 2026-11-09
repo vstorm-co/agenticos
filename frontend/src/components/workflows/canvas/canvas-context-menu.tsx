@@ -12,7 +12,7 @@ import {
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
-import { copyToClipboard, pasteFromClipboard } from "./use-canvas-shortcuts";
+import { copyToClipboard, usePasteFromClipboard } from "./use-canvas-shortcuts";
 
 /**
  * A step's right-click menu: open it, duplicate it, switch it off or on, put it
@@ -34,6 +34,7 @@ export function CanvasContextMenu({
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
   const graph = useWorkflowEditorStore((state) => state.graph);
   const store = useWorkflowEditorStore.getState;
+  const paste = usePasteFromClipboard(catalog);
   const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
   const definition = catalog.find(
     (item) => item.id === node?.definition_id && item.version === node?.definition_version,
@@ -55,7 +56,7 @@ export function CanvasContextMenu({
         <ContextMenuItem
           onSelect={() => {
             copyToClipboard(store());
-            pasteFromClipboard(store());
+            paste();
           }}
         >
           <Copy />
