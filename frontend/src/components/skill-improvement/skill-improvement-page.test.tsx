@@ -241,7 +241,11 @@ describe("SkillImprovementPage", () => {
   it("says Understand and Changes are still being written while the session runs", async () => {
     state.session = skillSession({ status: "running", stage: "analyzing", check: null });
     mount();
-    expect(await screen.findByText(/Reading what went wrong/)).toBeVisible();
+    expect(
+      await screen.findByText(
+        "Reading the answers that loaded this skill and were rated down or failed, and what in the skill they point to…",
+      ),
+    ).toBeVisible();
 
     cleanup();
     state.step = "changes";

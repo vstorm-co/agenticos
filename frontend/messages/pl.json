@@ -15633,6 +15633,7 @@
       "live": "Przeniesione i opublikowane: {names}.",
       "drafts": "{count, plural, one {Przeniesiony w drafcie, który czeka na publikację: {names}.} other {Przeniesione w draftach, które czekają na publikację: {names}.}}",
       "nobody": "Żaden agent nie został przeniesiony; przenieś agentów ze strony skilla."
-    }
+    },
+    "understandWorking": "Czytamy odpowiedzi, które wczytały ten skill i zostały ocenione negatywnie albo się nie udały, oraz to, na co w skillu wskazują…"
   }
 }

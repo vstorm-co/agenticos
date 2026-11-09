@@ -15859,6 +15859,7 @@
       "live": "Moved onto it and published: {names}.",
       "drafts": "{count, plural, =1 {Moved onto it in its draft, which waits to be published: {names}.} other {Moved onto it in their drafts, which wait to be published: {names}.}}",
       "nobody": "No agent was moved onto it; move agents from the skill's page."
-    }
+    },
+    "understandWorking": "Reading the answers that loaded this skill and were rated down or failed, and what in the skill they point to…"
   }
 }

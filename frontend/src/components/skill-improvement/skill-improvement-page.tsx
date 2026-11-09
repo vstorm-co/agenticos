@@ -186,7 +186,7 @@ function SkillSession({
           <p className="text-muted-foreground text-sm">{t("line", { line: session.line_name })}</p>
           {step === "understand" &&
             (views.understand.content === "working" ? (
-              <WorkingNote>{tImprovement("understandWorking")}</WorkingNote>
+              <WorkingNote>{t("understandWorking")}</WorkingNote>
             ) : (
               <SkillUnderstand session={session} />
             ))}

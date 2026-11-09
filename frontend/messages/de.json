@@ -15531,6 +15531,7 @@
       "live": "Darauf verschoben und veröffentlicht: {names}.",
       "drafts": "{count, plural, =1 {Im Entwurf darauf verschoben, der auf Veröffentlichung wartet: {names}.} other {In ihren Entwürfen darauf verschoben, die auf Veröffentlichung warten: {names}.}}",
       "nobody": "Kein Agent wurde darauf verschoben; verschiebe Agents auf der Seite des Skills."
-    }
+    },
+    "understandWorking": "Wir lesen die Antworten, die diesen Skill geladen haben und negativ bewertet wurden oder fehlschlugen, und worauf sie im Skill hinweisen…"
   }
 }
