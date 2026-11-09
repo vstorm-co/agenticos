@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,10 +23,12 @@ import styles from "./profile-identity-settings.module.css";
 export function ProfileIdentitySettings({
   onContinue,
   saveLabel,
+  secondaryAction,
   section = "all",
 }: {
   onContinue?: () => void;
   saveLabel?: string;
+  secondaryAction?: ReactNode;
   section?: "all" | "identity" | "context";
 }) {
   const tErrors = useTranslations("errors");
@@ -263,14 +265,17 @@ export function ProfileIdentitySettings({
           </SectionCard>
 
           {section === "identity" && onContinue && (
-            <Button
-              disabled={saving || avatarUploading}
-              onClick={async () => {
-                if (await handleSaveProfile()) onContinue();
-              }}
-            >
-              {saveLabel ?? t("saveChanges")}
-            </Button>
+            <div data-profile-actions className="flex flex-wrap items-center gap-3">
+              <Button
+                disabled={saving || avatarUploading}
+                onClick={async () => {
+                  if (await handleSaveProfile()) onContinue();
+                }}
+              >
+                {saveLabel ?? t("saveChanges")}
+              </Button>
+              {secondaryAction}
+            </div>
           )}
         </>
       )}
@@ -280,6 +285,7 @@ export function ProfileIdentitySettings({
           beforeSave={onContinue && section !== "context" ? handleSaveProfile : undefined}
           onSaved={onContinue}
           saveLabel={saveLabel}
+          secondaryAction={secondaryAction}
         />
       )}
     </div>

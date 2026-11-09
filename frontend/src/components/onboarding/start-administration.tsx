@@ -224,10 +224,12 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                     section="identity"
                     onContinue={() => advance("profile", "context")}
                     saveLabel={t("saveContinue")}
+                    secondaryAction={
+                      <Button variant="ghost" onClick={() => go("context")}>
+                        {t("skipOptional")}
+                      </Button>
+                    }
                   />
-                  <Button variant="ghost" onClick={() => go("context")}>
-                    {t("skipOptional")}
-                  </Button>
                 </div>
                 <StartStageArtwork stage="profile" />
               </div>
@@ -248,10 +250,12 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                     section="context"
                     onContinue={() => advance("context", "team")}
                     saveLabel={t("saveContinue")}
+                    secondaryAction={
+                      <Button variant="ghost" onClick={() => go("team")}>
+                        {t("skipOptional")}
+                      </Button>
+                    }
                   />
-                  <Button variant="ghost" onClick={() => go("team")}>
-                    {t("skipOptional")}
-                  </Button>
                 </div>
                 <StartStageArtwork stage="context" />
               </div>

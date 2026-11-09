@@ -75,12 +75,19 @@ vi.mock("@/components/settings/profile-identity-settings", () => ({
   ProfileIdentitySettings: ({
     onContinue,
     section,
+    secondaryAction,
   }: {
     onContinue: () => void;
     section: string;
+    secondaryAction?: React.ReactNode;
   }) => {
     env.profileCallbacks.set(section, onContinue);
-    return <button onClick={onContinue}>Save and continue</button>;
+    return (
+      <div>
+        <button onClick={onContinue}>Save and continue</button>
+        {secondaryAction}
+      </div>
+    );
   },
 }));
 vi.mock("@/components/teams/organization-profile-settings", () => ({

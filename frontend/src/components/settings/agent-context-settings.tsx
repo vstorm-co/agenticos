@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -25,11 +25,13 @@ export function AgentContextSettings({
   beforeSave,
   onSaved,
   saveLabel,
+  secondaryAction,
 }: {
   user: User;
   beforeSave?: () => Promise<boolean>;
   onSaved?: () => void;
   saveLabel?: string;
+  secondaryAction?: ReactNode;
 }) {
   const t = useTranslations("pages.settings.agentContext");
   const tErrors = useTranslations("errors");
@@ -117,9 +119,12 @@ export function AgentContextSettings({
           <WorkingHoursField value={hours} onChange={setHours} />
         </FormField>
         {onSaved && (
-          <Button onClick={submit} disabled={saving}>
-            {saveLabel ?? t("save")}
-          </Button>
+          <div data-profile-actions className="flex flex-wrap items-center gap-3">
+            <Button onClick={submit} disabled={saving}>
+              {saveLabel ?? t("save")}
+            </Button>
+            {secondaryAction}
+          </div>
         )}
       </div>
     </SectionCard>

@@ -36,12 +36,19 @@ vi.mock("@/components/settings/profile-identity-settings", () => ({
   ProfileIdentitySettings: ({
     section,
     onContinue,
+    secondaryAction,
   }: {
     section: string;
+    secondaryAction?: React.ReactNode;
     onContinue: () => void;
   }) => {
     env.callbacks.set(section, onContinue);
-    return <button onClick={onContinue}>Save personal details</button>;
+    return (
+      <div>
+        <button onClick={onContinue}>Save personal details</button>
+        {secondaryAction}
+      </div>
+    );
   },
 }));
 const data: Onboarding = {

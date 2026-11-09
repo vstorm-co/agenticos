@@ -598,9 +598,6 @@
   border: 1px solid var(--color-border);
   border-radius: 16px;
 }
-.profileCard > button {
-  align-self: flex-start;
-}
 .profileCard > div > section {
   border: 0;
   box-shadow: none;
@@ -614,8 +611,7 @@
 .profileCard > div > section > div:last-child {
   padding: 12px 0 20px;
 }
-.profileCard > div > button {
-  align-self: flex-start;
+.profileCard > div > [data-profile-actions] {
   margin-top: auto;
 }
 .wideStage {

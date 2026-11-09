@@ -156,13 +156,15 @@ export function StartMember({ data }: { data: Onboarding }) {
                         section={item === "profile" ? "identity" : "context"}
                         saveLabel={admin("saveContinue")}
                         onContinue={() => advance(item, item === "profile" ? "context" : "task")}
+                        secondaryAction={
+                          <Button
+                            variant="ghost"
+                            onClick={() => go(item === "profile" ? "context" : "task")}
+                          >
+                            {admin("skipOptional")}
+                          </Button>
+                        }
                       />
-                      <Button
-                        variant="ghost"
-                        onClick={() => go(item === "profile" ? "context" : "task")}
-                      >
-                        {admin("skipOptional")}
-                      </Button>
                     </div>
                     <StartStageArtwork stage={item} />
                   </div>

@@ -114,7 +114,10 @@ function ProfileSkeleton({ view }: { view: StartLoadingView }) {
             <Field />
           </>
         )}
-        <Skeleton className="mt-auto h-10 w-44" />
+        <div className="mt-auto flex flex-wrap items-center gap-3">
+          <Skeleton className="h-10 w-44" />
+          <Skeleton className="h-10 w-32" />
+        </div>
       </div>
       <StartStageArtwork stage={stage} />
     </div>
