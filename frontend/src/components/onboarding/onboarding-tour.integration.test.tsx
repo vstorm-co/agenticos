@@ -514,6 +514,46 @@ describe("OnboardingTour's light", () => {
     now.mockRestore();
   });
 
+  it("passes an absent stop in the direction the reader moved, and counts only present ones", async () => {
+    // On a skill's page on main, the catch-up stop never mounts: Next skips it on to
+    // the stop after, and Back from there skips it back to the stop before.
+    const steps = stepsForPage("/skills/skill-1", () => true);
+    const absent = steps.findIndex((one) => one.id === "skill-catch-up");
+    const present = steps
+      .filter((one) => one.id !== "skill-catch-up")
+      .map((one) => {
+        const element = document.createElement("div");
+        element.dataset.tour = one.target ?? one.id;
+        return element;
+      });
+    const tabs = steps
+      .flatMap((one) => (one.activate ? [tab(one.activate, "active")] : []))
+      .filter(
+        (element, i, all) => all.findIndex((x) => x.dataset.tour === element.dataset.tour) === i,
+      );
+    serveElements(...present, ...tabs);
+    servePermissions(OWNER);
+    nav.pathname = "/skills/skill-1";
+    useOnboardingStore.setState({ isOpen: true, index: absent - 1, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    const total = steps.length;
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step ${absent} of ${total}`),
+    );
+
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(useOnboardingStore.getState().index).toBe(absent + 1));
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step ${absent + 1} of ${total - 1}`),
+    );
+
+    act(() => shownStep().popover?.onPrevClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(useOnboardingStore.getState().index).toBe(absent - 1));
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step ${absent} of ${total - 1}`),
+    );
+  });
+
   it("leaves an open popover open rather than pressing its trigger shut", async () => {
     const trigger = tab("chat-settings", "inactive");
     trigger.setAttribute("data-state", "open");
