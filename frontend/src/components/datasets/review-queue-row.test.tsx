@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { caseScore } from "@/test-utils/scores";
 import { evalRun } from "@/test-utils/eval-runs";
@@ -112,4 +113,12 @@ it("distinguishes a completed unpaired run from a run that did not finish", () =
     screen.getByText("The run did not complete. Open its check for the reason."),
   ).toBeInTheDocument();
   expect(screen.queryByText("Refreshing the result…")).not.toBeInTheDocument();
+});
+it("says where an answer came from once, in its summary or, opened, in its card", async () => {
+  render(<ReviewQueueRow score={{ ...score, human_passed: null }} busy={false} linksRuns />);
+  expect(screen.getAllByText("Eval run")).toHaveLength(1);
+
+  await userEvent.click(screen.getByText(score.question));
+
+  expect(screen.getAllByText("Eval run")).toHaveLength(1);
 });

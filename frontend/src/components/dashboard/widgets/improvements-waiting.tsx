@@ -76,6 +76,11 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
   const what = (item: Parameters<typeof stopOf>[0] & { next_step_blocked?: unknown }) =>
     t(item.next_step_blocked ? "what.blocked" : `what.${stopOf(item) ?? "result"}`);
   const open = { label: t("open"), icon: "improve" as const };
+  const checked = new Set(
+    (checks.error ? [] : checks.checks).flatMap((item) =>
+      item.proposal_id === null ? [] : [item.proposal_id],
+    ),
+  );
   const sessions: (Waiting & { createdAt: string })[] = [
     ...(agents.error ? [] : agents.sessions).map((item) => ({
       id: item.id,
@@ -116,13 +121,16 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const items: Waiting[] = [
     ...sessions,
-    ...(proposals.error ? [] : proposals.changes).map((item) => ({
-      id: `proposal:${item.id}`,
-      name: t("proposal", { name: item.name, kind: item.skill_id === null ? "new" : "edit" }),
-      href: ROUTES.SKILLS,
-      action: { label: t("review"), href: ROUTES.SKILLS, icon: "check" as const },
-      what: t("what.proposal", { count: item.reaches.length + item.reaches_hidden }),
-    })),
+    // A proposal under an open check is listed once, as that check.
+    ...(proposals.error ? [] : proposals.changes)
+      .filter((item) => !checked.has(item.id))
+      .map((item) => ({
+        id: `proposal:${item.id}`,
+        name: t("proposal", { name: item.name, kind: item.skill_id === null ? "new" : "edit" }),
+        href: ROUTES.SKILLS,
+        action: { label: t("review"), href: ROUTES.SKILLS, icon: "check" as const },
+        what: t("what.proposal", { count: item.reaches.length + item.reaches_hidden }),
+      })),
     ...(behind.error ? [] : (behind.behind?.items ?? [])).map((item) => {
       const skill = ROUTES.SKILL_DETAIL(item.skill.id);
       return {

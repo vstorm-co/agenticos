@@ -38,7 +38,7 @@ export function ReviewQueueRow(props: Props) {
           <span className="font-medium break-words">
             {score.case_masked ? t("maskedConversation") : score.question}
           </span>
-          <ScoreOrigin score={score} />
+          {!expanded && <ScoreOrigin score={score} />}
         </summary>
         {expanded && (
           <div className="px-3 pb-3">

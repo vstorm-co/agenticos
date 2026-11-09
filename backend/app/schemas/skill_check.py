@@ -224,6 +224,9 @@ class SkillCheckAwaiting(BaseSchema):
     line: LineRef
     status: CheckStatus = Field(description="`running`, or `done` and waiting for a decision")
     verdict: CheckVerdict | None = None
+    proposal_id: UUID | None = Field(
+        default=None, description="The proposed change it checks; null for a text checked by hand"
+    )
     agents: int = Field(
         description="The agents it checks, counting the ones the caller may not see"
     )

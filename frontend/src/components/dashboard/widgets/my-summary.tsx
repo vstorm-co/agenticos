@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AnimatedAmount, AnimatedTally, Figure } from "@/components/ui";
 import { useUsageStats } from "@/hooks";
-import { useWaitingOnMe, waitingOn } from "@/hooks/use-waiting-on-me";
+import { useWaitingOnMe, waitingOn, type WaitingKind } from "@/hooks/use-waiting-on-me";
+import { ROUTES } from "@/lib/constants";
 import { bucketLabeller, timelineOf } from "@/lib/dashboard/timeline";
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { formatUsd } from "../format";
@@ -27,7 +29,6 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function MySummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-summary");
-  const tWaiting = useTranslations("dashboard.greeting.waiting");
   const locale = useLocale();
   const others = useWaitingOnMe();
   const { usage, isLoading, error, refetch } = useUsageStats(
@@ -65,13 +66,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
             tone="amber"
             label={t("waiting")}
             value={<AnimatedTally value={waiting.reduce((sum, [, count]) => sum + count, 0)} />}
-            caption={
-              waiting.length > 0
-                ? new Intl.ListFormat(locale, { type: "conjunction" }).format(
-                    waiting.map(([kind, count]) => tWaiting(kind, { count })),
-                  )
-                : t("nothingWaiting")
-            }
+            caption={waiting.length > 0 ? <WaitingParts waiting={waiting} /> : t("nothingWaiting")}
           />
           <Figure
             tone="violet"
@@ -90,4 +85,29 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
       )}
     </WidgetFrame>
   );
+}
+
+/** What waits, as one list, its tool calls a link to the approvals that decide them. */
+function WaitingParts({ waiting }: { waiting: [WaitingKind, number][] }) {
+  const t = useTranslations("dashboard.greeting.waiting");
+  const locale = useLocale();
+  const parts = new Intl.ListFormat(locale, { type: "conjunction" }).formatToParts(
+    waiting.map(([kind, count]) => t(kind, { count })),
+  );
+  let item = 0;
+  return parts.map((part, index) => {
+    if (part.type !== "element") return part.value;
+    const [kind] = waiting[item++]!;
+    return kind === "approvals" ? (
+      <Link
+        key={index}
+        href={`${ROUTES.RUNS}?tab=approvals`}
+        className="hover:text-foreground underline underline-offset-2"
+      >
+        {part.value}
+      </Link>
+    ) : (
+      part.value
+    );
+  });
 }

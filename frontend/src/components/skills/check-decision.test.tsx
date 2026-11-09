@@ -166,4 +166,19 @@ describe("CheckDecision", () => {
 
     expect(onDiscard).not.toHaveBeenCalled();
   });
+
+  it("holds improving further back while a decision is being made", () => {
+    render(
+      <CheckDecision
+        check={finishedCheck({ verdict: "no_better", outcomes: ["improve_further"] })}
+        busy
+        onApply={vi.fn()}
+        onFork={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Improve further" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Improve further" })).toBeNull();
+  });
 });
