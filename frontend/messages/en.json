@@ -1544,7 +1544,11 @@
       "unread": "New answer",
       "unreadHeading": "Unread",
       "unnamedProject": "A project",
-      "apiFilterLabel": "Hide API conversations"
+      "apiFilterLabel": "Hide API conversations",
+      "sharedHeading": "Shared with you",
+      "sharedLoading": "Loading shared conversations…",
+      "sharedFailed": "Shared conversations could not be loaded.",
+      "retryShared": "Retry shared conversations"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -2382,7 +2386,23 @@
       "cancel": "Not now",
       "agentUnavailable": "The selected agent could not be loaded. Try again.",
       "failed": "Could not set up access on this computer"
-    }
+    },
+    "fork": "Fork into a new conversation",
+    "forkedToast": "Conversation forked",
+    "failedForkConversation": "Failed to fork conversation",
+    "forkedFrom": "Forked from <link>{title}</link>",
+    "untitledFork": "Untitled conversation",
+    "leaveShared": "Remove from my chats",
+    "leftShared": "Removed from your chats",
+    "failedLeaveShared": "Failed to remove the conversation",
+    "conversationViewOnly": "Shared with you as read-only",
+    "accessChanged": "Access changed",
+    "failedToChangeAccess": "Failed to change access",
+    "accessLevelFor": "Access level for {name}",
+    "accessChecking": "Checking conversation access…",
+    "accessFailed": "Could not verify access to this conversation",
+    "accessRetry": "Retry",
+    "forking": "Forking conversation…"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -7194,7 +7214,7 @@
       "avatarColourHint": "Shown as your avatar until you upload a picture.",
       "prefArtifactVersionPublished": "App updated",
       "prefArtifactVersionPublishedTrigger": "An app you follow gets a new version - republished by its agent or restored by a person.",
-      "prefResourceShared": "Shared with your group",
+      "prefResourceShared": "Shared with you or your group",
       "prefResourceSharedTrigger": "Something - an agent, a skill, knowledge, an app - is shared with a group you are in.",
       "prefBudgetWarning": "Department budget at 80%",
       "prefBudgetWarningTrigger": "A department you lead has used 80% of its monthly budget. Administrators hear about every department.",

@@ -2068,6 +2068,7 @@ async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, reassign: bool
 ) -> None:
     from collections.abc import AsyncIterator
+    from datetime import UTC, datetime, timedelta
 
     from app.db.models.sync_source import SyncSource
     from app.worker.tasks import rag_tasks
@@ -2080,6 +2081,8 @@ async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
         await db.flush()
         org = await _org(db, owner)
         selected, fallback = _org_collection(org.id, name), _org_collection(org.id, name)
+        # Delete the canonical oldest base, independently of tied UUID ordering.
+        selected.created_at = datetime.now(UTC) - timedelta(days=1)
         db.add_all([selected, fallback])
         await db.flush()
         source = SyncSource(

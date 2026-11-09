@@ -25,7 +25,7 @@ threads. That is the right trade for a feature whose whole purpose is to stop
 bytes accumulating.
 """
 
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -138,3 +138,47 @@ class OrganizationMediaStore:
     async def get_metadata(self, uri: str, *, context: MediaContext = _EMPTY) -> Mapping[str, str]:
         """Nothing is stored beside the bytes, so there is nothing to answer with."""
         return {}
+
+
+class MediaReadLimitError(ValueError):
+    """A copy would exceed its bounded media read allowance."""
+
+
+class BoundedOrganizationMediaStore(OrganizationMediaStore):
+    """Read a snapshot with an aggregate byte and reference budget.
+
+    Size checks precede ranged reads, so an offloaded blob cannot bypass the
+    transcript quota or cause an unbounded allocation. No new blobs are written.
+    """
+
+    def __init__(
+        self, organization_id: UUID, conversation_id: UUID, *, max_bytes: int, max_reads: int
+    ) -> None:
+        super().__init__(organization_id, conversation_id)
+        self._remaining_bytes = max_bytes
+        self._remaining_reads = max_reads
+
+    async def get(self, uri: str, *, context: MediaContext = _EMPTY) -> bytes:
+        if self._remaining_reads <= 0:
+            raise MediaReadLimitError("Too many external media references")
+        self._remaining_reads -= 1
+        path = self._path(parse_media_uri(uri))
+        size = await self._storage.size(path)
+        if size > self._remaining_bytes:
+            raise MediaReadLimitError("External media exceeds the copy budget")
+        data = bytearray()
+        if size:
+            stream = await self._storage.open_range(path, 0, size - 1)
+            try:
+                async for chunk in stream:
+                    if len(data) + len(chunk) > size:
+                        raise ValueError("Media changed during the copy")
+                    data.extend(chunk)
+            finally:
+                if isinstance(stream, AsyncGenerator):
+                    await stream.aclose()
+        raw = bytes(data)
+        if len(raw) != size or media_uri_for(raw) != uri:
+            raise ValueError("Media changed during the copy")
+        self._remaining_bytes -= size
+        return raw
