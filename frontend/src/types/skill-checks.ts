@@ -102,6 +102,19 @@ export interface SkillCheck extends SkillCheckEstimate {
   finished_at: string | null;
 }
 
+/** A check a person started that still runs or waits for a decision, as "Waiting for you" lists it. */
+export interface SkillCheckAwaiting {
+  id: string;
+  skill_id: string;
+  skill_name: string;
+  line: { fork_id: string | null; name: string };
+  status: "running" | "done";
+  verdict: CheckVerdict | null;
+  /** The agents it checks, counting the ones the reader may not see. */
+  agents: number;
+  created_at: string;
+}
+
 export interface SkillCheckFork {
   name: string;
   /** The agents that move onto the fork; left out, the ones the change helped. */

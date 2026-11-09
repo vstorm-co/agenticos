@@ -13,6 +13,7 @@ import {
   getSkillCheck,
   getSkillTestSet,
   listSkillChecks,
+  listSkillChecksAwaiting,
   startSkillCheck,
 } from "@/lib/skill-checks-api";
 import type {
@@ -58,6 +59,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
       queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
       // Applying with pins and forking for the helped agents move agents.
       queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
     ]);
@@ -115,6 +117,26 @@ export function useOpenSkillCheck(skillId: string, forkId: string | null): Skill
         (check.status === "running" || check.status === "done"),
     ) ?? null
   );
+}
+
+/**
+ * The checks a person started, on any skill the reader may edit, that still run or
+ * wait for a decision. Read again while one runs.
+ */
+export function useSkillChecksAwaiting({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: qk.skillChecks.awaiting(),
+    queryFn: listSkillChecksAwaiting,
+    enabled,
+    refetchInterval: (current) =>
+      current.state.data?.some((check) => check.status === "running") ? SKILL_CHECK_POLL_MS : false,
+  });
+  return {
+    checks: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 /** A line's newest checks, read again while one of them runs. */

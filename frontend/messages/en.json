@@ -3013,7 +3013,6 @@
         "finished": "Finished",
         "finishedOf": "of {total} runs",
         "waiting": "Waiting on you",
-        "review": "Review them",
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
@@ -3169,7 +3168,7 @@
       },
       "improvements-waiting": {
         "title": "Improvements waiting for you",
-        "description": "Improvement sessions stopped for your next step or decision.",
+        "description": "Improvement sessions, skill checks and proposed skill changes waiting for your next step or decision.",
         "empty": {
           "title": "Nothing waiting",
           "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready. Pinned agents and forks that main has moved past are listed here too."
@@ -3179,16 +3178,23 @@
           "understand": "Look at what went wrong",
           "changes": "Review the changes",
           "result": "Review the result",
-          "blocked": "Blocked: end it and start a new one"
+          "blocked": "Blocked: end it and start a new one",
+          "check": {
+            "running": "Checking on {count, plural, =1 {1 agent} other {# agents}}",
+            "done": "Check finished: decide what to do with the change"
+          },
+          "proposal": "Proposed by an agent · {count, plural, =0 {reaches no agent yet} =1 {reaches 1 agent} other {reaches # agents}}"
         },
         "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
-        "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} other {Agent sessions could not be read.}}",
+        "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} checks {Skill checks could not be read.} proposals {Proposed skill changes could not be read.} other {Agent sessions could not be read.}}",
         "catchUp": "Catch up",
         "behindName": "{name} · {kind, select, fork {fork “{line}”} other {pinned in {line}{specialist, select, yes { through {via}} other {}}}}",
         "behind": {
           "pinned": "On v{version} · {count, plural, =1 {1 change behind main} other {# changes behind main}}",
           "fork": "From v{version} · {agents, plural, =1 {1 agent} other {# agents}} · {count, plural, =1 {1 change behind main} other {# changes behind main}}"
-        }
+        },
+        "review": "Review",
+        "proposal": "{kind, select, new {New skill {name}} other {Change to {name}}}"
       }
     },
     "edit": {
@@ -13950,7 +13956,8 @@
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} other { · # undecided}}",
-      "firstRate": "First answers alone: {rate}"
+      "firstRate": "First answers alone: {rate}",
+      "checkStage": "Skill check stage · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {No runs yet} =1 {1 run of 1 agent} other {# runs of {agents, plural, =1 {1 agent} other {# agents}}}}",

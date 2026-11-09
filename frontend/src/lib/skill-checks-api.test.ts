@@ -54,4 +54,10 @@ describe("the skill checks client", () => {
       agent_ids: ["a-1"],
     });
   });
+
+  it("lists the checks waiting for a person across the organization", async () => {
+    await api.listSkillChecksAwaiting();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skill-checks/awaiting");
+  });
 });

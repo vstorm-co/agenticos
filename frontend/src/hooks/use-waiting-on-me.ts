@@ -28,6 +28,28 @@ function decidable(datasets: PendingDataset[]): number {
   );
 }
 
+/** What a person may be waited on for, in the order the dashboard says them. */
+export type WaitingKind = "approvals" | "review" | "suites" | "suggestions";
+
+/**
+ * Everything waiting on the reader, their tool calls first, each kind with its
+ * count and none at zero. The dashboard's greeting and its "Waiting on you" figure
+ * both say this, so the two never count different things.
+ */
+export function waitingOn(
+  approvals: number,
+  others: { review: number; suites: number; suggestions: number },
+): [WaitingKind, number][] {
+  return (
+    [
+      ["approvals", approvals],
+      ["review", others.review],
+      ["suites", others.suites],
+      ["suggestions", others.suggestions],
+    ] as [WaitingKind, number][]
+  ).filter(([, count]) => count > 0);
+}
+
 /**
  * What waits on the reader besides their own tool calls: answers sent to
  * review, suites failing, and the assistant's suggestions. Each counts only what

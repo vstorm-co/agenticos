@@ -3013,7 +3013,6 @@
         "finished": "Fertig",
         "finishedOf": "von {total} Runs",
         "waiting": "Wartet auf Sie",
-        "review": "Ansehen",
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
@@ -3169,7 +3168,7 @@
       },
       "improvements-waiting": {
         "title": "Verbesserungen, die auf Sie warten",
-        "description": "Verbesserungssitzungen, die für Ihren nächsten Schritt oder Ihre Entscheidung angehalten haben.",
+        "description": "Verbesserungssitzungen, Skill-Prüfungen und vorgeschlagene Skill-Änderungen, die auf Ihren nächsten Schritt oder Ihre Entscheidung warten.",
         "empty": {
           "title": "Nichts wartet",
           "description": "Eine Verbesserung hält hier an, nachdem sie gelesen hat, was schiefging, nachdem sie Änderungen geschrieben hat und wenn ihr Ergebnis bereit ist. Auch festgesetzte Agents und Forks, an denen main vorbeigezogen ist, stehen hier."
@@ -3179,16 +3178,23 @@
           "understand": "Sehen Sie sich an, was schiefging",
           "changes": "Prüfen Sie die Änderungen",
           "result": "Prüfen Sie das Ergebnis",
-          "blocked": "Blockiert: beenden und neu starten"
+          "blocked": "Blockiert: beenden und neu starten",
+          "check": {
+            "running": "Prüfung auf {count, plural, =1 {1 Agent} other {# Agents}} läuft",
+            "done": "Prüfung fertig: Entscheiden Sie, was mit der Änderung geschieht"
+          },
+          "proposal": "Von einem Agent vorgeschlagen · {count, plural, =0 {erreicht noch keinen Agent} =1 {erreicht 1 Agent} other {erreicht # Agents}}"
         },
         "skill": "{name} · {kind, select, main {main} other {Fork „{line}“}}",
-        "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} behind {Was main zurückgelassen hat, konnte nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}",
+        "partial": "{failed, select, skills {Skill-Sitzungen ließen sich nicht lesen.} behind {Was main zurückgelassen hat, ließ sich nicht lesen.} checks {Skill-Prüfungen ließen sich nicht lesen.} proposals {Vorgeschlagene Skill-Änderungen ließen sich nicht lesen.} other {Agent-Sitzungen ließen sich nicht lesen.}}",
         "catchUp": "Nachziehen",
         "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}{specialist, select, yes { über {via}} other {}}}}",
         "behind": {
           "pinned": "Auf v{version} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}",
           "fork": "Ab v{version} · {agents, plural, =1 {1 Agent} other {# Agents}} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}"
-        }
+        },
+        "review": "Prüfen",
+        "proposal": "{kind, select, new {Neuer Skill {name}} other {Änderung an {name}}}"
       }
     },
     "edit": {
@@ -13622,7 +13628,8 @@
       "against": "{candidate} vs. {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} other { · # nicht entschieden}}",
-      "firstRate": "Nur die ersten Antworten: {rate}"
+      "firstRate": "Nur die ersten Antworten: {rate}",
+      "checkStage": "Etappe einer Skill-Prüfung · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {Noch keine Runs} =1 {1 Run von 1 Agent} other {# Runs von {agents, plural, =1 {1 Agent} other {# Agents}}}}",

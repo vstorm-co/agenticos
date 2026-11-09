@@ -3011,7 +3011,6 @@
         "finished": "Ukończone",
         "finishedOf": "z {total} runów",
         "waiting": "Czeka na Ciebie",
-        "review": "Przejrzyj",
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
         "spentLabel": "wydano {amount}"
@@ -3167,7 +3166,7 @@
       },
       "improvements-waiting": {
         "title": "Poprawki czekające na Ciebie",
-        "description": "Sesje poprawy zatrzymane na Twój następny krok albo decyzję.",
+        "description": "Sesje poprawiania, sprawdzenia skilli i proponowane zmiany skilli czekające na Twój następny krok albo decyzję.",
         "empty": {
           "title": "Nic nie czeka",
           "description": "Poprawa zatrzymuje się tu, gdy przeczyta, co poszło nie tak, gdy napisze zmiany i gdy jej wynik jest gotowy. Są tu też przypięci agenci i forki, które main wyprzedził."
@@ -3177,16 +3176,23 @@
           "understand": "Zobacz, co poszło nie tak",
           "changes": "Przejrzyj zmiany",
           "result": "Przejrzyj wynik",
-          "blocked": "Zablokowane: zakończ i zacznij nową"
+          "blocked": "Zablokowane: zakończ i zacznij nową",
+          "check": {
+            "running": "Trwa sprawdzanie na {count, plural, one {1 agencie} few {# agentach} many {# agentach} other {# agenta}}",
+            "done": "Sprawdzenie skończone: zdecyduj, co zrobić ze zmianą"
+          },
+          "proposal": "Zaproponowane przez agenta · {count, plural, =0 {nie trafia jeszcze do żadnego agenta} one {trafia do 1 agenta} few {trafia do # agentów} many {trafia do # agentów} other {trafia do # agenta}}"
         },
         "skill": "{name} · {kind, select, main {main} other {fork „{line}”}}",
-        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} behind {Nie udało się odczytać, co zostało za main.} other {Nie udało się odczytać sesji agentów.}}",
+        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} behind {Nie udało się odczytać tego, co main zostawił w tyle.} checks {Nie udało się odczytać sprawdzeń skilli.} proposals {Nie udało się odczytać proponowanych zmian skilli.} other {Nie udało się odczytać sesji agentów.}}",
         "catchUp": "Dogoń",
         "behindName": "{name} · {kind, select, fork {fork „{line}”} other {przypięty w {line}{specialist, select, yes { przez {via}} other {}}}}",
         "behind": {
           "pinned": "Na v{version} · {count, plural, one {# zmiana za main} few {# zmiany za main} many {# zmian za main} other {# zmiany za main}}",
           "fork": "Od v{version} · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}} · {count, plural, one {# zmiana za main} few {# zmiany za main} many {# zmian za main} other {# zmiany za main}}"
-        }
+        },
+        "review": "Przejrzyj",
+        "proposal": "{kind, select, new {Nowy skill {name}} other {Zmiana skilla {name}}}"
       }
     },
     "edit": {
@@ -13082,7 +13088,8 @@
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} one { · # nierozstrzygnięty} few { · # nierozstrzygnięte} many { · # nierozstrzygniętych} other { · # nierozstrzygniętego}}",
-      "firstRate": "Same pierwsze odpowiedzi: {rate}"
+      "firstRate": "Same pierwsze odpowiedzi: {rate}",
+      "checkStage": "Etap sprawdzenia skilla · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {Jeszcze żadnego runa} one {# run · 1 agent} few {# runy · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} many {# runów · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} other {# runu · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}}}",

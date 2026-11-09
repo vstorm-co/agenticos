@@ -2,7 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Perm, type Permission } from "@/types/permissions";
-import { useWaitingOnMe } from "./use-waiting-on-me";
+import { useWaitingOnMe, waitingOn } from "./use-waiting-on-me";
 
 const state = vi.hoisted(() => ({
   granted: new Set<string>(),
@@ -108,5 +108,16 @@ describe("useWaitingOnMe", () => {
       suites: { enabled: false },
       suggestions: { enabled: false },
     });
+  });
+});
+
+describe("waitingOn", () => {
+  it("lists each kind that waits, the tool calls first, and none at zero", () => {
+    expect(waitingOn(2, { review: 0, suites: 1, suggestions: 3 })).toEqual([
+      ["approvals", 2],
+      ["suites", 1],
+      ["suggestions", 3],
+    ]);
+    expect(waitingOn(0, { review: 0, suites: 0, suggestions: 0 })).toEqual([]);
   });
 });

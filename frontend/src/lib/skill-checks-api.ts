@@ -8,6 +8,7 @@
 import type {
   SkillCheck,
   SkillCheckApply,
+  SkillCheckAwaiting,
   SkillCheckEstimate,
   SkillCheckFork,
   SkillCheckStart,
@@ -34,6 +35,11 @@ export function listSkillChecks(skillId: string, forkId: string | null) {
   const query = new URLSearchParams({ limit: "20" });
   if (forkId !== null) query.set("fork_id", forkId);
   return apiClient.get<{ items: SkillCheck[]; total: number }>(`${root(skillId)}?${query}`);
+}
+
+/** The checks a person started that still run or wait for a decision, on skills the reader may edit. */
+export function listSkillChecksAwaiting() {
+  return apiClient.get<SkillCheckAwaiting[]>("/skill-checks/awaiting");
 }
 
 export function getSkillCheck(skillId: string, checkId: string) {

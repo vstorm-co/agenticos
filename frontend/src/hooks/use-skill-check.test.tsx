@@ -8,6 +8,7 @@ import {
   useOpenSkillCheck,
   useSkillCheck,
   useSkillCheckHistory,
+  useSkillChecksAwaiting,
 } from "./use-skill-check";
 import * as api from "@/lib/skill-checks-api";
 import type { SkillCheck } from "@/types/skill-checks";
@@ -21,6 +22,7 @@ vi.mock("@/lib/skill-checks-api", () => ({
   applySkillCheck: vi.fn(),
   discardSkillCheck: vi.fn(),
   forkSkillCheck: vi.fn(),
+  listSkillChecksAwaiting: vi.fn(),
 }));
 
 let client: QueryClient;
@@ -196,5 +198,37 @@ describe("useSkillCheckHistory", () => {
 
     expect(result.current.total).toBe(0);
     expect(result.current.isLoading).toBe(true);
+  });
+});
+
+describe("useSkillChecksAwaiting", () => {
+  it("lists the open checks and reads them again while one runs", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(api.listSkillChecksAwaiting).mockResolvedValue([
+      { id: "c-1", status: "running" },
+    ] as Awaited<ReturnType<typeof api.listSkillChecksAwaiting>>);
+    const { result } = renderHook(() => useSkillChecksAwaiting(), { wrapper });
+
+    await waitFor(() => expect(result.current.checks).toHaveLength(1));
+    await act(() => vi.advanceTimersByTimeAsync(SKILL_CHECK_POLL_MS));
+    expect(api.listSkillChecksAwaiting).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("stops reading once none runs, and reads nothing when told not to", async () => {
+    vi.mocked(api.listSkillChecksAwaiting).mockResolvedValue([
+      { id: "c-1", status: "done" },
+    ] as Awaited<ReturnType<typeof api.listSkillChecksAwaiting>>);
+    const { result } = renderHook(() => useSkillChecksAwaiting(), { wrapper });
+    await waitFor(() => expect(result.current.checks).toHaveLength(1));
+
+    vi.mocked(api.listSkillChecksAwaiting).mockClear();
+    const off = renderHook(() => useSkillChecksAwaiting({ enabled: false }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+      ),
+    });
+    expect(off.result.current.checks).toEqual([]);
+    expect(api.listSkillChecksAwaiting).not.toHaveBeenCalled();
   });
 });
