@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.60.1] - 2026-11-09
+
 ### Fixed
 
 - Probe the readiness endpoint after production deploys; the old health URL returned 404 despite a healthy deployment.
@@ -20725,7 +20727,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...HEAD
+[1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1
 [1.60.0]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...v1.60.0
 [1.59.1]: https://github.com/vstorm-co/agenticos/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...v1.59.0
