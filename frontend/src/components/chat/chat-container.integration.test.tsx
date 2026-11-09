@@ -889,6 +889,24 @@ describe("the chat container - a voice call (#54)", () => {
     expect(screen.getByRole("textbox")).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("keeps an active call's hang-up control reachable when metadata cannot be read", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-not-listed");
+    voiceCall.call = LIVE_CALL;
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.endsWith("/metadata")
+        ? Promise.reject(new Error("Access could not be checked"))
+        : base(url),
+    );
+    mount();
+    const end = await screen.findByRole("button", { name: "End call" });
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-not-listed/metadata"));
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(end);
+    expect(voiceCall.end).toHaveBeenCalled();
+  });
+
   it("reads the transcript again in place as each spoken turn is saved", async () => {
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
     useConversationStore.getState().setCurrentConversationId("c-a");

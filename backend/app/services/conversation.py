@@ -1452,6 +1452,15 @@ class ConversationService:
                 message="A run in this history is still being written or waits on a decision - fork it once it has finished",
                 details={"message_id": answer.id, "run_status": unfinished[0]},
             )
+        # The row holds the latest checklist, not a version per answer. Carry it
+        # only where it cannot reveal later work or replace an earlier plan.
+        if source.plan_items is not None and await conversation_repo.has_answer_after(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        ):
+            raise BadRequestError(
+                message="Fork the latest answer to preserve this conversation's checklist",
+                details={"conversation_id": source.id, "message_id": answer.id},
+            )
         payload_bytes = await conversation_repo.fork_payload_bytes(
             self.db, source_id=source.id, ordinal=answer.ordinal
         )

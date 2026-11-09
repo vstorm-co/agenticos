@@ -1,5 +1,5 @@
 ---
-source_sha: "6eeddec7ea0f"
+source_sha: "f75b38e33354"
 ---
 
 # Die Konsole { #the-console }
@@ -890,6 +890,8 @@ Abzweigen kann nur, wem das Gespräch gehört: Wer es zum Ansehen oder Bearbeite
 Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. Diese Zeile sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
 
 Eine Abzweigung ist auf 2.000 Nachrichten, 10.000 Werkzeugaufrufe und 20 MiB kopierten Text und strukturierte Daten begrenzt. Pro Mitglied und Organisation sind höchstens zehn Anfragen pro Minute erlaubt. Eine gerade aktualisierte Unterhaltung kann die Abzweigung kurzzeitig ablehnen; versuchen Sie es nach der Aktualisierung erneut. Zu große Verläufe müssen vor dem Kopieren gekürzt werden.
+
+Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Antwort abgezweigt werden. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
 
 ### Hintergrundthemen { #background-topics }
 

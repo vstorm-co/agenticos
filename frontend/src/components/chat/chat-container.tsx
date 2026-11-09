@@ -1706,7 +1706,7 @@ function ChatUI({
                 same question: at 900px with the conversation list open this box
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
-              {viewOnly || accessState ? (
+              {(viewOnly || accessState) && !onCall ? (
                 <ConversationAccessNotice state={accessState ?? "view"} onRetry={onRetryAccess} />
               ) : (
                 <div className="@container">

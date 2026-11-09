@@ -265,3 +265,35 @@ it("does not retain another organization's shared page", async () => {
   expect(result.current.sharedWithMe).toEqual([]);
   useOrgStore.setState({ activeOrgId: null });
 });
+
+it("refreshes shared conversations and effective access while the page stays open", async () => {
+  const { useSharedConversations, useConversationAccess } =
+    await import("./use-conversation-shares");
+  vi.useFakeTimers();
+  let writable = true;
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.endsWith("/metadata")
+      ? { id: "c-1", share_permission: writable ? "edit" : "view" }
+      : { items: writable ? [] : [{ id: "new-share" }], total: writable ? 0 : 1 },
+  );
+  const { result, unmount } = renderHook(
+    () => ({ shared: useSharedConversations(true), access: useConversationAccess("c-1", true) }),
+    { wrapper },
+  );
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(result.current.access.known).toBe(true);
+    expect(result.current.access.viewOnly).toBe(false);
+    writable = false;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_050);
+    });
+    expect(result.current.access.viewOnly).toBe(true);
+    expect(result.current.shared.items[0]?.id).toBe("new-share");
+  } finally {
+    unmount();
+    vi.useRealTimers();
+  }
+});

@@ -29,7 +29,9 @@ Two things are versioned separately from this file and worth knowing about:
   10,000 tool calls and 20 MiB; concurrent transcript updates are fenced before
   copying. The fork copies
   messages, tool calls and a long conversation's summary, not attachment or
-  workspace files, generated images, cost or runs. Its **Forked from** line
+  workspace files, generated images, cost or runs. Conversations with a saved
+  checklist fork only at the latest answer and retain its tasks and dependencies.
+  Its **Forked from** line
   is shown only to you. `POST /conversations/{id}/fork` does the same over the
   API. See [the console guide](docs/console.md#forking).
 - **Conversations shared with you, in the chat sidebar.** They sit under

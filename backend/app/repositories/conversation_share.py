@@ -3,7 +3,7 @@
 from collections.abc import Collection
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
@@ -65,7 +65,7 @@ async def get_shares_for_conversation(
     return list(result.scalars().all())
 
 
-def _shared_with_member(user_id: UUID) -> tuple:
+def _shared_with_member(user_id: UUID, *, include_archived: bool = True) -> tuple:
     """The recipient holds the share *and* belongs to the conversation's org.
 
     The read path refuses a share whose conversation is in an organization the
@@ -76,6 +76,7 @@ def _shared_with_member(user_id: UUID) -> tuple:
     """
     return (
         ConversationShare.shared_with == user_id,
+        or_(literal(include_archived), Conversation.is_archived.is_(False)),
         # A project's access supersedes legacy individual shares, as on token reads.
         Conversation.project_id.is_(None),
         Conversation.organization_id.in_(
@@ -96,6 +97,7 @@ async def get_conversations_shared_with_user(
     organization_id: UUID | None = None,
     skip: int = 0,
     limit: int = 50,
+    include_archived: bool = True,
 ) -> list[Conversation]:
     """Get conversations shared with a specific user, within their own tenants.
 
@@ -106,7 +108,10 @@ async def get_conversations_shared_with_user(
     result = await db.execute(
         select(Conversation)
         .join(ConversationShare, ConversationShare.conversation_id == Conversation.id)
-        .where(*_shared_with_member(user_id), *_in_organization(organization_id))
+        .where(
+            *_shared_with_member(user_id, include_archived=include_archived),
+            *_in_organization(organization_id),
+        )
         .order_by(Conversation.updated_at.desc())
         .offset(skip)
         .limit(limit)
@@ -130,14 +135,21 @@ async def share_permissions(
 
 
 async def count_conversations_shared_with_user(
-    db: AsyncSession, user_id: UUID, *, organization_id: UUID | None = None
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    organization_id: UUID | None = None,
+    include_archived: bool = True,
 ) -> int:
     """Count conversations shared with a specific user, within their own tenants."""
     result = await db.scalar(
         select(func.count())
         .select_from(ConversationShare)
         .join(Conversation, ConversationShare.conversation_id == Conversation.id)
-        .where(*_shared_with_member(user_id), *_in_organization(organization_id))
+        .where(
+            *_shared_with_member(user_id, include_archived=include_archived),
+            *_in_organization(organization_id),
+        )
     )
     return result or 0
 

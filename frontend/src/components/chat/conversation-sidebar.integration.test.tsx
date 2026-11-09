@@ -562,7 +562,7 @@ describe("what the sidebar says about the list", () => {
 
     expect(screen.queryByText("Their pricing plan")).toBeNull();
     expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
-      "/conversations/shared-with-me?skip=0&limit=50",
+      "/conversations/shared-with-me?skip=0&limit=50&include_archived=false",
     );
   });
 

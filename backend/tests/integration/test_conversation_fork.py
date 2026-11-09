@@ -501,3 +501,53 @@ async def test_the_fork_point_does_not_materialize_transcript_payloads(db: Async
     for field in ("content", "thinking", "parts", "tool_calls"):
         with pytest.raises(InvalidRequestError):
             getattr(point, field)
+
+
+async def test_latest_answer_carries_the_checklist_without_sharing_mutable_state(
+    db: AsyncSession,
+) -> None:
+    from app.core.permissions import AuthContext
+    from app.services.conversation import ConversationService
+
+    source = await _source(db)
+    source.plan_items = [{"id": "task-1", "content": "Review pricing", "status": "pending"}]
+    answer = await _turn(db, source, "assistant", "The pricing review is next")
+    fork = await ConversationService(db).fork(
+        source.id,
+        message_id=answer.id,
+        organization_id=source.organization_id,
+        user_id=source.user_id,
+        ctx=AuthContext(
+            user_id=source.user_id, organization_id=source.organization_id, role="owner"
+        ),
+    )
+    assert fork.plan_items == source.plan_items
+    assert fork.plan_items is not source.plan_items
+
+
+@pytest.mark.parametrize(
+    "plan", [[], [{"id": "later", "content": "Future work", "status": "pending"}]]
+)
+async def test_forking_before_a_later_answer_cannot_copy_a_checklist_from_the_future(
+    db: AsyncSession, plan: list[dict[str, str]]
+) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext
+    from app.services.conversation import ConversationService
+
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "Earlier answer")
+    await _turn(db, source, "assistant", "Later checklist change")
+    source.plan_items = plan
+    await db.flush()
+    with pytest.raises(BadRequestError, match="latest answer"):
+        await ConversationService(db).fork(
+            source.id,
+            message_id=answer.id,
+            organization_id=source.organization_id,
+            user_id=source.user_id,
+            ctx=AuthContext(
+                user_id=source.user_id, organization_id=source.organization_id, role="owner"
+            ),
+        )
+    assert len((await db.scalars(select(Conversation.id))).all()) == 1

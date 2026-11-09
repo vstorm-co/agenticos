@@ -93,10 +93,18 @@ async def list_shared_with_me(
     active_org: ActiveOrg,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    include_archived: bool = True,
 ) -> Any:
-    """List conversations shared with the current user in the active organization."""
+    """List shares in the active organization; filter archives before paging/counting.
+
+    Set `include_archived=false` for the newest active shares, as in the sidebar.
+    """
     items, total = await share_service.list_shared_with_me(
-        current_user.id, organization_id=active_org.id, skip=skip, limit=limit
+        current_user.id,
+        organization_id=active_org.id,
+        skip=skip,
+        limit=limit,
+        include_archived=include_archived,
     )
     return ConversationList(items=items, total=total)
 
@@ -261,7 +269,9 @@ async def fork_conversation(
     Only the conversation's owner may fork it; anybody else gets 404. `400`
     when a run in the copied history is still running or parked on an
     approval or a question, or the prefix exceeds 2,000 messages, 10,000 tool
-    calls or 20 MiB. `409` means the history is busy and can be retried.
+    calls or 20 MiB. Conversations with a saved checklist require their latest
+    answer so the checklist cannot come from later history (`400` otherwise).
+    `409` means the history is busy and can be retried.
     `forked_from` on the response names the source, and is only ever
     set for the person who owns both. `429` past ten forks a minute per member
     and organization.

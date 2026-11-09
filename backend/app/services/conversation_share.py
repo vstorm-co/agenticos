@@ -316,7 +316,13 @@ class ConversationShareService:
         )
 
     async def list_shared_with_me(
-        self, user_id: UUID, *, organization_id: UUID, skip: int = 0, limit: int = 50
+        self,
+        user_id: UUID,
+        *,
+        organization_id: UUID,
+        skip: int = 0,
+        limit: int = 50,
+        include_archived: bool = True,
     ) -> tuple[list, int]:
         """List the conversations shared with the current user in one organization.
 
@@ -332,10 +338,15 @@ class ConversationShareService:
         wrong on the surface where it matters most (#1254).
         """
         items = await conversation_share_repo.get_conversations_shared_with_user(
-            self.db, user_id, organization_id=organization_id, skip=skip, limit=limit
+            self.db,
+            user_id,
+            organization_id=organization_id,
+            skip=skip,
+            limit=limit,
+            include_archived=include_archived,
         )
         total = await conversation_share_repo.count_conversations_shared_with_user(
-            self.db, user_id, organization_id=organization_id
+            self.db, user_id, organization_id=organization_id, include_archived=include_archived
         )
         starred = await conversation_repo.favourite_ids(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]

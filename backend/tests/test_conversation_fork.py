@@ -33,6 +33,7 @@ def _conversation(
         organization_id=ORG_ID,
         project_id=project_id,
         title="Source",
+        plan_items=None,
         forked_from_conversation_id=forked_from,
         forked_from_message_id=uuid4() if forked_from else None,
     )

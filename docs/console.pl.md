@@ -1,5 +1,5 @@
 ---
-source_sha: "6eeddec7ea0f"
+source_sha: "f75b38e33354"
 ---
 
 # Konsola { #the-console }
@@ -818,6 +818,8 @@ Rozgałęzić rozmowę może tylko jej właściciel: osoba, której ją udostęp
 Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do oryginału. Tę linię widzisz tylko ty: jeśli udostępnisz rozgałęzienie, odbiorca zobaczy zwykłą rozmowę.
 
 Rozgałęzienie może obejmować najwyżej 2000 wiadomości, 10 000 wywołań narzędzi i 20 MiB kopiowanego tekstu oraz danych strukturalnych. Limit wynosi dziesięć żądań na minutę na członka i organizację. Aktualizowana rozmowa może chwilowo odmówić rozgałęzienia; spróbuj ponownie po zakończeniu aktualizacji. Historię przekraczającą limit trzeba skrócić przed skopiowaniem.
+
+Rozmowę z zapisaną checklistą można rozgałęzić tylko przy najnowszej odpowiedzi. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
 
 ### Tematy w tle { #background-topics }
 

@@ -205,7 +205,8 @@ async def test_a_thread_shared_with_you_says_whether_you_starred_it(
             == ORG
         )
         assert share_repo.count_conversations_shared_with_user.await_args.kwargs == {
-            "organization_id": ORG
+            "organization_id": ORG,
+            "include_archived": True,
         }
 
         assert total == 2

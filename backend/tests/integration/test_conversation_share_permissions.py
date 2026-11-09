@@ -10,7 +10,7 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_share as conversation_share_repo
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def _user(db: AsyncSession) -> User:
@@ -243,4 +243,47 @@ async def test_legacy_project_shares_do_not_appear_as_individual_shared_chats(
             db, reader.id, organization_id=org.id
         )
         == 0
+    )
+
+
+async def test_active_shares_are_filtered_before_pagination_and_counting(db: AsyncSession) -> None:
+    from app.db.models.organization import OrganizationMember
+
+    owner, reader = await _user(db), await _user(db)
+    org = Organization(
+        name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+    )
+    db.add(org)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=org.id, user_id=reader.id))
+    active = Conversation(user_id=owner.id, organization_id=org.id, title="Older active share")
+    db.add(active)
+    await db.flush()
+    await conversation_share_repo.create(
+        db, conversation_id=active.id, shared_by=owner.id, shared_with=reader.id
+    )
+    for index in range(3):
+        archived = Conversation(
+            user_id=owner.id, organization_id=org.id, title=f"Archived {index}", is_archived=True
+        )
+        db.add(archived)
+        await db.flush()
+        await conversation_share_repo.create(
+            db, conversation_id=archived.id, shared_by=owner.id, shared_with=reader.id
+        )
+    listed = await conversation_share_repo.get_conversations_shared_with_user(
+        db, reader.id, organization_id=org.id, limit=1, include_archived=False
+    )
+    assert [row.id for row in listed] == [active.id]
+    assert (
+        await conversation_share_repo.count_conversations_shared_with_user(
+            db, reader.id, organization_id=org.id, include_archived=False
+        )
+        == 1
+    )
+    assert (
+        await conversation_share_repo.count_conversations_shared_with_user(
+            db, reader.id, organization_id=org.id
+        )
+        == 4
     )

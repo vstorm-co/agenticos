@@ -1,6 +1,7 @@
 """Conversation repository."""
 
 from collections.abc import Collection, Mapping
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
@@ -1039,6 +1040,21 @@ async def lock_fork_history(
     return ForkRowCounts(len(message_ids), len(tool_ids))
 
 
+async def has_answer_after(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+    """Whether the current checklist could include work after this fork point."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Message.conversation_id == source_id,
+                    Message.role == "assistant",
+                    Message.ordinal > ordinal,
+                )
+            )
+        )
+    )
+
+
 async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int) -> int:
     """Measure the locked prefix's UTF-8 payload in SQL, before loading or inserting it.
 
@@ -1082,6 +1098,7 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
     summary_bytes = (
         select(
             func.octet_length(func.coalesce(Conversation.title, ""))
+            + func.octet_length(func.coalesce(cast(Conversation.plan_items, Text), ""))
             + case(
                 (
                     Conversation.summary_ordinal <= ordinal,
@@ -1132,6 +1149,7 @@ async def fork_conversation(
         project_id=source.project_id,
         forked_from_conversation_id=source.id,
         forked_from_message_id=through.id,
+        plan_items=deepcopy(source.plan_items),
     )
     db.add(fork)
     await db.flush()

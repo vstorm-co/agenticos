@@ -2028,3 +2028,39 @@ it.each(["organization", "account", "selection"])(
     }
   },
 );
+
+it("drops a fork after the organization changes while its lists are refreshed", async () => {
+  const result = await hook();
+  vi.mocked(apiClient.post).mockResolvedValueOnce(conversation("c-fork"));
+  const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockImplementationOnce(async () => {
+    useOrgStore.setState({ activeOrgId: "changed-after-copy" });
+  });
+  try {
+    let copied: unknown;
+    await act(async () => {
+      copied = await result.current.forkConversation("c-1", "m-7");
+    });
+    expect(copied).toBeNull();
+    expect(useConversationStore.getState().currentConversationId).not.toBe("c-fork");
+    expect(toast.success).not.toHaveBeenCalled();
+  } finally {
+    invalidate.mockRestore();
+  }
+});
+
+it("does not toast or return a fork after the organization changes while opening it", async () => {
+  const result = await hook();
+  vi.mocked(apiClient.post).mockResolvedValueOnce(conversation("c-fork"));
+  const base = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.includes("c-fork/messages"))
+      useOrgStore.setState({ activeOrgId: "changed-while-opening" });
+    return base(path);
+  });
+  let copied: unknown;
+  await act(async () => {
+    copied = await result.current.forkConversation("c-1", "m-7");
+  });
+  expect(copied).toBeNull();
+  expect(toast.success).not.toHaveBeenCalled();
+});

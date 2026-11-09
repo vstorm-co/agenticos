@@ -17,6 +17,8 @@ import type {
 
 /** How many shared conversations the chat sidebar lists: one page, the newest first. */
 const SHARED_IN_SIDEBAR = 50;
+// Sharing changes can come from another member with this page already open.
+const ACCESS_REFRESH_MS = 15_000;
 
 /**
  * The conversations other people shared with the caller, for the chat sidebar.
@@ -30,12 +32,13 @@ export function useSharedConversations(enabled: boolean) {
   // key has to change with it or a switch shows the last organization's list.
   const orgId = useOrgStore((state) => state.activeOrgId);
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId),
+    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId, false),
     queryFn: () =>
       apiClient.get<ConversationListResponse>(
-        `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}`,
+        `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}&include_archived=false`,
       ),
     enabled,
+    refetchInterval: ACCESS_REFRESH_MS,
   });
   // An archived thread is its owner's to bring back; it is no conversation to
   // continue, so it is not offered beside the active ones.
@@ -81,6 +84,7 @@ export function useConversationAccess(
     queryFn: () => apiClient.get<Conversation>(`/conversations/${conversationId}/metadata`),
     enabled: enabled && conversationId !== null,
     retry: false,
+    refetchInterval: ACCESS_REFRESH_MS,
   });
   return {
     known: !enabled || (data !== undefined && !isError),
