@@ -21,6 +21,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Tool failures now keep actionable structured details through model continuation,
+  approval resume and saved transcripts: named missing fields, allowed values,
+  numeric and collection bounds, safe compiler diagnostics, correction examples,
+  execution disposition, recovery guidance and an error ID that identifies the
+  detailed server log. Unknown tool names report
+  unavailable registration rather than missing permission, and agents check uncertain
+  execution outcomes before retrying. Budgets, guardrails, loop stops and usage limits
+  retain their terminal behavior through code mode. Only calls that pass complete
+  validation count as successful argument repairs.
+- MCP schema checks run in isolated processes with bounded concurrency and a deadline,
+  so server-controlled regular expressions cannot block the application's event loop.
+
+## [1.61.1] - 2026-11-09
+
+### Fixed
+
 - **A step stays in the loop it belongs to (#2770).** A For each body was
   whatever the loop's **Each item** port's wires reached, so deleting a wire
   inside a body moved the steps after it out of the loop, and a second wire from
@@ -34,18 +50,6 @@ Two things are versioned separately from this file and worth knowing about:
   versions and test-run snapshots, moving an extra wire from the old port onto
   the body's **Loop item**; a graph sent or imported in the old shape is read the
   same way. See [Workflows](docs/workflows.md#connections-and-foreach-scope).
-
-- Tool failures now keep actionable structured details through model continuation,
-  approval resume and saved transcripts: named missing fields, allowed values,
-  numeric and collection bounds, safe compiler diagnostics, correction examples,
-  execution disposition, recovery guidance and an error ID that identifies the
-  detailed server log. Unknown tool names report
-  unavailable registration rather than missing permission, and agents check uncertain
-  execution outcomes before retrying. Budgets, guardrails, loop stops and usage limits
-  retain their terminal behavior through code mode. Only calls that pass complete
-  validation count as successful argument repairs.
-- MCP schema checks run in isolated processes with bounded concurrency and a deadline,
-  so server-controlled regular expressions cannot block the application's event loop.
 
 ## [1.61.0] - 2026-11-09
 
@@ -20848,7 +20852,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.1...HEAD
+[1.61.1]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...v1.61.1
 [1.61.0]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...v1.61.0
 [1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
 [1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
