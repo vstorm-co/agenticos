@@ -82,7 +82,6 @@ export function StartMember({ data }: { data: Onboarding }) {
           </Link>
           <div className={styles.topActions}>
             <StartLanguage />
-            <StartTour />
             <Link href="/chat">
               {admin("openApp")}
               <ArrowUpRight size={15} aria-hidden />
@@ -182,6 +181,9 @@ export function StartMember({ data }: { data: Onboarding }) {
             </section>
           )}
         </div>
+        <footer className="mt-6 flex justify-end">
+          <StartTour />
+        </footer>
       </div>
     </div>
   );

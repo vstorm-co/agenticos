@@ -138,7 +138,6 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
           </Link>
           <div className={styles.topActions}>
             <StartLanguage />
-            <StartTour />
             <Link href="/chat">
               {t("openApp")}
               <ArrowUpRight size={15} aria-hidden />
@@ -314,6 +313,9 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             </section>
           )}
         </div>
+        <footer className="mt-6 flex justify-end">
+          <StartTour />
+        </footer>
       </div>
     </div>
   );
