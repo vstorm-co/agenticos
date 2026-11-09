@@ -1,5 +1,5 @@
 ---
-source_sha: "30f10f2d929e"
+source_sha: "6e96ae6f5af6"
 ---
 
 # La consola { #the-console }
@@ -956,6 +956,8 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 ## Tu primera tarea { #your-first-task }
 
 En un workspace nuevo se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
+
+Si no hay un agente publicado disponible, el onboarding también permite abrir un chat de configuración con un borrador accesible del AgenticOS incluido. Los miembros no necesitan permisos de gestión de modelos; reciben orientación de configuración, no el resultado de una tarea de IA. Los borradores inaccesibles siguen bloqueados y un agente publicado accesible tiene prioridad.
 
 Cerrar el aviso inicial o elegir **Ocultar durante 24 horas** lo pausa durante 24 horas
 según la hora del servidor. Después puede reaparecer si la configuración no se ha

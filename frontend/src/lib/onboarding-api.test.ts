@@ -16,6 +16,7 @@ const state = {
   organization_name: "Demo",
   goal: null,
   dismissed: false,
+  setup_agent: null,
   can_prepare: false,
   can_configure_model: false,
   support_email: null,
@@ -81,3 +82,15 @@ it.each(["activity", "agent", "dismissed", "completed", "walkthrough"])(
     expect(shouldOfferStart(data)).toBe(false);
   },
 );
+
+it("accepts a setup-only starter without adding it to runnable agents", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ ...state, setup_agent: { id, name: "AgenticOS" } });
+  const result = await readOnboarding();
+  expect(result.setup_agent).toEqual({ id, name: "AgenticOS" });
+  expect(result.agents).toEqual([]);
+  expect(result.can_prepare).toBe(false);
+});
+it("keeps older readiness responses compatible when they omit the setup candidate", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ ...state, setup_agent: undefined });
+  expect((await readOnboarding()).setup_agent).toBeNull();
+});

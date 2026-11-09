@@ -1,5 +1,5 @@
 ---
-source_sha: "30f10f2d929e"
+source_sha: "6e96ae6f5af6"
 ---
 
 # Die Konsole { #the-console }
@@ -1002,6 +1002,8 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 ## Ihre erste Aufgabe { #your-first-task }
 
 In einem neuen Workspace ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
+
+Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding auch einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
 
 Das Schließen des Startbanners oder **Für 24 Stunden ausblenden** pausiert das Angebot für
 24 Stunden nach Serverzeit. Danach kann es wieder erscheinen, wenn die Einrichtung nicht

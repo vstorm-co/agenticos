@@ -13606,6 +13606,8 @@
       "connect": "Set up my agent",
       "getAccess": "Get access to an agent",
       "connectionHint": "Ready to try your own version? Connect a model when you are ready.",
+      "setupChat": "Open chat with {agent}",
+      "setupChatHint": "You can open the chat now. Your workspace administrator will need to finish AI setup before the agent can answer your task.",
       "actionPlan": "An action plan with the gaps made clear",
       "task": "Action",
       "owner": "Owner",

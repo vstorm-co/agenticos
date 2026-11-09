@@ -41,6 +41,10 @@ class OnboardingRead(BaseSchema):
     can_configure_model: bool
     support_email: str | None
     agents: list[OnboardingAgent]
+    setup_agent: OnboardingAgent | None = Field(
+        default=None,
+        description="An accessible shipped draft offering setup guidance only; not a runnable published agent",
+    )
     latest_conversation_id: UUID | None
     latest_completed_at: datetime | None
     has_activity: bool = Field(

@@ -16,6 +16,7 @@ const onboarding = z.object({
   can_configure_model: z.boolean(),
   support_email: z.string().nullable(),
   agents: z.array(agent),
+  setup_agent: agent.nullable().default(null),
   latest_conversation_id: z.uuid().nullable(),
   latest_completed_at: z.string().nullable(),
   has_result: z.boolean(),

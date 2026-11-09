@@ -12967,6 +12967,8 @@
       "connect": "Agentımı hazırla",
       "getAccess": "Bir agenta erişim al",
       "connectionHint": "Kendi materyalinizle denemek ister misiniz? Hazır olduğunuzda bir model bağlayın.",
+      "setupChat": "{agent} ile sohbeti aç",
+      "setupChatHint": "Sohbeti şimdi açabilirsin. Ajanın görevini yanıtlayabilmesi için çalışma alanı yöneticisinin AI kurulumunu tamamlaması gerekir.",
       "actionPlan": "Eksikleri açıkça gösteren eylem planı",
       "task": "Görev",
       "owner": "Sorumlu",

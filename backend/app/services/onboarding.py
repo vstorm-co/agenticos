@@ -27,6 +27,7 @@ from app.schemas.onboarding import (
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.model_profile import ModelProfileService, choosable_for_others
+from app.services.shipped_agents import ShippedAgentService
 
 STARTER_NAME = "Getting started"
 STARTER_SLUG = "getting-started"
@@ -94,6 +95,7 @@ class OnboardingService:
             can_configure_model=ctx.has(Perm.CONNECTIONS_MANAGE),
             support_email=owner.email if owner is not None else None,
             agents=agents,
+            setup_agent=await self._setup_agent(ctx) if not agents else None,
             latest_conversation_id=result.conversation_id if result is not None else None,
             latest_completed_at=result.ended_at if result is not None else None,
             has_result=result is not None,
@@ -102,6 +104,14 @@ class OnboardingService:
                 self.db, organization_id=ctx.organization_id, user_id=member.user_id
             ),
         )
+
+    async def _setup_agent(self, ctx: AuthContext) -> OnboardingAgent | None:
+        try:
+            agent = await ShippedAgentService(self.db).setup_candidate(ctx, None)
+        except AuthorizationError, NotFoundError:
+            # An inaccessible draft must not become an invitation to bypass its grants.
+            return None
+        return OnboardingAgent(id=agent.id, name=agent.name) if agent is not None else None
 
     async def _agents(self, ctx: AuthContext) -> list[OnboardingAgent]:
         agents: list[OnboardingAgent] = []

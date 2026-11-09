@@ -36,6 +36,7 @@ vi.mock("@/hooks/use-start", () => ({
       has_result: false,
       has_activity: false,
       agents: [],
+      setup_agent: null,
       can_prepare: false,
       can_configure_model: false,
       support_email: null,

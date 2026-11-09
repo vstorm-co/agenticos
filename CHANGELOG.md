@@ -28,6 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Let members enter the trusted AgenticOS setup chat from onboarding without requiring model-management permissions or treating a draft as a runnable agent.
 - Default new maps to bundled SVG country outlines and routes without tile-server setup; keep optional street-map configuration and hide its unconfigured dashboard check.
 - Preserve focus outlines in onboarding profile cards and spacing below form labels.
 - Show organization logos and fallback colors in received invitations before joining.

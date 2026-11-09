@@ -13278,6 +13278,8 @@
       "connect": "Meinen Agenten vorbereiten",
       "getAccess": "Zugriff auf einen Agenten erhalten",
       "connectionHint": "Möchten Sie eigenes Material ausprobieren? Verbinden Sie ein Modell, wenn Sie bereit sind.",
+      "setupChat": "Chat mit {agent} öffnen",
+      "setupChatHint": "Du kannst den Chat bereits öffnen. Der Administrator deines Workspace muss die KI-Einrichtung abschließen, bevor der Agent deine Aufgabe beantworten kann.",
       "actionPlan": "Ein Aktionsplan mit erkennbaren Lücken",
       "task": "Aufgabe",
       "owner": "Verantwortlich",

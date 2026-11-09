@@ -31,11 +31,13 @@ export function StartTasks({ data }: { data: Onboarding }) {
     };
   }, []);
   const agent = data.agents.find((item) => item.id === selectedAgent) ?? data.agents[0];
+  const setupAgent = !agent ? data.setup_agent : null;
+  const chatAgent = agent ?? setupAgent;
   const save = async (next: StartGoal, navigate: boolean) => {
     setSaving(true);
     try {
       await state.save.mutateAsync({ goal: next });
-      if (navigate && agent && active.current) router.push(exampleChat(agent.id, next));
+      if (navigate && chatAgent && active.current) router.push(exampleChat(chatAgent.id, next));
     } finally {
       if (active.current) setSaving(false);
     }
@@ -69,26 +71,38 @@ export function StartTasks({ data }: { data: Onboarding }) {
             </div>
           ) : (
             <p className={styles.actionHint}>
-              {t(data.can_prepare ? "workbench.connectionHint" : "workbench.memberHint")}
+              {t(
+                setupAgent
+                  ? "workbench.setupChatHint"
+                  : data.can_prepare
+                    ? "workbench.connectionHint"
+                    : "workbench.memberHint",
+              )}
             </p>
           )}
           <Button
             ref={action}
             className={styles.primaryAction}
-            disabled={saving && !!agent}
-            aria-busy={saving && !!agent}
+            disabled={saving && !!chatAgent}
+            aria-busy={saving && !!chatAgent}
             onClick={() => {
-              if (!agent) setSetupOpen(true);
+              if (!chatAgent) setSetupOpen(true);
               else
                 void save(goal, true).catch(() => {
                   /* The mutation error is rendered below. */
                 });
             }}
           >
-            {t(
-              agent ? "tryExample" : data.can_prepare ? "workbench.connect" : "workbench.getAccess",
-            )}
-            {saving && agent ? (
+            {setupAgent
+              ? t("workbench.setupChat", { agent: setupAgent.name })
+              : t(
+                  agent
+                    ? "tryExample"
+                    : data.can_prepare
+                      ? "workbench.connect"
+                      : "workbench.getAccess",
+                )}
+            {saving && chatAgent ? (
               <LoaderCircle
                 size={16}
                 className="animate-spin motion-reduce:animate-none"

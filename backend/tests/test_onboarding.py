@@ -21,6 +21,7 @@ from app.schemas.onboarding import OnboardingUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.model_profile import ModelProfileService
 from app.services.onboarding import OnboardingService
+from app.services.shipped_agents import ShippedAgentService
 
 pytestmark = pytest.mark.anyio
 
@@ -55,6 +56,7 @@ def start(monkeypatch: pytest.MonkeyPatch) -> StartFixture:
     monkeypatch.setattr(onboarding_repo, "latest_result", AsyncMock(return_value=None))
     monkeypatch.setattr(onboarding_repo, "has_activity", AsyncMock(return_value=False))
     monkeypatch.setattr(AgentRegistryService, "list_agents", AsyncMock(return_value=([], 0)))
+    monkeypatch.setattr(ShippedAgentService, "setup_candidate", AsyncMock(return_value=None))
     return ctx, member, db, OnboardingService(db)
 
 
@@ -427,3 +429,33 @@ async def test_joining_another_organization_does_not_inherit_legacy_completion(
     result = await service.state(ctx)
     assert not result.completed and not result.dismissed
     assert not result.has_result
+
+
+async def test_member_can_open_trusted_setup_chat_without_becoming_ready_to_run(
+    start: StartFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, service = start
+    member = AuthContext(
+        user_id=ctx.subject_id, organization_id=ctx.organization_id, role=OrgRoleName.MEMBER
+    )
+    starter = Agent(id=uuid4(), name="AgenticOS", organization_id=ctx.organization_id)
+    candidate = AsyncMock(return_value=starter)
+    monkeypatch.setattr(ShippedAgentService, "setup_candidate", candidate)
+    state = await service.state(member)
+    assert state.setup_agent is not None and state.setup_agent.id == starter.id
+    assert not state.agents and not state.can_prepare and not state.can_configure_model
+    assert not state.has_result
+    candidate.assert_awaited_once_with(member, None)
+
+
+@pytest.mark.parametrize("error", [AuthorizationError, NotFoundError])
+async def test_start_never_offers_an_inaccessible_setup_agent(
+    start: StartFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    error: type[AuthorizationError] | type[NotFoundError],
+) -> None:
+    ctx, _, _, service = start
+    monkeypatch.setattr(
+        ShippedAgentService, "setup_candidate", AsyncMock(side_effect=error(message="Unavailable"))
+    )
+    assert (await service.state(ctx)).setup_agent is None

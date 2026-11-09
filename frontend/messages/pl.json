@@ -13381,6 +13381,8 @@
       "connect": "Przygotuj mojego agenta",
       "getAccess": "Uzyskaj dostęp do agenta",
       "connectionHint": "Chcesz spróbować z własnym materiałem? Połącz model, kiedy będziesz gotowy.",
+      "setupChat": "Otwórz czat z {agent}",
+      "setupChatHint": "Możesz już otworzyć czat. Administrator workspace musi dokończyć konfigurację AI, zanim agent odpowie na Twoje zadanie.",
       "actionPlan": "Plan działania, w którym widać braki",
       "task": "Zadanie",
       "owner": "Odpowiada",

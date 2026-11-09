@@ -18,6 +18,7 @@ const sample: Onboarding = {
   dismissed: false,
   completed: false,
   snoozed_until: null,
+  setup_agent: null,
   can_prepare: true,
   can_configure_model: true,
   support_email: null,

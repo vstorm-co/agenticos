@@ -74,6 +74,7 @@ beforeEach(() => {
     dismissed: false,
     completed: true,
     snoozed_until: null,
+    setup_agent: null,
     can_prepare: false,
     can_configure_model: false,
     support_email: "owner@example.com",
@@ -280,3 +281,36 @@ it("gives a fresh member a personal welcome instead of the administrator's confi
   expect(screen.queryByRole("heading", { name: "Application setup" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Organization setup" })).not.toBeInTheDocument();
 });
+
+it("lets a member enter the trusted draft setup chat instead of blocking on administrator access", async () => {
+  if (!env.data) throw new Error("Missing onboarding fixture");
+  env.data.setup_agent = { id: "starter", name: "AgenticOS" };
+  render(<StartHub />);
+  expect(screen.getByText(/You can open the chat now/)).toBeVisible();
+  expect(screen.queryByRole("combobox", { name: "Agent" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Open chat with AgenticOS" }));
+  await waitFor(() => expect(env.push).toHaveBeenCalledOnce());
+  const url = pushedUrl();
+  expect(url.pathname).toBe("/chat");
+  expect(url.searchParams.get("with")).toBe("starter");
+  expect(url.searchParams.get("example")).toBe("meeting");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByText("Can add a model")).not.toBeInTheDocument();
+});
+
+it("prefers an accessible published agent over setup guidance", async () => {
+  if (!env.data) throw new Error("Missing onboarding fixture");
+  env.data.setup_agent = { id: "starter", name: "AgenticOS" };
+  env.data.agents = [{ id: "published", name: "Team agent" }];
+  render(<StartHub />);
+  await userEvent.click(screen.getByRole("button", { name: "Try this task" }));
+  await waitFor(() => expect(env.push).toHaveBeenCalledOnce());
+  expect(pushedUrl().searchParams.get("with")).toBe("published");
+  expect(screen.queryByText(/You can open the chat now/)).not.toBeInTheDocument();
+});
+
+function pushedUrl(): URL {
+  const destination = env.push.mock.calls[0]?.[0];
+  if (typeof destination !== "string") throw new Error("No chat destination was pushed");
+  return new URL(destination, "https://example.com");
+}

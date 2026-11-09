@@ -1,5 +1,5 @@
 ---
-source_sha: "30f10f2d929e"
+source_sha: "6e96ae6f5af6"
 ---
 
 # Konsola { #the-console }
@@ -930,6 +930,8 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 ## Pierwsze zadanie { #your-first-task }
 
 W nowym workspace domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
+
+Gdy nie ma dostępnego opublikowanego agenta, onboarding pozwala też otworzyć rozmowę konfiguracyjną z dostępnym draftem dostarczonego AgenticOS. Członek organizacji nie potrzebuje do tego uprawnień do modeli; otrzymuje wskazówki konfiguracyjne, a nie wynik zadania AI. Niedostępne drafty pozostają zablokowane, a dostępny opublikowany agent ma pierwszeństwo.
 
 Zamknięcie banera startowego lub wybranie **Ukryj na 24 godziny** wycisza propozycję na 24
 godziny według czasu serwera. Potem może wrócić, jeśli konfiguracja nie została ukończona,
