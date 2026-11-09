@@ -20,6 +20,7 @@ from sqlalchemy import (
     distinct,
     exists,
     func,
+    literal,
     or_,
     select,
     type_coerce,
@@ -1135,6 +1136,13 @@ async def fork_summary(db: AsyncSession, *, source_id: UUID, ordinal: int) -> Fo
         )
     ).one_or_none()
     return ForkSummary(row[0], row[1]) if row is not None else None
+
+
+async def fork_summary_bytes(db: AsyncSession, summary: list[dict[str, JsonValue]]) -> int:
+    """Measure exactly what PostgreSQL will store, including expanded JSONB numbers."""
+    return (
+        await db.execute(select(func.octet_length(cast(literal(summary, type_=JSONB), Text))))
+    ).scalar_one()
 
 
 async def _fork_agent_attribution(

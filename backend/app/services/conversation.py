@@ -1534,9 +1534,12 @@ class ConversationService:
                         threshold_bytes=2**63 - 1,
                     )
                 )
-            size = len(json.dumps(restored, ensure_ascii=True).encode("utf-8"))
+            size = len(json.dumps(restored, ensure_ascii=False).encode("utf-8"))
             if payload_bytes - summary.stored_bytes + size > MAX_FORK_BYTES:
                 raise MediaReadLimitError("Restored summary exceeds the copy budget")
+            stored_size = await conversation_repo.fork_summary_bytes(self.db, restored)
+            if payload_bytes - summary.stored_bytes + stored_size > MAX_FORK_BYTES:
+                raise MediaReadLimitError("Stored summary exceeds the copy budget")
         except (ValueError, OSError, TimeoutError) as failed:
             # No clone rows exist yet. Never persist unresolved markers as a
             # successful fork, or log the marker/payload in the public error.

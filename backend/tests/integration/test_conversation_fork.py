@@ -718,3 +718,51 @@ async def test_fork_summary_survives_deleting_the_sources_externalized_text_and_
         )
         == dumped
     )
+
+
+async def test_restored_summary_quota_counts_postgres_numeric_expansion_before_inserting(
+    db: AsyncSession, monkeypatch, tmp_path
+) -> None:
+    import json
+
+    from pydantic_ai_harness.media import externalize_media
+
+    from app.agents.capabilities.media import OrganizationMediaStore
+    from app.core.config import settings
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext
+    from app.services import conversation as conversation_service
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "Answer")
+    restored = [{"part_kind": "text", "content": "x" * 1500, "numbers": [1e100] * 3}]
+    source.summary_messages = await externalize_media(
+        restored,
+        media_store=OrganizationMediaStore(source.organization_id, source.id),
+        threshold_bytes=100,
+    )
+    source.summary_ordinal = answer.ordinal
+    await db.flush()
+    saved = await conversation_repo.fork_summary(db, source_id=source.id, ordinal=answer.ordinal)
+    assert saved is not None
+    payload = await conversation_repo.fork_payload_bytes(
+        db, source_id=source.id, ordinal=answer.ordinal
+    )
+    python_size = len(json.dumps(restored, ensure_ascii=False).encode())
+    database_size = await conversation_repo.fork_summary_bytes(db, restored)
+    assert database_size > python_size
+    limit = payload - saved.stored_bytes + python_size + 1
+    assert payload < limit
+    monkeypatch.setattr(conversation_service, "MAX_FORK_BYTES", limit)
+    with pytest.raises(BadRequestError, match="summary cannot be copied"):
+        await ConversationService(db).fork(
+            source.id,
+            message_id=answer.id,
+            organization_id=source.organization_id,
+            user_id=source.user_id,
+            ctx=AuthContext(
+                user_id=source.user_id, organization_id=source.organization_id, role="owner"
+            ),
+        )
+    assert list(await db.scalars(select(Conversation.id))) == [source.id]
