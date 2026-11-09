@@ -5490,6 +5490,10 @@
       "flow-skill-improvement-accept": {
         "title": "Was Sie damit tun können",
         "body": "Anwenden, wenn niemand schlechter wurde. Wenn doch: diese auf ihrer Version lassen, einen Fork für die Agents anlegen, denen es half, weiter verbessern oder verwerfen."
+      },
+      "skill-test-questions": {
+        "title": "Seine Testfragen",
+        "body": "Fragen, die jeder Agent mit diesem Skill bekommt, wenn eine Änderung daran geprüft wird. Beginnen Sie sie hier mit aktuellen Antworten oder leer und bearbeiten Sie sie im Dataset."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8583,6 +8587,17 @@
         "running": "Prüfung läuft: {done} von {total} Agents geprüft.",
         "finished": "Eine Prüfung auf {total, plural, =1 {1 Agent} other {# Agents}} ist fertig und wartet auf deine Entscheidung.",
         "show": "Anzeigen"
+      },
+      "testQuestions": {
+        "title": "Testfragen",
+        "count": "{count, plural, =0 {Noch keine} =1 {1 Frage} other {# Fragen}}",
+        "body": "Jeder Agent, der diesen Skill nutzt, bekommt diese Fragen, wenn eine Änderung am Skill geprüft wird, neben seinen eigenen Testfragen.",
+        "open": "{name} öffnen",
+        "none": "Dieser Skill hat noch keine Testfragen. Ein Agent ohne eigene Testfragen kann nicht geprüft werden, wenn sich der Skill ändert.",
+        "fromAnswers": "Mit aktuellen Antworten beginnen",
+        "empty": "Mit einem leeren Satz beginnen",
+        "createHint": "Aktuelle Antworten sind die der letzten 30 Tage, in denen ein Agent den Skill geladen hat. In beiden Fällen ergänzen und bearbeiten Sie die Fragen im Dataset.",
+        "askEditor": "Hinzufügen kann sie, wer diesen Skill bearbeiten und Datasets anlegen darf."
       }
     },
     "checkOnAgents": "Auf Agents prüfen",
@@ -11972,7 +11987,8 @@
       "team": "Team",
       "org": "Organisation"
     },
-    "editedWhen": "bearbeitet {when}"
+    "editedWhen": "bearbeitet {when}",
+    "skillTestSet": "Testfragen des Skills"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

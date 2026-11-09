@@ -100,7 +100,7 @@ export function useSkillTestSet(skillId: string) {
     queryFn: () => getSkillTestSet(skillId),
   });
   const create = useMutation({
-    mutationFn: () => createSkillTestSet(skillId),
+    mutationFn: (fromEvidence: boolean = true) => createSkillTestSet(skillId, fromEvidence),
     // A 409 means somebody wrote them meanwhile; either way the read is refreshed.
     onSettled: () => queryClient.invalidateQueries({ queryKey: qk.skills.testSet(skillId) }),
   });

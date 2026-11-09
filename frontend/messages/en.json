@@ -5612,6 +5612,10 @@
       "flow-skill-improvement-accept": {
         "title": "What you may do with it",
         "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
+      },
+      "skill-test-questions": {
+        "title": "Its test questions",
+        "body": "Questions every agent using the skill is asked when a change to it is checked. Start them here from recent answers, or empty, and edit them in the dataset."
       }
     },
     "chooseLanguage": "Language",
@@ -8705,6 +8709,17 @@
         "running": "Check running: {done} of {total} agents checked.",
         "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
         "show": "Show"
+      },
+      "testQuestions": {
+        "title": "Test questions",
+        "count": "{count, plural, =0 {None yet} =1 {1 question} other {# questions}}",
+        "body": "Every agent using this skill is asked these when a change to it is checked, beside its own test questions.",
+        "open": "Open {name}",
+        "none": "This skill has no test questions yet. An agent with no test questions of its own cannot be checked when the skill changes.",
+        "fromAnswers": "Start from recent answers",
+        "empty": "Start an empty set",
+        "createHint": "Recent answers are the last 30 days of answers where an agent loaded the skill. Either way you can add and edit questions in the dataset.",
+        "askEditor": "Someone who may edit this skill and create datasets can add them."
       }
     },
     "checkOnAgents": "Check on agents",
@@ -12300,7 +12315,8 @@
       "team": "Team",
       "org": "Organization"
     },
-    "editedWhen": "edited {when}"
+    "editedWhen": "edited {when}",
+    "skillTestSet": "Skill's test questions"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

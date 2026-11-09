@@ -19,6 +19,7 @@ import {
 } from "@/components/skills/skill-lines";
 import { CheckRunning } from "@/components/skills/check-running";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
+import { SkillTestQuestions } from "@/components/skills/skill-test-questions";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -135,6 +136,10 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             forks={forks}
             shown={shown}
             onShow={(next) => setShowParam(next === "all" ? null : next)}
+          />
+          <SkillTestQuestions
+            skillId={id}
+            canCreate={skill.can_edit === true && can(Perm.datasetsEdit)}
           />
           {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
         </TabsContent>

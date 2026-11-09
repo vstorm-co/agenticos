@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Building2, FlaskConical, Lock, Trash2, Users } from "lucide-react";
+import { Building2, FlaskConical, Lock, Puzzle, Trash2, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
@@ -81,6 +81,15 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           <span className="pointer-events-none">
             {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
           </span>
+          {dataset.skill_id && (
+            <Link
+              href={`${ROUTES.SKILL_DETAIL(dataset.skill_id)}#test-questions`}
+              className="hover:text-foreground relative inline-flex items-center gap-1 underline-offset-4 hover:underline"
+            >
+              <Puzzle className="h-3.5 w-3.5" aria-hidden />
+              {t("skillTestSet")}
+            </Link>
+          )}
           {dataset.can_edit && (
             <Button
               variant="ghost"

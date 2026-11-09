@@ -38,7 +38,7 @@ export function AddTestQuestions({ skillId }: { skillId: string }) {
         size="sm"
         data-tour="skill-improvement-test-set"
         loading={create.isPending}
-        onClick={() => create.mutate()}
+        onClick={() => create.mutate(true)}
       >
         {t("add")}
       </Button>

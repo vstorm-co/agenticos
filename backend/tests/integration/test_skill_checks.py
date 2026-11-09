@@ -1130,6 +1130,7 @@ class TestTestSet:
         created = await service.create_test_set(ctx, skill.id, SkillTestSetStart())
 
         assert (await service.test_set(ctx, skill.id)).id == created.id
+        assert created.skill_id == skill.id
         # Every question it gets is held out: it measures changes, nothing learns from it.
         assert created.improvement_holdout_share == 1
         with pytest.raises(AlreadyExistsError):
